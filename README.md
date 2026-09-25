@@ -4,9 +4,43 @@ Castle Role is a stylized 3D island-fortress builder built with Three.js, TypeSc
 
 **[Play Castle Role](https://abolfazl2600.github.io/Castlegame/)**
 
+## River redesign
+
+The river system has been rebuilt to look and behave more like a real medieval strategy-game river rather than flat blue grid tiles.
+
+- Connected river tiles form one continuous visual channel.
+- The riverbed is lower than surrounding ground.
+- Natural dirt/grass banks appear where the river does not continue into a neighboring tile.
+- Small stones and shoreline details break up the grid look.
+- The water uses an animated procedural texture so the surface visibly flows.
+- River editing and moat flooding still work with the redesigned river.
+
+## Castle wall redesign
+
+Walls have a heavier, more believable castle silhouette.
+
+- Stone Wall uses masonry courses, foundations, buttresses, parapets, merlons, and rampart walkways.
+- Wooden Wall reads more like a timber defensive wall with repeated vertical structural details.
+- Reinforced Wall adds heavier supports and metal bracing.
+- Adjacent segments still snap without intentional gaps.
+- Corners and junctions receive solid central piers/platforms so walls read as one continuous fortification.
+- Battlements now run along both sides of the wall top instead of appearing like a single decorative row.
+- Multi-floor wall height, thickness, battlement toggle, walkway toggle, and terrain-aware sloped connections remain supported.
+
+## Residential clusters
+
+Housing tools now build small neighborhoods rather than one oversized house.
+
+- **Cottage Cluster** creates several small cottages plus a village well.
+- **House Cluster** creates four compact family homes.
+- **Manor Court** creates a larger main residence with smaller service houses and fencing.
+- **Villa Quarter** creates multiple detailed homes around a landscaped courtyard.
+- Individual mini-houses include doors, windows, chimneys, roof variation, porch details, and small decorative props.
+- Each cluster still occupies one logical build tile, so existing save/selection logic remains lightweight.
+
 ## Terrain editing
 
-The world now has a brush-based terrain editor:
+The world includes a brush-based terrain editor:
 
 - Raise
 - Lower
@@ -30,17 +64,6 @@ Access pieces snap beside fortifications and calculate the height they need to r
 - Ladder
 
 If the neighboring wall or tower is made taller, the access piece adapts when the scene redraws.
-
-## Advanced walls
-
-- Drag A → B to build a continuous snapped wall line
-- Automatic orthogonal corners
-- Stone / Wooden / Reinforced wall materials
-- Thin / Medium / Thick wall settings
-- Optional Battlement
-- Optional top Walkway
-- Multi-floor height editing
-- Terrain-aware connections
 
 ## Modular towers
 
@@ -83,8 +106,7 @@ The selector can also be reopened from the top bar.
 ## Other systems
 
 - Worker-dug moats that flood when connected to rivers
-- Roads, farms, four house types
-- Trees, mountains, mines
+- Roads, farms, trees, mountains, and mines
 - River and land editing
 - Local autosave, Save/Load, and Reset
 - 22 × 22 playable island grid
@@ -95,7 +117,7 @@ The selector can also be reopened from the top bar.
 - **4** — Gate
 - **5** — Modular Tower
 - **6** — Road
-- **7 / 8 / 9 / 0** — Cottage / House / Manor / Villa
+- **7 / 8 / 9 / 0** — Cottage Cluster / House Cluster / Manor Court / Villa Quarter
 - **A** — Stone Stairs
 - **S** — Wooden Stairs
 - **D** — Ramp

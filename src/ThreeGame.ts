@@ -100,10 +100,10 @@ const TOOL_GROUPS: Array<{ label: string; tools: ToolDefinition[] }> = [
     label: 'Settlement',
     tools: [
       { id: 'road', icon: '🛣️', label: 'Road', detail: 'Auto-connects edge to edge', shortcut: '6' },
-      { id: 'cottage', icon: '🏠', label: 'Cottage', detail: 'Detailed small home', shortcut: '7' },
-      { id: 'house', icon: '🏡', label: 'House', detail: 'Family residence', shortcut: '8' },
-      { id: 'manor', icon: '🏯', label: 'Manor', detail: 'Large noble home', shortcut: '9' },
-      { id: 'villa', icon: '🏘️', label: 'Villa', detail: 'Wide premium house', shortcut: '0' },
+      { id: 'cottage', icon: '🏠', label: 'Cottage Cluster', detail: '3 small cottages + village props', shortcut: '7' },
+      { id: 'house', icon: '🏡', label: 'House Cluster', detail: '4 connected village homes', shortcut: '8' },
+      { id: 'manor', icon: '🏯', label: 'Manor Court', detail: 'Main hall + service houses', shortcut: '9' },
+      { id: 'villa', icon: '🏘️', label: 'Villa Quarter', detail: '3 detailed homes + courtyard', shortcut: '0' },
       { id: 'farm', icon: '🌾', label: 'Farm', detail: 'Cultivated crop field', shortcut: 'F' },
     ],
   },
@@ -113,7 +113,7 @@ const TOOL_GROUPS: Array<{ label: string; tools: ToolDefinition[] }> = [
       { id: 'tree', icon: '🌲', label: 'Tree', detail: 'Plant a detailed tree', shortcut: 'T' },
       { id: 'mountain', icon: '⛰️', label: 'Mountain', detail: 'Repeated clicks grow it', shortcut: 'N' },
       { id: 'mine', icon: '⛏️', label: 'Mine', detail: 'Natural or built mountain', shortcut: 'M' },
-      { id: 'river', icon: '🌊', label: 'River', detail: 'Carve a water channel', shortcut: 'R' },
+      { id: 'river', icon: '🌊', label: 'River', detail: 'Carve connected flowing water', shortcut: 'R' },
       { id: 'land', icon: '🌱', label: 'Land', detail: 'Fill water into buildable land', shortcut: 'L' },
       { id: 'raise', icon: '⬆️', label: 'Raise', detail: 'Raise terrain with brush', shortcut: 'U' },
       { id: 'lower', icon: '⬇️', label: 'Lower', detail: 'Lower terrain with brush', shortcut: 'J' },
@@ -147,6 +147,8 @@ export class ThreeGame {
   );
   private readonly moatTasks = new Map<string, MoatTask>();
   private readonly workers: WorkerAgent[] = [];
+  private readonly riverTexture: THREE.CanvasTexture;
+  private readonly riverWaterMaterial: THREE.MeshStandardMaterial;
 
   private selectedTool: ToolKind = 'wall1';
   private selectedCell: GridPoint | null = null;
@@ -176,6 +178,17 @@ export class ThreeGame {
   constructor(root: HTMLElement) {
     const hadSave = localStorage.getItem(SAVE_KEY) !== null;
     this.root = root;
+    this.riverTexture = this.createRiverTexture();
+    this.riverWaterMaterial = new THREE.MeshStandardMaterial({
+      color: 0x55b9ca,
+      map: this.riverTexture,
+      roughness: 0.16,
+      metalness: 0.08,
+      transparent: true,
+      opacity: 0.92,
+      emissive: 0x0b4050,
+      emissiveIntensity: 0.16,
+    });
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.6));
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
     this.renderer.shadowMap.enabled = true;
@@ -232,6 +245,50 @@ export class ThreeGame {
 
   private isWallTool(tool: ToolKind): tool is WallKind {
     return WALL_KINDS.includes(tool as WallKind);
+  }
+
+  private createRiverTexture(): THREE.CanvasTexture {
+    const canvas = document.createElement('canvas');
+    canvas.width = 128;
+    canvas.height = 256;
+    const context = canvas.getContext('2d');
+
+    if (context) {
+      const gradient = context.createLinearGradient(0, 0, 128, 0);
+      gradient.addColorStop(0, '#4ba9bd');
+      gradient.addColorStop(0.45, '#5fc5d3');
+      gradient.addColorStop(1, '#3f9fb7');
+      context.fillStyle = gradient;
+      context.fillRect(0, 0, 128, 256);
+
+      context.globalAlpha = 0.34;
+      context.strokeStyle = '#d9fbff';
+      context.lineWidth = 3;
+      for (let y = -24; y < 300; y += 34) {
+        context.beginPath();
+        context.moveTo(-10, y);
+        context.bezierCurveTo(30, y - 10, 74, y + 12, 140, y - 4);
+        context.stroke();
+      }
+
+      context.globalAlpha = 0.17;
+      context.strokeStyle = '#ffffff';
+      context.lineWidth = 1.5;
+      for (let y = -12; y < 300; y += 21) {
+        context.beginPath();
+        context.moveTo(2, y);
+        context.quadraticCurveTo(62, y + 8, 126, y - 3);
+        context.stroke();
+      }
+    }
+
+    const texture = new THREE.CanvasTexture(canvas);
+    texture.colorSpace = THREE.SRGBColorSpace;
+    texture.wrapS = THREE.RepeatWrapping;
+    texture.wrapT = THREE.RepeatWrapping;
+    texture.repeat.set(1.25, 3.2);
+    texture.anisotropy = 4;
+    return texture;
   }
 
   private addLights(): void {
@@ -405,8 +462,10 @@ export class ThreeGame {
 
       const material = mesh.material as THREE.Material | THREE.Material[] | undefined;
       if (Array.isArray(material)) {
-        for (const item of material) item.dispose();
-      } else if (material) {
+        for (const item of material) {
+          if (item !== this.riverWaterMaterial) item.dispose();
+        }
+      } else if (material && material !== this.riverWaterMaterial) {
         material.dispose();
       }
     });
@@ -451,17 +510,7 @@ export class ThreeGame {
         group.position.set(position.x, 0, position.z);
 
         if (terrain === 'river') {
-          const bank = new THREE.MeshStandardMaterial({ color: 0x9a865d, roughness: 1 });
-          const water = new THREE.MeshStandardMaterial({
-            color: 0x2aa7c4,
-            roughness: 0.2,
-            metalness: 0.04,
-            transparent: true,
-            opacity: 0.9,
-          });
-
-          this.addBox(group, TILE, 0.18, TILE, bank, 0, 2.09, 0);
-          this.addBox(group, TILE * 0.84, 0.1, TILE * 0.84, water, 0, 2.18, 0);
+          this.renderRiverTile(group, x, y);
           this.terrainLayer.add(group);
           continue;
         }
@@ -491,6 +540,106 @@ export class ThreeGame {
 
         if (group.children.length > 0) this.terrainLayer.add(group);
       }
+    }
+  }
+
+  private isRiverAt(x: number, y: number): boolean {
+    return this.terrainAt(x, y) === 'river';
+  }
+
+  private addRiverSurface(
+    group: THREE.Group,
+    width: number,
+    depth: number,
+    x: number,
+    z: number,
+    rotationY = 0,
+  ): void {
+    const geometry = new THREE.PlaneGeometry(width, depth, 1, 1);
+    geometry.rotateX(-Math.PI / 2);
+
+    const water = new THREE.Mesh(geometry, this.riverWaterMaterial);
+    water.position.set(x, 2.075, z);
+    water.rotation.y = rotationY;
+    water.receiveShadow = true;
+    group.add(water);
+  }
+
+  private renderRiverTile(group: THREE.Group, gx: number, gy: number): void {
+    const left = this.isRiverAt(gx - 1, gy);
+    const right = this.isRiverAt(gx + 1, gy);
+    const up = this.isRiverAt(gx, gy - 1);
+    const down = this.isRiverAt(gx, gy + 1);
+
+    const riverBed = new THREE.MeshStandardMaterial({ color: 0x5e5548, roughness: 1 });
+    const wetEarth = new THREE.MeshStandardMaterial({ color: 0x756850, roughness: 1 });
+    const bank = new THREE.MeshStandardMaterial({ color: 0x8f7f59, roughness: 0.98 });
+    const grass = new THREE.MeshStandardMaterial({ color: 0x9eb95f, roughness: 0.94 });
+    const foam = new THREE.MeshBasicMaterial({
+      color: 0xcdf8ff,
+      transparent: true,
+      opacity: 0.45,
+      depthWrite: false,
+    });
+
+    this.addBox(group, TILE, 0.26, TILE, wetEarth, 0, 1.96, 0);
+    this.addBox(group, 2.75, 0.12, 2.75, riverBed, 0, 2.02, 0);
+
+    const centerGeometry = new THREE.CircleGeometry(1.42, 28);
+    centerGeometry.rotateX(-Math.PI / 2);
+    const centerWater = new THREE.Mesh(centerGeometry, this.riverWaterMaterial);
+    centerWater.position.y = 2.08;
+    group.add(centerWater);
+
+    const connectorLength = TILE / 2 + 0.44;
+    const connectorWidth = 2.48;
+
+    if (left) this.addRiverSurface(group, connectorLength, connectorWidth, -1.24, 0, Math.PI / 2);
+    if (right) this.addRiverSurface(group, connectorLength, connectorWidth, 1.24, 0, Math.PI / 2);
+    if (up) this.addRiverSurface(group, connectorWidth, connectorLength, 0, -1.24);
+    if (down) this.addRiverSurface(group, connectorWidth, connectorLength, 0, 1.24);
+
+    if (!left && !right && !up && !down) {
+      this.addRiverSurface(group, 2.5, TILE + 0.08, 0, 0);
+    }
+
+    const addBank = (
+      width: number,
+      depth: number,
+      x: number,
+      z: number,
+      foamWidth: number,
+      foamDepth: number,
+      foamX: number,
+      foamZ: number,
+    ): void => {
+      this.addBox(group, width, 0.48, depth, bank, x, 2.18, z);
+      this.addBox(group, width * 0.92, 0.08, depth * 0.92, grass, x, 2.46, z);
+
+      const foamGeometry = new THREE.PlaneGeometry(foamWidth, foamDepth);
+      foamGeometry.rotateX(-Math.PI / 2);
+      const foamMesh = new THREE.Mesh(foamGeometry, foam);
+      foamMesh.position.set(foamX, 2.095, foamZ);
+      group.add(foamMesh);
+    };
+
+    if (!left) addBank(0.62, TILE, -1.69, 0, 0.16, 3.2, -1.36, 0);
+    if (!right) addBank(0.62, TILE, 1.69, 0, 0.16, 3.2, 1.36, 0);
+    if (!up) addBank(TILE, 0.62, 0, -1.69, 3.2, 0.16, 0, -1.36);
+    if (!down) addBank(TILE, 0.62, 0, 1.69, 3.2, 0.16, 0, 1.36);
+
+    const stoneMaterial = new THREE.MeshStandardMaterial({ color: 0x8d887e, roughness: 1 });
+    const pebbleCount = 1 + ((gx * 7 + gy * 11) % 3);
+    for (let i = 0; i < pebbleCount; i += 1) {
+      const pebble = new THREE.Mesh(
+        new THREE.DodecahedronGeometry(0.12 + ((gx + gy + i) % 3) * 0.05, 0),
+        stoneMaterial,
+      );
+      const side = (gx + gy + i) % 2 === 0 ? -1 : 1;
+      pebble.position.set(side * (1.36 + i * 0.08), 2.31, -0.9 + i * 0.78);
+      pebble.scale.y = 0.55;
+      pebble.castShadow = true;
+      group.add(pebble);
     }
   }
 
@@ -652,25 +801,56 @@ export class ThreeGame {
     const walkway = cell.walkway ?? false;
 
     const config = {
-      wall1: { color: 0xd5c2a9, dark: 0x9b876d, baseHeight: 3.35, walkway: 0xb29a7f },
-      wall2: { color: 0x8f6541, dark: 0x5d3f2b, baseHeight: 3.65, walkway: 0x69482f },
-      wall3: { color: 0xaeb8c1, dark: 0x66727c, baseHeight: 4.2, walkway: 0x59656f },
+      wall1: {
+        color: 0xcdbb9f,
+        dark: 0x8d7a62,
+        accent: 0xe2d3bc,
+        baseHeight: 3.45,
+        walkway: 0xa98f72,
+      },
+      wall2: {
+        color: 0x8b5e3b,
+        dark: 0x4f3423,
+        accent: 0xb77c4d,
+        baseHeight: 3.7,
+        walkway: 0x68462e,
+      },
+      wall3: {
+        color: 0xa7b0b8,
+        dark: 0x5c6670,
+        accent: 0xc7d0d6,
+        baseHeight: 4.3,
+        walkway: 0x58636c,
+      },
     }[kind];
 
     const height = config.baseHeight + Math.max(0, level - 1) * 1.8;
-    const wallMaterial = new THREE.MeshStandardMaterial({ color: config.color, roughness: 0.82 });
-    const darkMaterial = new THREE.MeshStandardMaterial({ color: config.dark, roughness: 0.94 });
-    const walkwayMaterial = new THREE.MeshStandardMaterial({ color: config.walkway, roughness: 0.9 });
+    const wallMaterial = new THREE.MeshStandardMaterial({ color: config.color, roughness: 0.88 });
+    const darkMaterial = new THREE.MeshStandardMaterial({ color: config.dark, roughness: 0.97 });
+    const accentMaterial = new THREE.MeshStandardMaterial({ color: config.accent, roughness: 0.86 });
+    const walkwayMaterial = new THREE.MeshStandardMaterial({ color: config.walkway, roughness: 0.92 });
+    const metalMaterial = new THREE.MeshStandardMaterial({
+      color: 0x535e67,
+      metalness: 0.3,
+      roughness: 0.58,
+    });
+
     const baseY = 2.22 + height / 2;
     const topY = 2.22 + height;
+    const foundationHeight = 0.5;
 
-    this.addBox(group, thickness, height, thickness, wallMaterial, 0, baseY, 0);
-
-    if (kind === 'wall2') {
-      for (const offset of [-thickness * 0.37, thickness * 0.37]) {
-        this.addBox(group, 0.16, height + 0.22, thickness + 0.24, darkMaterial, offset, baseY, 0);
-      }
-    }
+    // Massive central pier keeps corners, T-junctions and cross-junctions visually solid.
+    this.addBox(group, thickness * 1.1, height, thickness * 1.1, wallMaterial, 0, baseY, 0);
+    this.addBox(
+      group,
+      thickness * 1.34,
+      foundationHeight,
+      thickness * 1.34,
+      darkMaterial,
+      0,
+      2.22 + foundationHeight / 2,
+      0,
+    );
 
     const neighbors = [
       { dx: -1, dy: 0, axis: 'x' as const, sign: -1 },
@@ -680,6 +860,7 @@ export class ThreeGame {
     ];
 
     let connections = 0;
+
     for (const neighbor of neighbors) {
       if (!this.isWallFamily(this.kindAt(gx + neighbor.dx, gy + neighbor.dy))) continue;
       connections += 1;
@@ -698,53 +879,114 @@ export class ThreeGame {
         wallMaterial,
       );
 
-      if (battlement) {
-        const offset = neighbor.sign * TILE * 0.25;
-        this.addMerlons(
+      this.addWallFoundationArm(
+        group,
+        neighbor.axis,
+        neighbor.sign,
+        elevationDelta,
+        thickness,
+        darkMaterial,
+      );
+
+      this.addWallFaceDetails(
+        group,
+        kind,
+        neighbor.axis,
+        neighbor.sign,
+        elevationDelta,
+        height,
+        thickness,
+        darkMaterial,
+        accentMaterial,
+      );
+
+      if (walkway) {
+        this.addWallWalkway(
           group,
-          neighbor.axis === 'x' ? offset : 0,
-          topY + elevationDelta * 0.25 + 0.29,
-          neighbor.axis === 'z' ? offset : 0,
           neighbor.axis,
-          TILE / 2 + 0.12,
+          neighbor.sign,
+          elevationDelta,
+          topY,
+          thickness,
+          walkwayMaterial,
+        );
+      }
+
+      if (battlement) {
+        this.addWallParapets(
+          group,
+          neighbor.axis,
+          neighbor.sign,
+          elevationDelta,
+          topY,
+          thickness,
           wallMaterial,
         );
       }
+    }
+
+    // An isolated section still looks like a real standalone curtain wall.
+    if (connections === 0) {
+      this.addBox(group, TILE + 0.12, height, thickness, wallMaterial, 0, baseY, 0);
+      this.addBox(group, TILE + 0.2, foundationHeight, thickness * 1.28, darkMaterial, 0, 2.22 + foundationHeight / 2, 0);
 
       if (walkway) {
-        const offset = neighbor.sign * TILE * 0.25;
+        this.addBox(group, TILE + 0.1, 0.22, Math.max(0.7, thickness - 0.28), walkwayMaterial, 0, topY - 0.26, 0);
+      }
+
+      if (battlement) {
+        const sideOffset = Math.max(0.34, thickness / 2 - 0.08);
+        this.addParapetBeam(group, 'x', 0, topY + 0.08, -sideOffset, TILE + 0.12, wallMaterial);
+        this.addParapetBeam(group, 'x', 0, topY + 0.08, sideOffset, TILE + 0.12, wallMaterial);
+        this.addMerlons(group, 0, topY + 0.55, -sideOffset, 'x', TILE, wallMaterial);
+        this.addMerlons(group, 0, topY + 0.55, sideOffset, 'x', TILE, wallMaterial);
+      }
+
+      this.addWallFaceDetails(
+        group,
+        kind,
+        'x',
+        0,
+        0,
+        height,
+        thickness,
+        darkMaterial,
+        accentMaterial,
+        TILE,
+      );
+    }
+
+    // Corner platform and parapet make junctions read as a continuous castle rampart.
+    if (connections >= 2) {
+      if (walkway) {
         this.addBox(
           group,
-          neighbor.axis === 'x' ? TILE / 2 + 0.16 : thickness + 0.78,
-          0.2,
-          neighbor.axis === 'z' ? TILE / 2 + 0.16 : thickness + 0.78,
+          thickness + 0.86,
+          0.22,
+          thickness + 0.86,
           walkwayMaterial,
-          neighbor.axis === 'x' ? offset : 0,
-          topY - 0.26 + elevationDelta * 0.25,
-          neighbor.axis === 'z' ? offset : 0,
+          0,
+          topY - 0.26,
+          0,
         );
       }
-    }
 
-    if (connections === 0) {
-      this.addBox(group, TILE + 0.08, height, thickness, wallMaterial, 0, baseY, 0);
-      if (battlement) this.addMerlons(group, 0, topY + 0.29, 0, 'x', TILE, wallMaterial);
-      if (walkway) {
-        this.addBox(group, TILE + 0.08, 0.2, thickness + 0.78, walkwayMaterial, 0, topY - 0.26, 0);
+      if (battlement) {
+        const edge = thickness / 2 + 0.28;
+        this.addBox(group, thickness + 0.92, 0.42, 0.22, wallMaterial, 0, topY + 0.22, -edge);
+        this.addBox(group, thickness + 0.92, 0.42, 0.22, wallMaterial, 0, topY + 0.22, edge);
+        this.addBox(group, 0.22, 0.42, thickness + 0.92, wallMaterial, -edge, topY + 0.22, 0);
+        this.addBox(group, 0.22, 0.42, thickness + 0.92, wallMaterial, edge, topY + 0.22, 0);
       }
-    } else if (walkway) {
-      this.addBox(group, thickness + 0.78, 0.2, thickness + 0.78, walkwayMaterial, 0, topY - 0.26, 0);
     }
-
-    this.addBox(group, thickness + 0.16, 0.3, thickness + 0.16, darkMaterial, 0, topY + 0.05, 0);
 
     const visibleFloorLines = Math.min(Math.max(0, level - 1), 14);
     for (let floor = 1; floor <= visibleFloorLines; floor += 1) {
       this.addBox(
         group,
-        thickness + 0.2,
+        thickness * 1.18,
         0.13,
-        thickness + 0.2,
+        thickness * 1.18,
         darkMaterial,
         0,
         2.22 + config.baseHeight + floor * 1.8 - 0.9,
@@ -753,13 +995,204 @@ export class ThreeGame {
     }
 
     if (kind === 'wall3') {
-      const brace = new THREE.MeshStandardMaterial({ color: 0x505c65, metalness: 0.28, roughness: 0.58 });
-      this.addBox(group, thickness + 0.3, 0.34, thickness + 0.3, brace, 0, 3.2, 0);
-      this.addBox(group, 0.18, height * 0.72, thickness + 0.4, brace, -thickness * 0.48, baseY, 0);
-      this.addBox(group, 0.18, height * 0.72, thickness + 0.4, brace, thickness * 0.48, baseY, 0);
+      this.addBox(group, thickness + 0.42, 0.34, thickness + 0.42, metalMaterial, 0, 3.15, 0);
+      for (const offset of [-thickness * 0.53, thickness * 0.53]) {
+        this.addBox(group, 0.2, height * 0.72, thickness + 0.5, metalMaterial, offset, baseY, 0);
+      }
     }
 
     return group;
+  }
+
+  private addWallFoundationArm(
+    group: THREE.Group,
+    axis: 'x' | 'z',
+    sign: number,
+    elevationDelta: number,
+    thickness: number,
+    material: THREE.Material,
+  ): void {
+    const run = TILE / 2 + 0.16;
+    const rise = elevationDelta / 2;
+    const length = Math.sqrt(run * run + rise * rise);
+    const foundation = this.addBox(
+      group,
+      axis === 'x' ? length : thickness * 1.24,
+      0.52,
+      axis === 'z' ? length : thickness * 1.24,
+      material,
+      axis === 'x' ? sign * run / 2 : 0,
+      2.48 + rise / 2,
+      axis === 'z' ? sign * run / 2 : 0,
+    );
+
+    const angle = Math.atan2(rise, run);
+    if (axis === 'x') foundation.rotation.z = sign * angle;
+    else foundation.rotation.x = -sign * angle;
+  }
+
+  private addWallWalkway(
+    group: THREE.Group,
+    axis: 'x' | 'z',
+    sign: number,
+    elevationDelta: number,
+    topY: number,
+    thickness: number,
+    material: THREE.Material,
+  ): void {
+    const run = TILE / 2 + 0.14;
+    const rise = elevationDelta / 2;
+    const length = Math.sqrt(run * run + rise * rise);
+    const offset = sign * run / 2;
+    const walkway = this.addBox(
+      group,
+      axis === 'x' ? length : Math.max(0.72, thickness - 0.22),
+      0.22,
+      axis === 'z' ? length : Math.max(0.72, thickness - 0.22),
+      material,
+      axis === 'x' ? offset : 0,
+      topY - 0.25 + rise / 2,
+      axis === 'z' ? offset : 0,
+    );
+
+    const angle = Math.atan2(rise, run);
+    if (axis === 'x') walkway.rotation.z = sign * angle;
+    else walkway.rotation.x = -sign * angle;
+  }
+
+  private addWallParapets(
+    group: THREE.Group,
+    axis: 'x' | 'z',
+    sign: number,
+    elevationDelta: number,
+    topY: number,
+    thickness: number,
+    material: THREE.Material,
+  ): void {
+    const run = TILE / 2 + 0.14;
+    const rise = elevationDelta / 2;
+    const offset = sign * run / 2;
+    const sideOffset = Math.max(0.36, thickness / 2 - 0.05);
+    const y = topY + rise / 2 + 0.1;
+
+    if (axis === 'x') {
+      this.addParapetBeam(group, 'x', offset, y, -sideOffset, run, material, elevationDelta, sign);
+      this.addParapetBeam(group, 'x', offset, y, sideOffset, run, material, elevationDelta, sign);
+      this.addMerlons(group, offset, y + 0.46, -sideOffset, 'x', run, material);
+      this.addMerlons(group, offset, y + 0.46, sideOffset, 'x', run, material);
+    } else {
+      this.addParapetBeam(group, 'z', -sideOffset, y, offset, run, material, elevationDelta, sign);
+      this.addParapetBeam(group, 'z', sideOffset, y, offset, run, material, elevationDelta, sign);
+      this.addMerlons(group, -sideOffset, y + 0.46, offset, 'z', run, material);
+      this.addMerlons(group, sideOffset, y + 0.46, offset, 'z', run, material);
+    }
+  }
+
+  private addParapetBeam(
+    group: THREE.Group,
+    axis: 'x' | 'z',
+    x: number,
+    y: number,
+    z: number,
+    span: number,
+    material: THREE.Material,
+    elevationDelta = 0,
+    sign = 1,
+  ): void {
+    const run = span;
+    const rise = elevationDelta / 2;
+    const length = Math.sqrt(run * run + rise * rise);
+    const beam = this.addBox(
+      group,
+      axis === 'x' ? length : 0.24,
+      0.34,
+      axis === 'z' ? length : 0.24,
+      material,
+      x,
+      y,
+      z,
+    );
+
+    const angle = Math.atan2(rise, run);
+    if (axis === 'x') beam.rotation.z = sign * angle;
+    else beam.rotation.x = -sign * angle;
+  }
+
+  private addWallFaceDetails(
+    group: THREE.Group,
+    kind: WallKind,
+    axis: 'x' | 'z',
+    sign: number,
+    elevationDelta: number,
+    height: number,
+    thickness: number,
+    darkMaterial: THREE.Material,
+    accentMaterial: THREE.Material,
+    overrideSpan?: number,
+  ): void {
+    const span = overrideSpan ?? TILE / 2 + 0.12;
+    const offset = overrideSpan ? 0 : sign * span / 2;
+    const rise = overrideSpan ? 0 : elevationDelta / 2;
+
+    if (kind === 'wall2') {
+      const plankCount = overrideSpan ? 8 : 4;
+      for (let i = 0; i < plankCount; i += 1) {
+        const t = plankCount === 1 ? 0 : i / (plankCount - 1) - 0.5;
+        const along = t * Math.max(0.4, span - 0.35);
+
+        this.addBox(
+          group,
+          axis === 'x' ? 0.11 : thickness + 0.14,
+          height * 0.88,
+          axis === 'z' ? 0.11 : thickness + 0.14,
+          darkMaterial,
+          axis === 'x' ? offset + along : 0,
+          2.25 + height * 0.46 + rise / 2,
+          axis === 'z' ? offset + along : 0,
+        );
+      }
+
+      this.addBox(
+        group,
+        axis === 'x' ? span : thickness + 0.22,
+        0.2,
+        axis === 'z' ? span : thickness + 0.22,
+        accentMaterial,
+        axis === 'x' ? offset : 0,
+        3.15 + rise / 2,
+        axis === 'z' ? offset : 0,
+      );
+      return;
+    }
+
+    const courseCount = Math.max(2, Math.min(5, Math.floor(height / 1.15)));
+    for (let course = 1; course <= courseCount; course += 1) {
+      const y = 2.22 + (height * course) / (courseCount + 1) + rise / 2;
+      this.addBox(
+        group,
+        axis === 'x' ? span : thickness + 0.12,
+        0.1,
+        axis === 'z' ? span : thickness + 0.12,
+        darkMaterial,
+        axis === 'x' ? offset : 0,
+        y,
+        axis === 'z' ? offset : 0,
+      );
+    }
+
+    const buttressOffset = Math.max(0.42, span * 0.34);
+    for (const side of [-1, 1]) {
+      this.addBox(
+        group,
+        axis === 'x' ? 0.22 : thickness + 0.28,
+        Math.min(2.15, height * 0.55),
+        axis === 'z' ? 0.22 : thickness + 0.28,
+        accentMaterial,
+        axis === 'x' ? offset + side * buttressOffset : 0,
+        3.25 + rise / 2,
+        axis === 'z' ? offset + side * buttressOffset : 0,
+      );
+    }
   }
 
   private addSlopedWallArm(
@@ -771,7 +1204,7 @@ export class ThreeGame {
     thickness: number,
     material: THREE.Material,
   ): void {
-    const run = TILE / 2 + 0.12;
+    const run = TILE / 2 + 0.16;
     const rise = elevationDelta / 2;
     const length = Math.sqrt(run * run + rise * rise);
     const mesh = this.addBox(
@@ -806,7 +1239,7 @@ export class ThreeGame {
       this.addBox(
         group,
         axis === 'x' ? 0.42 : 0.62,
-        0.58,
+        0.62,
         axis === 'x' ? 0.62 : 0.42,
         material,
         x + (axis === 'x' ? offset : 0),
@@ -1101,77 +1534,144 @@ export class ThreeGame {
   }
 
   private makeHouse(group: THREE.Group, kind: 'cottage' | 'house' | 'manor' | 'villa'): THREE.Group {
-    const config = {
-      cottage: { width: 3.0, depth: 2.8, height: 3.25, roof: 2.05, color: 0xc98362, roofColor: 0x8d5e4f },
-      house: { width: 3.1, depth: 2.9, height: 4.5, roof: 2.25, color: 0xb79bd8, roofColor: 0x745f9c },
-      manor: { width: 3.25, depth: 3.0, height: 5.9, roof: 2.55, color: 0xd8758a, roofColor: 0x8f4e5e },
-      villa: { width: 3.55, depth: 3.25, height: 4.1, roof: 1.8, color: 0x71b9b2, roofColor: 0x477f7b },
-    }[kind];
+    const pathMaterial = new THREE.MeshStandardMaterial({ color: 0xa98d70, roughness: 1 });
+    const fenceMaterial = new THREE.MeshStandardMaterial({ color: 0x7c583d, roughness: 1 });
+    const grassPatch = new THREE.MeshStandardMaterial({ color: 0x93b75c, roughness: 0.96 });
 
-    const wall = new THREE.MeshStandardMaterial({ color: config.color, roughness: 0.74 });
-    const roofMaterial = new THREE.MeshStandardMaterial({ color: config.roofColor, roughness: 0.78 });
-    const wood = new THREE.MeshStandardMaterial({ color: 0x76513c, roughness: 0.95 });
-    const windowMaterial = new THREE.MeshStandardMaterial({
-      color: 0x8de7ff,
-      emissive: 0x155a68,
-      emissiveIntensity: 0.55,
-    });
-    const stone = new THREE.MeshStandardMaterial({ color: 0xb9aea3, roughness: 1 });
-    const green = new THREE.MeshStandardMaterial({ color: 0x6f9f55, roughness: 0.9 });
+    // A residential placement is now a small neighborhood instead of one oversized house.
+    this.addBox(group, 3.5, 0.08, 0.5, pathMaterial, 0, 2.25, 0.12);
+    this.addBox(group, 0.5, 0.08, 3.35, pathMaterial, -0.15, 2.25, 0);
+    this.addBox(group, 3.65, 0.06, 3.65, grassPatch, 0, 2.2, 0);
 
-    this.addBox(group, config.width + 0.18, 0.28, config.depth + 0.18, stone, 0, 2.31, 0);
-    this.addBox(group, config.width, config.height, config.depth, wall, 0, 2.2 + config.height / 2, 0);
+    if (kind === 'cottage') {
+      this.addMiniHouse(group, -0.92, -0.76, -0.08, 1.2, 1.02, 1.55, 0xd7a17c, 0x8b5a43, false);
+      this.addMiniHouse(group, 0.86, -0.52, 0.12, 1.12, 0.96, 1.42, 0xd9b08a, 0x83533d, false);
+      this.addMiniHouse(group, 0.55, 0.96, Math.PI, 1.05, 0.9, 1.34, 0xc99474, 0x78513d, false);
+      this.addVillageWell(group, -0.82, 0.85);
+    } else if (kind === 'house') {
+      this.addMiniHouse(group, -0.96, -0.84, -0.05, 1.18, 1.02, 1.85, 0xc6aadf, 0x735d98, true);
+      this.addMiniHouse(group, 0.9, -0.82, 0.06, 1.18, 1.02, 1.75, 0xb99bd6, 0x6a568f, true);
+      this.addMiniHouse(group, -0.92, 0.92, Math.PI + 0.04, 1.12, 0.98, 1.68, 0xd0b7e4, 0x8067a4, false);
+      this.addMiniHouse(group, 0.9, 0.88, Math.PI - 0.05, 1.08, 0.96, 1.6, 0xbca1d4, 0x684f8b, false);
+    } else if (kind === 'manor') {
+      this.addMiniHouse(group, 0, -0.42, 0, 1.78, 1.34, 2.45, 0xd77b8f, 0x8b4f5f, true);
+      this.addMiniHouse(group, -1.15, 0.9, Math.PI, 1.0, 0.9, 1.42, 0xd9a0ab, 0x80515a, false);
+      this.addMiniHouse(group, 1.12, 0.88, Math.PI, 1.0, 0.9, 1.5, 0xce8f9e, 0x754852, false);
+      this.addVillageWell(group, 0, 1.12);
 
-    const roofMesh = new THREE.Mesh(new THREE.ConeGeometry(config.width * 0.78, config.roof, 4), roofMaterial);
-    roofMesh.position.y = 2.2 + config.height + config.roof / 2;
-    roofMesh.rotation.y = Math.PI / 4;
-    roofMesh.castShadow = true;
-    group.add(roofMesh);
+      for (const x of [-1.62, 1.62]) {
+        this.addBox(group, 0.1, 0.72, 3.1, fenceMaterial, x, 2.57, 0);
+      }
+    } else {
+      this.addMiniHouse(group, -0.95, -0.62, -0.08, 1.28, 1.08, 1.92, 0x79c1ba, 0x467e78, true);
+      this.addMiniHouse(group, 0.92, -0.55, 0.1, 1.28, 1.08, 1.82, 0x6fb0ab, 0x3d716d, true);
+      this.addMiniHouse(group, 0, 0.98, Math.PI, 1.5, 1.1, 2.05, 0x86c9c2, 0x4f8983, true);
 
-    this.addBox(group, 0.66, 1.25, 0.12, wood, 0, 2.84, -config.depth / 2 - 0.07);
-
-    for (const sx of [-0.82, 0.82]) {
-      this.addBox(
-        group,
-        0.52,
-        0.72,
-        0.08,
-        windowMaterial,
-        sx,
-        3.35 + config.height * 0.22,
-        -config.depth / 2 - 0.05,
-      );
-      this.addBox(group, 0.6, 0.08, 0.12, wood, sx, 2.93 + config.height * 0.22, -config.depth / 2 - 0.11);
+      const garden = new THREE.Mesh(new THREE.CircleGeometry(0.65, 18), grassPatch);
+      garden.rotation.x = -Math.PI / 2;
+      garden.position.set(0, 2.255, 0.08);
+      group.add(garden);
+      this.addVillageWell(group, 0, 0.06);
     }
 
-    this.addBox(
-      group,
-      0.42,
-      1.25,
-      0.42,
-      stone,
-      config.width * 0.28,
-      2.2 + config.height + config.roof * 0.62,
-      0.2,
-    );
-    this.addBox(group, 1.65, 0.16, 0.78, wood, 0, 2.27, -config.depth / 2 - 0.4);
-
-    for (const px of [-1.03, 1.03]) {
-      const shrub = new THREE.Mesh(new THREE.SphereGeometry(0.3, 8, 6), green);
-      shrub.position.set(px, 2.7, -config.depth / 2 - 0.3);
-      shrub.scale.y = 0.7;
-      shrub.castShadow = true;
-      group.add(shrub);
-    }
-
-    if (kind === 'manor' || kind === 'villa') {
-      this.addBox(group, 1.8, 0.14, 0.65, stone, 0, 4.65, -config.depth / 2 - 0.35);
-      for (const px of [-0.75, -0.25, 0.25, 0.75]) {
-        this.addBox(group, 0.08, 0.55, 0.08, wood, px, 4.98, -config.depth / 2 - 0.66);
+    // Fences and tiny service props make the tile read as a lived-in village block.
+    for (const z of [-1.72, 1.72]) {
+      this.addBox(group, 3.55, 0.08, 0.08, fenceMaterial, 0, 2.52, z);
+      for (const x of [-1.65, -0.55, 0.55, 1.65]) {
+        this.addBox(group, 0.09, 0.68, 0.09, fenceMaterial, x, 2.5, z);
       }
     }
 
     return group;
+  }
+
+  private addMiniHouse(
+    parent: THREE.Group,
+    x: number,
+    z: number,
+    rotation: number,
+    width: number,
+    depth: number,
+    height: number,
+    wallColor: number,
+    roofColor: number,
+    detailed: boolean,
+  ): void {
+    const house = new THREE.Group();
+    house.position.set(x, 0, z);
+    house.rotation.y = rotation;
+    parent.add(house);
+
+    const wall = new THREE.MeshStandardMaterial({ color: wallColor, roughness: 0.78 });
+    const roof = new THREE.MeshStandardMaterial({ color: roofColor, roughness: 0.82 });
+    const wood = new THREE.MeshStandardMaterial({ color: 0x704b35, roughness: 0.96 });
+    const stone = new THREE.MeshStandardMaterial({ color: 0xb5aa9f, roughness: 1 });
+    const glass = new THREE.MeshStandardMaterial({
+      color: 0x9feafa,
+      emissive: 0x174c5a,
+      emissiveIntensity: 0.42,
+      roughness: 0.3,
+    });
+
+    this.addBox(house, width + 0.1, 0.18, depth + 0.1, stone, 0, 2.3, 0);
+    this.addBox(house, width, height, depth, wall, 0, 2.32 + height / 2, 0);
+
+    const roofMesh = new THREE.Mesh(new THREE.ConeGeometry(width * 0.74, 0.86 + height * 0.22, 4), roof);
+    roofMesh.position.y = 2.32 + height + (0.86 + height * 0.22) / 2;
+    roofMesh.rotation.y = Math.PI / 4;
+    roofMesh.castShadow = true;
+    house.add(roofMesh);
+
+    this.addBox(house, width * 0.23, Math.min(0.9, height * 0.52), 0.08, wood, 0, 2.72, -depth / 2 - 0.05);
+
+    const windowY = 2.75 + height * 0.33;
+    for (const sx of [-width * 0.28, width * 0.28]) {
+      this.addBox(house, width * 0.18, 0.34, 0.06, glass, sx, windowY, -depth / 2 - 0.04);
+      this.addBox(house, width * 0.21, 0.05, 0.08, wood, sx, windowY - 0.2, -depth / 2 - 0.07);
+    }
+
+    const chimney = this.addBox(
+      house,
+      0.18,
+      0.72,
+      0.18,
+      stone,
+      width * 0.28,
+      2.32 + height + 0.48,
+      depth * 0.12,
+    );
+    chimney.castShadow = true;
+
+    if (detailed) {
+      this.addBox(house, width * 0.78, 0.1, 0.36, wood, 0, 2.34, -depth / 2 - 0.2);
+
+      for (const side of [-1, 1]) {
+        const flower = new THREE.Mesh(
+          new THREE.SphereGeometry(0.11, 7, 5),
+          new THREE.MeshStandardMaterial({
+            color: side === -1 ? 0xe9ad68 : 0xd783a1,
+            roughness: 0.9,
+          }),
+        );
+        flower.position.set(side * width * 0.34, 2.55, -depth / 2 - 0.16);
+        flower.castShadow = true;
+        house.add(flower);
+      }
+    }
+  }
+
+  private addVillageWell(group: THREE.Group, x: number, z: number): void {
+    const stone = new THREE.MeshStandardMaterial({ color: 0xaaa39a, roughness: 1 });
+    const wood = new THREE.MeshStandardMaterial({ color: 0x71503a, roughness: 1 });
+
+    const ring = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.34, 0.38, 12), stone);
+    ring.position.set(x, 2.42, z);
+    ring.castShadow = true;
+    group.add(ring);
+
+    this.addBox(group, 0.08, 0.82, 0.08, wood, x - 0.38, 2.76, z);
+    this.addBox(group, 0.08, 0.82, 0.08, wood, x + 0.38, 2.76, z);
+    this.addBox(group, 0.9, 0.08, 0.08, wood, x, 3.14, z);
   }
 
   private makeFarm(group: THREE.Group): THREE.Group {
@@ -2604,6 +3104,8 @@ export class ThreeGame {
     this.lastFrameTime = time;
 
     this.updateWorkers(deltaMs);
+    this.riverTexture.offset.y -= deltaMs * 0.00028;
+    this.riverTexture.offset.x += deltaMs * 0.000025;
     this.controls.update();
     this.renderer.render(this.scene, this.camera);
 
