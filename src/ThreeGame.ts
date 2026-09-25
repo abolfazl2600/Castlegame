@@ -56,6 +56,8 @@ const BUILDING_KINDS: TileKind[] = [
   'ladder',
 ];
 
+type ViewMode = 'plan2d' | 'world3d';
+
 interface GridPoint {
   x: number;
   y: number;
@@ -154,8 +156,10 @@ export class ThreeGame {
   private readonly pointer = new THREE.Vector2();
   private readonly terrainLayer = new THREE.Group();
   private readonly buildLayer = new THREE.Group();
+  private readonly planLayer = new THREE.Group();
   private readonly wallPreviewLayer = new THREE.Group();
   private readonly workerLayer = new THREE.Group();
+  private readonly planMaterials = new Map<string, THREE.MeshBasicMaterial>();
   private readonly groundHit = new THREE.Mesh(
     new THREE.PlaneGeometry(WORLD, WORLD),
     new THREE.MeshBasicMaterial({ visible: false }),
@@ -167,6 +171,10 @@ export class ThreeGame {
 
   private selectedTool: ToolKind = 'wall1';
   private selectedCell: GridPoint | null = null;
+  private viewMode: ViewMode = 'world3d';
+  private toolbarOpen = window.innerWidth > 760;
+  private readonly saved3DCameraPosition = new THREE.Vector3(68, 80, 76);
+  private readonly saved3DTarget = new THREE.Vector3(0, 0, 0);
   private wallThickness: WallThickness = 'medium';
   private wallBattlement = true;
   private wallWalkway = false;
@@ -238,8 +246,10 @@ export class ThreeGame {
 
     this.scene.add(this.terrainLayer);
     this.scene.add(this.buildLayer);
+    this.scene.add(this.planLayer);
     this.scene.add(this.wallPreviewLayer);
     this.scene.add(this.workerLayer);
+    this.planLayer.visible = false;
 
     this.groundHit.rotation.x = -Math.PI / 2;
     this.groundHit.position.y = 2.05;
@@ -255,6 +265,8 @@ export class ThreeGame {
     this.createWorkers();
     this.redraw();
     this.bindUI();
+    this.setToolbarOpen(this.toolbarOpen);
+    this.setViewMode(hadSave ? 'world3d' : 'plan2d');
     if (!hadSave) {
       const templates = document.getElementById('templates-modal');
       if (templates) templates.hidden = false;
@@ -502,7 +514,8 @@ export class ThreeGame {
         for (const item of material) {
           if (
             item !== this.riverWaterMaterial &&
-            !this.medievalMaterials.isSharedMaterial(item)
+            !this.medievalMaterials.isSharedMaterial(item) &&
+            !this.isPlanMaterial(item)
           ) {
             item.dispose();
           }
@@ -510,7 +523,8 @@ export class ThreeGame {
       } else if (
         material &&
         material !== this.riverWaterMaterial &&
-        !this.medievalMaterials.isSharedMaterial(material)
+        !this.medievalMaterials.isSharedMaterial(material) &&
+        !this.isPlanMaterial(material)
       ) {
         material.dispose();
       }
@@ -521,6 +535,7 @@ export class ThreeGame {
   private redraw(): void {
     this.clearGroup(this.terrainLayer);
     this.clearGroup(this.buildLayer);
+    this.clearGroup(this.planLayer);
     this.renderTerrain();
 
     const floodedMoats = this.computeFloodedMoats();
@@ -587,12 +602,340 @@ export class ThreeGame {
       this.buildLayer.add(pending);
     }
 
+    this.renderPlanLayer(cells);
+
     this.animatedFlags = [];
     this.buildLayer.traverse((object) => {
       if (object instanceof THREE.Mesh && object.userData.castleFlag) {
         this.animatedFlags.push(object);
       }
     });
+  }
+
+  private isPlanMaterial(material: THREE.Material): boolean {
+    for (const candidate of this.planMaterials.values()) {
+      if (candidate === material) return true;
+    }
+    return false;
+  }
+
+  private planMaterial(color: number, opacity = 1): THREE.MeshBasicMaterial {
+    const key = `${color}:${opacity.toFixed(2)}`;
+    const existing = this.planMaterials.get(key);
+    if (existing) return existing;
+
+    const material = new THREE.MeshBasicMaterial({
+      color,
+      transparent: opacity < 1,
+      opacity,
+      depthTest: false,
+      depthWrite: false,
+      side: THREE.DoubleSide,
+    });
+    this.planMaterials.set(key, material);
+    return material;
+  }
+
+  private addPlanRect(
+    group: THREE.Group,
+    width: number,
+    depth: number,
+    color: number,
+    x: number,
+    z: number,
+    y: number,
+    opacity = 1,
+    rotationY = 0,
+  ): THREE.Mesh {
+    const mesh = new THREE.Mesh(
+      new THREE.PlaneGeometry(width, depth),
+      this.planMaterial(color, opacity),
+    );
+    mesh.rotation.x = -Math.PI / 2;
+    mesh.rotation.z = -rotationY;
+    mesh.position.set(x, y, z);
+    mesh.renderOrder = 40;
+    group.add(mesh);
+    return mesh;
+  }
+
+  private renderPlanLayer(cells: ReturnType<GameState['entries']>): void {
+    const terrainColors: Record<TerrainKind, number> = {
+      water: 0x2a6d86,
+      shore: 0xc7b889,
+      plains: 0x87a85d,
+      river: 0x4baec4,
+      mountain: 0x857a70,
+      forest: 0x4f784c,
+    };
+
+    for (let y = 0; y < SIZE; y += 1) {
+      for (let x = 0; x < SIZE; x += 1) {
+        const position = this.gridToWorld(x, y);
+        const terrain = this.terrainAt(x, y);
+        const elevation = this.terrainElevation(x, y);
+        const tone = THREE.MathUtils.clamp(1 + elevation * 0.025, 0.86, 1.12);
+        const base = new THREE.Color(terrainColors[terrain]).multiplyScalar(tone);
+        this.addPlanRect(
+          this.planLayer,
+          TILE - 0.08,
+          TILE - 0.08,
+          base.getHex(),
+          position.x,
+          position.z,
+          10,
+          0.96,
+        );
+      }
+    }
+
+    const grid = new THREE.GridHelper(WORLD, SIZE, 0xe7f6ef, 0x1f3d46);
+    grid.position.y = 10.04;
+    grid.renderOrder = 41;
+    const gridMaterials = Array.isArray(grid.material) ? grid.material : [grid.material];
+    for (const material of gridMaterials) {
+      material.transparent = true;
+      material.opacity = 0.32;
+      material.depthTest = false;
+      material.depthWrite = false;
+    }
+    this.planLayer.add(grid);
+
+    const colors: Record<string, number> = {
+      wall1: 0xd1c2a3,
+      wall2: 0x8e6544,
+      wall3: 0x9ba4a7,
+      gate: 0x9e7041,
+      tower: 0xb7ab91,
+      road: 0x9a7658,
+      cottage: 0xd69f78,
+      house: 0xb899ce,
+      manor: 0xc97888,
+      villa: 0x70b4ac,
+      farm: 0xc2ad54,
+      mine: 0x665f59,
+      mountain: 0x71675f,
+      tree: 0x356c43,
+      rock: 0x77736f,
+      hut: 0x9d6845,
+      moat: 0x317f9d,
+      stoneStairs: 0xb7afa4,
+      woodenStairs: 0x805b3d,
+      ramp: 0xa49b8e,
+      ladder: 0x755039,
+    };
+
+    for (const cell of cells) {
+      const position = this.gridToWorld(cell.x, cell.y);
+      const color = colors[cell.kind] ?? 0xe6d9be;
+
+      if (WALL_KINDS.includes(cell.kind as WallKind)) {
+        const thickness = this.wallThicknessValue(
+          cell.kind as WallKind,
+          cell.thickness ?? 'medium',
+        );
+        this.addPlanRect(
+          this.planLayer,
+          thickness * 0.9,
+          thickness * 0.9,
+          color,
+          position.x,
+          position.z,
+          10.22,
+        );
+
+        const links = this.wallConnections(cell.x, cell.y, cell);
+        const directions = links.length > 0 ? links : (['E', 'W'] as WallDirection[]);
+        for (const direction of directions) {
+          const vector = WallSystem.vector(direction);
+          const length = (TILE * Math.hypot(vector.x, vector.y)) / 2 + 0.35;
+          const angle = WallSystem.worldAngle(direction);
+          const centerX = position.x + vector.x * TILE * 0.25;
+          const centerZ = position.z + vector.y * TILE * 0.25;
+          this.addPlanRect(
+            this.planLayer,
+            thickness * 0.78,
+            length,
+            color,
+            centerX,
+            centerZ,
+            10.2,
+            1,
+            angle,
+          );
+        }
+        continue;
+      }
+
+      if (cell.kind === 'tower') {
+        const radius =
+          (cell.towerShape ?? 'round') === 'watch' ? 1.7 : 2.08;
+        const tower = new THREE.Mesh(
+          new THREE.CircleGeometry(radius, (cell.towerShape ?? 'round') === 'octagonal' ? 8 : 20),
+          this.planMaterial(color),
+        );
+        tower.rotation.x = -Math.PI / 2;
+        tower.position.set(position.x, 10.3, position.z);
+        tower.renderOrder = 44;
+        this.planLayer.add(tower);
+        continue;
+      }
+
+      if (cell.kind === 'gate') {
+        this.addPlanRect(this.planLayer, 3.5, 2.1, color, position.x, position.z, 10.28);
+        this.addPlanRect(this.planLayer, 1.55, 2.28, 0x29231f, position.x, position.z, 10.3);
+        continue;
+      }
+
+      const size =
+        cell.kind === 'road' ? 2.0 :
+        cell.kind === 'tree' || cell.kind === 'rock' ? 1.25 :
+        cell.kind === 'farm' ? 3.5 :
+        cell.kind === 'moat' ? 3.65 :
+        2.7;
+
+      this.addPlanRect(
+        this.planLayer,
+        size,
+        size,
+        color,
+        position.x,
+        position.z,
+        10.18,
+        cell.kind === 'road' ? 0.92 : 0.97,
+        (cell.rotation ?? 0) * Math.PI / 2,
+      );
+    }
+
+    for (const keep of this.keepSystem.entries()) {
+      const rotated = keep.rotation % 2 !== 0;
+      const widthCells = rotated ? keep.depth : keep.width;
+      const depthCells = rotated ? keep.width : keep.depth;
+      const position = this.gridToWorld(keep.x, keep.y);
+      const width = widthCells * TILE * 0.9;
+      const depth = depthCells * TILE * 0.9;
+
+      this.addPlanRect(
+        this.planLayer,
+        width,
+        depth,
+        0xb8aa90,
+        position.x,
+        position.z,
+        10.34,
+      );
+      this.addPlanRect(
+        this.planLayer,
+        Math.max(1.4, width - 1.2),
+        Math.max(1.4, depth - 1.2),
+        0x817766,
+        position.x,
+        position.z,
+        10.36,
+        0.78,
+      );
+
+      if (keep.cornerTowers) {
+        const cornerX = width / 2 - 0.55;
+        const cornerZ = depth / 2 - 0.55;
+        for (const [dx, dz] of [
+          [-cornerX, -cornerZ],
+          [cornerX, -cornerZ],
+          [-cornerX, cornerZ],
+          [cornerX, cornerZ],
+        ] as Array<[number, number]>) {
+          const tower = new THREE.Mesh(
+            new THREE.CircleGeometry(0.7, 12),
+            this.planMaterial(0xd0c2a6),
+          );
+          tower.rotation.x = -Math.PI / 2;
+          tower.position.set(position.x + dx, 10.4, position.z + dz);
+          tower.renderOrder = 46;
+          this.planLayer.add(tower);
+        }
+      }
+    }
+
+    if (this.selectedCell) {
+      const selected = this.gridToWorld(this.selectedCell.x, this.selectedCell.y);
+      const ring = new THREE.Mesh(
+        new THREE.RingGeometry(TILE * 0.36, TILE * 0.45, 4),
+        this.planMaterial(0x71e8ff, 0.9),
+      );
+      ring.rotation.x = -Math.PI / 2;
+      ring.rotation.z = Math.PI / 4;
+      ring.position.set(selected.x, 10.5, selected.z);
+      ring.renderOrder = 50;
+      this.planLayer.add(ring);
+    }
+  }
+
+  private setViewMode(mode: ViewMode): void {
+    if (mode === this.viewMode && mode === 'world3d') {
+      this.updateViewModeUI();
+      return;
+    }
+
+    if (mode === 'plan2d' && this.viewMode === 'world3d') {
+      this.saved3DCameraPosition.copy(this.camera.position);
+      this.saved3DTarget.copy(this.controls.target);
+    }
+
+    this.viewMode = mode;
+    const planMode = mode === 'plan2d';
+
+    this.planLayer.visible = planMode;
+    this.terrainLayer.visible = !planMode;
+    this.buildLayer.visible = !planMode;
+    this.workerLayer.visible = !planMode;
+
+    if (planMode) {
+      this.camera.position.set(0, 118, 0.001);
+      this.controls.target.set(0, 0, 0);
+      this.controls.enableRotate = false;
+      this.controls.enablePan = true;
+      this.controls.minDistance = 52;
+      this.controls.maxDistance = 155;
+      this.setStatus('2D Plan mode · design first, then switch to 3D');
+    } else {
+      this.camera.position.copy(this.saved3DCameraPosition);
+      this.controls.target.copy(this.saved3DTarget);
+      this.controls.enableRotate = true;
+      this.controls.enablePan = true;
+      this.controls.minDistance = 34;
+      this.controls.maxDistance = 150;
+      this.setStatus('3D View · inspect your built castle');
+    }
+
+    this.camera.lookAt(this.controls.target);
+    this.controls.update();
+    this.updateViewModeUI();
+  }
+
+  private updateViewModeUI(): void {
+    const planButton = document.getElementById('view-2d-button');
+    const worldButton = document.getElementById('view-3d-button');
+    const badge = document.getElementById('scene-badge');
+    const planMode = this.viewMode === 'plan2d';
+
+    planButton?.classList.toggle('is-active', planMode);
+    worldButton?.classList.toggle('is-active', !planMode);
+
+    if (planButton) planButton.setAttribute('aria-pressed', String(planMode));
+    if (worldButton) worldButton.setAttribute('aria-pressed', String(!planMode));
+    if (badge) badge.textContent = planMode ? 'TOP-DOWN 2D PLAN' : 'REAL-TIME 3D WORLD';
+  }
+
+  private setToolbarOpen(open: boolean): void {
+    this.toolbarOpen = open;
+    const toolbar = document.getElementById('toolbar');
+    const opener = document.getElementById('toolbar-open');
+    toolbar?.classList.toggle('is-collapsed', !open);
+
+    if (opener) {
+      opener.classList.toggle('is-visible', !open);
+      opener.setAttribute('aria-expanded', String(open));
+    }
   }
 
   private renderTerrain(): void {
@@ -3491,7 +3834,7 @@ export class ThreeGame {
     }).join('');
 
     toolbar.innerHTML =
-      '<div class="toolbar-title"><span>Build</span><small>Modular engineering</small></div>' +
+      '<div class="toolbar-title"><div><span>Build</span><small>Modular engineering</small></div><button id="toolbar-close" class="toolbar-close" type="button" aria-label="Close build panel">×</button></div>' +
       toolHtml +
       '<div class="builder-settings">' +
       '<div class="settings-title">Wall Settings</div>' +
@@ -3540,8 +3883,18 @@ export class ThreeGame {
       '</div>';
 
     toolbar.querySelectorAll<HTMLButtonElement>('[data-tool]').forEach((button) => {
-      button.onclick = () => this.selectTool(button.dataset.tool as ToolKind);
+      button.onclick = () => {
+        this.selectTool(button.dataset.tool as ToolKind);
+        if (window.matchMedia('(max-width: 760px)').matches) {
+          this.setToolbarOpen(false);
+        }
+      };
     });
+
+    get<HTMLButtonElement>('toolbar-close').onclick = () => this.setToolbarOpen(false);
+    get<HTMLButtonElement>('toolbar-open').onclick = () => this.setToolbarOpen(true);
+    get<HTMLButtonElement>('view-2d-button').onclick = () => this.setViewMode('plan2d');
+    get<HTMLButtonElement>('view-3d-button').onclick = () => this.setViewMode('world3d');
 
     const wallThickness = get<HTMLSelectElement>('wall-thickness');
     wallThickness.onchange = () => {
@@ -3685,6 +4038,12 @@ export class ThreeGame {
       if (document.fullscreenElement) await document.exitFullscreen();
       else await document.documentElement.requestFullscreen();
     };
+
+    window.addEventListener('resize', () => {
+      if (window.innerWidth <= 760 && this.toolbarOpen) {
+        this.setToolbarOpen(false);
+      }
+    });
 
     window.addEventListener('keydown', (event) => {
       const key = event.key.toLowerCase();

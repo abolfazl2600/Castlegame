@@ -27,8 +27,15 @@
 
       <main id="game-shell">
         <div id="game"></div>
+
+        <div class="view-mode-switch" role="group" aria-label="Castle view mode">
+          <button id="view-2d-button" class="view-mode-button" type="button" aria-pressed="false">2D Plan</button>
+          <button id="view-3d-button" class="view-mode-button is-active" type="button" aria-pressed="true">3D View</button>
+        </div>
+
+        <button id="toolbar-open" class="toolbar-open" type="button" aria-controls="toolbar" aria-expanded="true">☰ Build</button>
         <aside id="toolbar" class="toolbar" aria-label="Build tools"></aside>
-        <div class="scene-badge"><span class="scene-dot"></span> REAL-TIME 3D WORLD</div>
+        <div class="scene-badge"><span class="scene-dot"></span><span id="scene-badge">REAL-TIME 3D WORLD</span></div>
 
         <div id="help-modal" class="modal-backdrop" hidden>
           <section class="help-modal" role="dialog" aria-modal="true" aria-labelledby="help-title">
@@ -41,6 +48,13 @@
             </div>
 
             <div class="help-grid">
+              <div class="help-section">
+                <strong>2D Plan → 3D Castle</strong>
+                <span>Use 2D Plan for a clean top-down layout of walls, towers, roads, terrain, houses, and the Keep.</span>
+                <span>All edits use the same game state, so switching to 3D View immediately shows the constructed result.</span>
+                <span>New saves open in 2D Plan; existing saves keep their normal 3D start.</span>
+              </div>
+
               <div class="help-section">
                 <strong>Design Philosophy</strong>
                 <span>You design the major castle architecture; Castle Role generates secondary details automatically.</span>
@@ -115,10 +129,10 @@
               </div>
 
               <div class="help-section">
-                <strong>Camera</strong>
-                <span>Wall and terrain tools reserve left-drag for construction/editing.</span>
-                <span>With other tools: Left drag — Rotate camera.</span>
-                <span>Right drag — Pan · Mouse wheel — Zoom.</span>
+                <strong>Camera & Mobile UI</strong>
+                <span>2D Plan locks the camera overhead; right drag pans and the wheel/pinch zooms.</span>
+                <span>3D View restores orbit camera controls.</span>
+                <span>The Build panel can be closed at any time and automatically collapses after choosing a tool on mobile.</span>
               </div>
             </div>
           </section>

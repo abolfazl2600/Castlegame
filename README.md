@@ -4,6 +4,26 @@ Castle Role is a stylized 3D medieval fortress builder built with Three.js, Type
 
 **[Play Castle Role](https://abolfazl2600.github.io/Castlegame/)**
 
+## 2D planning workflow
+
+Castle Role now supports a dedicated top-down planning mode.
+
+- **2D Plan** hides the 3D structures and renders the same game state as a clean top-down plan.
+- Terrain, river, roads, walls, diagonal wall links, gates, towers, housing, farms, resources, and Keeps receive readable plan symbols/colors.
+- Building in 2D changes the real game state immediately.
+- Switching to **3D View** shows the resulting fortress without conversion or a separate save step.
+- New saves begin in 2D Plan so players can lay out the castle first; existing saves still open in 3D.
+- The 2D camera stays overhead, supports pan/zoom, and prevents accidental camera rotation.
+
+## Responsive Build panel
+
+The Build panel is now collapsible on every screen size.
+
+- Close it with the × button in the Build header.
+- Reopen it with the floating **Build** button.
+- On mobile, the panel starts collapsed and automatically closes after a tool is selected.
+- Mobile sizing uses most of the available height without covering half the play area permanently.
+
 ## Core design rule
 
 The player builds the castle. The game architects the details.
