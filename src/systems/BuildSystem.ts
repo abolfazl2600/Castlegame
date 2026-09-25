@@ -100,6 +100,8 @@ export class BuildSystem {
 
     this.layer.fillStyle(COLORS.wall, 1);
     this.layer.fillRoundedRect(x + 10, y + 10, TILE_SIZE - 20, TILE_SIZE - 20, 4);
+    this.layer.fillStyle(0xb6a18f, 1);
+    this.layer.fillRect(x + 10, y + 27, TILE_SIZE - 20, 7);
 
     if (left) this.layer.fillRect(x, y + 14, 16, 12);
     if (right) this.layer.fillRect(x + TILE_SIZE - 16, y + 14, 16, 12);
@@ -165,6 +167,8 @@ export class BuildSystem {
 
     this.layer.fillStyle(0x7b6254, 0.18);
     this.layer.fillEllipse(x + TILE_SIZE / 2, y + TILE_SIZE - 4, 32, 9);
+    this.layer.fillStyle(0xc2b2a8, 1);
+    this.layer.fillRect(x + 8, y + 21, 24, 9);
     this.layer.fillStyle(COLORS.tower, 1);
     this.layer.fillEllipse(x + TILE_SIZE / 2, y + 21, 24, 20);
     this.layer.fillRect(x + 8, y + 12, 24, 13);
@@ -184,7 +188,9 @@ export class BuildSystem {
   }
 
   private drawCottage(x: number, y: number): void {
+    this.drawExtrudedBase(x + 8, y + 14, 24, 16, 6, 0xc79f89);
     this.drawHouseShadow(x, y);
+    this.drawExtrudedBase(x + 7, y + 12, 26, 19, 7, 0xc9bddb);
     this.layer.fillStyle(0xf1d4c0, 1);
     this.layer.fillRoundedRect(x + 9, y + 16, 21, 14, 4);
     this.layer.fillStyle(0xd7896e, 1);
@@ -211,6 +217,7 @@ export class BuildSystem {
 
   private drawManor(x: number, y: number): void {
     this.drawHouseShadow(x, y);
+    this.drawExtrudedBase(x + 5, y + 11, 28, 20, 8, 0xc78590);
     this.layer.fillStyle(0xf4cfd6, 1);
     this.layer.fillRoundedRect(x + 5, y + 13, 28, 18, 4);
     this.layer.fillStyle(0xe48a98, 1);
@@ -236,6 +243,13 @@ export class BuildSystem {
     this.layer.fillRect(x, y, 4, 5);
     this.layer.fillRect(x, y + 8, 4, 5);
     this.layer.fillRect(x, y + 16, 4, 5);
+  }
+
+  private drawExtrudedBase(x: number, y: number, width: number, height: number, depth: number, sideColor: number): void {
+    this.layer.fillStyle(sideColor, 1);
+    this.layer.fillRect(x, y + height - 2, width, depth);
+    this.layer.fillStyle(0x8d776a, 0.32);
+    this.layer.fillRect(x + 3, y + height + depth - 2, width - 6, 3);
   }
 
   private drawHouseShadow(x: number, y: number): void {
