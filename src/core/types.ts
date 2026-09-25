@@ -1,6 +1,34 @@
-export type TileKind = 'wall' | 'gate' | 'tower' | 'road' | 'cottage' | 'house' | 'manor';
-export type ToolKind = TileKind | 'erase';
-export type TerrainKind = 'water' | 'shore' | 'plains' | 'river' | 'mountain' | 'forest';
+export type WallKind = 'wall1' | 'wall2' | 'wall3';
+export type MountainKind = 'mountain1' | 'mountain2' | 'mountain3';
+
+export type TileKind =
+  | WallKind
+  | 'gate'
+  | 'tower'
+  | 'road'
+  | 'cottage'
+  | 'house'
+  | 'manor'
+  | 'villa'
+  | 'farm'
+  | 'mine'
+  | MountainKind;
+
+export type ToolKind =
+  | WallKind
+  | 'gate'
+  | 'tower'
+  | 'road'
+  | 'cottage'
+  | 'house'
+  | 'manor'
+  | 'villa'
+  | 'farm'
+  | 'mine'
+  | 'mountain'
+  | 'erase';
+
+export type TerrainKind = 'water' | 'shore' | 'plains' | 'mountain' | 'forest';
 
 export interface GridCell {
   kind: TileKind;
