@@ -1333,7 +1333,7 @@ export class ThreeGame {
     const baseRadius = wideBeach ? 1.78 : rocky ? 1.28 : 1.52;
     const beach = new THREE.Mesh(
       new THREE.CircleGeometry(baseRadius, 14),
-      rocky ? coastRock : drySand,
+      rocky ? coastRock : hash % 3 === 0 ? warmSand : drySand,
     );
     beach.rotation.x = -Math.PI / 2;
     beach.position.y = 2.235;
