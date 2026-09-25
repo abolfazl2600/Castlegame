@@ -1,5 +1,89 @@
 # Castle Role
 
+## Settlement, battle, terrain and template expansion
+
+This update expands the world as a living medieval settlement while keeping all architecture and siege systems editable.
+
+### Ten additional complete templates
+
+The complete starting-world collection now contains **27 castle/settlement templates**. The newest ten are:
+
+- **River Port Fort** — river-side fortress, farming, residential blocks, Wall Walk access, and fishing docks.
+- **Farming Duchy** — farm-heavy sandstone settlement with multiple cultivated fields and village roads.
+- **Twin Keep** — two major Keeps, reinforced walls, elevated bridge, Stair Tower, and Army Camp.
+- **Border March** — timber frontier defense, watch towers, field settlement, Army Camp, farm, and woodland.
+- **Forest Citadel** — dense forest around a cleared four-tower stone fortress.
+- **Cliff Watch** — castle built across multiple edited cliff/plateau elevations.
+- **Moat Palace** — sandstone palace fortress with an outer moat and formal stone approach.
+- **Merchant Republic** — dense residential quarters, mixed roads, farms, walls, and a coastal dock.
+- **War Camp** — four Army Camps, timber enclosure, huts, farms, roads, and command Keep.
+- **Island Monastery** — lighter fortified island settlement with cottages, farms, trees, and fishing access.
+
+### Editable terrain templates
+
+Terrain-only starts are separate from full castle templates. They clear construction and leave normal editable terrain state:
+
+- Rolling Plains
+- Twin Rivers
+- Alpine Basin
+- Coastal Cliffs
+- Forest Highlands
+- Marsh Island
+- Terraced Hills
+
+Every terrain template can immediately be modified with Raise, Lower, Flatten, Smooth, Dig, Hill, Cliff, River, Land, Mountain, vegetation, roads, and normal construction.
+
+### Living residential districts
+
+Residential cells now represent denser neighborhood blocks instead of a few oversized structures.
+
+- Cottage blocks can render five small homes.
+- House blocks can render six small homes.
+- Manor and Villa cells combine a larger principal building with multiple service/residential houses.
+- Buildings include stronger stone bases, roof overhang, timber framing, projecting upper floors, doors, front/side windows, chimneys, awnings, yards, wells, alleys, fences, flowers, and small street props.
+- Lightweight civilian agents are regenerated from settlement state and move around the city at isometric strategy-game scale.
+- Visible civilian count is capped for browser performance.
+
+### Farmers and professional farms
+
+Farm visuals now include cultivated rows, furrows, several crop stages/colors, irrigation ditch, small crossing, field shed, hay bales, scarecrow, and perimeter fencing.
+
+Farmers are visible settlement agents. Each Farm gets working farmers assigned from the nearest housing block where possible. Farmers travel to the field, remain there while working, and later return home.
+
+### Professional battle setup
+
+The Battle panel supports direct numeric entry in addition to +/- controls. Values are clamped to 0–120 per unit type.
+
+Four combat unit types are available to both factions:
+
+- **Swordsman** — balanced close combat.
+- **Spearman** — longer melee reach with slightly slower movement.
+- **Archer** — faster ranged support.
+- **Crossbowman** — slower, heavier ranged damage and faster projectile speed.
+
+Army totals, population counters, spawning, target selection, rampart deployment, siege behavior, ladder use, and Stair Tower transitions account for the new unit classes. Defender ground formations prefer a placed Army Camp as their rally point.
+
+### Partial wall collapse
+
+Battle-only wall damage now has an additional **Partially Collapsed** stage:
+
+**Healthy → Damaged → Heavy Damage → Partially Collapsed → Breached**
+
+The partial stage shows a much larger damaged opening, extra cracks, displaced stone, and additional rubble while the wall still blocks ground navigation. Only the full Breach stage becomes walkable. Reset/end of battle still restores the original saved wall.
+
+### Independent river water
+
+The River tool now creates an active flowing-water tile immediately. A newly drawn river does not need to touch the ocean, another river, or any external source before water appears.
+
+Natural props such as Trees, Rocks, Huts, and Mountains can be replaced directly by the River tool. Player-built structures still require explicit removal first.
+
+### Army Camp
+
+A new **Army Camp** construction tool creates a large command tent with canvas roof, entry flap, central pole, guy ropes, pegs, supply crates, equipment, campfire, and command banner.
+
+During battle, Defender ground forces use a nearby Army Camp as their preferred rally/deployment area. The camp remains a normal saved construction object outside battle.
+
+
 ## Castle architecture expansion
 
 The castle system now treats foundations, defensive details, roof silhouettes, stone language, elevated bridges, and vertical access as one architecture layer.
@@ -186,8 +270,8 @@ Advanced siege engines such as Rams, Siege Towers, Trebuchets, Catapults, and Ca
 The game now includes a first playable **Attackers vs Defenders** battle mode built around the castle the player actually constructed.
 
 - Two extensible factions are currently configured: Attacker and Defender.
-- Swordsman and Archer are the first reusable unit types.
-- Battle Setup configures army sizes independently for both factions.
+- Swordsman, Spearman, Archer, and Crossbowman are reusable combat unit types.
+- Battle Setup configures each unit class independently for both factions using direct numeric entry or +/- controls.
 - Defender Archers prefer wall walks, towers, and elevated defensive positions.
 - Defender Swordsmen deploy inside the castle near the strategic center.
 - Attackers form outside the castle and navigate toward valid entrances and the Keep / Castle Center.

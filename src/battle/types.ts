@@ -1,5 +1,5 @@
 export type Faction = 'attacker' | 'defender' | (string & {});
-export type UnitType = 'swordsman' | 'archer' | (string & {});
+export type UnitType = 'swordsman' | 'archer' | 'spearman' | 'crossbowman' | (string & {});
 export type UnitState = 'forming' | 'moving' | 'guarding' | 'attacking' | 'dead';
 
 export interface BattleUnitStats {
@@ -28,8 +28,12 @@ export interface BattleUnit {
 export interface BattleSetup {
   attackerSwordsmen: number;
   attackerArchers: number;
+  attackerSpearmen: number;
+  attackerCrossbowmen: number;
   defenderSwordsmen: number;
   defenderArchers: number;
+  defenderSpearmen: number;
+  defenderCrossbowmen: number;
 }
 
 export interface BattleResult {

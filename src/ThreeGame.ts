@@ -63,6 +63,7 @@ const BUILDING_KINDS: TileKind[] = [
   'manor',
   'villa',
   'farm',
+  'armyCamp',
   'mine',
   'mountain',
   'tree',
@@ -105,6 +106,21 @@ interface WorkerAgent {
   homeZ: number;
 }
 
+interface SettlementAgent {
+  id: number;
+  role: 'citizen' | 'farmer';
+  view: THREE.Group;
+  home: GridPoint;
+  work?: GridPoint;
+  position: THREE.Vector3;
+  target: THREE.Vector3;
+  targetGrid: GridPoint;
+  waitMs: number;
+  phase: 'home' | 'work' | 'wander';
+  speed: number;
+  anim: number;
+}
+
 interface HistorySnapshot {
   cells: ReturnType<GameState['entries']>;
   keeps: KeepState[];
@@ -140,6 +156,12 @@ const TOOL_GROUPS: Array<{ label: string; tools: ToolDefinition[] }> = [
       { id: 'manor', icon: '🏯', label: 'Manor Court', detail: 'Main hall + service houses', shortcut: '9' },
       { id: 'villa', icon: '🏘️', label: 'Villa Quarter', detail: '3 detailed homes + courtyard', shortcut: '0' },
       { id: 'farm', icon: '🌾', label: 'Farm', detail: 'Cultivated crop field', shortcut: 'F' },
+    ],
+  },
+  {
+    label: 'Military',
+    tools: [
+      { id: 'armyCamp', icon: '⛺', label: 'Army Camp', detail: 'Large command tent · defender rally point', shortcut: 'A' },
     ],
   },
   {
@@ -199,6 +221,7 @@ export class ThreeGame {
   private readonly planLayer = new THREE.Group();
   private readonly wallPreviewLayer = new THREE.Group();
   private readonly workerLayer = new THREE.Group();
+  private readonly settlementLayer = new THREE.Group();
   private readonly battleLayer = new THREE.Group();
   private readonly planMaterials = new Map<string, THREE.MeshBasicMaterial>();
   private readonly environmentMaterials = new Map<string, THREE.MeshStandardMaterial>();
@@ -210,6 +233,8 @@ export class ThreeGame {
   );
   private readonly moatTasks = new Map<string, MoatTask>();
   private readonly workers: WorkerAgent[] = [];
+  private readonly settlementAgents: SettlementAgent[] = [];
+  private nextSettlementAgentId = 1;
   private readonly riverTexture: THREE.CanvasTexture;
   private readonly riverWaterMaterial: THREE.MeshStandardMaterial;
   private readonly oceanTexture: THREE.CanvasTexture;
@@ -247,8 +272,12 @@ export class ThreeGame {
   private battleSetup: BattleSetup = {
     attackerSwordsmen: 30,
     attackerArchers: 20,
+    attackerSpearmen: 12,
+    attackerCrossbowmen: 8,
     defenderSwordsmen: 10,
     defenderArchers: 15,
+    defenderSpearmen: 8,
+    defenderCrossbowmen: 6,
   };
 
   private readonly undoStack: HistorySnapshot[] = [];
@@ -339,6 +368,7 @@ export class ThreeGame {
     this.scene.add(this.planLayer);
     this.scene.add(this.wallPreviewLayer);
     this.scene.add(this.workerLayer);
+    this.scene.add(this.settlementLayer);
     this.scene.add(this.battleLayer);
     this.planLayer.visible = false;
 
@@ -891,6 +921,7 @@ export class ThreeGame {
     }
 
     this.renderPlanLayer(cells);
+    this.refreshSettlementAgents(cells);
     this.updatePopulationUI();
 
     this.animatedFlags = [];
@@ -1036,6 +1067,7 @@ export class ThreeGame {
       manor: 0xc97888,
       villa: 0x70b4ac,
       farm: 0xc2ad54,
+      armyCamp: 0x8f6b4d,
       mine: 0x665f59,
       mountain: 0x71675f,
       tree: 0x356c43,
@@ -1123,7 +1155,7 @@ export class ThreeGame {
       const size =
         cell.kind === 'road' ? 2.0 :
         cell.kind === 'tree' || cell.kind === 'rock' ? 1.25 :
-        cell.kind === 'farm' ? 3.5 :
+        cell.kind === 'farm' || cell.kind === 'armyCamp' ? 3.5 :
         cell.kind === 'moat' ? 3.65 :
         2.7;
 
@@ -1226,6 +1258,7 @@ export class ThreeGame {
     this.terrainLayer.visible = !planMode;
     this.buildLayer.visible = !planMode;
     this.workerLayer.visible = !planMode;
+    this.settlementLayer.visible = !planMode && !this.battleSystem.isActive();
 
     if (planMode) {
       this.camera.position.set(0, 118, 0.001);
@@ -1853,6 +1886,7 @@ export class ThreeGame {
     else if (cell.kind === 'tower') this.makeTower(group, cell.x, cell.y, cell);
     else if (cell.kind === 'stairTower') this.makeStairTower(group, cell.x, cell.y, cell);
     else if (cell.kind === 'farm') this.makeFarm(group);
+    else if (cell.kind === 'armyCamp') this.makeArmyCamp(group);
     else if (cell.kind === 'mine') this.makeMine(group);
     else if (cell.kind === 'mountain') this.makeMountain(group, cell.level ?? 1, cell.x, cell.y);
     else if (cell.kind === 'tree') this.makeTree(group, cell.level ?? 1);
@@ -4335,54 +4369,78 @@ export class ThreeGame {
     return group;
   }
 
-  private makeHouse(group: THREE.Group, kind: 'cottage' | 'house' | 'manor' | 'villa'): THREE.Group {
-    const pathMaterial = new THREE.MeshStandardMaterial({ color: 0xa98d70, roughness: 1 });
-    const fenceMaterial = new THREE.MeshStandardMaterial({ color: 0x7c583d, roughness: 1 });
-    const grassPatch = new THREE.MeshStandardMaterial({ color: 0x93b75c, roughness: 0.96 });
+  private makeHouse(
+    group: THREE.Group,
+    kind: 'cottage' | 'house' | 'manor' | 'villa',
+  ): THREE.Group {
+    const pathMaterial = this.environmentMaterial('village-path', 0xa98d70, 1);
+    const pathDark = this.environmentMaterial('village-path-dark', 0x826b55, 1);
+    const fenceMaterial = this.environmentMaterial('village-fence', 0x6f4e37, 1);
+    const grassPatch = this.environmentMaterial('village-grass', 0x93b75c, 0.96);
+    const yardMaterial = this.environmentMaterial('village-yard', 0xa7b967, 0.98);
 
-    // A residential placement is now a small neighborhood instead of one oversized house.
-    this.addBox(group, 3.5, 0.08, 0.5, pathMaterial, 0, 2.25, 0.12);
-    this.addBox(group, 0.5, 0.08, 3.35, pathMaterial, -0.15, 2.25, 0);
-    this.addBox(group, 3.65, 0.06, 3.65, grassPatch, 0, 2.2, 0);
+    // Each residential cell is a compact lived-in medieval block rather than
+    // one oversized house. Narrow alleys keep silhouettes readable from the
+    // isometric camera while supporting more visible residents.
+    this.addBox(group, 3.72, 0.055, 3.72, grassPatch, 0, 2.2, 0);
+    this.addBox(group, 3.5, 0.065, 0.34, pathMaterial, 0, 2.26, 0.04);
+    this.addBox(group, 0.34, 0.065, 3.42, pathMaterial, -0.08, 2.265, 0);
+    this.addBox(group, 1.4, 0.04, 1.12, yardMaterial, 0.82, 2.245, 0.82);
 
     if (kind === 'cottage') {
-      this.addMiniHouse(group, -0.92, -0.76, -0.08, 1.2, 1.02, 1.55, 0xd7a17c, 0x8b5a43, false);
-      this.addMiniHouse(group, 0.86, -0.52, 0.12, 1.12, 0.96, 1.42, 0xd9b08a, 0x83533d, false);
-      this.addMiniHouse(group, 0.55, 0.96, Math.PI, 1.05, 0.9, 1.34, 0xc99474, 0x78513d, false);
-      this.addVillageWell(group, -0.82, 0.85);
+      this.addMiniHouse(group, -1.18, -1.03, -0.05, 0.84, 0.72, 1.28, 0xd7a17c, 0x8b5a43, false);
+      this.addMiniHouse(group, -0.15, -1.08, 0.04, 0.78, 0.7, 1.18, 0xd9b08a, 0x83533d, false);
+      this.addMiniHouse(group, 1.03, -0.96, 0.11, 0.86, 0.72, 1.3, 0xc99474, 0x78513d, true);
+      this.addMiniHouse(group, -1.12, 1.02, Math.PI + 0.04, 0.8, 0.7, 1.18, 0xd5aa83, 0x845740, false);
+      this.addMiniHouse(group, 0.05, 1.08, Math.PI - 0.03, 0.78, 0.68, 1.12, 0xcfa17d, 0x76503c, false);
+      this.addVillageWell(group, 1.02, 0.92);
     } else if (kind === 'house') {
-      this.addMiniHouse(group, -0.96, -0.84, -0.05, 1.18, 1.02, 1.85, 0xc6aadf, 0x735d98, true);
-      this.addMiniHouse(group, 0.9, -0.82, 0.06, 1.18, 1.02, 1.75, 0xb99bd6, 0x6a568f, true);
-      this.addMiniHouse(group, -0.92, 0.92, Math.PI + 0.04, 1.12, 0.98, 1.68, 0xd0b7e4, 0x8067a4, false);
-      this.addMiniHouse(group, 0.9, 0.88, Math.PI - 0.05, 1.08, 0.96, 1.6, 0xbca1d4, 0x684f8b, false);
+      const houses: Array<[number, number, number, number, number, number, number, number, boolean]> = [
+        [-1.2, -1.02, -0.04, 0.88, 0.74, 1.48, 0xc6aadf, 0x735d98, true],
+        [-0.12, -1.1, 0.05, 0.82, 0.72, 1.38, 0xb99bd6, 0x6a568f, true],
+        [1.08, -0.96, 0.1, 0.9, 0.76, 1.52, 0xd0b7e4, 0x8067a4, true],
+        [-1.16, 1.02, Math.PI + 0.04, 0.84, 0.72, 1.34, 0xbca1d4, 0x684f8b, false],
+        [-0.06, 1.08, Math.PI, 0.8, 0.7, 1.3, 0xc9afe0, 0x72558f, true],
+        [1.08, 1.0, Math.PI - 0.05, 0.84, 0.72, 1.4, 0xb99ed1, 0x614b82, false],
+      ];
+      for (const house of houses) this.addMiniHouse(group, ...house);
     } else if (kind === 'manor') {
-      this.addMiniHouse(group, 0, -0.42, 0, 1.78, 1.34, 2.45, 0xd77b8f, 0x8b4f5f, true);
-      this.addMiniHouse(group, -1.15, 0.9, Math.PI, 1.0, 0.9, 1.42, 0xd9a0ab, 0x80515a, false);
-      this.addMiniHouse(group, 1.12, 0.88, Math.PI, 1.0, 0.9, 1.5, 0xce8f9e, 0x754852, false);
-      this.addVillageWell(group, 0, 1.12);
+      this.addMiniHouse(group, 0, -0.8, 0, 1.34, 1.0, 2.05, 0xd77b8f, 0x8b4f5f, true);
+      this.addMiniHouse(group, -1.24, -0.95, -0.06, 0.72, 0.68, 1.22, 0xd9a0ab, 0x80515a, true);
+      this.addMiniHouse(group, 1.24, -0.95, 0.06, 0.72, 0.68, 1.26, 0xce8f9e, 0x754852, true);
+      this.addMiniHouse(group, -1.16, 1.05, Math.PI, 0.82, 0.72, 1.28, 0xc98697, 0x754b56, false);
+      this.addMiniHouse(group, 1.14, 1.04, Math.PI, 0.82, 0.72, 1.3, 0xe0a5b0, 0x85525e, false);
+      this.addVillageWell(group, 0, 0.8);
 
-      for (const x of [-1.62, 1.62]) {
-        this.addBox(group, 0.1, 0.72, 3.1, fenceMaterial, x, 2.57, 0);
+      for (const x of [-1.68, 1.68]) {
+        this.addBox(group, 0.08, 0.64, 3.08, fenceMaterial, x, 2.52, 0);
       }
     } else {
-      this.addMiniHouse(group, -0.95, -0.62, -0.08, 1.28, 1.08, 1.92, 0x79c1ba, 0x467e78, true);
-      this.addMiniHouse(group, 0.92, -0.55, 0.1, 1.28, 1.08, 1.82, 0x6fb0ab, 0x3d716d, true);
-      this.addMiniHouse(group, 0, 0.98, Math.PI, 1.5, 1.1, 2.05, 0x86c9c2, 0x4f8983, true);
+      this.addMiniHouse(group, -1.18, -0.95, -0.08, 0.92, 0.78, 1.55, 0x79c1ba, 0x467e78, true);
+      this.addMiniHouse(group, -0.02, -1.05, 0.02, 0.86, 0.74, 1.42, 0x6fb0ab, 0x3d716d, true);
+      this.addMiniHouse(group, 1.12, -0.9, 0.1, 0.92, 0.78, 1.5, 0x86c9c2, 0x4f8983, true);
+      this.addMiniHouse(group, -1.08, 1.0, Math.PI + 0.04, 0.84, 0.72, 1.38, 0x78bbb4, 0x456f6b, true);
+      this.addMiniHouse(group, 0.08, 1.08, Math.PI, 0.84, 0.72, 1.44, 0x91d1ca, 0x507f79, false);
 
-      const garden = new THREE.Mesh(new THREE.CircleGeometry(0.65, 18), grassPatch);
+      const garden = new THREE.Mesh(new THREE.CircleGeometry(0.46, 16), yardMaterial);
       garden.rotation.x = -Math.PI / 2;
-      garden.position.set(0, 2.255, 0.08);
+      garden.position.set(1.05, 2.27, 0.98);
       group.add(garden);
-      this.addVillageWell(group, 0, 0.06);
+      this.addVillageWell(group, 1.04, 0.92);
     }
 
-    // Fences and tiny service props make the tile read as a lived-in village block.
-    for (const z of [-1.72, 1.72]) {
-      this.addBox(group, 3.55, 0.08, 0.08, fenceMaterial, 0, 2.52, z);
-      for (const x of [-1.65, -0.55, 0.55, 1.65]) {
-        this.addBox(group, 0.09, 0.68, 0.09, fenceMaterial, x, 2.5, z);
+    // Edge fences, benches, barrels and market-like clutter give the block a
+    // believable inhabited scale without overwhelming the single cell.
+    for (const z of [-1.76, 1.76]) {
+      this.addBox(group, 3.55, 0.07, 0.07, fenceMaterial, 0, 2.5, z);
+      for (const x of [-1.62, -0.54, 0.54, 1.62]) {
+        this.addBox(group, 0.075, 0.58, 0.075, fenceMaterial, x, 2.48, z);
       }
     }
+
+    this.addBox(group, 0.52, 0.16, 0.22, pathDark, 1.18, 2.37, -0.08);
+    this.addBox(group, 0.08, 0.42, 0.08, fenceMaterial, 1.38, 2.55, -0.08);
+    this.addBox(group, 0.08, 0.42, 0.08, fenceMaterial, 0.98, 2.55, -0.08);
 
     return group;
   }
@@ -4404,58 +4462,148 @@ export class ThreeGame {
     house.rotation.y = rotation;
     parent.add(house);
 
-    const wall = new THREE.MeshStandardMaterial({ color: wallColor, roughness: 0.78 });
-    const roof = new THREE.MeshStandardMaterial({ color: roofColor, roughness: 0.82 });
-    const wood = new THREE.MeshStandardMaterial({ color: 0x704b35, roughness: 0.96 });
-    const stone = new THREE.MeshStandardMaterial({ color: 0xb5aa9f, roughness: 1 });
-    const glass = new THREE.MeshStandardMaterial({
-      color: 0x9feafa,
-      emissive: 0x174c5a,
-      emissiveIntensity: 0.42,
-      roughness: 0.3,
+    const wall = new THREE.MeshStandardMaterial({
+      color: wallColor,
+      roughness: 0.84,
     });
+    const wallShade = new THREE.MeshStandardMaterial({
+      color: new THREE.Color(wallColor).multiplyScalar(0.82),
+      roughness: 0.9,
+    });
+    const roof = new THREE.MeshStandardMaterial({
+      color: roofColor,
+      roughness: 0.9,
+    });
+    const roofDark = new THREE.MeshStandardMaterial({
+      color: new THREE.Color(roofColor).multiplyScalar(0.7),
+      roughness: 0.96,
+    });
+    const wood = this.environmentMaterial('house-timber', 0x684733, 0.98);
+    const stone = this.environmentMaterial('house-stone', 0xa79d91, 1);
+    const glass = this.environmentMaterial('house-window', 0x6ba5ae, 0.45);
 
-    this.addBox(house, width + 0.1, 0.18, depth + 0.1, stone, 0, 2.3, 0);
+    this.addBox(house, width + 0.14, 0.18, depth + 0.14, stone, 0, 2.3, 0);
     this.addBox(house, width, height, depth, wall, 0, 2.32 + height / 2, 0);
 
-    const roofMesh = new THREE.Mesh(new THREE.ConeGeometry(width * 0.74, 0.86 + height * 0.22, 4), roof);
-    roofMesh.position.y = 2.32 + height + (0.86 + height * 0.22) / 2;
+    // Slightly projecting upper timber floor on richer houses.
+    if (detailed) {
+      this.addBox(
+        house,
+        width + 0.1,
+        Math.min(0.44, height * 0.26),
+        depth + 0.08,
+        wallShade,
+        0,
+        2.32 + height * 0.76,
+        0,
+      );
+      for (const sx of [-width * 0.38, width * 0.38]) {
+        this.addBox(house, 0.055, height * 0.72, 0.055, wood, sx, 2.38 + height * 0.5, -depth / 2 - 0.035);
+      }
+      this.addBox(house, width * 0.82, 0.055, 0.055, wood, 0, 2.58 + height * 0.58, -depth / 2 - 0.04);
+    }
+
+    const roofHeight = 0.68 + height * 0.2;
+    const eave = this.addBox(
+      house,
+      width + 0.22,
+      0.1,
+      depth + 0.22,
+      roofDark,
+      0,
+      2.32 + height + 0.02,
+      0,
+    );
+    eave.castShadow = true;
+
+    const roofMesh = new THREE.Mesh(
+      new THREE.ConeGeometry(width * 0.68, roofHeight, 4),
+      roof,
+    );
+    roofMesh.position.y = 2.32 + height + roofHeight / 2;
     roofMesh.rotation.y = Math.PI / 4;
+    roofMesh.scale.z = Math.max(0.72, depth / Math.max(0.1, width));
     roofMesh.castShadow = true;
+    roofMesh.receiveShadow = true;
     house.add(roofMesh);
 
-    this.addBox(house, width * 0.23, Math.min(0.9, height * 0.52), 0.08, wood, 0, 2.72, -depth / 2 - 0.05);
+    this.addBox(
+      house,
+      width * 0.23,
+      Math.min(0.78, height * 0.5),
+      0.075,
+      wood,
+      0,
+      2.66,
+      -depth / 2 - 0.055,
+    );
 
-    const windowY = 2.75 + height * 0.33;
+    const windowY = 2.68 + height * 0.34;
     for (const sx of [-width * 0.28, width * 0.28]) {
-      this.addBox(house, width * 0.18, 0.34, 0.06, glass, sx, windowY, -depth / 2 - 0.04);
-      this.addBox(house, width * 0.21, 0.05, 0.08, wood, sx, windowY - 0.2, -depth / 2 - 0.07);
+      this.addBox(house, width * 0.16, 0.28, 0.055, glass, sx, windowY, -depth / 2 - 0.045);
+      this.addBox(house, width * 0.19, 0.045, 0.075, wood, sx, windowY - 0.17, -depth / 2 - 0.065);
     }
+
+    // Side window and small sill improve readability at isometric angles.
+    this.addBox(
+      house,
+      0.055,
+      0.26,
+      depth * 0.18,
+      glass,
+      width / 2 + 0.035,
+      windowY,
+      0.1,
+    );
+    this.addBox(
+      house,
+      0.075,
+      0.045,
+      depth * 0.22,
+      wood,
+      width / 2 + 0.055,
+      windowY - 0.16,
+      0.1,
+    );
 
     const chimney = this.addBox(
       house,
-      0.18,
-      0.72,
-      0.18,
+      0.14,
+      0.58,
+      0.14,
       stone,
       width * 0.28,
-      2.32 + height + 0.48,
+      2.32 + height + 0.38,
       depth * 0.12,
     );
     chimney.castShadow = true;
 
     if (detailed) {
-      this.addBox(house, width * 0.78, 0.1, 0.36, wood, 0, 2.34, -depth / 2 - 0.2);
+      const awning = this.addBox(
+        house,
+        width * 0.72,
+        0.075,
+        0.28,
+        wood,
+        0,
+        2.36,
+        -depth / 2 - 0.18,
+      );
+      awning.rotation.x = -0.08;
 
       for (const side of [-1, 1]) {
         const flower = new THREE.Mesh(
-          new THREE.SphereGeometry(0.11, 7, 5),
+          new THREE.SphereGeometry(0.075, 6, 5),
           new THREE.MeshStandardMaterial({
             color: side === -1 ? 0xe9ad68 : 0xd783a1,
             roughness: 0.9,
           }),
         );
-        flower.position.set(side * width * 0.34, 2.55, -depth / 2 - 0.16);
+        flower.position.set(
+          side * width * 0.34,
+          2.5,
+          -depth / 2 - 0.16,
+        );
         flower.castShadow = true;
         house.add(flower);
       }
@@ -4477,21 +4625,151 @@ export class ThreeGame {
   }
 
   private makeFarm(group: THREE.Group): THREE.Group {
-    const soil = new THREE.MeshStandardMaterial({ color: 0x8b6847, roughness: 1 });
-    const cropA = new THREE.MeshStandardMaterial({ color: 0xc7c85c, roughness: 0.9 });
-    const cropB = new THREE.MeshStandardMaterial({ color: 0x76a95a, roughness: 0.9 });
-    const wood = new THREE.MeshStandardMaterial({ color: 0x8d6b4d, roughness: 1 });
+    const soil = this.environmentMaterial('farm-soil', 0x77563d, 1);
+    const wetSoil = this.environmentMaterial('farm-wet-soil', 0x59483a, 1);
+    const cropGreen = this.environmentMaterial('farm-crop-green', 0x6f9c4f, 0.96);
+    const cropGold = this.environmentMaterial('farm-crop-gold', 0xc8b95d, 0.94);
+    const cropYoung = this.environmentMaterial('farm-crop-young', 0x8db95d, 0.94);
+    const wood = this.environmentMaterial('farm-wood', 0x77543a, 1);
+    const woodDark = this.environmentMaterial('farm-wood-dark', 0x4f392b, 1);
+    const hay = this.environmentMaterial('farm-hay', 0xc69d4d, 1);
+    const water = this.environmentMaterial('farm-water', 0x4e95a3, 0.38);
 
-    this.addBox(group, 3.55, 0.16, 3.55, soil, 0, 2.24, 0);
+    this.addBox(group, 3.7, 0.14, 3.7, soil, 0, 2.23, 0);
 
-    for (let i = -2; i <= 2; i += 1) {
-      this.addBox(group, 0.26, 0.32, 2.95, i % 2 === 0 ? cropA : cropB, i * 0.6, 2.46, 0);
+    // Alternating crop beds with visible furrows and slight height variation.
+    const rows = [-1.28, -0.72, -0.16, 0.4, 0.96, 1.45];
+    rows.forEach((x, index) => {
+      const crop =
+        index % 3 === 0 ? cropGold : index % 3 === 1 ? cropGreen : cropYoung;
+      this.addBox(group, 0.22, 0.22 + (index % 2) * 0.05, 2.62, crop, x, 2.44, -0.18);
+      this.addBox(group, 0.08, 0.04, 2.78, wetSoil, x + 0.22, 2.34, -0.18);
+    });
+
+    // Irrigation ditch and a small wooden crossing.
+    this.addBox(group, 3.36, 0.08, 0.26, wetSoil, 0, 2.31, 1.46);
+    this.addBox(group, 3.12, 0.045, 0.16, water, 0, 2.36, 1.46);
+    for (const x of [-0.22, 0, 0.22]) {
+      this.addBox(group, 0.18, 0.08, 0.66, wood, x, 2.43, 1.46);
     }
 
-    for (const x of [-1.76, 1.76]) {
-      this.addBox(group, 0.12, 0.75, 3.58, wood, x, 2.58, 0);
+    // Compact field shed.
+    this.addBox(group, 0.78, 0.12, 0.7, woodDark, -1.2, 2.36, -1.42);
+    this.addBox(group, 0.72, 0.88, 0.64, wood, -1.2, 2.82, -1.42);
+    const shedRoof = new THREE.Mesh(
+      new THREE.ConeGeometry(0.58, 0.48, 4),
+      this.environmentMaterial('farm-roof', 0x6c4b35, 1),
+    );
+    shedRoof.rotation.y = Math.PI / 4;
+    shedRoof.position.set(-1.2, 3.48, -1.42);
+    shedRoof.castShadow = true;
+    group.add(shedRoof);
+
+    // Hay bales and a simple scarecrow make the farm readable at gameplay scale.
+    for (const [x, z] of [[1.22, -1.35], [1.52, -1.06], [1.02, -1.03]] as Array<[number, number]>) {
+      const bale = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.24, 0.24, 0.46, 9),
+        hay,
+      );
+      bale.rotation.z = Math.PI / 2;
+      bale.position.set(x, 2.52, z);
+      bale.castShadow = true;
+      group.add(bale);
     }
 
+    this.addBox(group, 0.08, 1.32, 0.08, woodDark, 0.96, 2.94, 0.76);
+    this.addBox(group, 0.86, 0.07, 0.07, woodDark, 0.96, 3.28, 0.76);
+    const scareHead = new THREE.Mesh(
+      new THREE.SphereGeometry(0.13, 7, 5),
+      hay,
+    );
+    scareHead.position.set(0.96, 3.53, 0.76);
+    scareHead.castShadow = true;
+    group.add(scareHead);
+
+    // Perimeter fence with a deliberate gate opening toward the road.
+    for (const x of [-1.78, 1.78]) {
+      this.addBox(group, 0.09, 0.62, 3.46, wood, x, 2.52, 0);
+    }
+    this.addBox(group, 2.54, 0.08, 0.08, wood, -0.58, 2.51, -1.78);
+    this.addBox(group, 0.72, 0.08, 0.08, wood, 1.42, 2.51, -1.78);
+
+    return group;
+  }
+
+  private makeArmyCamp(group: THREE.Group): THREE.Group {
+    const canvas = this.environmentMaterial('army-canvas', 0x9b7653, 0.96);
+    const canvasDark = this.environmentMaterial('army-canvas-dark', 0x6f5039, 1);
+    const wood = this.environmentMaterial('army-camp-wood', 0x62452f, 1);
+    const rope = this.environmentMaterial('army-camp-rope', 0xb49b6b, 1);
+    const crate = this.environmentMaterial('army-camp-crate', 0x7e5939, 1);
+    const iron = this.environmentMaterial('army-camp-iron', 0x555d61, 0.72);
+    const fire = this.environmentMaterial('army-camp-fire', 0xd97832, 0.72);
+    const ground = this.environmentMaterial('army-camp-ground', 0x7b6a50, 1);
+
+    this.addBox(group, 3.72, 0.06, 3.72, ground, 0, 2.22, 0);
+
+    // Large command tent.
+    this.addBox(group, 2.72, 1.42, 2.45, canvas, 0, 3.0, -0.18);
+    const tentRoof = new THREE.Mesh(
+      new THREE.ConeGeometry(2.02, 1.65, 4),
+      canvasDark,
+    );
+    tentRoof.rotation.y = Math.PI / 4;
+    tentRoof.scale.z = 0.78;
+    tentRoof.position.set(0, 4.5, -0.18);
+    tentRoof.castShadow = true;
+    tentRoof.receiveShadow = true;
+    group.add(tentRoof);
+
+    this.addBox(group, 0.08, 2.9, 0.08, wood, 0, 3.78, -0.18);
+    this.addBox(group, 0.9, 1.04, 0.08, canvasDark, 0, 2.86, -1.43);
+
+    // Guy ropes and pegs.
+    for (const sign of [-1, 1]) {
+      const ropeMesh = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.018, 0.018, 1.85, 5),
+        rope,
+      );
+      ropeMesh.position.set(sign * 1.66, 2.88, 0.1);
+      ropeMesh.rotation.z = sign * 0.72;
+      group.add(ropeMesh);
+      this.addBox(group, 0.08, 0.42, 0.08, wood, sign * 1.86, 2.39, 0.1);
+    }
+
+    // Supply corner.
+    this.addBox(group, 0.62, 0.55, 0.62, crate, -1.35, 2.52, 1.28);
+    this.addBox(group, 0.52, 0.45, 0.52, crate, -0.78, 2.47, 1.48);
+    this.addBox(group, 0.68, 0.08, 0.22, iron, 1.22, 2.45, 1.34);
+    this.addBox(group, 0.08, 0.82, 0.08, iron, 1.22, 2.82, 1.34);
+
+    // Campfire with three stones.
+    for (let i = 0; i < 3; i += 1) {
+      const angle = (i / 3) * Math.PI * 2;
+      const stone = new THREE.Mesh(
+        new THREE.DodecahedronGeometry(0.16, 0),
+        this.environmentMaterial('army-camp-stone', 0x69625b, 1),
+      );
+      stone.position.set(
+        0.95 + Math.cos(angle) * 0.28,
+        2.38,
+        0.7 + Math.sin(angle) * 0.28,
+      );
+      group.add(stone);
+    }
+    const flame = new THREE.Mesh(
+      new THREE.ConeGeometry(0.18, 0.52, 7),
+      fire,
+    );
+    flame.position.set(0.95, 2.67, 0.7);
+    group.add(flame);
+
+    // Command banner.
+    this.addBox(group, 0.07, 2.4, 0.07, wood, 1.58, 3.33, -0.88);
+    const banner = this.addBox(group, 0.92, 0.48, 0.04, canvasDark, 2.0, 4.16, -0.88);
+    banner.userData.castleFlag = { phase: 1.7 };
+
+    group.userData.armyCamp = true;
     return group;
   }
 
@@ -5867,9 +6145,30 @@ export class ThreeGame {
     this.selectedKeepId = null;
 
     if (this.selectedTool === 'river' || this.selectedTool === 'land') {
-      if (current || this.moatTasks.has(overrideKey)) return;
+      if (this.moatTasks.has(overrideKey)) return;
+
+      if (this.selectedTool === 'river') {
+        const removableNatural =
+          current === 'tree' ||
+          current === 'rock' ||
+          current === 'hut' ||
+          current === 'mountain';
+        if (current && !removableNatural) {
+          this.setStatus('Remove the structure before carving river water here');
+          return;
+        }
+
+        this.recordHistory();
+        if (removableNatural) this.state.removeCell(gx, gy);
+        this.terrainOverrides.set(overrideKey, 'river');
+        this.finishBuild();
+        this.setStatus('River water created · no source connection required');
+        return;
+      }
+
+      if (current) return;
       this.recordHistory();
-      this.terrainOverrides.set(overrideKey, this.selectedTool === 'river' ? 'river' : 'plains');
+      this.terrainOverrides.set(overrideKey, 'plains');
       this.finishBuild();
       return;
     }
@@ -6044,10 +6343,320 @@ export class ThreeGame {
     this.scheduleSave();
   }
 
+  private refreshSettlementAgents(
+    cells: ReturnType<GameState['entries']>,
+  ): void {
+    this.clearGroup(this.settlementLayer);
+    this.settlementAgents.length = 0;
+    this.nextSettlementAgentId = 1;
+
+    const homes = cells.filter((cell) =>
+      cell.kind === 'cottage' ||
+      cell.kind === 'house' ||
+      cell.kind === 'manor' ||
+      cell.kind === 'villa',
+    );
+    const farms = cells.filter((cell) => cell.kind === 'farm');
+
+    const maxVisibleAgents = 40;
+
+    for (const home of homes) {
+      if (this.settlementAgents.length >= maxVisibleAgents) break;
+      const desired =
+        home.kind === 'manor'
+          ? 4
+          : home.kind === 'house'
+            ? 3
+            : home.kind === 'villa'
+              ? 3
+              : 2;
+
+      for (let i = 0; i < desired; i += 1) {
+        if (this.settlementAgents.length >= maxVisibleAgents) break;
+        this.spawnSettlementAgent(
+          'citizen',
+          { x: home.x, y: home.y },
+          undefined,
+          home.x * 97 + home.y * 53 + i * 17,
+        );
+      }
+    }
+
+    for (const farm of farms) {
+      if (this.settlementAgents.length >= maxVisibleAgents) break;
+
+      let homePoint: GridPoint = { x: farm.x, y: farm.y };
+      let best = Number.POSITIVE_INFINITY;
+      for (const home of homes) {
+        const distance = Math.hypot(home.x - farm.x, home.y - farm.y);
+        if (distance < best) {
+          best = distance;
+          homePoint = { x: home.x, y: home.y };
+        }
+      }
+
+      this.spawnSettlementAgent(
+        'farmer',
+        homePoint,
+        { x: farm.x, y: farm.y },
+        farm.x * 131 + farm.y * 71,
+      );
+
+      if (this.settlementAgents.length < maxVisibleAgents && homes.length > 0) {
+        this.spawnSettlementAgent(
+          'farmer',
+          homePoint,
+          { x: farm.x, y: farm.y },
+          farm.x * 149 + farm.y * 83 + 11,
+        );
+      }
+    }
+
+    this.settlementLayer.visible =
+      this.viewMode === 'world3d' && !this.battleSystem.isActive();
+  }
+
+  private spawnSettlementAgent(
+    role: SettlementAgent['role'],
+    home: GridPoint,
+    work: GridPoint | undefined,
+    seed: number,
+  ): void {
+    const id = this.nextSettlementAgentId++;
+    const view = this.createSettlementPerson(role, seed);
+    const world = this.gridToWorld(home.x, home.y);
+    const offsetX = ((id % 3) - 1) * 0.42;
+    const offsetZ = ((Math.floor(id / 3) % 3) - 1) * 0.38;
+    const y = 2.24 + this.terrainElevation(home.x, home.y);
+    const position = new THREE.Vector3(
+      world.x + offsetX,
+      y,
+      world.z + offsetZ,
+    );
+    view.position.copy(position);
+    this.settlementLayer.add(view);
+
+    const agent: SettlementAgent = {
+      id,
+      role,
+      view,
+      home: { ...home },
+      work: work ? { ...work } : undefined,
+      position: position.clone(),
+      target: position.clone(),
+      targetGrid: { ...home },
+      waitMs: 350 + Math.abs(seed % 900),
+      phase: 'home',
+      speed: role === 'farmer' ? 1.55 : 1.25 + (Math.abs(seed) % 4) * 0.08,
+      anim: Math.abs(seed % 1000) * 0.013,
+    };
+
+    this.settlementAgents.push(agent);
+  }
+
+  private createSettlementPerson(
+    role: SettlementAgent['role'],
+    seed: number,
+  ): THREE.Group {
+    const group = new THREE.Group();
+    const palette = [
+      0x9b5c4c,
+      0x547c8f,
+      0x76618f,
+      0x7f8651,
+      0xa77a4f,
+      0x5f7e6d,
+    ];
+    const cloth = this.environmentMaterial(
+      `person-cloth-${Math.abs(seed) % palette.length}`,
+      palette[Math.abs(seed) % palette.length],
+      0.92,
+    );
+    const clothDark = this.environmentMaterial(
+      'person-cloth-dark',
+      0x4b4039,
+      0.98,
+    );
+    const skin = this.environmentMaterial('person-skin', 0xd5a27c, 0.92);
+    const leather = this.environmentMaterial('person-leather', 0x684a35, 1);
+    const straw = this.environmentMaterial('person-straw', 0xc7a95d, 1);
+
+    const body = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.13, 0.2, 0.54, 6),
+      role === 'farmer' ? this.environmentMaterial('farmer-cloth', 0x7d7448, 0.98) : cloth,
+    );
+    body.position.y = 0.52;
+    body.castShadow = true;
+    group.add(body);
+
+    const head = new THREE.Mesh(
+      new THREE.SphereGeometry(0.13, 7, 5),
+      skin,
+    );
+    head.position.y = 0.92;
+    head.castShadow = true;
+    group.add(head);
+
+    for (const x of [-0.07, 0.07]) {
+      const leg = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.035, 0.045, 0.34, 5),
+        clothDark,
+      );
+      leg.position.set(x, 0.18, 0);
+      group.add(leg);
+    }
+
+    if (role === 'farmer') {
+      const brim = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.22, 0.22, 0.045, 9),
+        straw,
+      );
+      brim.position.y = 1.08;
+      group.add(brim);
+
+      const crown = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.11, 0.14, 0.13, 8),
+        straw,
+      );
+      crown.position.y = 1.15;
+      group.add(crown);
+
+      const tool = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.018, 0.018, 0.75, 5),
+        leather,
+      );
+      tool.rotation.z = -0.55;
+      tool.position.set(0.18, 0.52, 0.08);
+      group.add(tool);
+    } else {
+      const cap = new THREE.Mesh(
+        new THREE.ConeGeometry(0.15, 0.16, 6),
+        clothDark,
+      );
+      cap.position.y = 1.08;
+      group.add(cap);
+    }
+
+    group.scale.setScalar(0.92);
+    group.userData.settlementRole = role;
+    return group;
+  }
+
+  private settlementTargetPosition(
+    agent: SettlementAgent,
+    point: GridPoint,
+  ): THREE.Vector3 {
+    const world = this.gridToWorld(point.x, point.y);
+    const roadLike = this.isRoadFamily(this.kindAt(point.x, point.y));
+    const spread = roadLike ? 0.18 : 0.58;
+    const offsetX = (((agent.id * 7 + point.x * 3) % 5) - 2) * spread * 0.22;
+    const offsetZ = (((agent.id * 11 + point.y * 5) % 5) - 2) * spread * 0.22;
+    return new THREE.Vector3(
+      world.x + offsetX,
+      2.24 + this.terrainElevation(point.x, point.y),
+      world.z + offsetZ,
+    );
+  }
+
+  private chooseCitizenDestination(agent: SettlementAgent): GridPoint {
+    const candidates = this.state.entries()
+      .filter((cell) =>
+        ROAD_KINDS.includes(cell.kind as RoadKind) ||
+        cell.kind === 'cottage' ||
+        cell.kind === 'house' ||
+        cell.kind === 'manor' ||
+        cell.kind === 'villa' ||
+        cell.kind === 'farm',
+      )
+      .filter((cell) => {
+        const terrain = this.terrainAt(cell.x, cell.y);
+        return terrain !== 'water' && terrain !== 'river';
+      });
+
+    if (candidates.length === 0) return { ...agent.home };
+
+    const sequence =
+      Math.abs(Math.floor(agent.anim * 19) + agent.id * 23 + agent.targetGrid.x * 7);
+    const choice = candidates[sequence % candidates.length];
+    return { x: choice.x, y: choice.y };
+  }
+
+  private setSettlementTarget(
+    agent: SettlementAgent,
+    point: GridPoint,
+  ): void {
+    agent.targetGrid = { ...point };
+    agent.target.copy(this.settlementTargetPosition(agent, point));
+  }
+
+  private updateSettlementAgents(deltaMs: number): void {
+    for (const agent of this.settlementAgents) {
+      agent.anim += deltaMs * 0.001;
+
+      if (agent.waitMs > 0) {
+        agent.waitMs = Math.max(0, agent.waitMs - deltaMs);
+        const idleBob = Math.sin(agent.anim * 3.2 + agent.id) * 0.012;
+        agent.view.position.y = agent.position.y + idleBob;
+
+        if (agent.waitMs === 0) {
+          if (agent.role === 'farmer' && agent.work) {
+            if (agent.phase === 'home') {
+              agent.phase = 'work';
+              this.setSettlementTarget(agent, agent.work);
+            } else {
+              agent.phase = 'home';
+              this.setSettlementTarget(agent, agent.home);
+            }
+          } else {
+            agent.phase = 'wander';
+            this.setSettlementTarget(agent, this.chooseCitizenDestination(agent));
+          }
+        }
+        continue;
+      }
+
+      const delta = agent.target.clone().sub(agent.position);
+      const planarDistance = Math.hypot(delta.x, delta.z);
+
+      if (planarDistance < 0.16) {
+        agent.position.copy(agent.target);
+        agent.view.position.copy(agent.position);
+
+        if (agent.role === 'farmer') {
+          agent.waitMs = agent.phase === 'work' ? 2200 + (agent.id % 4) * 280 : 1200;
+        } else {
+          agent.waitMs = 650 + (agent.id % 5) * 260;
+        }
+        continue;
+      }
+
+      const seconds = deltaMs / 1000;
+      const step = Math.min(planarDistance, agent.speed * seconds);
+      agent.position.x += (delta.x / planarDistance) * step;
+      agent.position.z += (delta.z / planarDistance) * step;
+      agent.position.y = THREE.MathUtils.lerp(
+        agent.position.y,
+        agent.target.y,
+        Math.min(1, seconds * 2.8),
+      );
+
+      agent.view.rotation.y = Math.atan2(delta.x, delta.z);
+      const walkBob = Math.abs(Math.sin(agent.anim * 8.5 + agent.id)) * 0.045;
+      agent.view.position.set(
+        agent.position.x,
+        agent.position.y + walkBob,
+        agent.position.z,
+      );
+    }
+  }
+
   private updatePopulationUI(): void {
     const battleStatus = this.battleSystem.status();
     const configuredMilitary =
-      this.battleSetup.defenderSwordsmen + this.battleSetup.defenderArchers;
+      this.battleSetup.defenderSwordsmen +
+      this.battleSetup.defenderArchers +
+      this.battleSetup.defenderSpearmen +
+      this.battleSetup.defenderCrossbowmen;
     const military =
       battleStatus.mode === 'running' ||
       battleStatus.mode === 'paused' ||
@@ -6508,6 +7117,16 @@ export class ThreeGame {
       };
     });
 
+    document.querySelectorAll<HTMLInputElement>('[data-battle-input]').forEach((input) => {
+      const apply = (): void => {
+        const field = input.dataset.battleInput as keyof BattleSetup | undefined;
+        if (!field) return;
+        this.setBattleSetupValue(field, Number(input.value));
+      };
+      input.onchange = apply;
+      input.onblur = apply;
+    });
+
     get<HTMLButtonElement>('battle-start').onclick = () => this.startBattleFromUI();
     get<HTMLButtonElement>('battle-stop').onclick = () => this.stopBattleFromUI();
     get<HTMLButtonElement>('battle-reset').onclick = () => this.resetBattleFromUI();
@@ -6532,6 +7151,15 @@ export class ThreeGame {
         const template = button.dataset.template;
         if (!template) return;
         this.applyTemplate(template);
+        templates.hidden = true;
+      };
+    });
+
+    document.querySelectorAll<HTMLButtonElement>('[data-terrain-template]').forEach((button) => {
+      button.onclick = () => {
+        const template = button.dataset.terrainTemplate;
+        if (!template) return;
+        this.applyTerrainTemplate(template);
         templates.hidden = true;
       };
     });
@@ -6592,6 +7220,15 @@ export class ThreeGame {
         return;
       }
 
+      const typingTarget = event.target;
+      if (
+        typingTarget instanceof HTMLInputElement ||
+        typingTarget instanceof HTMLTextAreaElement ||
+        typingTarget instanceof HTMLSelectElement
+      ) {
+        return;
+      }
+
       const shortcutMap: Record<string, ToolKind> = {
         '1': 'wall1',
         '2': 'wall2',
@@ -6604,6 +7241,7 @@ export class ThreeGame {
         '9': 'manor',
         '0': 'villa',
         f: 'farm',
+        a: 'armyCamp',
         t: 'tree',
         n: 'mountain',
         m: 'mine',
@@ -7669,6 +8307,239 @@ export class ThreeGame {
           this.setAbsoluteElevation(x, y, y <= center + 4 ? 2.8 : 0.55);
         }
       }
+    } else if (template === 'river-port-fort') {
+      this.stoneStyle = 'limestone';
+      prepareArea(center - 9, center - 8, center + 8, center + 8, 0.08);
+
+      for (let y = 2; y < SIZE - 2; y += 1) {
+        const x = center + 4 + Math.round(Math.sin(y * 0.48) * 0.8);
+        this.state.removeCell(x, y);
+        this.terrainOverrides.set(this.key(x, y), 'river');
+        if (y > center - 3 && y < center + 4) {
+          this.state.removeCell(x + 1, y);
+          this.terrainOverrides.set(this.key(x + 1, y), 'river');
+        }
+      }
+
+      placeWallRect(center - 7, center - 5, center + 1, center + 5, 'wall1', 2, {
+        battlement: true,
+        walkway: true,
+        thickness: 'medium',
+      });
+      place(center - 3, center + 5, 'gate');
+      place(center - 7, center - 5, 'tower', 3, { towerShape: 'round', towerTop: 'conical' });
+      place(center + 1, center - 5, 'tower', 3, { towerShape: 'octagonal', towerTop: 'openBattlement' });
+      place(center - 7, center + 5, 'tower', 2, { towerShape: 'square', towerTop: 'hipped' });
+      placeKeepTemplate(center - 3, center - 1, 3, 3, 4, 'sloped', true);
+      addTemplateStairTower(center - 6, center);
+
+      place(center - 5, center + 2, 'house');
+      place(center - 1, center + 2, 'cottage');
+      place(center - 5, center - 3, 'farm');
+      for (let y = center + 1; y < center + 5; y += 1) place(center - 3, y, 'stoneRoad');
+
+      placeHarborTemplate('smallDock', 'fishingBoat', SIZE - 4, center + 4);
+      placeHarborTemplate('fishingDock', 'fishingBoat', SIZE - 5, center - 3);
+    } else if (template === 'farming-duchy') {
+      this.stoneStyle = 'sandstone';
+      prepareArea(center - 11, center - 9, center + 11, center + 9, 0);
+
+      placeWallRect(center - 6, center - 4, center + 6, center + 4, 'wall1', 1, {
+        battlement: true,
+        walkway: false,
+        thickness: 'thin',
+      });
+      place(center, center + 4, 'gate');
+      placeKeepTemplate(center, center - 1, 3, 2, 3, 'sloped', false);
+      place(center - 5, center - 3, 'house');
+      place(center + 5, center - 3, 'villa');
+      place(center - 4, center + 1, 'cottage');
+      place(center + 4, center + 1, 'house');
+
+      const farms = [
+        [center - 8, center - 6], [center - 4, center - 7], [center + 1, center - 7],
+        [center + 7, center - 5], [center - 8, center + 6], [center - 3, center + 7],
+        [center + 3, center + 7], [center + 8, center + 5],
+      ] as Array<[number, number]>;
+      for (const [x, y] of farms) place(x, y, 'farm');
+
+      for (let x = center - 9; x <= center + 9; x += 1) {
+        if (!this.state.getCell(x, center + 5)) place(x, center + 5, 'dirtRoad');
+      }
+      for (let y = center - 7; y <= center + 7; y += 1) {
+        if (!this.state.getCell(center, y)) place(center, y, 'road');
+      }
+    } else if (template === 'twin-keep') {
+      this.stoneStyle = 'darkStone';
+      this.towerBridgeKind = 'stone';
+      prepareArea(center - 11, center - 8, center + 11, center + 8, 0.15);
+
+      placeWallRect(center - 9, center - 6, center + 9, center + 6, 'wall3', 3, {
+        battlement: true,
+        walkway: true,
+        thickness: 'thick',
+      });
+      place(center, center + 6, 'gate', 2);
+      placeKeepTemplate(center - 4, center - 1, 3, 3, 5, 'towered', true);
+      placeKeepTemplate(center + 4, center - 1, 3, 3, 5, 'defensivePlatform', true);
+
+      const t1={x:center-7,y:center-4}, t2={x:center+7,y:center-4};
+      place(t1.x,t1.y,'tower',4,{towerShape:'square',towerTop:'pyramidal'});
+      place(t2.x,t2.y,'tower',4,{towerShape:'square',towerTop:'pyramidal'});
+      addTemplateBridge(t1,t2,'stone');
+      addTemplateStairTower(center - 8, center);
+      place(center, center + 2, 'armyCamp');
+      for (let y=center+1;y<center+6;y+=1) if(!this.state.getCell(center,y)) place(center,y,'stoneRoad');
+    } else if (template === 'border-march') {
+      this.stoneStyle = 'frontier';
+      prepareArea(center - 11, center - 9, center + 11, center + 9, 0.1);
+
+      for (let y=center-8;y<=center+8;y+=1) {
+        if(y===center+2) continue;
+        place(center-7,y,'wall2',2,{battlement:false,walkway:true,thickness:'medium'});
+      }
+      place(center-7,center+2,'gate');
+      place(center-7,center-8,'tower',2,{towerShape:'watch',towerTop:'timberRoof'});
+      place(center-7,center+8,'tower',2,{towerShape:'watch',towerTop:'watch'});
+      placeKeepTemplate(center-1,center-2,2,3,3,'flatBattlement',false);
+      place(center+3,center-2,'armyCamp');
+      place(center+3,center+2,'farm');
+      place(center,center+3,'hut');
+      place(center+5,center+4,'cottage');
+      for(let x=center-6;x<=center+7;x+=1) if(!this.state.getCell(x,center+2)) place(x,center+2,'dirtRoad');
+
+      for(let y=center-8;y<=center+8;y+=2) {
+        if(!this.state.getCell(center+8,y)) place(center+8,y,'tree',1+(y%3+3)%3);
+      }
+    } else if (template === 'forest-citadel') {
+      this.stoneStyle = 'limestone';
+      prepareArea(center - 9, center - 8, center + 9, center + 8, 0.12);
+
+      for(let y=2;y<SIZE-2;y+=1){
+        for(let x=2;x<SIZE-2;x+=1){
+          const d=Math.hypot(x-center,y-center);
+          if(d>7.5 && (x*17+y*29)%4!==0 && !this.state.getCell(x,y)) place(x,y,'tree',1+Math.abs((x+y)%3));
+        }
+      }
+
+      placeWallRect(center-6,center-5,center+6,center+5,'wall1',3,{
+        battlement:true,walkway:true,thickness:'medium'
+      });
+      place(center,center+5,'gate');
+      place(center-6,center-5,'tower',3,{towerShape:'round',towerTop:'conical'});
+      place(center+6,center-5,'tower',3,{towerShape:'octagonal',towerTop:'openBattlement'});
+      place(center-6,center+5,'tower',3,{towerShape:'corner',towerTop:'pyramidal'});
+      place(center+6,center+5,'tower',3,{towerShape:'watch',towerTop:'timberRoof'});
+      placeKeepTemplate(center,center-1,3,3,4,'towered',true);
+      place(center-3,center+2,'house');
+      place(center+3,center+2,'farm');
+      addTemplateStairTower(center-5,center);
+    } else if (template === 'cliff-watch') {
+      this.stoneStyle = 'darkStone';
+      prepareArea(center - 10, center - 9, center + 10, center + 9, 0);
+
+      for(let y=center-7;y<=center+5;y+=1){
+        for(let x=center-8;x<=center+8;x+=1){
+          const edge=x>center+3 ? 4.6 : x>center ? 2.6 : 0.7;
+          this.setAbsoluteElevation(x,y,edge+Math.sin(y*0.45)*0.18);
+        }
+      }
+
+      placeWallRect(center+1,center-5,center+7,center+4,'wall1',3,{
+        battlement:true,walkway:true,thickness:'thick'
+      });
+      place(center+4,center+4,'gate',2);
+      place(center+1,center-5,'tower',4,{towerShape:'round',towerTop:'conical'});
+      place(center+7,center-5,'tower',4,{towerShape:'watch',towerTop:'watch'});
+      place(center+1,center+4,'tower',3,{towerShape:'corner',towerTop:'openBattlement'});
+      placeKeepTemplate(center+4,center-1,2,3,5,'defensivePlatform',true);
+      addTemplateStairTower(center+2,center);
+      place(center-3,center+1,'armyCamp');
+      for(let y=center-2;y<=center+4;y+=1) if(!this.state.getCell(center,y)) place(center,y,'stoneRoad');
+    } else if (template === 'moat-palace') {
+      this.stoneStyle = 'sandstone';
+      prepareArea(center - 11, center - 9, center + 11, center + 9, 0.05);
+
+      placeWallRect(center-6,center-5,center+6,center+5,'wall1',2,{
+        battlement:true,walkway:true,thickness:'medium'
+      });
+      place(center,center+5,'gate');
+      placeKeepTemplate(center,center-1,4,3,4,'sloped',true);
+      place(center-6,center-5,'tower',3,{towerShape:'round',towerTop:'conical'});
+      place(center+6,center-5,'tower',3,{towerShape:'round',towerTop:'conical'});
+      place(center-6,center+5,'tower',3,{towerShape:'square',towerTop:'hipped'});
+      place(center+6,center+5,'tower',3,{towerShape:'square',towerTop:'hipped'});
+
+      for(let x=center-8;x<=center+8;x+=1){
+        if(Math.abs(x-center)>1){place(x,center-7,'moat');place(x,center+7,'moat');}
+      }
+      for(let y=center-6;y<=center+6;y+=1){place(center-8,y,'moat');place(center+8,y,'moat');}
+      for(let y=center-1;y<=center+6;y+=1) if(!this.state.getCell(center,y)) place(center,y,'stoneRoad');
+      addTemplateStairTower(center-5,center);
+    } else if (template === 'merchant-republic') {
+      this.stoneStyle = 'limestone';
+      prepareArea(center-11,center-9,center+11,center+9,0.04);
+
+      placeWallRect(center-9,center-7,center+9,center+7,'wall1',2,{
+        battlement:true,walkway:false,thickness:'medium'
+      });
+      place(center,center+7,'gate');
+      placeKeepTemplate(center,center-4,3,2,3,'sloped',false);
+      const districts=[
+        [center-6,center-2,'manor'],[center-2,center-1,'house'],[center+2,center-1,'villa'],
+        [center+6,center-2,'house'],[center-6,center+3,'cottage'],[center-2,center+3,'house'],
+        [center+2,center+3,'manor'],[center+6,center+3,'villa']
+      ] as Array<[number,number,TileKind]>;
+      for(const [x,y,k] of districts) place(x,y,k);
+      place(center-7,center+5,'farm');
+      place(center+7,center+5,'farm');
+      for(let x=center-8;x<=center+8;x+=1) if(!this.state.getCell(x,center+1)) place(x,center+1,'stoneRoad');
+      for(let y=center-6;y<=center+6;y+=1) if(!this.state.getCell(center,y)) place(center,y,'road');
+      placeHarborTemplate('smallDock','fishingBoat',SIZE-5,center+5);
+    } else if (template === 'war-camp') {
+      this.stoneStyle = 'frontier';
+      prepareArea(center-11,center-9,center+11,center+9,0.08);
+
+      placeWallRect(center-8,center-6,center+8,center+6,'wall2',2,{
+        battlement:false,walkway:true,thickness:'medium'
+      });
+      place(center,center+6,'gate');
+      place(center-7,center-5,'armyCamp');
+      place(center-3,center-5,'armyCamp');
+      place(center+3,center-5,'armyCamp');
+      place(center+7,center-5,'armyCamp');
+      place(center-6,center+1,'hut');
+      place(center-2,center+1,'hut');
+      place(center+2,center+1,'hut');
+      place(center+6,center+1,'hut');
+      place(center-6,center+4,'farm');
+      place(center+6,center+4,'farm');
+      placeKeepTemplate(center,center-1,2,2,2,'flatBattlement',false);
+      for(let x=center-7;x<=center+7;x+=1) if(!this.state.getCell(x,center+3)) place(x,center+3,'dirtRoad');
+      for(let y=center-5;y<=center+5;y+=1) if(!this.state.getCell(center,y)) place(center,y,'road');
+    } else if (template === 'island-monastery') {
+      this.stoneStyle = 'limestone';
+      prepareArea(center-8,center-8,center+8,center+8,0.32);
+
+      for(let y=center-7;y<=center+7;y+=1){
+        for(let x=center-7;x<=center+7;x+=1){
+          const d=Math.hypot(x-center,y-center);
+          if(d<6.8) this.setAbsoluteElevation(x,y,0.28+Math.max(0,1.3-d*0.12));
+        }
+      }
+
+      placeWallRect(center-5,center-4,center+5,center+4,'wall1',1,{
+        battlement:false,walkway:false,thickness:'thin'
+      });
+      place(center,center+4,'gate');
+      placeKeepTemplate(center,center-1,3,3,3,'sloped',false,0,false);
+      place(center-3,center+1,'cottage');
+      place(center+3,center+1,'cottage');
+      place(center-3,center+5,'farm');
+      place(center+3,center+5,'farm');
+      place(center-6,center-5,'tree',3);
+      place(center+6,center-5,'tree',3);
+      placeHarborTemplate('smallDock','fishingBoat',4,center);
     }
 
     this.selectedCell = null;
@@ -7682,15 +8553,169 @@ export class ThreeGame {
     this.setStatus('Template loaded: ' + template);
   }
 
+  private applyTerrainTemplate(template: string): void {
+    this.recordHistory();
+    this.state.clear();
+    this.keepSystem.clear();
+    this.towerBridges.clear();
+    this.nextTowerBridgeId = 1;
+    this.towerBridgeStart = null;
+    this.towerBridgeHover = null;
+    this.clearGroup(this.wallPreviewLayer);
+    this.selectedKeepId = null;
+    this.selectedCell = null;
+    this.terrainOverrides.clear();
+    this.elevationOverrides.clear();
+    this.moatTasks.clear();
+    this.worldSeeded = true;
+
+    const center = Math.floor(SIZE / 2);
+    const addProp = (x: number, y: number, kind: TileKind, level = 1): void => {
+      if (x < 0 || y < 0 || x >= SIZE || y >= SIZE) return;
+      const terrain = this.terrainAt(x, y);
+      if (terrain === 'water' || terrain === 'river') return;
+      if (!this.state.getCell(x, y)) this.state.setCell(x, y, kind, level);
+    };
+
+    const flattenLand = (): void => {
+      for (let y = 0; y < SIZE; y += 1) {
+        for (let x = 0; x < SIZE; x += 1) {
+          const base = this.baseTerrainAt(x, y);
+          if (base !== 'water') this.terrainOverrides.set(this.key(x, y), 'plains');
+          if (base !== 'water') this.setAbsoluteElevation(x, y, 0);
+        }
+      }
+    };
+
+    if (template === 'rolling-plains') {
+      flattenLand();
+      for (let y = 2; y < SIZE - 2; y += 1) {
+        for (let x = 2; x < SIZE - 2; x += 1) {
+          if (this.terrainAt(x, y) === 'water') continue;
+          const elevation =
+            0.25 +
+            Math.sin(x * 0.42) * 0.32 +
+            Math.cos(y * 0.37) * 0.28 +
+            Math.sin((x + y) * 0.18) * 0.16;
+          this.setAbsoluteElevation(x, y, Math.max(0, elevation));
+          if ((x * 17 + y * 23) % 29 === 0) addProp(x, y, 'tree', 1 + ((x + y) % 3));
+        }
+      }
+    } else if (template === 'twin-rivers') {
+      flattenLand();
+      for (let y = 1; y < SIZE - 1; y += 1) {
+        for (const baseX of [center - 5, center + 5]) {
+          const x = baseX + Math.round(Math.sin(y * 0.47 + baseX) * 1.1);
+          this.terrainOverrides.set(this.key(x, y), 'river');
+          if (y % 5 < 3) this.terrainOverrides.set(this.key(x + 1, y), 'river');
+        }
+      }
+      for (let y = 3; y < SIZE - 3; y += 2) {
+        for (const x of [center - 9, center, center + 9]) {
+          addProp(x, y, 'tree', 1 + ((x + y) % 2));
+        }
+      }
+    } else if (template === 'alpine-basin') {
+      flattenLand();
+      this.applyMountainRange({ x: 3, y: 4 }, { x: 5, y: SIZE - 5 }, true);
+      this.applyMountainRange({ x: SIZE - 4, y: 4 }, { x: SIZE - 6, y: SIZE - 5 }, true);
+      this.applyMountainRange({ x: 5, y: 4 }, { x: SIZE - 6, y: 3 }, true);
+      for (let y = center - 5; y <= center + 6; y += 1) {
+        for (let x = center - 5; x <= center + 5; x += 1) {
+          this.state.removeCell(x, y);
+          this.terrainOverrides.set(this.key(x, y), 'plains');
+          this.setAbsoluteElevation(x, y, 0.35 + Math.hypot(x-center,y-center)*0.025);
+        }
+      }
+    } else if (template === 'coastal-cliffs') {
+      flattenLand();
+      for (let y = 1; y < SIZE - 1; y += 1) {
+        for (let x = 1; x < SIZE - 1; x += 1) {
+          const radial = Math.hypot(x-center,y-center);
+          if (radial > SIZE * 0.36 && this.terrainAt(x,y) !== 'water') {
+            this.setAbsoluteElevation(x,y,2.1+Math.max(0,radial-SIZE*0.36)*0.3);
+            if ((x*11+y*7)%9===0) addProp(x,y,'rock',1+((x+y)%2));
+          } else if (this.terrainAt(x,y) !== 'water') {
+            this.setAbsoluteElevation(x,y,0.18);
+          }
+        }
+      }
+    } else if (template === 'forest-highlands') {
+      flattenLand();
+      for (let y = 2; y < SIZE - 2; y += 1) {
+        for (let x = 2; x < SIZE - 2; x += 1) {
+          if (this.terrainAt(x,y) === 'water') continue;
+          const elevation = Math.max(0, 0.4 + Math.sin(x*0.31+y*0.17)*0.55 + Math.cos(y*0.41)*0.4);
+          this.setAbsoluteElevation(x,y,elevation);
+          const clearing = Math.hypot(x-center,y-center) < 5.5;
+          if (!clearing && (x*13+y*19)%5!==0) addProp(x,y,'tree',1+Math.abs((x*3+y)%3));
+          else if (!clearing && (x*23+y*7)%17===0) addProp(x,y,'rock',1);
+        }
+      }
+    } else if (template === 'marsh-island') {
+      flattenLand();
+      for (let y = 2; y < SIZE - 2; y += 1) {
+        for (let x = 2; x < SIZE - 2; x += 1) {
+          if (this.terrainAt(x,y) === 'water') continue;
+          this.setAbsoluteElevation(x,y,0.03+Math.sin((x+y)*0.35)*0.05);
+          const wet =
+            Math.sin(x*0.7)+Math.cos(y*0.63)+Math.sin((x-y)*0.32) > 1.35;
+          if (wet && Math.hypot(x-center,y-center)>3.5) {
+            this.state.removeCell(x,y);
+            this.terrainOverrides.set(this.key(x,y),'river');
+          } else if ((x*31+y*17)%13===0) {
+            addProp(x,y,'tree',1);
+          }
+        }
+      }
+    } else if (template === 'terraced-hills') {
+      flattenLand();
+      for (let y = 2; y < SIZE - 2; y += 1) {
+        for (let x = 2; x < SIZE - 2; x += 1) {
+          if (this.terrainAt(x,y)==='water') continue;
+          const distance = Math.hypot(x-center,y-center);
+          const terrace = Math.floor(Math.max(0, 7.5-distance)/1.6)*0.62;
+          this.setAbsoluteElevation(x,y,terrace);
+          if (distance>6 && (x+y)%7===0) addProp(x,y,'tree',1+((x*y)%3));
+        }
+      }
+    } else {
+      this.setStatus('Unknown terrain template');
+      return;
+    }
+
+    this.redraw();
+    this.save();
+    this.setStatus('Editable terrain template loaded: ' + template);
+  }
+
   private adjustBattleSetup(field: keyof BattleSetup, delta: number): void {
     if (this.battleSystem.isActive()) {
       this.setStatus('Reset the current battle before changing army sizes');
       return;
     }
 
+    this.setBattleSetupValue(field, this.battleSetup[field] + delta);
+  }
+
+  private setBattleSetupValue(
+    field: keyof BattleSetup,
+    value: number,
+  ): void {
+    if (this.battleSystem.isActive()) {
+      this.setStatus('Reset the current battle before changing army sizes');
+      this.syncBattleSetupUI();
+      return;
+    }
+
+    const normalized = THREE.MathUtils.clamp(
+      Math.floor(Number.isFinite(value) ? value : 0),
+      0,
+      120,
+    );
     this.battleSetup = {
       ...this.battleSetup,
-      [field]: THREE.MathUtils.clamp(this.battleSetup[field] + delta, 0, 120),
+      [field]: normalized,
     };
     this.syncBattleSetupUI();
     this.updatePopulationUI();
@@ -7700,13 +8725,21 @@ export class ThreeGame {
     const mappings: Array<[keyof BattleSetup, string]> = [
       ['defenderSwordsmen', 'battle-defender-swordsmen'],
       ['defenderArchers', 'battle-defender-archers'],
+      ['defenderSpearmen', 'battle-defender-spearmen'],
+      ['defenderCrossbowmen', 'battle-defender-crossbowmen'],
       ['attackerSwordsmen', 'battle-attacker-swordsmen'],
       ['attackerArchers', 'battle-attacker-archers'],
+      ['attackerSpearmen', 'battle-attacker-spearmen'],
+      ['attackerCrossbowmen', 'battle-attacker-crossbowmen'],
     ];
 
     for (const [field, id] of mappings) {
       const element = document.getElementById(id);
-      if (element) element.textContent = String(this.battleSetup[field]);
+      if (element instanceof HTMLInputElement) {
+        element.value = String(this.battleSetup[field]);
+      } else if (element) {
+        element.textContent = String(this.battleSetup[field]);
+      }
     }
   }
 
@@ -7719,9 +8752,15 @@ export class ThreeGame {
     }
 
     const attackerTotal =
-      this.battleSetup.attackerSwordsmen + this.battleSetup.attackerArchers;
+      this.battleSetup.attackerSwordsmen +
+      this.battleSetup.attackerArchers +
+      this.battleSetup.attackerSpearmen +
+      this.battleSetup.attackerCrossbowmen;
     const defenderTotal =
-      this.battleSetup.defenderSwordsmen + this.battleSetup.defenderArchers;
+      this.battleSetup.defenderSwordsmen +
+      this.battleSetup.defenderArchers +
+      this.battleSetup.defenderSpearmen +
+      this.battleSetup.defenderCrossbowmen;
 
     if (attackerTotal <= 0) {
       this.setStatus('Add at least one Attacker before starting the battle');
@@ -7735,6 +8774,7 @@ export class ThreeGame {
     this.setViewMode('world3d');
     this.setToolbarOpen(false);
     this.workerLayer.visible = false;
+    this.settlementLayer.visible = false;
     document.getElementById('game-shell')?.classList.add('battle-mode');
     this.battleSystem.start(this.battleSetup);
     this.setStatus('Battle started · Attackers are advancing on the castle');
@@ -7749,6 +8789,7 @@ export class ThreeGame {
     this.battleSystem.reset();
     document.getElementById('game-shell')?.classList.remove('battle-mode');
     this.workerLayer.visible = this.viewMode === 'world3d';
+    this.settlementLayer.visible = this.viewMode === 'world3d';
     this.setStatus('Battle reset · castle restored unchanged');
   }
 
@@ -7867,7 +8908,10 @@ export class ThreeGame {
     const deltaMs = this.lastFrameTime === 0 ? 16 : Math.min(50, time - this.lastFrameTime);
     this.lastFrameTime = time;
 
-    if (!this.battleSystem.isActive()) this.updateWorkers(deltaMs);
+    if (!this.battleSystem.isActive()) {
+      this.updateWorkers(deltaMs);
+      this.updateSettlementAgents(deltaMs);
+    }
     this.battleSystem.update(deltaMs, time);
     this.updateLongPress(time);
     this.riverTexture.offset.y -= deltaMs * 0.00032;

@@ -13,16 +13,17 @@ export interface PopulationGroups {
 
 const CIVILIAN_VALUES: Partial<Record<TileKind, number>> = {
   hut: 4,
-  cottage: 12,
-  house: 20,
-  manor: 36,
-  villa: 28,
-  farm: 6,
+  cottage: 18,
+  house: 30,
+  manor: 42,
+  villa: 36,
+  farm: 8,
   mine: 5,
   smallDock: 4,
   woodenPier: 2,
   harbor: 12,
   fishingDock: 6,
+  armyCamp: 0,
 };
 
 export class PopulationSystem {
@@ -40,7 +41,7 @@ export class PopulationSystem {
     for (const cell of cells) {
       civilians += CIVILIAN_VALUES[cell.kind] ?? 0;
 
-      if (cell.kind === 'farm') farmers += 6;
+      if (cell.kind === 'farm') farmers += 8;
       else if (cell.kind === 'mine') miners += 5;
       else if (cell.kind === 'smallDock' || cell.kind === 'woodenPier') sailors += 2;
       else if (cell.kind === 'fishingDock') sailors += 5;
