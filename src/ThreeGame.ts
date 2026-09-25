@@ -1137,7 +1137,7 @@ export class ThreeGame {
     if (kind === 'wall2') {
       const plankCount = overrideSpan ? 8 : 4;
       for (let i = 0; i < plankCount; i += 1) {
-        const t = plankCount === 1 ? 0 : i / (plankCount - 1) - 0.5;
+        const t = i / (plankCount - 1) - 0.5;
         const along = t * Math.max(0.4, span - 0.35);
 
         this.addBox(
