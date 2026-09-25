@@ -3,10 +3,12 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { GameState } from './state/GameState';
 import { SAVE_KEY, SAVE_VERSION, TILE_SIZE, WORLD_COLS } from './core/constants';
 import type {
+  AccessKind,
   GridCell,
   SavedGame,
   TerrainKind,
   TerrainOverrideKind,
+  TerrainToolKind,
   TileKind,
   ToolKind,
   TowerShape,
@@ -38,6 +40,10 @@ const BUILDING_KINDS: TileKind[] = [
   'rock',
   'hut',
   'moat',
+  'stoneStairs',
+  'woodenStairs',
+  'ramp',
+  'ladder',
 ];
 
 interface GridPoint {
@@ -68,6 +74,12 @@ interface WorkerAgent {
   homeZ: number;
 }
 
+interface HistorySnapshot {
+  cells: ReturnType<GameState['entries']>;
+  terrain: Array<[string, TerrainOverrideKind]>;
+  elevations: Array<[string, number]>;
+}
+
 const TOOL_GROUPS: Array<{ label: string; tools: ToolDefinition[] }> = [
   {
     label: 'Advanced Walls',
@@ -77,6 +89,10 @@ const TOOL_GROUPS: Array<{ label: string; tools: ToolDefinition[] }> = [
       { id: 'wall3', icon: '🛡️', label: 'Reinforced Wall', detail: 'Drag A → B · heavy defense', shortcut: '3' },
       { id: 'gate', icon: '🚪', label: 'Gate', detail: 'Snaps into fortification lines', shortcut: '4' },
       { id: 'tower', icon: '🏰', label: 'Modular Tower', detail: '5 bases · 5 top modules', shortcut: '5' },
+      { id: 'stoneStairs', icon: '🪜', label: 'Stone Stairs', detail: 'Snaps ground to wall/tower top', shortcut: 'A' },
+      { id: 'woodenStairs', icon: '🪵', label: 'Wooden Stairs', detail: 'Light access stairway', shortcut: 'S' },
+      { id: 'ramp', icon: '↗️', label: 'Ramp', detail: 'Sloped access to fortifications', shortcut: 'D' },
+      { id: 'ladder', icon: '🪜', label: 'Ladder', detail: 'Vertical wall/tower access', shortcut: 'K' },
       { id: 'moat', icon: '💧', label: 'Moat', detail: 'Workers excavate queued tiles', shortcut: 'Q' },
     ],
   },
@@ -99,6 +115,13 @@ const TOOL_GROUPS: Array<{ label: string; tools: ToolDefinition[] }> = [
       { id: 'mine', icon: '⛏️', label: 'Mine', detail: 'Natural or built mountain', shortcut: 'M' },
       { id: 'river', icon: '🌊', label: 'River', detail: 'Carve a water channel', shortcut: 'R' },
       { id: 'land', icon: '🌱', label: 'Land', detail: 'Fill water into buildable land', shortcut: 'L' },
+      { id: 'raise', icon: '⬆️', label: 'Raise', detail: 'Raise terrain with brush', shortcut: 'U' },
+      { id: 'lower', icon: '⬇️', label: 'Lower', detail: 'Lower terrain with brush', shortcut: 'J' },
+      { id: 'flatten', icon: '▰', label: 'Flatten', detail: 'Level terrain to brush center', shortcut: 'B' },
+      { id: 'smooth', icon: '〰️', label: 'Smooth', detail: 'Blend nearby terrain heights', shortcut: 'V' },
+      { id: 'dig', icon: '⛏️', label: 'Dig', detail: 'Excavate deep ground', shortcut: 'G' },
+      { id: 'hill', icon: '⛰️', label: 'Create Hill', detail: 'Build a rounded hill', shortcut: 'H' },
+      { id: 'cliff', icon: '🗻', label: 'Create Cliff', detail: 'Create a sharp raised plateau', shortcut: 'C' },
       { id: 'erase', icon: '⌫', label: 'Remove', detail: 'Trees, rocks, huts & builds', shortcut: 'X' },
     ],
   },
@@ -112,6 +135,7 @@ export class ThreeGame {
   private readonly controls: OrbitControls;
   private readonly state = new GameState();
   private readonly terrainOverrides = new Map<string, TerrainOverrideKind>();
+  private readonly elevationOverrides = new Map<string, number>();
   private readonly raycaster = new THREE.Raycaster();
   private readonly pointer = new THREE.Vector2();
   private readonly terrainLayer = new THREE.Group();
@@ -131,6 +155,15 @@ export class ThreeGame {
   private wallWalkway = false;
   private towerShape: TowerShape = 'round';
   private towerTop: TowerTop = 'battlement';
+  private brushSize = 2;
+  private brushStrength = 1;
+
+  private readonly undoStack: HistorySnapshot[] = [];
+  private readonly redoStack: HistorySnapshot[] = [];
+  private terrainStrokeActive = false;
+  private terrainStrokeChanged = false;
+  private terrainStrokeSnapshot: HistorySnapshot | null = null;
+  private lastTerrainBrushKey = '';
 
   private wallDragStart: GridPoint | null = null;
   private wallDragEnd: GridPoint | null = null;
@@ -141,6 +174,7 @@ export class ThreeGame {
   private lastFrameTime = 0;
 
   constructor(root: HTMLElement) {
+    const hadSave = localStorage.getItem(SAVE_KEY) !== null;
     this.root = root;
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.6));
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
@@ -181,6 +215,10 @@ export class ThreeGame {
     this.createWorkers();
     this.redraw();
     this.bindUI();
+    if (!hadSave) {
+      const templates = document.getElementById('templates-modal');
+      if (templates) templates.hidden = false;
+    }
     this.bindPointerInput();
     this.resize();
 
@@ -282,15 +320,25 @@ export class ThreeGame {
     return this.terrainOverrides.get(this.key(x, y)) ?? this.baseTerrainAt(x, y);
   }
 
-  private terrainElevation(x: number, y: number): number {
+  private baseTerrainElevation(x: number, y: number): number {
     const terrain = this.terrainAt(x, y);
-    const undulation = Math.sin(x * 0.72) * 0.13 + Math.cos(y * 0.63) * 0.11;
-
-    if (terrain === 'mountain') return 0.95 + undulation * 0.8;
-    if (terrain === 'forest') return 0.18 + undulation * 0.45;
-    if (terrain === 'shore') return -0.05 + undulation * 0.18;
-    if (terrain === 'plains') return undulation * 0.5;
+    if (terrain === 'mountain') return 0.9;
     return 0;
+  }
+
+  private terrainElevation(x: number, y: number): number {
+    return this.baseTerrainElevation(x, y) + (this.elevationOverrides.get(this.key(x, y)) ?? 0);
+  }
+
+  private setAbsoluteElevation(x: number, y: number, absolute: number): void {
+    const clamped = THREE.MathUtils.clamp(absolute, -1.6, 6);
+    const offset = clamped - this.baseTerrainElevation(x, y);
+    if (Math.abs(offset) < 0.02) this.elevationOverrides.delete(this.key(x, y));
+    else this.elevationOverrides.set(this.key(x, y), offset);
+  }
+
+  private isTerrainTool(tool: ToolKind): tool is TerrainToolKind {
+    return ['raise', 'lower', 'flatten', 'smooth', 'dig', 'hill', 'cliff'].includes(tool);
   }
 
   private gridToWorld(gx: number, gy: number): { x: number; z: number } {
@@ -396,6 +444,8 @@ export class ThreeGame {
       for (let x = 0; x < SIZE; x += 1) {
         const terrain = this.terrainAt(x, y);
         const base = this.baseTerrainAt(x, y);
+        const elevation = this.terrainElevation(x, y);
+        const edited = this.elevationOverrides.has(this.key(x, y));
         const position = this.gridToWorld(x, y);
         const group = new THREE.Group();
         group.position.set(position.x, 0, position.z);
@@ -421,8 +471,10 @@ export class ThreeGame {
           const grass = new THREE.MeshStandardMaterial({ color: 0xb3c968, roughness: 0.92 });
           this.addBox(group, TILE, 0.5, TILE, soil, 0, 1.87, 0);
           this.addBox(group, TILE, 0.14, TILE, grass, 0, 2.19, 0);
-          this.terrainLayer.add(group);
-          continue;
+        }
+
+        if (edited) {
+          this.renderElevationPatch(group, elevation);
         }
 
         const occupying = this.state.getCell(x, y)?.kind;
@@ -431,10 +483,35 @@ export class ThreeGame {
           (this.isWallFamily(occupying) || occupying === 'mine' || occupying === 'tower' || occupying === 'gate');
 
         if (terrain === 'mountain' && !hidesMountain) {
-          this.addNaturalMountain(group, x, y);
-          this.terrainLayer.add(group);
+          const mountainGroup = new THREE.Group();
+          mountainGroup.position.y = this.elevationOverrides.get(this.key(x, y)) ?? 0;
+          this.addNaturalMountain(mountainGroup, x, y);
+          group.add(mountainGroup);
         }
+
+        if (group.children.length > 0) this.terrainLayer.add(group);
       }
+    }
+  }
+
+  private renderElevationPatch(group: THREE.Group, elevation: number): void {
+    const side = new THREE.MeshStandardMaterial({ color: 0x78644b, roughness: 1 });
+    const grass = new THREE.MeshStandardMaterial({ color: 0xa9c864, roughness: 0.94 });
+    const earth = new THREE.MeshStandardMaterial({ color: 0x51453a, roughness: 1 });
+
+    if (elevation > 0.03) {
+      this.addBox(group, TILE * 0.98, elevation, TILE * 0.98, side, 0, 2.2 + elevation / 2, 0);
+      this.addBox(group, TILE * 0.98, 0.12, TILE * 0.98, grass, 0, 2.2 + elevation + 0.05, 0);
+      return;
+    }
+
+    if (elevation < -0.03) {
+      const depth = Math.min(1.55, Math.abs(elevation));
+      this.addBox(group, TILE * 0.94, 0.08, TILE * 0.94, earth, 0, 2.215, 0);
+      this.addBox(group, TILE * 0.98, 0.16 + depth * 0.12, 0.22, side, 0, 2.25, -TILE * 0.43);
+      this.addBox(group, TILE * 0.98, 0.16 + depth * 0.12, 0.22, side, 0, 2.25, TILE * 0.43);
+      this.addBox(group, 0.22, 0.16 + depth * 0.12, TILE * 0.78, side, -TILE * 0.43, 2.25, 0);
+      this.addBox(group, 0.22, 0.16 + depth * 0.12, TILE * 0.78, side, TILE * 0.43, 2.25, 0);
     }
   }
 
@@ -474,24 +551,31 @@ export class ThreeGame {
   private makeBuilding(cell: ReturnType<GameState['entries']>[number], floodedMoats: Set<string>): THREE.Group {
     const group = new THREE.Group();
     const position = this.gridToWorld(cell.x, cell.y);
-    const isFortification = this.isWallFamily(cell.kind) || cell.kind === 'tower' || cell.kind === 'gate';
-    group.position.set(position.x, isFortification ? this.terrainElevation(cell.x, cell.y) : 0, position.z);
+    group.position.set(position.x, this.terrainElevation(cell.x, cell.y), position.z);
 
-    if (cell.kind === 'road') return this.makeRoad(group, cell.x, cell.y);
-    if (WALL_KINDS.includes(cell.kind as WallKind)) {
-      return this.makeWall(group, cell.kind as WallKind, cell.x, cell.y, cell);
+    if (cell.kind === 'road') this.makeRoad(group, cell.x, cell.y);
+    else if (WALL_KINDS.includes(cell.kind as WallKind)) {
+      this.makeWall(group, cell.kind as WallKind, cell.x, cell.y, cell);
+    } else if (cell.kind === 'gate') this.makeGate(group, cell.x, cell.y);
+    else if (cell.kind === 'tower') this.makeTower(group, cell.x, cell.y, cell);
+    else if (cell.kind === 'farm') this.makeFarm(group);
+    else if (cell.kind === 'mine') this.makeMine(group);
+    else if (cell.kind === 'mountain') this.makeMountain(group, cell.level ?? 1);
+    else if (cell.kind === 'tree') this.makeTree(group, cell.level ?? 1);
+    else if (cell.kind === 'rock') this.makeRock(group, cell.level ?? 1);
+    else if (cell.kind === 'hut') this.makeHut(group);
+    else if (cell.kind === 'moat') this.makeMoat(group, floodedMoats.has(this.key(cell.x, cell.y)));
+    else if (['stoneStairs', 'woodenStairs', 'ramp', 'ladder'].includes(cell.kind)) {
+      this.makeAccess(group, cell.kind as AccessKind, cell.x, cell.y, cell);
+    } else {
+      this.makeHouse(group, cell.kind as 'cottage' | 'house' | 'manor' | 'villa');
     }
-    if (cell.kind === 'gate') return this.makeGate(group, cell.x, cell.y);
-    if (cell.kind === 'tower') return this.makeTower(group, cell.x, cell.y, cell);
-    if (cell.kind === 'farm') return this.makeFarm(group);
-    if (cell.kind === 'mine') return this.makeMine(group);
-    if (cell.kind === 'mountain') return this.makeMountain(group, cell.level ?? 1);
-    if (cell.kind === 'tree') return this.makeTree(group, cell.level ?? 1);
-    if (cell.kind === 'rock') return this.makeRock(group, cell.level ?? 1);
-    if (cell.kind === 'hut') return this.makeHut(group);
-    if (cell.kind === 'moat') return this.makeMoat(group, floodedMoats.has(this.key(cell.x, cell.y)));
 
-    return this.makeHouse(group, cell.kind as 'cottage' | 'house' | 'manor' | 'villa');
+    if (!this.isWallFamily(cell.kind) && cell.kind !== 'road' && cell.kind !== 'moat') {
+      group.rotation.y = (cell.rotation ?? 0) * Math.PI / 2;
+    }
+
+    return group;
   }
 
   private addBox(
@@ -891,6 +975,131 @@ export class ThreeGame {
     }
   }
 
+  private fortificationTopLocal(cell: GridCell): number {
+    if (WALL_KINDS.includes(cell.kind as WallKind)) {
+      const base = cell.kind === 'wall1' ? 3.35 : cell.kind === 'wall2' ? 3.65 : 4.2;
+      return 2.22 + base + Math.max(0, (cell.level ?? 1) - 1) * 1.8;
+    }
+
+    if (cell.kind === 'tower') {
+      const base = (cell.towerShape ?? 'round') === 'watch' ? 4.5 : 5.3;
+      return 2.22 + base + Math.max(0, (cell.level ?? 1) - 1) * 1.8;
+    }
+
+    if (cell.kind === 'gate') return 6.95;
+    return 5.9;
+  }
+
+  private accessDirection(rotation: number): { dx: number; dy: number } {
+    const normalized = ((rotation % 4) + 4) % 4;
+    if (normalized === 0) return { dx: 0, dy: -1 };
+    if (normalized === 1) return { dx: -1, dy: 0 };
+    if (normalized === 2) return { dx: 0, dy: 1 };
+    return { dx: 1, dy: 0 };
+  }
+
+  private accessRotationForNeighbor(dx: number, dy: number): number {
+    if (dx === 0 && dy === -1) return 0;
+    if (dx === -1 && dy === 0) return 1;
+    if (dx === 0 && dy === 1) return 2;
+    return 3;
+  }
+
+  private findAccessSnap(gx: number, gy: number): { rotation: number; rise: number } | null {
+    const candidates = [
+      { dx: 0, dy: -1 },
+      { dx: 1, dy: 0 },
+      { dx: 0, dy: 1 },
+      { dx: -1, dy: 0 },
+    ];
+
+    for (const candidate of candidates) {
+      const neighbor = this.state.getCell(gx + candidate.dx, gy + candidate.dy);
+      if (!neighbor || !this.isWallFamily(neighbor.kind)) continue;
+
+      const targetWorldTop =
+        this.terrainElevation(gx + candidate.dx, gy + candidate.dy) +
+        this.fortificationTopLocal(neighbor);
+      const ownGroundWorld = this.terrainElevation(gx, gy) + 2.22;
+
+      return {
+        rotation: this.accessRotationForNeighbor(candidate.dx, candidate.dy),
+        rise: THREE.MathUtils.clamp(targetWorldTop - ownGroundWorld, 1.4, 15),
+      };
+    }
+
+    return null;
+  }
+
+  private accessRiseForRotation(gx: number, gy: number, rotation: number): number {
+    const direction = this.accessDirection(rotation);
+    const neighbor = this.state.getCell(gx + direction.dx, gy + direction.dy);
+
+    if (neighbor && this.isWallFamily(neighbor.kind)) {
+      const targetWorldTop =
+        this.terrainElevation(gx + direction.dx, gy + direction.dy) +
+        this.fortificationTopLocal(neighbor);
+      const ownGroundWorld = this.terrainElevation(gx, gy) + 2.22;
+      return THREE.MathUtils.clamp(targetWorldTop - ownGroundWorld, 1.4, 15);
+    }
+
+    return this.findAccessSnap(gx, gy)?.rise ?? 3.8;
+  }
+
+  private makeAccess(
+    group: THREE.Group,
+    kind: AccessKind,
+    gx: number,
+    gy: number,
+    cell: GridCell,
+  ): THREE.Group {
+    const rise = this.accessRiseForRotation(gx, gy, cell.rotation ?? 0);
+    const stone = new THREE.MeshStandardMaterial({ color: 0xb7afa4, roughness: 0.92 });
+    const wood = new THREE.MeshStandardMaterial({ color: 0x815b3d, roughness: 0.94 });
+    const metal = new THREE.MeshStandardMaterial({ color: 0x66737b, metalness: 0.34, roughness: 0.58 });
+    const material = kind === 'woodenStairs' || kind === 'ladder' ? wood : stone;
+
+    if (kind === 'ramp') {
+      const run = 3.35;
+      const ramp = this.addBox(group, 1.7, 0.3, Math.sqrt(run * run + rise * rise), stone, 0, 2.28 + rise / 2, 0);
+      ramp.rotation.x = -Math.atan2(rise, run);
+      return group;
+    }
+
+    if (kind === 'ladder') {
+      const railHeight = Math.max(2.2, rise);
+      this.addBox(group, 0.11, railHeight, 0.11, wood, -0.48, 2.22 + railHeight / 2, -1.52);
+      this.addBox(group, 0.11, railHeight, 0.11, wood, 0.48, 2.22 + railHeight / 2, -1.52);
+
+      const rungCount = Math.max(5, Math.ceil(railHeight / 0.48));
+      for (let i = 0; i <= rungCount; i += 1) {
+        const y = 2.3 + (i / rungCount) * (railHeight - 0.18);
+        this.addBox(group, 1.02, 0.08, 0.1, metal, 0, y, -1.52);
+      }
+      return group;
+    }
+
+    const steps = Math.max(7, Math.ceil(rise / 0.48));
+    const run = 3.25;
+    const stepDepth = run / steps + 0.05;
+    const stepMaterial = material;
+
+    for (let i = 0; i < steps; i += 1) {
+      const t = (i + 1) / steps;
+      const z = run / 2 - t * run;
+      const y = 2.24 + t * rise;
+      this.addBox(group, 1.75, 0.24, stepDepth, stepMaterial, 0, y, z);
+    }
+
+    const railMaterial = kind === 'woodenStairs' ? wood : stone;
+    for (const x of [-0.93, 0.93]) {
+      const rail = this.addBox(group, 0.12, 0.12, Math.sqrt(run * run + rise * rise), railMaterial, x, 2.35 + rise / 2, 0);
+      rail.rotation.x = -Math.atan2(rise, run);
+    }
+
+    return group;
+  }
+
   private makeHouse(group: THREE.Group, kind: 'cottage' | 'house' | 'manor' | 'villa'): THREE.Group {
     const config = {
       cottage: { width: 3.0, depth: 2.8, height: 3.25, roof: 2.05, color: 0xc98362, roofColor: 0x8d5e4f },
@@ -1179,6 +1388,210 @@ export class ThreeGame {
     return flooded;
   }
 
+  private captureSnapshot(): HistorySnapshot {
+    return {
+      cells: this.state.entries().map((cell) => ({ ...cell })),
+      terrain: Array.from(this.terrainOverrides.entries()),
+      elevations: Array.from(this.elevationOverrides.entries()),
+    };
+  }
+
+  private pushUndoSnapshot(snapshot: HistorySnapshot): void {
+    this.undoStack.push(snapshot);
+    if (this.undoStack.length > 60) this.undoStack.shift();
+    this.redoStack.length = 0;
+  }
+
+  private recordHistory(): void {
+    this.pushUndoSnapshot(this.captureSnapshot());
+  }
+
+  private restoreSnapshot(snapshot: HistorySnapshot): void {
+    this.state.replace(snapshot.cells);
+    this.terrainOverrides.clear();
+    this.elevationOverrides.clear();
+
+    for (const [key, value] of snapshot.terrain) this.terrainOverrides.set(key, value);
+    for (const [key, value] of snapshot.elevations) this.elevationOverrides.set(key, value);
+
+    this.selectedCell = null;
+    this.redraw();
+    this.save(false);
+  }
+
+  private undo(): void {
+    const snapshot = this.undoStack.pop();
+    if (!snapshot) {
+      this.setStatus('Nothing to undo');
+      return;
+    }
+
+    this.redoStack.push(this.captureSnapshot());
+    this.restoreSnapshot(snapshot);
+    this.setStatus('Undo');
+  }
+
+  private redo(): void {
+    const snapshot = this.redoStack.pop();
+    if (!snapshot) {
+      this.setStatus('Nothing to redo');
+      return;
+    }
+
+    this.undoStack.push(this.captureSnapshot());
+    this.restoreSnapshot(snapshot);
+    this.setStatus('Redo');
+  }
+
+  private brushPoints(center: GridPoint): Array<GridPoint & { weight: number }> {
+    const radius = Math.max(0, this.brushSize - 1);
+    const points: Array<GridPoint & { weight: number }> = [];
+
+    for (let y = center.y - radius; y <= center.y + radius; y += 1) {
+      for (let x = center.x - radius; x <= center.x + radius; x += 1) {
+        if (x < 0 || y < 0 || x >= SIZE || y >= SIZE) continue;
+
+        const distance = Math.hypot(x - center.x, y - center.y);
+        if (radius > 0 && distance > radius + 0.35) continue;
+
+        points.push({
+          x,
+          y,
+          weight: radius === 0 ? 1 : THREE.MathUtils.clamp(1 - distance / (radius + 0.65), 0.18, 1),
+        });
+      }
+    }
+
+    return points;
+  }
+
+  private averageNeighborElevation(x: number, y: number): number {
+    let sum = 0;
+    let count = 0;
+
+    for (let oy = -1; oy <= 1; oy += 1) {
+      for (let ox = -1; ox <= 1; ox += 1) {
+        const nx = x + ox;
+        const ny = y + oy;
+        if (nx < 0 || ny < 0 || nx >= SIZE || ny >= SIZE) continue;
+        if (this.terrainAt(nx, ny) === 'water' || this.terrainAt(nx, ny) === 'river') continue;
+        sum += this.terrainElevation(nx, ny);
+        count += 1;
+      }
+    }
+
+    return count === 0 ? this.terrainElevation(x, y) : sum / count;
+  }
+
+  private applyTerrainBrush(center: GridPoint): void {
+    const tool = this.selectedTool;
+    if (!this.isTerrainTool(tool)) return;
+
+    const points = this.brushPoints(center);
+    const centerElevation = this.terrainElevation(center.x, center.y);
+    const oldValues = new Map<string, number>();
+
+    for (const point of points) {
+      oldValues.set(this.key(point.x, point.y), this.terrainElevation(point.x, point.y));
+    }
+
+    let changed = false;
+
+    for (const point of points) {
+      const terrain = this.terrainAt(point.x, point.y);
+      if (terrain === 'water' || terrain === 'river') continue;
+
+      const current = oldValues.get(this.key(point.x, point.y)) ?? this.terrainElevation(point.x, point.y);
+      let next = current;
+      const scaled = this.brushStrength * point.weight;
+
+      if (tool === 'raise') next = current + 0.32 * scaled;
+      else if (tool === 'lower') next = current - 0.32 * scaled;
+      else if (tool === 'dig') next = current - 0.58 * scaled;
+      else if (tool === 'flatten') {
+        next = THREE.MathUtils.lerp(current, centerElevation, THREE.MathUtils.clamp(0.3 * this.brushStrength, 0, 1));
+      } else if (tool === 'smooth') {
+        const average = this.averageNeighborElevation(point.x, point.y);
+        next = THREE.MathUtils.lerp(current, average, THREE.MathUtils.clamp(0.26 * this.brushStrength, 0, 0.92));
+      } else if (tool === 'hill') {
+        next = current + 0.48 * scaled;
+      } else if (tool === 'cliff') {
+        const target = centerElevation + 0.85 * this.brushStrength;
+        next = point.weight > 0.42 ? Math.max(current, target) : current;
+      }
+
+      next = THREE.MathUtils.clamp(next, -1.6, 6);
+      if (Math.abs(next - current) < 0.005) continue;
+
+      this.setAbsoluteElevation(point.x, point.y, next);
+      changed = true;
+    }
+
+    if (changed) {
+      this.terrainStrokeChanged = true;
+      this.redraw();
+      this.setStatus(`Terrain: ${tool} · brush ${this.brushSize} · strength ${this.brushStrength.toFixed(2)}`);
+    }
+  }
+
+  private moveSelected(dx: number, dy: number): void {
+    if (!this.selectedCell) {
+      this.setStatus('Click a structure first');
+      return;
+    }
+
+    const source = this.state.getCell(this.selectedCell.x, this.selectedCell.y);
+    if (!source) {
+      this.setStatus('Selected tile has no structure');
+      return;
+    }
+
+    const nx = this.selectedCell.x + dx;
+    const ny = this.selectedCell.y + dy;
+    if (nx < 0 || ny < 0 || nx >= SIZE || ny >= SIZE || this.state.getCell(nx, ny)) {
+      this.setStatus('Cannot move there');
+      return;
+    }
+
+    const destinationTerrain = this.terrainAt(nx, ny);
+    if (destinationTerrain === 'water' || destinationTerrain === 'river') {
+      this.setStatus('Cannot move onto water');
+      return;
+    }
+
+    this.recordHistory();
+
+    const { kind, level, ...options } = source;
+    this.state.removeCell(this.selectedCell.x, this.selectedCell.y);
+    this.state.setCell(nx, ny, kind, level ?? 1, options);
+    this.selectedCell = { x: nx, y: ny };
+
+    this.redraw();
+    this.scheduleSave();
+    this.setStatus('Moved selected structure');
+  }
+
+  private rotateSelected(): void {
+    if (!this.selectedCell) {
+      this.setStatus('Click a structure first');
+      return;
+    }
+
+    const cell = this.state.getCell(this.selectedCell.x, this.selectedCell.y);
+    if (!cell) {
+      this.setStatus('Selected tile has no structure');
+      return;
+    }
+
+    this.recordHistory();
+    this.state.updateCell(this.selectedCell.x, this.selectedCell.y, {
+      rotation: ((cell.rotation ?? 0) + 1) % 4,
+    });
+    this.redraw();
+    this.scheduleSave();
+    this.setStatus('Rotated selected structure');
+  }
+
   private bindPointerInput(): void {
     const canvas = this.renderer.domElement;
 
@@ -1201,6 +1614,23 @@ export class ThreeGame {
           return;
         }
 
+        if (this.isTerrainTool(this.selectedTool)) {
+          const cell = this.pickGridCell(event);
+          if (!cell) return;
+
+          this.terrainStrokeActive = true;
+          this.terrainStrokeChanged = false;
+          this.terrainStrokeSnapshot = this.captureSnapshot();
+          this.lastTerrainBrushKey = this.key(cell.x, cell.y);
+          this.controls.enabled = false;
+          canvas.setPointerCapture(event.pointerId);
+          this.applyTerrainBrush(cell);
+
+          event.preventDefault();
+          event.stopPropagation();
+          return;
+        }
+
         this.pointerStart = { x: event.clientX, y: event.clientY };
       },
       true,
@@ -1209,15 +1639,31 @@ export class ThreeGame {
     canvas.addEventListener(
       'pointermove',
       (event) => {
-        if (!this.wallDragStart) return;
-        const cell = this.pickGridCell(event);
-        if (cell) {
-          this.wallDragEnd = cell;
-          const count = this.wallPath(this.wallDragStart, cell).length;
-          this.setStatus(`Wall drag: ${count} segments`);
+        if (this.wallDragStart) {
+          const cell = this.pickGridCell(event);
+          if (cell) {
+            this.wallDragEnd = cell;
+            const count = this.wallPath(this.wallDragStart, cell).length;
+            this.setStatus(`Wall drag: ${count} segments`);
+          }
+          event.preventDefault();
+          event.stopPropagation();
+          return;
         }
-        event.preventDefault();
-        event.stopPropagation();
+
+        if (this.terrainStrokeActive) {
+          const cell = this.pickGridCell(event);
+          if (cell) {
+            const brushKey = this.key(cell.x, cell.y);
+            if (brushKey !== this.lastTerrainBrushKey) {
+              this.lastTerrainBrushKey = brushKey;
+              this.applyTerrainBrush(cell);
+            }
+          }
+
+          event.preventDefault();
+          event.stopPropagation();
+        }
       },
       true,
     );
@@ -1237,6 +1683,25 @@ export class ThreeGame {
 
           if (canvas.hasPointerCapture(event.pointerId)) canvas.releasePointerCapture(event.pointerId);
           this.buildWallDrag(start, end, event.shiftKey);
+
+          event.preventDefault();
+          event.stopPropagation();
+          return;
+        }
+
+        if (this.terrainStrokeActive) {
+          this.terrainStrokeActive = false;
+          this.controls.enabled = true;
+
+          if (canvas.hasPointerCapture(event.pointerId)) canvas.releasePointerCapture(event.pointerId);
+
+          if (this.terrainStrokeChanged && this.terrainStrokeSnapshot) {
+            this.pushUndoSnapshot(this.terrainStrokeSnapshot);
+            this.scheduleSave();
+          }
+
+          this.terrainStrokeSnapshot = null;
+          this.lastTerrainBrushKey = '';
 
           event.preventDefault();
           event.stopPropagation();
@@ -1318,6 +1783,7 @@ export class ThreeGame {
     const wallKind = this.selectedTool as WallKind;
     const path = this.wallPath(start, end);
     const single = path.length === 1;
+    const before = this.captureSnapshot();
     let changed = false;
 
     for (const point of path) {
@@ -1353,6 +1819,7 @@ export class ThreeGame {
     this.selectedCell = end;
 
     if (changed) {
+      this.pushUndoSnapshot(before);
       this.redraw();
       this.scheduleSave();
       this.setStatus(single ? 'Wall segment updated' : `Built ${path.length} snapped wall segments`);
@@ -1378,12 +1845,14 @@ export class ThreeGame {
 
     if (this.selectedTool === 'erase') {
       if (current) {
+        this.recordHistory();
         this.state.removeCell(gx, gy);
         this.finishBuild();
         return;
       }
 
       if (this.terrainOverrides.has(overrideKey)) {
+        this.recordHistory();
         this.terrainOverrides.delete(overrideKey);
         this.finishBuild();
       }
@@ -1392,6 +1861,7 @@ export class ThreeGame {
 
     if (this.selectedTool === 'river' || this.selectedTool === 'land') {
       if (current || this.moatTasks.has(overrideKey)) return;
+      this.recordHistory();
       this.terrainOverrides.set(overrideKey, this.selectedTool === 'river' ? 'river' : 'plains');
       this.finishBuild();
       return;
@@ -1408,12 +1878,14 @@ export class ThreeGame {
 
     if (this.selectedTool === 'mountain') {
       if (current === 'mountain') {
+        this.recordHistory();
         this.state.setLevel(gx, gy, (cell?.level ?? 1) + 1);
         this.finishBuild();
         return;
       }
 
       if (!current && (terrain === 'plains' || terrain === 'shore')) {
+        this.recordHistory();
         this.state.setCell(gx, gy, 'mountain', 1);
         this.finishBuild();
       }
@@ -1422,12 +1894,14 @@ export class ThreeGame {
 
     if (this.selectedTool === 'mine') {
       if (current === 'mountain') {
+        this.recordHistory();
         this.state.setCell(gx, gy, 'mine', 1);
         this.finishBuild();
         return;
       }
 
       if (!current && terrain === 'mountain') {
+        this.recordHistory();
         this.state.setCell(gx, gy, 'mine', 1);
         this.finishBuild();
       }
@@ -1436,9 +1910,26 @@ export class ThreeGame {
 
     if (this.selectedTool === 'tree') {
       if (!current && (terrain === 'plains' || terrain === 'shore' || terrain === 'forest')) {
+        this.recordHistory();
         this.state.setCell(gx, gy, 'tree', 1 + ((gx + gy) % 3));
         this.finishBuild();
       }
+      return;
+    }
+
+    if (['stoneStairs', 'woodenStairs', 'ramp', 'ladder'].includes(this.selectedTool)) {
+      if (current) return;
+      if (terrain === 'water' || terrain === 'river') return;
+
+      const snap = this.findAccessSnap(gx, gy);
+      if (!snap) {
+        this.setStatus('Access must be placed next to a wall, gate, or tower');
+        return;
+      }
+
+      this.recordHistory();
+      this.state.setCell(gx, gy, this.selectedTool as AccessKind, 1, { rotation: snap.rotation });
+      this.finishBuild();
       return;
     }
 
@@ -1448,6 +1939,7 @@ export class ThreeGame {
           ? Math.max(1, (cell?.level ?? 1) - 1)
           : (cell?.level ?? 1) + 1;
 
+        this.recordHistory();
         this.state.updateCell(gx, gy, {
           level: nextLevel,
           towerShape: this.towerShape,
@@ -1460,6 +1952,7 @@ export class ThreeGame {
       if (current && !this.isWallFamily(current)) return;
       if (!current && !this.canBuildFortificationOnTerrain(terrain)) return;
 
+      this.recordHistory();
       this.state.setCell(gx, gy, 'tower', cell?.level ?? 1, {
         towerShape: this.towerShape,
         towerTop: this.towerTop,
@@ -1474,6 +1967,7 @@ export class ThreeGame {
 
     if (current) {
       if (selectedFortification && currentFortification) {
+        this.recordHistory();
         this.state.setCell(gx, gy, selectedTile, cell?.level ?? 1);
         this.finishBuild();
       }
@@ -1481,6 +1975,7 @@ export class ThreeGame {
     }
 
     if (!this.canBuildOnTerrain(this.selectedTool, terrain)) return;
+    this.recordHistory();
     this.state.setCell(gx, gy, selectedTile, 1);
     this.finishBuild();
   }
@@ -1528,6 +2023,7 @@ export class ThreeGame {
       worker.view.rotation.y += Math.sin(task.progressMs * 0.018) * 0.012;
 
       if (task.progressMs >= 1800) {
+        this.recordHistory();
         this.state.setCell(task.x, task.y, 'moat', 1);
         this.moatTasks.delete(worker.taskKey);
         worker.taskKey = undefined;
@@ -1573,11 +2069,17 @@ export class ThreeGame {
       return { x, y, kind };
     });
 
+    const elevations = Array.from(this.elevationOverrides.entries()).map(([key, value]) => {
+      const [x, y] = key.split(',').map(Number);
+      return { x, y, value };
+    });
+
     const data: SavedGame = {
       version: SAVE_VERSION,
       updatedAt: Date.now(),
       cells: this.state.entries(),
       terrain,
+      elevations,
       worldSeeded: this.worldSeeded,
     };
 
@@ -1602,8 +2104,10 @@ export class ThreeGame {
           walkway?: boolean;
           towerShape?: TowerShape;
           towerTop?: TowerTop;
+          rotation?: number;
         }>;
         terrain?: Array<{ x: number; y: number; kind: TerrainOverrideKind }>;
+        elevations?: Array<{ x: number; y: number; value: number }>;
         worldSeeded?: boolean;
       };
 
@@ -1625,16 +2129,27 @@ export class ThreeGame {
           walkway: cell.walkway,
           towerShape: cell.towerShape,
           towerTop: cell.towerTop,
+          rotation: cell.rotation,
         });
       }
 
       this.state.replace(cells);
       this.terrainOverrides.clear();
+      this.elevationOverrides.clear();
 
       for (const terrainCell of data.terrain ?? []) {
         if (terrainCell.x < 0 || terrainCell.y < 0 || terrainCell.x >= SIZE || terrainCell.y >= SIZE) continue;
         if (terrainCell.kind !== 'plains' && terrainCell.kind !== 'river') continue;
         this.terrainOverrides.set(this.key(terrainCell.x, terrainCell.y), terrainCell.kind);
+      }
+
+      for (const elevationCell of data.elevations ?? []) {
+        if (elevationCell.x < 0 || elevationCell.y < 0 || elevationCell.x >= SIZE || elevationCell.y >= SIZE) continue;
+        if (!Number.isFinite(elevationCell.value)) continue;
+        this.elevationOverrides.set(
+          this.key(elevationCell.x, elevationCell.y),
+          THREE.MathUtils.clamp(elevationCell.value, -6, 6),
+        );
       }
 
       this.worldSeeded = Boolean(data.worldSeeded);
@@ -1703,7 +2218,16 @@ export class ThreeGame {
       '<option value="battlement">Battlement</option><option value="roof">Roof</option>' +
       '<option value="flat">Flat Platform</option><option value="flag">Flag</option>' +
       '<option value="watch">Watch Platform</option></select></label>' +
-      '<div class="settings-hint">Click a wall/tower to select it. Shift+click lowers height. Wall drag builds an orthogonal snapped line.</div>' +
+      '<div class="settings-title">Terrain Brush</div>' +
+      '<label class="settings-row"><span>Brush Size</span><select id="brush-size">' +
+      '<option value="1">1 tile</option><option value="2" selected>2 tiles</option><option value="3">3 tiles</option><option value="4">4 tiles</option>' +
+      '</select></label>' +
+      '<label class="settings-row"><span>Strength</span><span class="range-wrap"><input id="brush-strength" type="range" min="0.25" max="2" step="0.25" value="1" /><b id="brush-strength-value">1.00</b></span></label>' +
+      '<div class="settings-title">Selection</div>' +
+      '<div class="move-pad"><button id="move-up" type="button">↑</button><button id="move-left" type="button">←</button><button id="move-down" type="button">↓</button><button id="move-right" type="button">→</button></div>' +
+      '<div class="settings-actions"><button id="rotate-selected" type="button">↻ Rotate</button><button id="undo-button" type="button">Undo</button></div>' +
+      '<div class="settings-actions"><button id="redo-button" type="button">Redo</button><button id="select-clear" type="button">Clear Select</button></div>' +
+      '<div class="settings-hint">Walls: drag A→B. Terrain tools also support drag strokes. Ctrl+Z / Ctrl+Y undo and redo.</div>' +
       '</div>';
 
     toolbar.querySelectorAll<HTMLButtonElement>('[data-tool]').forEach((button) => {
@@ -1743,6 +2267,31 @@ export class ThreeGame {
     get<HTMLButtonElement>('selected-down').onclick = () => this.adjustSelectedHeight(-1);
     get<HTMLButtonElement>('selected-up').onclick = () => this.adjustSelectedHeight(1);
 
+    const brushSize = get<HTMLSelectElement>('brush-size');
+    brushSize.onchange = () => {
+      this.brushSize = Number(brushSize.value);
+      this.setStatus(`Brush size: ${this.brushSize}`);
+    };
+
+    const brushStrength = get<HTMLInputElement>('brush-strength');
+    const brushStrengthValue = get<HTMLElement>('brush-strength-value');
+    brushStrength.oninput = () => {
+      this.brushStrength = Number(brushStrength.value);
+      brushStrengthValue.textContent = this.brushStrength.toFixed(2);
+    };
+
+    get<HTMLButtonElement>('move-up').onclick = () => this.moveSelected(0, -1);
+    get<HTMLButtonElement>('move-left').onclick = () => this.moveSelected(-1, 0);
+    get<HTMLButtonElement>('move-down').onclick = () => this.moveSelected(0, 1);
+    get<HTMLButtonElement>('move-right').onclick = () => this.moveSelected(1, 0);
+    get<HTMLButtonElement>('rotate-selected').onclick = () => this.rotateSelected();
+    get<HTMLButtonElement>('undo-button').onclick = () => this.undo();
+    get<HTMLButtonElement>('redo-button').onclick = () => this.redo();
+    get<HTMLButtonElement>('select-clear').onclick = () => {
+      this.selectedCell = null;
+      this.setStatus('Selection cleared');
+    };
+
     const help = get<HTMLElement>('help-modal');
     const templates = get<HTMLElement>('templates-modal');
 
@@ -1771,12 +2320,16 @@ export class ThreeGame {
     get<HTMLButtonElement>('save-button').onclick = () => this.save();
     get<HTMLButtonElement>('load-button').onclick = () => {
       this.load();
+      this.undoStack.length = 0;
+      this.redoStack.length = 0;
       this.redraw();
     };
     get<HTMLButtonElement>('reset-button').onclick = () => {
       if (confirm('Reset the entire island?')) {
+        this.recordHistory();
         this.state.clear();
         this.terrainOverrides.clear();
+        this.elevationOverrides.clear();
         this.moatTasks.clear();
         this.worldSeeded = false;
         this.seedNaturalProps();
@@ -1791,6 +2344,20 @@ export class ThreeGame {
     };
 
     window.addEventListener('keydown', (event) => {
+      const key = event.key.toLowerCase();
+
+      if ((event.ctrlKey || event.metaKey) && key === 'z') {
+        event.preventDefault();
+        this.undo();
+        return;
+      }
+
+      if ((event.ctrlKey || event.metaKey) && key === 'y') {
+        event.preventDefault();
+        this.redo();
+        return;
+      }
+
       const shortcutMap: Record<string, ToolKind> = {
         '1': 'wall1',
         '2': 'wall2',
@@ -1809,10 +2376,21 @@ export class ThreeGame {
         q: 'moat',
         r: 'river',
         l: 'land',
+        a: 'stoneStairs',
+        s: 'woodenStairs',
+        d: 'ramp',
+        k: 'ladder',
+        u: 'raise',
+        j: 'lower',
+        b: 'flatten',
+        v: 'smooth',
+        g: 'dig',
+        h: 'hill',
+        c: 'cliff',
         x: 'erase',
       };
 
-      const selected = shortcutMap[event.key.toLowerCase()];
+      const selected = shortcutMap[key];
       if (selected) this.selectTool(selected);
       if (event.key === '[') this.adjustSelectedHeight(-1);
       if (event.key === ']') this.adjustSelectedHeight(1);
@@ -1829,6 +2407,7 @@ export class ThreeGame {
     const cell = this.state.getCell(this.selectedCell.x, this.selectedCell.y);
     if (!cell || !WALL_KINDS.includes(cell.kind as WallKind)) return;
 
+    this.recordHistory();
     this.state.updateCell(this.selectedCell.x, this.selectedCell.y, {
       thickness: this.wallThickness,
       battlement: this.wallBattlement,
@@ -1843,6 +2422,7 @@ export class ThreeGame {
     const cell = this.state.getCell(this.selectedCell.x, this.selectedCell.y);
     if (!cell || cell.kind !== 'tower') return;
 
+    this.recordHistory();
     this.state.updateCell(this.selectedCell.x, this.selectedCell.y, {
       towerShape: this.towerShape,
       towerTop: this.towerTop,
@@ -1863,6 +2443,7 @@ export class ThreeGame {
       return;
     }
 
+    this.recordHistory();
     this.state.setLevel(
       this.selectedCell.x,
       this.selectedCell.y,
@@ -1874,75 +2455,124 @@ export class ThreeGame {
   }
 
   private applyTemplate(template: string): void {
+    this.recordHistory();
     this.state.clear();
     this.terrainOverrides.clear();
+    this.elevationOverrides.clear();
     this.moatTasks.clear();
     this.worldSeeded = true;
-    this.seedNaturalProps();
 
     const center = Math.floor(SIZE / 2);
-    const place = (x: number, y: number, kind: TileKind, level = 1, options: Partial<GridCell> = {}): void => {
+    const place = (
+      x: number,
+      y: number,
+      kind: TileKind,
+      level = 1,
+      options: Partial<GridCell> = {},
+    ): void => {
       this.state.setCell(x, y, kind, level, options);
     };
 
-    if (template === 'blank') {
-      this.state.clear();
-    } else if (template === 'river-citadel') {
-      for (let y = 2; y < SIZE - 2; y += 1) {
-        const x = center + Math.round(Math.sin(y * 0.48));
-        this.terrainOverrides.set(this.key(x, y), 'river');
+    if (template !== 'empty-land') this.seedNaturalProps();
+
+    if (template === 'empty-land') {
+      for (let y = 0; y < SIZE; y += 1) {
+        for (let x = 0; x < SIZE; x += 1) {
+          if (this.baseTerrainAt(x, y) !== 'water') {
+            this.terrainOverrides.set(this.key(x, y), 'plains');
+          }
+        }
+      }
+    } else if (template === 'small-castle') {
+      const min = center - 3;
+      const max = center + 3;
+
+      for (let x = min; x <= max; x += 1) {
+        place(x, min, 'wall1', 2, { battlement: true, walkway: true, thickness: 'medium' });
+        place(x, max, 'wall1', 2, { battlement: true, walkway: true, thickness: 'medium' });
+      }
+      for (let y = min; y <= max; y += 1) {
+        place(min, y, 'wall1', 2, { battlement: true, walkway: true, thickness: 'medium' });
+        place(max, y, 'wall1', 2, { battlement: true, walkway: true, thickness: 'medium' });
       }
 
-      for (let x = center - 4; x <= center + 4; x += 1) {
-        place(x, center - 4, 'wall1', 2, { battlement: true, walkway: true, thickness: 'medium' });
-        place(x, center + 4, 'wall1', 2, { battlement: true, walkway: true, thickness: 'medium' });
-      }
-      for (let y = center - 4; y <= center + 4; y += 1) {
-        place(center - 4, y, 'wall1', 2, { battlement: true, walkway: true, thickness: 'medium' });
-        place(center + 4, y, 'wall1', 2, { battlement: true, walkway: true, thickness: 'medium' });
-      }
-
-      place(center, center + 4, 'gate');
-      place(center - 4, center - 4, 'tower', 2, { towerShape: 'round', towerTop: 'battlement' });
-      place(center + 4, center - 4, 'tower', 2, { towerShape: 'octagonal', towerTop: 'flag' });
-      place(center - 4, center + 4, 'tower', 2, { towerShape: 'corner', towerTop: 'battlement' });
-      place(center + 4, center + 4, 'tower', 2, { towerShape: 'square', towerTop: 'roof' });
-
-      for (let y = center; y <= center + 3; y += 1) place(center, y, 'road');
+      place(center, max, 'gate');
+      place(min, min, 'tower', 2, { towerShape: 'round', towerTop: 'battlement' });
+      place(max, min, 'tower', 2, { towerShape: 'square', towerTop: 'roof' });
+      place(min, max, 'tower', 2, { towerShape: 'octagonal', towerTop: 'flag' });
+      place(max, max, 'tower', 2, { towerShape: 'corner', towerTop: 'battlement' });
+      place(center, center, 'manor');
       place(center - 2, center, 'house');
-      place(center + 2, center, 'manor');
-      place(center - 2, center + 2, 'farm');
-    } else if (template === 'mountain-hold') {
-      for (let x = center - 4; x <= center + 3; x += 1) {
-        place(x, center + 3, 'wall3', 3, { battlement: true, walkway: true, thickness: 'thick' });
-      }
-      for (let y = center - 2; y <= center + 3; y += 1) {
-        place(center - 4, y, 'wall3', 3, { battlement: true, walkway: true, thickness: 'thick' });
-        place(center + 3, y, 'wall3', 3, { battlement: true, walkway: true, thickness: 'thick' });
+      place(center + 2, center, 'cottage');
+
+      for (let y = center + 1; y < max; y += 1) place(center, y, 'road');
+      place(center - 1, max - 1, 'stoneStairs', 1, { rotation: 2 });
+    } else if (template === 'motte-bailey') {
+      for (let y = center - 4; y <= center + 4; y += 1) {
+        for (let x = center - 4; x <= center + 4; x += 1) {
+          const distance = Math.hypot(x - center, y - (center - 1));
+          if (distance <= 3.7) {
+            this.setAbsoluteElevation(
+              x,
+              y,
+              Math.max(this.terrainElevation(x, y), (1 - distance / 4.2) * 2.8),
+            );
+          }
+        }
       }
 
-      place(center, center + 3, 'gate');
-      place(center - 4, center - 2, 'tower', 3, { towerShape: 'corner', towerTop: 'battlement' });
-      place(center + 3, center - 2, 'tower', 3, { towerShape: 'watch', towerTop: 'watch' });
-      place(center + 1, center - 2, 'mountain', 4);
-      place(center + 3, center - 3, 'mountain', 5);
-      place(center + 2, center, 'mine');
-      place(center - 1, center, 'villa');
-      place(center - 2, center + 1, 'house');
-    } else if (template === 'farming-village') {
-      for (let x = center - 5; x <= center + 5; x += 1) place(x, center, 'road');
-      for (let y = center - 4; y <= center + 4; y += 1) place(center, y, 'road');
+      const minX = center - 5;
+      const maxX = center + 5;
+      const minY = center - 4;
+      const maxY = center + 5;
 
-      place(center - 2, center - 2, 'cottage');
-      place(center + 2, center - 2, 'house');
-      place(center - 2, center + 2, 'house');
-      place(center + 2, center + 2, 'villa');
-      place(center - 4, center - 2, 'farm');
-      place(center - 4, center + 2, 'farm');
-      place(center + 4, center - 2, 'farm');
-      place(center + 4, center + 2, 'farm');
+      for (let x = minX; x <= maxX; x += 1) {
+        place(x, minY, 'wall2', 1, { battlement: false, walkway: true, thickness: 'medium' });
+        place(x, maxY, 'wall2', 1, { battlement: false, walkway: true, thickness: 'medium' });
+      }
+      for (let y = minY; y <= maxY; y += 1) {
+        place(minX, y, 'wall2', 1, { battlement: false, walkway: true, thickness: 'medium' });
+        place(maxX, y, 'wall2', 1, { battlement: false, walkway: true, thickness: 'medium' });
+      }
+
+      place(center, maxY, 'gate');
+      place(center, center - 1, 'tower', 4, { towerShape: 'square', towerTop: 'battlement' });
+      place(center - 1, center + 1, 'woodenStairs', 1, { rotation: 0 });
+      place(center - 3, center + 2, 'cottage');
+      place(center + 3, center + 2, 'farm');
+      place(center - 3, center - 2, 'farm');
+    } else if (template === 'river-castle') {
+      for (let y = 1; y < SIZE - 1; y += 1) {
+        const x = center + Math.round(Math.sin(y * 0.45) * 1.15);
+        this.terrainOverrides.set(this.key(x, y), 'river');
+        if (x + 1 < SIZE) this.terrainOverrides.set(this.key(x + 1, y), 'river');
+      }
+
+      const left = center - 6;
+      const right = center - 1;
+      const top = center - 4;
+      const bottom = center + 4;
+
+      for (let x = left; x <= right; x += 1) {
+        place(x, top, 'wall1', 2, { battlement: true, walkway: true, thickness: 'thick' });
+        place(x, bottom, 'wall1', 2, { battlement: true, walkway: true, thickness: 'thick' });
+      }
+      for (let y = top; y <= bottom; y += 1) {
+        place(left, y, 'wall1', 2, { battlement: true, walkway: true, thickness: 'thick' });
+        place(right, y, 'wall1', 2, { battlement: true, walkway: true, thickness: 'thick' });
+      }
+
+      place(center - 3, bottom, 'gate');
+      place(left, top, 'tower', 3, { towerShape: 'round', towerTop: 'roof' });
+      place(right, top, 'tower', 3, { towerShape: 'octagonal', towerTop: 'flag' });
+      place(left, bottom, 'tower', 2, { towerShape: 'corner', towerTop: 'battlement' });
+      place(right, bottom, 'tower', 2, { towerShape: 'watch', towerTop: 'watch' });
+      place(center - 3, center, 'villa');
+      place(center - 5, center + 2, 'farm');
+      place(center - 2, bottom - 1, 'ramp', 1, { rotation: 2 });
     }
 
+    this.selectedCell = null;
     this.redraw();
     this.save();
     this.setStatus('Template loaded: ' + template);

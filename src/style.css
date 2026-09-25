@@ -385,3 +385,59 @@ kbd { min-width: 23px; text-align: center; padding: 3px 5px; border-radius: 6px;
   font-size: 9px;
   line-height: 1.45;
 }
+
+
+.range-wrap {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 34px;
+  align-items: center;
+  gap: 7px;
+}
+
+.range-wrap input[type="range"] {
+  width: 100%;
+  accent-color: #66dbff;
+}
+
+.range-wrap b {
+  color: #bff5ff;
+  font-size: 9px;
+  text-align: right;
+}
+
+.move-pad {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 6px;
+}
+
+.move-pad button {
+  padding: 7px 5px;
+  border: 1px solid rgba(255,255,255,.1);
+  border-radius: 8px;
+  color: #effbff;
+  background: rgba(255,255,255,.055);
+  cursor: pointer;
+}
+
+.move-pad button:hover {
+  background: rgba(83, 199, 240, .13);
+  border-color: rgba(112, 220, 255, .22);
+}
+
+.template-intro {
+  margin: -4px 0 14px;
+  color: rgba(226, 245, 252, .68);
+  font-size: 11px;
+  line-height: 1.55;
+}
+
+.template-preview-castle {
+  background: linear-gradient(145deg, #cbb89f, #75695d);
+  color: #fff6e9;
+}
+
+.template-preview-motte {
+  background: linear-gradient(145deg, #9bb768, #6f5139);
+  color: #fff1c4;
+}

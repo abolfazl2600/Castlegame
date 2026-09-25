@@ -4,65 +4,102 @@ Castle Role is a stylized 3D island-fortress builder built with Three.js, TypeSc
 
 **[Play Castle Role](https://abolfazl2600.github.io/Castlegame/)**
 
-## Advanced wall system
+## Terrain editing
 
-- Drag from point A to B with a wall tool to create a continuous snapped wall line.
-- Dragging across two axes creates an automatic orthogonal corner.
-- Wall connectors reach the tile boundary and use slope-aware joins on uneven terrain.
-- Three materials:
-  - Stone Wall
-  - Wooden Wall
-  - Reinforced Wall
-- Three thickness settings: Thin, Medium, Thick.
-- Independent Battlement and Walkway toggles.
-- Repeated clicks on the same wall add floors and increase height.
-- Shift+click, the **− Height** button, or **[** decreases the selected wall height.
-- **+ Height** or **]** increases the selected wall/tower height.
-- Existing saves migrate older wall data into the new system.
+The world now has a brush-based terrain editor:
 
-## Modular tower builder
+- Raise
+- Lower
+- Flatten
+- Smooth
+- Dig
+- Create Hill
+- Create Cliff
+- Adjustable Brush Size
+- Adjustable Strength
 
-The Tower tool now uses modular settings rather than one fixed object.
+Buildings and fortifications follow edited elevations. Adjacent wall sections calculate their connection slope from the terrain under each tile, making hill forts and mountain strongholds possible.
 
-Available bases:
-- Square Tower
-- Round Tower
-- Octagonal Tower
-- Corner Tower
+## Castle access
+
+Access pieces snap beside fortifications and calculate the height they need to reach:
+
+- Stone Stairs
+- Wooden Stairs
+- Ramp
+- Ladder
+
+If the neighboring wall or tower is made taller, the access piece adapts when the scene redraws.
+
+## Advanced walls
+
+- Drag A → B to build a continuous snapped wall line
+- Automatic orthogonal corners
+- Stone / Wooden / Reinforced wall materials
+- Thin / Medium / Thick wall settings
+- Optional Battlement
+- Optional top Walkway
+- Multi-floor height editing
+- Terrain-aware connections
+
+## Modular towers
+
+Tower bases:
+
+- Square
+- Round
+- Octagonal
+- Corner
 - Watch Tower
 
-Available tops:
+Tower tops:
+
 - Battlement
 - Roof
 - Flat Platform
 - Flag
 - Watch Platform
 
-Tower height is multi-floor and editable. Towers connect directly to neighboring wall/gate/tower segments.
+Towers are multi-floor and connect directly into the wall network.
 
-## Existing systems
+## Undo / Redo
 
-- 22 × 22 playable island grid
-- Moats dug by workers and flooded by connected rivers
-- Four house types
-- Farms, trees, mountains, mines
+- **Ctrl + Z** — Undo
+- **Ctrl + Y** — Redo
+
+History covers building, deleting, moving, rotating, terrain editing, wall/tower height changes, and most construction settings.
+
+## Starting templates
+
+New saves automatically open the template selector:
+
+- Empty Land
+- Small Castle
+- Motte & Bailey
+- River Castle
+
+The selector can also be reopened from the top bar.
+
+## Other systems
+
+- Worker-dug moats that flood when connected to rivers
+- Roads, farms, four house types
+- Trees, mountains, mines
 - River and land editing
-- Removable trees, rocks, huts, and construction
-- Four starting templates
-- Browser-local autosave, Save/Load, and Reset
+- Local autosave, Save/Load, and Reset
+- 22 × 22 playable island grid
 
-## Main controls
+## Controls
 
-- **1** — Stone Wall
-- **2** — Wooden Wall
-- **3** — Reinforced Wall
+- **1 / 2 / 3** — Stone / Wooden / Reinforced Wall
 - **4** — Gate
 - **5** — Modular Tower
 - **6** — Road
-- **7** — Cottage
-- **8** — House
-- **9** — Manor
-- **0** — Villa
+- **7 / 8 / 9 / 0** — Cottage / House / Manor / Villa
+- **A** — Stone Stairs
+- **S** — Wooden Stairs
+- **D** — Ramp
+- **K** — Ladder
 - **F** — Farm
 - **T** — Tree
 - **N** — Mountain
@@ -70,11 +107,15 @@ Tower height is multi-floor and editable. Towers connect directly to neighboring
 - **Q** — Moat
 - **R** — River
 - **L** — Land
+- **U** — Raise Terrain
+- **J** — Lower Terrain
+- **B** — Flatten
+- **V** — Smooth
+- **G** — Dig
+- **H** — Create Hill
+- **C** — Create Cliff
 - **X** — Remove
-- **[ / ]** — Decrease / increase selected wall or tower floor count
+- **[ / ]** — Lower / raise selected wall or tower
+- **Ctrl + Z / Ctrl + Y** — Undo / Redo
 
-When a wall tool is active, left-drag is reserved for wall construction. With other tools, normal OrbitControls camera rotation remains available.
-
-## Recommended next milestone
-
-Add a proper selection/inspector mode with wall segment copy/paste, tower floor-by-floor module editing, wall gates with drawbridges, and construction/resource costs.
+When a Wall or Terrain tool is active, left-drag is reserved for construction/editing. Other tools retain normal left-drag camera rotation.

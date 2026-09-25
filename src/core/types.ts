@@ -2,6 +2,8 @@ export type WallKind = 'wall1' | 'wall2' | 'wall3';
 export type WallThickness = 'thin' | 'medium' | 'thick';
 export type TowerShape = 'square' | 'round' | 'octagonal' | 'corner' | 'watch';
 export type TowerTop = 'battlement' | 'roof' | 'flat' | 'flag' | 'watch';
+export type AccessKind = 'stoneStairs' | 'woodenStairs' | 'ramp' | 'ladder';
+export type TerrainToolKind = 'raise' | 'lower' | 'flatten' | 'smooth' | 'dig' | 'hill' | 'cliff';
 
 export type TileKind =
   | WallKind
@@ -18,24 +20,14 @@ export type TileKind =
   | 'tree'
   | 'rock'
   | 'hut'
-  | 'moat';
+  | 'moat'
+  | AccessKind;
 
 export type ToolKind =
-  | WallKind
-  | 'gate'
-  | 'tower'
-  | 'road'
-  | 'cottage'
-  | 'house'
-  | 'manor'
-  | 'villa'
-  | 'farm'
-  | 'mine'
-  | 'mountain'
-  | 'tree'
-  | 'moat'
+  | TileKind
   | 'river'
   | 'land'
+  | TerrainToolKind
   | 'erase';
 
 export type TerrainKind = 'water' | 'shore' | 'plains' | 'river' | 'mountain' | 'forest';
@@ -49,6 +41,7 @@ export interface GridCell {
   walkway?: boolean;
   towerShape?: TowerShape;
   towerTop?: TowerTop;
+  rotation?: number;
 }
 
 export interface SavedGame {
@@ -64,7 +57,9 @@ export interface SavedGame {
     walkway?: boolean;
     towerShape?: TowerShape;
     towerTop?: TowerTop;
+    rotation?: number;
   }>;
   terrain?: Array<{ x: number; y: number; kind: TerrainOverrideKind }>;
+  elevations?: Array<{ x: number; y: number; value: number }>;
   worldSeeded?: boolean;
 }

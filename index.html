@@ -13,6 +13,7 @@
           <div class="eyebrow">CASTLE ROLE · 3D</div>
           <h1>Island Stronghold</h1>
         </div>
+
         <div class="status-group">
           <span id="save-status" class="status-pill">3D Ready</span>
           <button id="templates-button" class="secondary-button" type="button">Templates</button>
@@ -41,63 +42,64 @@
 
             <div class="help-grid">
               <div class="help-section">
-                <strong>Advanced Wall Drag</strong>
-                <span>Select Stone, Wooden, or Reinforced Wall.</span>
-                <span>Drag from point A to B to build a snapped continuous row.</span>
-                <span>Diagonal drags create an orthogonal corner automatically.</span>
-                <span>Walls can cross uneven, forest, shore, and mountain terrain with stepped/sloped joints.</span>
+                <strong>Terrain Editing</strong>
+                <span>Raise / Lower — change elevation.</span>
+                <span>Flatten — level the brush toward its center.</span>
+                <span>Smooth — blend nearby heights.</span>
+                <span>Dig — excavate deeper terrain.</span>
+                <span>Create Hill / Cliff — rounded or sharp elevation.</span>
+                <span>Brush Size and Strength are adjustable in the build panel.</span>
               </div>
 
               <div class="help-section">
-                <strong>Wall Modules</strong>
-                <span>Choose Thin, Medium, or Thick in Wall Settings.</span>
-                <span>Toggle Battlement and top Walkway independently.</span>
-                <span>Click the same wall again to add another floor.</span>
-                <span>Shift+click, [ key, or − Height lowers the selected section.</span>
+                <strong>Terrain-aware Castle</strong>
+                <span>Buildings follow edited terrain height.</span>
+                <span>Walls use slope-aware connections between different elevations.</span>
+                <span>This supports hill castles, mountain castles, and river-side castles.</span>
               </div>
 
               <div class="help-section">
-                <strong>Modular Tower Builder</strong>
-                <span>Bases: Square, Round, Octagonal, Corner, Watch Tower.</span>
-                <span>Tops: Battlement, Roof, Flat Platform, Flag, Watch Platform.</span>
-                <span>Click the same tower again to add a floor; Shift+click lowers it.</span>
-                <span>Towers snap directly into neighboring walls with no intentional gap.</span>
+                <strong>Castle Access</strong>
+                <span>Stone Stairs, Wooden Stairs, Ramp, and Ladder are available.</span>
+                <span>Access pieces must be placed next to a Wall, Gate, or Tower.</span>
+                <span>They automatically snap toward the fortification and match its height.</span>
+              </div>
+
+              <div class="help-section">
+                <strong>Walls & Towers</strong>
+                <span>Drag a wall from A to B for a snapped continuous line.</span>
+                <span>Stone / Wooden / Reinforced wall materials are available.</span>
+                <span>Wall thickness, Battlement, Walkway, and floor count are editable.</span>
+                <span>Towers have five bases and five top modules.</span>
+              </div>
+
+              <div class="help-section">
+                <strong>Undo / Redo</strong>
+                <span>Ctrl + Z — Undo</span>
+                <span>Ctrl + Y — Redo</span>
+                <span>Build, Delete, Move, Rotate, Terrain Edit, and Wall/Tower Height changes are recorded.</span>
+              </div>
+
+              <div class="help-section">
+                <strong>Selection</strong>
+                <span>Click a structure to make its grid tile the active selection.</span>
+                <span>Use the arrow controls to move it one tile.</span>
+                <span>Rotate turns supported structures 90°.</span>
+                <span>[ / ] lower or raise selected Wall/Tower floors.</span>
+              </div>
+
+              <div class="help-section">
+                <strong>Moats & Water</strong>
+                <span>Workers dig queued moat tiles.</span>
+                <span>Connected moats fill when they reach a river.</span>
+                <span>River and Land tools reshape waterways.</span>
               </div>
 
               <div class="help-section">
                 <strong>Camera</strong>
-                <span>When a wall tool is active, left-drag builds walls.</span>
-                <span>Use another tool for normal left-drag camera rotation.</span>
-                <span>Right drag — Pan</span>
-                <span>Mouse wheel — Zoom</span>
-              </div>
-
-              <div class="help-section">
-                <strong>Moats</strong>
-                <span>Select Moat and click buildable land.</span>
-                <span>Workers automatically walk to the tile and excavate it.</span>
-                <span>Connected moat tiles fill with water when they reach a river.</span>
-              </div>
-
-              <div class="help-section">
-                <strong>Settlement</strong>
-                <span>Roads connect edge-to-edge automatically.</span>
-                <span>Four detailed house designs are available.</span>
-                <span>Farms can be placed on plains.</span>
-              </div>
-
-              <div class="help-section">
-                <strong>Nature & Resources</strong>
-                <span>T — Add a tree · N — Grow mountain · M — Mine</span>
-                <span>R — Add river · L — Add land · X — Remove</span>
-                <span>Mines work on natural and player-built mountains.</span>
-              </div>
-
-              <div class="help-section">
-                <strong>Templates & Save</strong>
-                <span>Templates provides several starting settlements.</span>
-                <span>Changes autosave after building.</span>
-                <span>Save / Load uses browser local storage.</span>
+                <span>Wall and terrain tools reserve left-drag for construction/editing.</span>
+                <span>With other tools: Left drag — Rotate camera.</span>
+                <span>Right drag — Pan · Mouse wheel — Zoom.</span>
               </div>
             </div>
           </section>
@@ -108,34 +110,36 @@
             <div class="help-modal-header">
               <div>
                 <div class="eyebrow">STARTING WORLDS</div>
-                <h2 id="templates-title">Choose a Template</h2>
+                <h2 id="templates-title">Choose a Castle Template</h2>
               </div>
               <button id="templates-close-button" class="icon-button" type="button" aria-label="Close templates">×</button>
             </div>
 
+            <p class="template-intro">For a new save, Castle Role opens this selection automatically. You can also reopen it later from the Templates button.</p>
+
             <div class="template-grid">
-              <button class="template-card" type="button" data-template="blank">
+              <button class="template-card" type="button" data-template="empty-land">
                 <span class="template-preview template-preview-blank">○</span>
-                <strong>Blank Island</strong>
-                <small>Clean terrain with no seeded props or buildings.</small>
+                <strong>Empty Land</strong>
+                <small>A clean buildable island for a castle from scratch.</small>
               </button>
 
-              <button class="template-card" type="button" data-template="river-citadel">
+              <button class="template-card" type="button" data-template="small-castle">
+                <span class="template-preview template-preview-castle">♜</span>
+                <strong>Small Castle</strong>
+                <small>Compact stone walls, four towers, gate, homes, road, and wall access.</small>
+              </button>
+
+              <button class="template-card" type="button" data-template="motte-bailey">
+                <span class="template-preview template-preview-motte">▲</span>
+                <strong>Motte &amp; Bailey</strong>
+                <small>A raised motte with a tall keep and wooden bailey defenses.</small>
+              </button>
+
+              <button class="template-card" type="button" data-template="river-castle">
                 <span class="template-preview template-preview-river">≈</span>
-                <strong>River Citadel</strong>
-                <small>A walled stronghold built around a flowing river.</small>
-              </button>
-
-              <button class="template-card" type="button" data-template="mountain-hold">
-                <span class="template-preview template-preview-mountain">▲</span>
-                <strong>Mountain Hold</strong>
-                <small>Heavy walls, tall peaks, and an active mine.</small>
-              </button>
-
-              <button class="template-card" type="button" data-template="farming-village">
-                <span class="template-preview template-preview-farm">✦</span>
-                <strong>Farming Village</strong>
-                <small>Roads, homes, and crop fields ready to expand.</small>
+                <strong>River Castle</strong>
+                <small>A fortified settlement beside a strong editable river channel.</small>
               </button>
             </div>
           </section>
