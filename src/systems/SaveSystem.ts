@@ -1,4 +1,4 @@
-import { SAVE_KEY, SAVE_VERSION } from '../core/constants';
+import { SAVE_KEY, SAVE_VERSION, WORLD_COLS, WORLD_ROWS } from '../core/constants';
 import type { SavedGame, TileKind } from '../core/types';
 import { GameState } from '../state/GameState';
 
@@ -10,6 +10,8 @@ interface RawSavedGame {
 const migratedKinds: Record<string, TileKind> = {
   castle: 'wall',
   wall: 'wall',
+  gate: 'gate',
+  tower: 'tower',
   road: 'road',
   cottage: 'cottage',
   house: 'house',
@@ -26,6 +28,7 @@ export class SaveSystem {
     try {
       const raw = localStorage.getItem(SAVE_KEY);
       if (!raw) return false;
+
       const parsed = JSON.parse(raw) as RawSavedGame;
       if (parsed.version !== SAVE_VERSION || !Array.isArray(parsed.cells)) {
         this.onStatus('Save version unsupported');
@@ -35,9 +38,12 @@ export class SaveSystem {
       const cells: Array<{ x: number; y: number; kind: TileKind }> = [];
       for (const cell of parsed.cells) {
         if (!Number.isInteger(cell.x) || !Number.isInteger(cell.y) || !cell.kind) continue;
+        if ((cell.x as number) < 0 || (cell.y as number) < 0 || (cell.x as number) >= WORLD_COLS || (cell.y as number) >= WORLD_ROWS) continue;
         const kind = migratedKinds[cell.kind];
-        if (kind) cells.push({ x: cell.x as number, y: cell.y as number, kind });
+        if (!kind) continue;
+        cells.push({ x: cell.x as number, y: cell.y as number, kind });
       }
+
       this.state.replace(cells);
       this.onStatus('Loaded local save');
       return true;
@@ -53,6 +59,7 @@ export class SaveSystem {
       updatedAt: Date.now(),
       cells: this.state.entries(),
     };
+
     localStorage.setItem(SAVE_KEY, JSON.stringify(data));
     this.onStatus('Saved locally');
   }
