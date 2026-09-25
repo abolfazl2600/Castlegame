@@ -7,7 +7,7 @@ export class EnvironmentSystem {
   private readonly terrain: Phaser.GameObjects.Graphics;
   private readonly terrainMap: TerrainKind[][] = [];
 
-  constructor(private readonly scene: Phaser.Scene) {
+  constructor(scene: Phaser.Scene) {
     this.ground = scene.add.graphics().setDepth(-30);
     this.terrain = scene.add.graphics().setDepth(-20);
     this.generateTerrain();
