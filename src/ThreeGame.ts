@@ -1795,8 +1795,8 @@ export class ThreeGame {
   private makeHarbor(
     group: THREE.Group,
     kind: HarborKind,
-    gx: number,
-    gy: number,
+    _gx: number,
+    _gy: number,
     cell: GridCell,
   ): THREE.Group {
     const timber = this.environmentMaterial('harbor-timber', 0x6c4a32, 0.98);
