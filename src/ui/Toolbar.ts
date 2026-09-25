@@ -9,12 +9,14 @@ interface ToolDefinition {
 }
 
 const TOOLS: ToolDefinition[] = [
-  { id: 'wall', label: 'Wall', shortcut: '1', icon: '▥', description: 'Build the castle walls' },
-  { id: 'road', label: 'Road', shortcut: '2', icon: '═', description: 'Draw roads across the land' },
-  { id: 'cottage', label: 'Cottage', shortcut: '3', icon: '⌂', description: 'Small worker cottage' },
-  { id: 'house', label: 'House', shortcut: '4', icon: '⌘', description: 'Standard family house' },
-  { id: 'manor', label: 'Manor', shortcut: '5', icon: '◫', description: 'Large noble residence' },
-  { id: 'erase', label: 'Remove', shortcut: '6', icon: '⌫', description: 'Remove placed structures' },
+  { id: 'wall', label: 'Wall', shortcut: '1', icon: '▥', description: 'Build connected castle walls' },
+  { id: 'gate', label: 'Gate', shortcut: '2', icon: '⌂', description: 'Add a castle gate in the wall line' },
+  { id: 'tower', label: 'Tower', shortcut: '3', icon: '◉', description: 'Place a defensive watch tower' },
+  { id: 'road', label: 'Road', shortcut: '4', icon: '═', description: 'Draw roads across the island' },
+  { id: 'cottage', label: 'Cottage', shortcut: '5', icon: '⌁', description: 'Small settler cottage' },
+  { id: 'house', label: 'House', shortcut: '6', icon: '⌘', description: 'Standard family home' },
+  { id: 'manor', label: 'Manor', shortcut: '7', icon: '◫', description: 'Large noble residence' },
+  { id: 'erase', label: 'Remove', shortcut: '8', icon: '⌫', description: 'Remove placed structures' },
 ];
 
 export class Toolbar {
@@ -27,7 +29,7 @@ export class Toolbar {
   ) {
     const title = document.createElement('div');
     title.className = 'toolbar-title';
-    title.innerHTML = '<span>Build</span><small>Grow your fortress frontier</small>';
+    title.innerHTML = '<span>Build</span><small>Compact island stronghold</small>';
     root.append(title);
 
     for (const tool of TOOLS) {
