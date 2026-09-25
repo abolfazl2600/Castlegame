@@ -5,7 +5,6 @@ import { BuildSystem } from '../systems/BuildSystem';
 import { CameraController } from '../systems/CameraController';
 import { EnvironmentSystem } from '../systems/EnvironmentSystem';
 import { GridSystem } from '../systems/GridSystem';
-import { PopulationSystem } from '../systems/PopulationSystem';
 import { SaveSystem } from '../systems/SaveSystem';
 import { Toolbar } from '../ui/Toolbar';
 
@@ -14,7 +13,6 @@ export class GameScene extends Phaser.Scene {
   private environment!: EnvironmentSystem;
   private grid!: GridSystem;
   private build!: BuildSystem;
-  private population!: PopulationSystem;
   private cameraController!: CameraController;
   private saveSystem!: SaveSystem;
   private toolbar!: Toolbar;
@@ -44,7 +42,6 @@ export class GameScene extends Phaser.Scene {
     this.saveSystem = new SaveSystem(this.state, (message) => this.setStatus(message));
     this.saveSystem.load();
     this.build = new BuildSystem(this.state, this.environment, this);
-    this.population = new PopulationSystem(this, this.state);
     this.cameraController = new CameraController(this);
 
     this.toolbar = new Toolbar(toolbarRoot, (tool) => {
@@ -99,7 +96,6 @@ export class GameScene extends Phaser.Scene {
 
   update(_time: number, delta: number): void {
     this.cameraController.update(delta);
-    this.population.update(delta);
 
     const pointer = this.input.activePointer;
     const cell = this.grid.pointerToCell(pointer);
