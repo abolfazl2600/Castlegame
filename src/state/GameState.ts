@@ -1,5 +1,10 @@
 import type { GridCell, TileKind } from '../core/types';
 
+export interface CellEntry extends GridCell {
+  x: number;
+  y: number;
+}
+
 export class GameState {
   private readonly cells = new Map<string, GridCell>();
 
@@ -11,14 +16,25 @@ export class GameState {
     return this.cells.get(this.key(x, y));
   }
 
-  setCell(x: number, y: number, kind: TileKind, level = 1): void {
-    this.cells.set(this.key(x, y), { kind, level: Math.max(1, Math.floor(level)) });
+  setCell(x: number, y: number, kind: TileKind, level = 1, options: Partial<GridCell> = {}): void {
+    this.cells.set(this.key(x, y), {
+      ...options,
+      kind,
+      level: Math.max(1, Math.floor(level)),
+    });
+  }
+
+  updateCell(x: number, y: number, changes: Partial<GridCell>): void {
+    const cell = this.getCell(x, y);
+    if (!cell) return;
+
+    const next: GridCell = { ...cell, ...changes };
+    if (next.level !== undefined) next.level = Math.max(1, Math.floor(next.level));
+    this.cells.set(this.key(x, y), next);
   }
 
   setLevel(x: number, y: number, level: number): void {
-    const cell = this.getCell(x, y);
-    if (!cell) return;
-    this.cells.set(this.key(x, y), { ...cell, level: Math.max(1, Math.floor(level)) });
+    this.updateCell(x, y, { level });
   }
 
   removeCell(x: number, y: number): void {
@@ -29,19 +45,20 @@ export class GameState {
     this.cells.clear();
   }
 
-  replace(cells: Array<{ x: number; y: number; kind: TileKind; level?: number }>): void {
+  replace(cells: CellEntry[]): void {
     this.clear();
     for (const cell of cells) {
-      this.setCell(cell.x, cell.y, cell.kind, cell.level ?? 1);
+      const { x, y, kind, level, ...options } = cell;
+      this.setCell(x, y, kind, level ?? 1, options);
     }
   }
 
-  entries(): Array<{ x: number; y: number; kind: TileKind; level?: number }> {
-    const result: Array<{ x: number; y: number; kind: TileKind; level?: number }> = [];
+  entries(): CellEntry[] {
+    const result: CellEntry[] = [];
 
     for (const [key, cell] of this.cells.entries()) {
       const [x, y] = key.split(',').map(Number);
-      result.push({ x, y, kind: cell.kind, level: cell.level ?? 1 });
+      result.push({ x, y, ...cell, level: cell.level ?? 1 });
     }
 
     return result;

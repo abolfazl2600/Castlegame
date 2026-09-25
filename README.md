@@ -4,61 +4,60 @@ Castle Role is a stylized 3D island-fortress builder built with Three.js, TypeSc
 
 **[Play Castle Role](https://abolfazl2600.github.io/Castlegame/)**
 
-## Current world
+## Advanced wall system
 
-- **22 × 22** playable grid
-- Stylized island, water, coast, river, forests, trees, natural mountain zones, rocks, and huts
-- Orbit/zoom/pan 3D camera
-- Browser-local autosave, manual Save/Load, and Reset
-- Four ready-made world templates
+- Drag from point A to B with a wall tool to create a continuous snapped wall line.
+- Dragging across two axes creates an automatic orthogonal corner.
+- Wall connectors reach the tile boundary and use slope-aware joins on uneven terrain.
+- Three materials:
+  - Stone Wall
+  - Wooden Wall
+  - Reinforced Wall
+- Three thickness settings: Thin, Medium, Thick.
+- Independent Battlement and Walkway toggles.
+- Repeated clicks on the same wall add floors and increase height.
+- Shift+click, the **− Height** button, or **[** decreases the selected wall height.
+- **+ Height** or **]** increases the selected wall/tower height.
+- Existing saves migrate older wall data into the new system.
 
-## Fortifications
+## Modular tower builder
 
-- Three wall materials: Wall I, Wall II, Wall III
-- Adjacent wall segments connect visually without gaps
-- Clicking the same wall repeatedly adds more vertical floors and height
-- Gates orient toward nearby wall lines
-- Towers connect into fortification lines
+The Tower tool now uses modular settings rather than one fixed object.
 
-## Defensive engineering
+Available bases:
+- Square Tower
+- Round Tower
+- Octagonal Tower
+- Corner Tower
+- Watch Tower
 
-- A **Moat** tool assigns workers to excavate selected land
-- Three workers walk to queued moat jobs and complete the excavation
-- Moat tiles flood automatically when a connected moat network reaches a river
+Available tops:
+- Battlement
+- Roof
+- Flat Platform
+- Flag
+- Watch Platform
 
-## Settlement
+Tower height is multi-floor and editable. Towers connect directly to neighboring wall/gate/tower segments.
 
-- Roads connect edge-to-edge automatically
-- Four detailed house designs: Cottage, House, Manor, Villa
-- Houses include doors, windows, chimneys, porches, planters, and extra details
-- Farms provide visible crop plots
+## Existing systems
 
-## Nature & resources
+- 22 × 22 playable island grid
+- Moats dug by workers and flooded by connected rivers
+- Four house types
+- Farms, trees, mountains, mines
+- River and land editing
+- Removable trees, rocks, huts, and construction
+- Four starting templates
+- Browser-local autosave, Save/Load, and Reset
 
-- Player-placeable trees
-- Removable trees, rocks, huts, and player construction
-- Player-placeable mountains that grow each time the same tile is clicked
-- More detailed multi-part mountain geometry with ridges, rocks, vegetation, and snow
-- Mines work on both natural mountain terrain and player-built mountains
-- Player-editable rivers
-- A Land tool fills user-made rivers or water areas back into buildable land
+## Main controls
 
-## Templates
-
-- Blank Island
-- River Citadel
-- Mountain Hold
-- Farming Village
-
-Use the **Templates** button in the top bar to load one.
-
-## Controls
-
-- **1** — Wall I
-- **2** — Wall II
-- **3** — Wall III
+- **1** — Stone Wall
+- **2** — Wooden Wall
+- **3** — Reinforced Wall
 - **4** — Gate
-- **5** — Tower
+- **5** — Modular Tower
 - **6** — Road
 - **7** — Cottage
 - **8** — House
@@ -72,13 +71,10 @@ Use the **Templates** button in the top bar to load one.
 - **R** — River
 - **L** — Land
 - **X** — Remove
+- **[ / ]** — Decrease / increase selected wall or tower floor count
 
-Mouse:
-- Left drag — rotate camera
-- Right drag — pan
-- Mouse wheel — zoom
-- Short left click — build selected item
+When a wall tool is active, left-drag is reserved for wall construction. With other tools, normal OrbitControls camera rotation remains available.
 
-## Next useful milestone
+## Recommended next milestone
 
-Add an economy and production loop: workers assigned to farms and mines, resource costs for construction, military recruitment, tower guard posts, and upgrade requirements for taller walls.
+Add a proper selection/inspector mode with wall segment copy/paste, tower floor-by-floor module editing, wall gates with drawbridges, and construction/resource costs.

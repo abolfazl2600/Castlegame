@@ -307,3 +307,81 @@ kbd { min-width: 23px; text-align: center; padding: 3px 5px; border-radius: 6px;
   .template-grid { grid-template-columns: 1fr; }
   .template-card { min-height: 92px; }
 }
+
+
+.builder-settings {
+  display: grid;
+  gap: 8px;
+  margin-top: 8px;
+  padding: 10px;
+  border: 1px solid rgba(118, 219, 255, .13);
+  border-radius: 13px;
+  background: rgba(4, 16, 27, .42);
+}
+
+.settings-title {
+  margin-top: 2px;
+  color: #8ee9ff;
+  font-size: 9px;
+  font-weight: 900;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+}
+
+.settings-row {
+  display: grid;
+  grid-template-columns: 78px minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
+  color: rgba(236, 249, 255, .78);
+  font-size: 10px;
+}
+
+.settings-row select {
+  min-width: 0;
+  width: 100%;
+  padding: 6px 8px;
+  border: 1px solid rgba(255,255,255,.1);
+  border-radius: 8px;
+  color: #eefbff;
+  background: #102636;
+  outline: none;
+}
+
+.settings-check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: rgba(236, 249, 255, .78);
+  font-size: 10px;
+}
+
+.settings-check input {
+  accent-color: #66dbff;
+}
+
+.settings-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 7px;
+}
+
+.settings-actions button {
+  padding: 7px 8px;
+  border: 1px solid rgba(255,255,255,.1);
+  border-radius: 9px;
+  color: #effbff;
+  background: rgba(255,255,255,.055);
+  cursor: pointer;
+}
+
+.settings-actions button:hover {
+  background: rgba(83, 199, 240, .13);
+  border-color: rgba(112, 220, 255, .22);
+}
+
+.settings-hint {
+  color: rgba(222, 243, 250, .58);
+  font-size: 9px;
+  line-height: 1.45;
+}
