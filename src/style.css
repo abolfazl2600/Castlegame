@@ -111,31 +111,74 @@ h1 { margin: 4px 0 0; font-size: 24px; line-height: 1; letter-spacing: -0.03em; 
 .tool-copy small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: rgba(255,255,255,.78); font-size: 10px; }
 kbd { min-width: 24px; text-align: center; padding: 4px 6px; border-radius: 6px; color: #f2feff; background: rgba(0,0,0,.18); border: 1px solid rgba(255,255,255,.1); font-size: 10px; }
 
-.help-card,
-.info-card {
+.modal-backdrop {
   position: absolute;
+  inset: 0;
+  z-index: 20;
   display: grid;
-  gap: 4px;
-  min-width: 220px;
-  padding: 12px 14px;
-  border-radius: 16px;
-  color: #eefdfd;
-  background: linear-gradient(180deg, rgba(28,68,81,.88), rgba(18,54,67,.82));
-  border: 1px solid rgba(255,255,255,.14);
-  backdrop-filter: blur(12px);
-  font-size: 10px;
+  place-items: center;
+  padding: 24px;
+  background: rgba(5, 22, 28, .58);
+  backdrop-filter: blur(6px);
 }
-.help-card { right: 18px; bottom: 18px; pointer-events: none; }
-.info-card { right: 18px; top: 18px; max-width: 260px; pointer-events: none; }
-.help-card strong, .info-card strong { color: #fffaf5; font-size: 11px; margin-bottom: 2px; }
+.modal-backdrop[hidden] { display: none; }
+.help-modal {
+  width: min(720px, 100%);
+  max-height: min(760px, 90%);
+  overflow: auto;
+  padding: 22px;
+  border: 1px solid rgba(255,255,255,.18);
+  border-radius: 24px;
+  background: linear-gradient(180deg, rgba(28,68,81,.98), rgba(18,54,67,.96));
+  box-shadow: 0 30px 80px rgba(0,0,0,.36);
+}
+.help-modal-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 18px;
+}
+.help-modal h2 { margin: 5px 0 0; font-size: 26px; }
+.icon-button {
+  width: 36px;
+  height: 36px;
+  border: 1px solid rgba(255,255,255,.14);
+  border-radius: 10px;
+  color: #fff;
+  background: rgba(255,255,255,.08);
+  cursor: pointer;
+  font-size: 24px;
+  line-height: 1;
+}
+.icon-button:hover { background: rgba(255,255,255,.14); }
+.help-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.help-section {
+  display: grid;
+  gap: 6px;
+  padding: 14px;
+  border-radius: 16px;
+  background: rgba(255,255,255,.06);
+  border: 1px solid rgba(255,255,255,.08);
+  font-size: 12px;
+}
+.help-section strong { color: #fffaf5; font-size: 13px; margin-bottom: 2px; }
 
 @media (max-width: 980px) {
-  .info-card { display: none; }
+  .status-pill { display: none; }
 }
 
 @media (max-width: 760px) {
   #app { padding: 8px; grid-template-rows: 68px minmax(0,1fr); }
   .toolbar { width: 260px; left: 10px; top: 10px; }
-  .help-card { display: none; }
-  .status-pill { display: none; }
+  .status-group { gap: 5px; }
+  .secondary-button, .danger-button { padding: 7px 9px; }
+  .help-grid { grid-template-columns: 1fr; }
+  .help-modal { padding: 16px; }
+}
+
+@media (max-width: 520px) {
+  .topbar { padding: 0 12px; }
+  .topbar h1 { font-size: 18px; }
+  .status-group button:nth-of-type(n+4) { display: none; }
 }
