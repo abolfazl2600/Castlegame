@@ -3,18 +3,18 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="theme-color" content="#111827" />
-    <title>Castle Role</title>
+    <meta name="theme-color" content="#07111c" />
+    <title>Castle Role — 3D Stronghold</title>
   </head>
   <body>
     <div id="app">
       <header class="topbar">
         <div>
-          <div class="eyebrow">CASTLE ROLE</div>
+          <div class="eyebrow">CASTLE ROLE · 3D</div>
           <h1>Island Stronghold</h1>
         </div>
         <div class="status-group">
-          <span id="save-status" class="status-pill">Ready</span>
+          <span id="save-status" class="status-pill">3D Ready</span>
           <button id="help-button" class="secondary-button" type="button">Help</button>
           <button id="fullscreen-button" class="secondary-button" type="button">Fullscreen</button>
           <button id="load-button" class="secondary-button" type="button">Load</button>
@@ -25,47 +25,21 @@
       <main id="game-shell">
         <div id="game"></div>
         <aside id="toolbar" class="toolbar" aria-label="Build tools"></aside>
-
+        <div class="scene-badge"><span class="scene-dot"></span> REAL-TIME 3D WORLD</div>
         <div id="help-modal" class="modal-backdrop" hidden>
           <section class="help-modal" role="dialog" aria-modal="true" aria-labelledby="help-title">
             <div class="help-modal-header">
               <div>
-                <div class="eyebrow">CASTLE ROLE</div>
+                <div class="eyebrow">CASTLE ROLE · 3D</div>
                 <h2 id="help-title">Game Help</h2>
               </div>
               <button id="help-close-button" class="icon-button" type="button" aria-label="Close help">×</button>
             </div>
             <div class="help-grid">
-              <div class="help-section">
-                <strong>Camera</strong>
-                <span>WASD / Arrow keys — Pan</span>
-                <span>Middle / right mouse drag — Pan</span>
-                <span>Mouse wheel — Zoom</span>
-              </div>
-              <div class="help-section">
-                <strong>Build Shortcuts</strong>
-                <span>1 — Wall</span>
-                <span>2 — Gate</span>
-                <span>3 — Tower</span>
-                <span>4 — Road</span>
-                <span>5 — Cottage</span>
-                <span>6 — House</span>
-                <span>7 — Manor</span>
-                <span>8 — Remove</span>
-              </div>
-              <div class="help-section">
-                <strong>Game Notes</strong>
-                <span>Build and shape your island stronghold.</span>
-                <span>Wall pieces auto-form varied shapes.</span>
-                <span>Gates and towers connect into wall lines.</span>
-                <span>The world is intentionally compact for better performance.</span>
-              </div>
-              <div class="help-section">
-                <strong>Save</strong>
-                <span>Changes are saved automatically after building.</span>
-                <span>Use Save / Load for manual control.</span>
-                <span>Reset clears the map and local save.</span>
-              </div>
+              <div class="help-section"><strong>3D Camera</strong><span>Left drag — Rotate the island</span><span>Right drag — Pan</span><span>Mouse wheel — Zoom</span></div>
+              <div class="help-section"><strong>Build</strong><span>Select a structure, then click the island.</span><span>1–8 select building tools.</span><span>Erase removes a structure.</span></div>
+              <div class="help-section"><strong>World</strong><span>The playable island is now 16×16 tiles.</span><span>Buildings use actual 3D geometry and lighting.</span><span>No human characters are present.</span></div>
+              <div class="help-section"><strong>Save</strong><span>Changes autosave after building.</span><span>Save / Load controls local storage.</span><span>Reset clears the island.</span></div>
             </div>
           </section>
         </div>
