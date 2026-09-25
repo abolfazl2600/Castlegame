@@ -41,6 +41,11 @@ interface UnitRuntime {
   moving: boolean;
   deathTime: number;
   defenseRadius: number;
+  progressCheckTimer: number;
+  stuckSeconds: number;
+  recoveryTime: number;
+  recoverySign: number;
+  lastProgressPosition: THREE.Vector3;
 }
 
 interface ArrowProjectile {
@@ -439,6 +444,11 @@ export class BattleSystem {
       moving: false,
       deathTime: 0,
       defenseRadius: 10,
+      progressCheckTimer: 0.65,
+      stuckSeconds: 0,
+      recoveryTime: 0,
+      recoverySign: this.units.size % 2 === 0 ? 1 : -1,
+      lastProgressPosition: position.clone(),
     };
   }
 
@@ -512,6 +522,8 @@ export class BattleSystem {
     runtime.animTime += delta;
     runtime.attackTimer = Math.max(0, runtime.attackTimer - delta);
     runtime.repathTimer = Math.max(0, runtime.repathTimer - delta);
+    runtime.recoveryTime = Math.max(0, runtime.recoveryTime - delta);
+    runtime.progressCheckTimer -= delta;
     runtime.moving = false;
 
     if (runtime.data.state === 'dead') {
@@ -542,7 +554,8 @@ export class BattleSystem {
           runtime.data.state = 'attacking';
           if (runtime.attackTimer <= 0) this.meleeAttack(runtime, target);
         } else if (runtime.surface === 'ground') {
-          this.moveTowardTarget(runtime, target.position, delta);
+          const attackPosition = this.meleeApproachPoint(runtime, target);
+          this.moveTowardTarget(runtime, attackPosition, delta);
         }
       }
     } else if (runtime.surface === 'ground') {
@@ -555,6 +568,8 @@ export class BattleSystem {
     if (runtime.surface === 'ground' && runtime.moving) {
       this.applySeparation(runtime, delta, buckets);
     }
+
+    this.updateStuckRecovery(runtime, delta);
 
     runtime.view.position.copy(runtime.position);
     this.animateUnit(runtime);
@@ -625,6 +640,13 @@ export class BattleSystem {
     if (distance <= stopDistance) return true;
 
     planar.normalize();
+
+    if (runtime.recoveryTime > 0) {
+      const side = new THREE.Vector3(-planar.z, 0, planar.x)
+        .multiplyScalar(runtime.recoverySign * 0.42);
+      planar.add(side).normalize();
+    }
+
     const step = Math.min(distance - stopDistance, runtime.stats.moveSpeed * delta);
     runtime.position.addScaledVector(planar, Math.max(0, step));
     runtime.view.rotation.y = Math.atan2(planar.x, planar.z);
@@ -646,28 +668,112 @@ export class BattleSystem {
     delta: number,
     buckets: Map<string, UnitRuntime[]>,
   ): void {
-    const key = this.bucketKey(runtime.position);
-    const nearby = buckets.get(key) ?? [];
     const push = new THREE.Vector3();
+    const bucketSize = 2.4;
+    const bx = Math.floor(runtime.position.x / bucketSize);
+    const bz = Math.floor(runtime.position.z / bucketSize);
+    const personalSpace = runtime.data.unitType === 'swordsman' ? 0.72 : 0.66;
+    let neighbors = 0;
 
-    for (const other of nearby) {
-      if (other === runtime || other.data.state === 'dead') continue;
-      if (other.surface !== runtime.surface) continue;
+    for (let oz = -1; oz <= 1; oz += 1) {
+      for (let ox = -1; ox <= 1; ox += 1) {
+        const nearby = buckets.get(`${bx + ox},${bz + oz}`) ?? [];
 
-      const dx = runtime.position.x - other.position.x;
-      const dz = runtime.position.z - other.position.z;
-      const distanceSq = dx * dx + dz * dz;
-      if (distanceSq <= 0.0001 || distanceSq > 0.75 * 0.75) continue;
+        for (const other of nearby) {
+          if (other === runtime || other.data.state === 'dead') continue;
+          if (other.surface !== runtime.surface) continue;
+          if (other.data.faction !== runtime.data.faction) continue;
 
-      const distance = Math.sqrt(distanceSq);
-      push.x += (dx / distance) * (0.75 - distance);
-      push.z += (dz / distance) * (0.75 - distance);
+          const dx = runtime.position.x - other.position.x;
+          const dz = runtime.position.z - other.position.z;
+          const distanceSq = dx * dx + dz * dz;
+          if (distanceSq <= 0.0001 || distanceSq > personalSpace * personalSpace) continue;
+
+          const distance = Math.sqrt(distanceSq);
+          const pressure = (personalSpace - distance) / personalSpace;
+          push.x += (dx / distance) * pressure;
+          push.z += (dz / distance) * pressure;
+          neighbors += 1;
+        }
+      }
     }
 
     if (push.lengthSq() > 0.0001) {
-      push.normalize().multiplyScalar(delta * 0.65);
+      const recoveryScale = runtime.recoveryTime > 0 ? 0.32 : 1;
+      const strength = Math.min(0.92, 0.32 + neighbors * 0.08) * recoveryScale;
+      push.normalize().multiplyScalar(delta * strength);
       runtime.position.add(push);
     }
+  }
+
+  private updateStuckRecovery(runtime: UnitRuntime, delta: number): void {
+    if (runtime.surface !== 'ground' || runtime.data.state === 'dead') return;
+
+    if (!runtime.moving) {
+      runtime.stuckSeconds = Math.max(0, runtime.stuckSeconds - delta * 1.6);
+      if (runtime.progressCheckTimer <= 0) {
+        runtime.progressCheckTimer = 0.65;
+        runtime.lastProgressPosition.copy(runtime.position);
+      }
+      return;
+    }
+
+    if (runtime.progressCheckTimer > 0) return;
+    runtime.progressCheckTimer = 0.65;
+
+    const progress = runtime.position.distanceTo(runtime.lastProgressPosition);
+    runtime.lastProgressPosition.copy(runtime.position);
+
+    if (progress >= 0.16) {
+      runtime.stuckSeconds = 0;
+      return;
+    }
+
+    runtime.stuckSeconds += 0.65;
+    if (runtime.stuckSeconds < 1.25) return;
+
+    runtime.stuckSeconds = 0;
+    runtime.recoveryTime = 0.95;
+    runtime.recoverySign *= -1;
+
+    if (runtime.data.faction === 'attacker') {
+      const start = { x: runtime.gridX, y: runtime.gridY };
+      const target = this.navigation.findNearestWalkable(this.capturePointGrid, 10) ?? this.capturePointGrid;
+      const path = this.navigation.findPath(start, target, true);
+      if (path.length > 1) {
+        runtime.path = path;
+        runtime.pathIndex = 1;
+      }
+    } else {
+      const sideStep = new THREE.Vector3(
+        runtime.recoverySign * 0.75,
+        0,
+        -runtime.recoverySign * 0.55,
+      );
+      runtime.home.add(sideStep);
+    }
+  }
+
+  private meleeApproachPoint(runtime: UnitRuntime, target: UnitRuntime): THREE.Vector3 {
+    const targeters = Array.from(this.units.values())
+      .filter(
+        (unit) =>
+          unit.data.state !== 'dead' &&
+          unit.data.unitType === 'swordsman' &&
+          unit.data.targetId === target.data.id,
+      )
+      .sort((a, b) => a.data.id.localeCompare(b.data.id));
+
+    const slot = Math.max(0, targeters.findIndex((unit) => unit === runtime));
+    const ring = Math.floor(slot / 8);
+    const angle = ((slot % 8) / 8) * Math.PI * 2;
+    const radius = ring === 0 ? 0.92 : 1.48 + (ring - 1) * 0.38;
+
+    return new THREE.Vector3(
+      target.position.x + Math.cos(angle) * radius,
+      target.position.y,
+      target.position.z + Math.sin(angle) * radius,
+    );
   }
 
   private refreshTargets(): void {
@@ -692,7 +798,15 @@ export class BattleSystem {
 
       if (current && current.data.state !== 'dead') {
         const distance = runtime.position.distanceTo(current.position);
-        if (distance <= runtime.stats.scanRange * 1.45) continue;
+        const chaseLimit =
+          runtime.data.faction === 'attacker'
+            ? runtime.data.unitType === 'archer' ? 14.5 : 7.2
+            : runtime.stats.scanRange * 1.35;
+        const threat = current.data.targetId === runtime.data.id;
+
+        if (distance <= chaseLimit && (runtime.data.faction !== 'attacker' || threat || this.isDefenderOnAdvance(current, runtime))) {
+          continue;
+        }
       }
 
       let best: UnitRuntime | undefined;
@@ -711,15 +825,61 @@ export class BattleSystem {
           continue;
         }
 
-        const immediateThreat =
-          candidate.data.targetId === runtime.data.id ? -1.8 : 0;
-        const focusPenalty = (targetedCount.get(candidate.data.id) ?? 0) * 0.85;
-        const objectiveBias =
-          runtime.data.faction === 'attacker' &&
-          candidate.data.faction === 'defender'
-            ? distance * 0.04
-            : 0;
-        const score = distance + focusPenalty + immediateThreat + objectiveBias;
+        const immediateThreat = candidate.data.targetId === runtime.data.id;
+        const focus = targetedCount.get(candidate.data.id) ?? 0;
+
+        if (runtime.data.faction === 'attacker') {
+          const defenderOnAdvance = this.isDefenderOnAdvance(candidate, runtime);
+          const attackerObjectiveDistance = Math.hypot(
+            runtime.position.x - this.objectiveWorld.x,
+            runtime.position.z - this.objectiveWorld.z,
+          );
+          const defenderObjectiveDistance = Math.hypot(
+            candidate.position.x - this.objectiveWorld.x,
+            candidate.position.z - this.objectiveWorld.z,
+          );
+
+          if (
+            !immediateThreat &&
+            !defenderOnAdvance &&
+            defenderObjectiveDistance > attackerObjectiveDistance + 4.5
+          ) {
+            continue;
+          }
+
+          if (
+            runtime.data.unitType === 'swordsman' &&
+            focus >= 8 &&
+            !immediateThreat
+          ) {
+            continue;
+          }
+
+          const blockingBonus = defenderOnAdvance ? -3.2 : 0;
+          const threatBonus = immediateThreat ? -4.5 : 0;
+          const entranceBonus =
+            candidate.position.distanceTo(this.objectiveWorld) < this.world.tileSize * 2.2
+              ? -1.8
+              : 0;
+          const focusPenalty = focus * 1.15;
+          const score =
+            distance +
+            focusPenalty +
+            blockingBonus +
+            threatBonus +
+            entranceBonus +
+            Math.max(0, defenderObjectiveDistance - attackerObjectiveDistance) * 0.18;
+
+          if (score < bestScore) {
+            bestScore = score;
+            best = candidate;
+          }
+          continue;
+        }
+
+        const immediateThreatBonus = immediateThreat ? -2.2 : 0;
+        const focusPenalty = focus * 0.72;
+        const score = distance + focusPenalty + immediateThreatBonus;
 
         if (score < bestScore) {
           bestScore = score;
@@ -729,6 +889,33 @@ export class BattleSystem {
 
       runtime.data.targetId = best?.data.id;
     }
+  }
+
+  private isDefenderOnAdvance(defender: UnitRuntime, attacker: UnitRuntime): boolean {
+    const nextWaypoint = attacker.path[attacker.pathIndex];
+    const waypointWorld = nextWaypoint
+      ? this.world.gridToWorld(nextWaypoint.x, nextWaypoint.y)
+      : { x: this.objectiveWorld.x, z: this.objectiveWorld.z };
+
+    const toGoal = new THREE.Vector2(
+      waypointWorld.x - attacker.position.x,
+      waypointWorld.z - attacker.position.z,
+    );
+    const toDefender = new THREE.Vector2(
+      defender.position.x - attacker.position.x,
+      defender.position.z - attacker.position.z,
+    );
+
+    const goalLength = toGoal.length();
+    const defenderDistance = toDefender.length();
+    if (goalLength < 0.01 || defenderDistance < 0.01) return defenderDistance < 4.5;
+
+    const alignment = toGoal.normalize().dot(toDefender.clone().normalize());
+    const nearRoute = alignment > 0.46 && defenderDistance < Math.max(5.2, goalLength + 2);
+    const guardingEntrance =
+      defender.position.distanceTo(this.objectiveWorld) < this.world.tileSize * 2.4;
+
+    return nearRoute || guardingEntrance;
   }
 
   private meleeAttack(attacker: UnitRuntime, target: UnitRuntime): void {

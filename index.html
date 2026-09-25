@@ -143,8 +143,9 @@
               <div class="help-section">
                 <strong>Castle Battle</strong>
                 <span>Open Battle to configure Attacker and Defender Swordsmen/Archers.</span>
+                <span>Attackers advance toward the castle, engage immediate defenders blocking the route, then resume the capture objective.</span>
+                <span>Friendly soldiers use crowd separation, combat slots, stuck detection, side-step recovery, and path recalculation to reduce clumping.</span>
                 <span>Defender Archers prefer wall walks and towers; ground defenders protect the castle interior.</span>
-                <span>Attackers approach valid entrances and attempt to capture the Keep / Castle Center.</span>
                 <span>Reset Battle removes the army simulation without modifying your castle.</span>
               </div>
 
@@ -201,6 +202,13 @@
               </div>
 
               <div class="help-section">
+                <strong>Mountains & Ranges</strong>
+                <span>Mountain creates a broad multi-level formation; repeated clicks grow ridges and peaks instead of a square raised tile.</span>
+                <span>Mountain Range (K) uses an A → B drag preview, then generates a varied ridge with secondary peaks, valleys, rocky slopes, foothills, and lower-slope trees.</span>
+                <span>Mountain forests thin out automatically as elevation and slope increase.</span>
+              </div>
+
+              <div class="help-section">
                 <strong>Terrain Editing</strong>
                 <span>Raise / Lower / Flatten / Smooth / Dig / Hill / Cliff remain available.</span>
                 <span>Keep foundations adapt to moderate elevation differences; excessively steep new Keep placements are rejected.</span>
@@ -224,10 +232,10 @@
 
               <div class="help-section">
                 <strong>World, Roads & Harbor</strong>
-                <span>Rivers now use variable width, lower beds, wet banks, shoreline stones, and flowing water.</span>
+                <span>The coast now reads as grass → coastal vegetation → beach/rock → wet shore → shallow water → deep ocean.</span>
+                <span>Beach width varies; rocky coast, small cliffs, driftwood, shells, stones, and foam are used selectively.</span>
                 <span>Road, Dirt Road, and Stone Road all support A → B drag preview and automatic intersections; roads crossing rivers render as bridges.</span>
-                <span>Small Dock, Wooden Pier, Harbor, and Fishing Dock only place on valid ocean coastlines and automatically face the water.</span>
-                <span>Harbors generate lightweight docked Fishing, Trading, or Transport vessels.</span>
+                <span>Harbor structures still validate coastline and automatically face open water.</span>
               </div>
 
               <div class="help-section">
@@ -283,6 +291,24 @@
                 <span class="template-preview template-preview-river">≈</span>
                 <strong>River Castle</strong>
                 <small>A fortified settlement beside a strong editable river channel.</small>
+              </button>
+
+              <button class="template-card" type="button" data-template="mountain-valley">
+                <span class="template-preview template-preview-motte">⛰</span>
+                <strong>Mountain Valley</strong>
+                <small>Mountain ranges, forested foothills, a river, and a broad protected central valley.</small>
+              </button>
+
+              <button class="template-card" type="button" data-template="coastal-kingdom">
+                <span class="template-preview template-preview-river">⚓</span>
+                <strong>Coastal Kingdom</strong>
+                <small>Wide beaches, harbor-friendly coast, inland woods, hills, and open castle land.</small>
+              </button>
+
+              <button class="template-card" type="button" data-template="highland-river">
+                <span class="template-preview template-preview-motte">≈▲</span>
+                <strong>Highland River</strong>
+                <small>A rugged highland ridge with a descending river, forests, rocks, and a buildable shelf.</small>
               </button>
             </div>
           </section>

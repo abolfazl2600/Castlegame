@@ -48,6 +48,7 @@ export type TileKind =
 export type ToolKind =
   | TileKind
   | 'keep'
+  | 'mountainRange'
   | 'river'
   | 'land'
   | TerrainToolKind

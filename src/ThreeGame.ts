@@ -147,7 +147,8 @@ const TOOL_GROUPS: Array<{ label: string; tools: ToolDefinition[] }> = [
     label: 'Nature & Resources',
     tools: [
       { id: 'tree', icon: '🌲', label: 'Tree', detail: 'Plant a detailed tree', shortcut: 'T' },
-      { id: 'mountain', icon: '⛰️', label: 'Mountain', detail: 'Repeated clicks grow it', shortcut: 'N' },
+      { id: 'mountain', icon: '⛰️', label: 'Mountain', detail: 'Repeated clicks grow natural peaks', shortcut: 'N' },
+      { id: 'mountainRange', icon: '🏔️', label: 'Mountain Range', detail: 'Drag A → B · ridge + foothills', shortcut: 'K' },
       { id: 'mine', icon: '⛏️', label: 'Mine', detail: 'Natural or built mountain', shortcut: 'M' },
       { id: 'river', icon: '🌊', label: 'River', detail: 'Carve connected flowing water', shortcut: 'R' },
       { id: 'land', icon: '🌱', label: 'Land', detail: 'Fill water into buildable land', shortcut: 'L' },
@@ -246,6 +247,8 @@ export class ThreeGame {
   private wallDragEnd: GridPoint | null = null;
   private roadDragStart: GridPoint | null = null;
   private roadDragEnd: GridPoint | null = null;
+  private mountainRangeStart: GridPoint | null = null;
+  private mountainRangeEnd: GridPoint | null = null;
   private pointerStart: { x: number; y: number } | null = null;
   private longPressCell: GridPoint | null = null;
   private longPressPointerId: number | null = null;
@@ -1246,6 +1249,7 @@ export class ThreeGame {
         group.position.set(position.x, 0, position.z);
 
         if (terrain === 'river') {
+          group.position.y = elevation;
           this.renderRiverTile(group, x, y);
           this.terrainLayer.add(group);
           continue;
@@ -1261,7 +1265,7 @@ export class ThreeGame {
         if (terrain === 'shore') this.renderCoastPatch(group, x, y);
         else if (terrain === 'forest' || terrain === 'plains') this.renderGroundVariation(group, x, y, terrain);
 
-        if (edited) {
+        if (edited && terrain !== 'mountain') {
           this.renderElevationPatch(group, elevation);
         }
 
@@ -1272,7 +1276,7 @@ export class ThreeGame {
 
         if (terrain === 'mountain' && !hidesMountain) {
           const mountainGroup = new THREE.Group();
-          mountainGroup.position.y = this.elevationOverrides.get(this.key(x, y)) ?? 0;
+          mountainGroup.position.y = elevation;
           this.addNaturalMountain(mountainGroup, x, y);
           group.add(mountainGroup);
         }
@@ -1314,70 +1318,148 @@ export class ThreeGame {
   }
 
   private renderCoastPatch(group: THREE.Group, gx: number, gy: number): void {
-    const hash = Math.abs((gx * 79 + gy * 131 + gx * gy * 7) % 101);
-    const rocky = hash % 3 === 0;
-    const material = rocky
-      ? this.environmentMaterial('coast-rock', 0x817a6e, 1)
-      : this.environmentMaterial('coast-sand', 0xc2b17d, 1);
+    const hash = Math.abs((gx * 79 + gy * 131 + gx * gy * 7) % 997);
+    const rocky = hash % 5 === 0 || hash % 11 === 0;
+    const wideBeach = !rocky && hash % 4 !== 0;
 
-    const patch = new THREE.Mesh(
-      new THREE.CircleGeometry(1.2 + (hash % 4) * 0.18, 12),
-      material,
+    const drySand = this.environmentMaterial('coast-dry-sand', 0xc9b47d, 1);
+    const warmSand = this.environmentMaterial('coast-warm-sand', 0xbda66f, 1);
+    const wetSand = this.environmentMaterial('coast-wet-sand', 0x8f805f, 1);
+    const coastRock = this.environmentMaterial('coast-rock', 0x7b746a, 1);
+    const coastDarkRock = this.environmentMaterial('coast-rock-dark', 0x625e58, 1);
+    const coastalGrass = this.environmentMaterial('coastal-grass', 0x708946, 1);
+    const driftwood = this.environmentMaterial('coast-driftwood', 0x72543c, 1);
+
+    const baseRadius = wideBeach ? 1.78 : rocky ? 1.28 : 1.52;
+    const beach = new THREE.Mesh(
+      new THREE.CircleGeometry(baseRadius, 14),
+      rocky ? coastRock : drySand,
     );
-    patch.rotation.x = -Math.PI / 2;
-    patch.position.y = 2.23;
-    patch.scale.set(1.15, 0.75, 1);
-    group.add(patch);
+    beach.rotation.x = -Math.PI / 2;
+    beach.position.y = 2.235;
+    beach.scale.set(
+      1.06 + (hash % 3) * 0.08,
+      0.82 + (hash % 4) * 0.04,
+      1,
+    );
+    beach.rotation.z = (hash % 9) * 0.12;
+    group.add(beach);
 
-    const waterNeighbors = [
-      { dx: 0, dy: -1, x: 0, z: -1.68, w: 2.2, d: 0.18 },
-      { dx: 1, dy: 0, x: 1.68, z: 0, w: 0.18, d: 2.2 },
-      { dx: 0, dy: 1, x: 0, z: 1.68, w: 2.2, d: 0.18 },
-      { dx: -1, dy: 0, x: -1.68, z: 0, w: 0.18, d: 2.2 },
-    ].filter((item) => this.terrainAt(gx + item.dx, gy + item.dy) === 'water');
+    const edges = [
+      { dx: 0, dy: -1, x: 0, z: -1.55, w: 3.25, d: 0.82, shallowX: 0, shallowZ: -2.25, shallowW: 3.6, shallowD: 1.25 },
+      { dx: 1, dy: 0, x: 1.55, z: 0, w: 0.82, d: 3.25, shallowX: 2.25, shallowZ: 0, shallowW: 1.25, shallowD: 3.6 },
+      { dx: 0, dy: 1, x: 0, z: 1.55, w: 3.25, d: 0.82, shallowX: 0, shallowZ: 2.25, shallowW: 3.6, shallowD: 1.25 },
+      { dx: -1, dy: 0, x: -1.55, z: 0, w: 0.82, d: 3.25, shallowX: -2.25, shallowZ: 0, shallowW: 1.25, shallowD: 3.6 },
+    ].filter((edge) => this.terrainAt(gx + edge.dx, gy + edge.dy) === 'water');
 
-    const foam = new THREE.MeshBasicMaterial({
-      color: 0xe8fff8,
-      transparent: true,
-      opacity: 0.26,
-      depthWrite: false,
-      side: THREE.DoubleSide,
-    });
+    const foam = this.planMaterial(0xe8fff8, 0.25);
 
-    for (const edge of waterNeighbors) {
-      const foamMesh = new THREE.Mesh(
+    for (const edge of edges) {
+      const wet = new THREE.Mesh(
         new THREE.PlaneGeometry(edge.w, edge.d),
+        rocky ? coastDarkRock : wetSand,
+      );
+      wet.rotation.x = -Math.PI / 2;
+      wet.position.set(edge.x, 2.255, edge.z);
+      wet.renderOrder = 1;
+      group.add(wet);
+
+      const shallow = new THREE.Mesh(
+        new THREE.PlaneGeometry(edge.shallowW, edge.shallowD),
+        this.shallowWaterMaterial,
+      );
+      shallow.rotation.x = -Math.PI / 2;
+      shallow.position.set(edge.shallowX, 1.04, edge.shallowZ);
+      shallow.renderOrder = 1;
+      group.add(shallow);
+
+      const foamMesh = new THREE.Mesh(
+        new THREE.PlaneGeometry(
+          edge.dx === 0 ? edge.w * 0.9 : 0.13,
+          edge.dy === 0 ? edge.d * 0.9 : 0.13,
+        ),
         foam,
       );
       foamMesh.rotation.x = -Math.PI / 2;
-      foamMesh.position.set(edge.x, 1.38, edge.z);
-      foamMesh.renderOrder = 2;
+      foamMesh.position.set(
+        edge.x * 1.04,
+        1.4,
+        edge.z * 1.04,
+      );
+      foamMesh.renderOrder = 3;
       group.add(foamMesh);
+
+      if (!rocky && hash % 3 === 0) {
+        const grassX = -edge.dx * 0.95;
+        const grassZ = -edge.dy * 0.95;
+        for (let i = 0; i < 3; i += 1) {
+          const blade = this.addBox(
+            group,
+            0.055,
+            0.38 + i * 0.07,
+            0.055,
+            coastalGrass,
+            grassX + (i - 1) * 0.15 * (edge.dy === 0 ? 0.4 : 1),
+            2.46,
+            grassZ + (i - 1) * 0.15 * (edge.dx === 0 ? 0.4 : 1),
+          );
+          blade.rotation.z = (i - 1) * 0.12;
+        }
+      }
     }
 
-    if (rocky && hash % 2 === 0) {
-      const stone = new THREE.Mesh(
-        new THREE.DodecahedronGeometry(0.24 + (hash % 3) * 0.06, 0),
-        this.environmentMaterial('coast-stone', 0x6c6860, 1),
+    if (rocky) {
+      const rockCount = 1 + (hash % 3);
+      for (let i = 0; i < rockCount; i += 1) {
+        const stone = new THREE.Mesh(
+          new THREE.DodecahedronGeometry(0.24 + ((hash + i) % 4) * 0.08, 0),
+          i % 2 === 0 ? coastRock : coastDarkRock,
+        );
+        stone.position.set(
+          -0.8 + i * 0.62,
+          2.42 + i * 0.04,
+          0.58 - i * 0.37,
+        );
+        stone.scale.set(1.15, 0.62 + i * 0.08, 0.9);
+        stone.rotation.y = (hash + i) * 0.31;
+        stone.castShadow = true;
+        group.add(stone);
+      }
+
+      if (hash % 7 === 0) {
+        const cliff = new THREE.Mesh(
+          new THREE.DodecahedronGeometry(0.78, 0),
+          coastDarkRock,
+        );
+        cliff.position.set(-0.62, 2.35, 0.72);
+        cliff.scale.set(1.45, 1.05, 0.72);
+        cliff.rotation.y = (hash % 5) * 0.18;
+        cliff.castShadow = true;
+        group.add(cliff);
+      }
+    } else if (hash % 9 === 0) {
+      const log = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.1, 0.14, 1.25, 7),
+        driftwood,
       );
-      stone.position.set(0.72, 2.45, -0.55);
-      stone.scale.y = 0.65;
-      stone.castShadow = true;
-      group.add(stone);
+      log.rotation.z = Math.PI / 2;
+      log.rotation.y = (hash % 8) * 0.28;
+      log.position.set(0.2, 2.39, 0.52);
+      log.castShadow = true;
+      group.add(log);
     }
 
-    if (rocky && hash % 7 === 0) {
-      const cliff = this.addBox(
-        group,
-        1.1,
-        0.8,
-        0.72,
-        this.environmentMaterial('coast-cliff', 0x6f655d, 1),
-        -0.75,
-        1.92,
-        0.65,
-      );
-      cliff.rotation.y = (hash % 5) * 0.14;
+    if (!rocky && hash % 13 === 0) {
+      const shellMaterial = this.environmentMaterial('coast-shell', 0xd7c9a7, 1);
+      for (let i = 0; i < 3; i += 1) {
+        const shell = new THREE.Mesh(
+          new THREE.SphereGeometry(0.055 + i * 0.01, 6, 4),
+          shellMaterial,
+        );
+        shell.scale.y = 0.32;
+        shell.position.set(-0.55 + i * 0.24, 2.29, -0.45 + i * 0.11);
+        group.add(shell);
+      }
     }
   }
 
@@ -1540,56 +1622,177 @@ export class ThreeGame {
   }
 
   private renderElevationPatch(group: THREE.Group, elevation: number): void {
-    const side = new THREE.MeshStandardMaterial({ color: 0x78644b, roughness: 1 });
-    const grass = new THREE.MeshStandardMaterial({ color: 0xa9c864, roughness: 0.94 });
-    const earth = new THREE.MeshStandardMaterial({ color: 0x51453a, roughness: 1 });
+    const grass = this.environmentMaterial('terrain-elev-grass', 0x91aa57, 0.98);
+    const dirt = this.environmentMaterial('terrain-elev-dirt', 0x76624d, 1);
+    const rock = this.environmentMaterial('terrain-elev-rock', 0x746c63, 1);
 
     if (elevation > 0.03) {
-      this.addBox(group, TILE * 0.98, elevation, TILE * 0.98, side, 0, 2.2 + elevation / 2, 0);
-      this.addBox(group, TILE * 0.98, 0.12, TILE * 0.98, grass, 0, 2.2 + elevation + 0.05, 0);
+      const material = elevation > 3.4 ? rock : elevation > 1.8 ? dirt : grass;
+      const mound = new THREE.Mesh(
+        new THREE.CylinderGeometry(
+          TILE * (elevation > 2.8 ? 0.5 : 0.56),
+          TILE * 0.67,
+          elevation,
+          12,
+          2,
+          false,
+        ),
+        material,
+      );
+      mound.position.y = 2.2 + elevation / 2;
+      mound.rotation.y = elevation * 0.17;
+      mound.castShadow = elevation > 0.6;
+      mound.receiveShadow = true;
+      group.add(mound);
+
+      if (elevation > 2.4) {
+        const shoulder = new THREE.Mesh(
+          new THREE.DodecahedronGeometry(TILE * 0.27, 0),
+          rock,
+        );
+        shoulder.position.set(TILE * 0.28, 2.15 + elevation * 0.62, -TILE * 0.24);
+        shoulder.scale.set(1.3, 0.72, 1);
+        shoulder.castShadow = true;
+        group.add(shoulder);
+      }
       return;
     }
 
     if (elevation < -0.03) {
       const depth = Math.min(1.55, Math.abs(elevation));
-      this.addBox(group, TILE * 0.94, 0.08, TILE * 0.94, earth, 0, 2.215, 0);
-      this.addBox(group, TILE * 0.98, 0.16 + depth * 0.12, 0.22, side, 0, 2.25, -TILE * 0.43);
-      this.addBox(group, TILE * 0.98, 0.16 + depth * 0.12, 0.22, side, 0, 2.25, TILE * 0.43);
-      this.addBox(group, 0.22, 0.16 + depth * 0.12, TILE * 0.78, side, -TILE * 0.43, 2.25, 0);
-      this.addBox(group, 0.22, 0.16 + depth * 0.12, TILE * 0.78, side, TILE * 0.43, 2.25, 0);
+      const earth = this.environmentMaterial('terrain-dig-earth', 0x51453a, 1);
+      const side = this.environmentMaterial('terrain-dig-side', 0x78644b, 1);
+      const hollow = new THREE.Mesh(
+        new THREE.CylinderGeometry(TILE * 0.47, TILE * 0.58, 0.12, 12),
+        earth,
+      );
+      hollow.position.y = 2.15;
+      group.add(hollow);
+
+      for (let i = 0; i < 7; i += 1) {
+        const angle = (i / 7) * Math.PI * 2;
+        const wall = new THREE.Mesh(
+          new THREE.BoxGeometry(0.45, 0.2 + depth * 0.12, 1.15),
+          side,
+        );
+        wall.position.set(Math.cos(angle) * 1.65, 2.2, Math.sin(angle) * 1.65);
+        wall.rotation.y = -angle;
+        group.add(wall);
+      }
     }
   }
 
   private addNaturalMountain(group: THREE.Group, gx: number, gy: number): void {
-    const variation = 0.9 + ((gx * 5 + gy * 3) % 4) * 0.09;
-    const rockA = new THREE.MeshStandardMaterial({ color: 0x80746b, roughness: 1, flatShading: true });
-    const rockB = new THREE.MeshStandardMaterial({ color: 0x9b8c7e, roughness: 1, flatShading: true });
-    const snow = new THREE.MeshStandardMaterial({ color: 0xdad4cd, roughness: 1, flatShading: true });
+    const hash = Math.abs((gx * 113 + gy * 191 + gx * gy * 17) % 997);
+    const level = 2 + (hash % 3);
+    this.addMountainFormation(group, level, hash);
+  }
 
-    const main = new THREE.Mesh(new THREE.ConeGeometry(1.7 * variation, 5.2 * variation, 7), rockA);
-    main.position.set(-0.25, 4.75, 0.15);
-    main.rotation.y = 0.35;
+  private addMountainFormation(
+    group: THREE.Group,
+    level: number,
+    seed: number,
+  ): void {
+    const safeLevel = THREE.MathUtils.clamp(Math.floor(level), 1, 12);
+    const low = this.environmentMaterial('mountain-low', 0x6f7652, 1);
+    const dirt = this.environmentMaterial('mountain-dirt', 0x75614e, 1);
+    const rockA = this.environmentMaterial('mountain-rock-a', 0x746c65, 1);
+    const rockB = this.environmentMaterial('mountain-rock-b', 0x8b7f74, 1);
+    const rockHigh = this.environmentMaterial('mountain-rock-high', 0xa99f93, 1);
+    const dark = this.environmentMaterial('mountain-cliff-dark', 0x554f4b, 1);
+
+    const scale = 0.86 + Math.min(safeLevel, 7) * 0.09;
+    const height = 3.4 + Math.min(safeLevel, 8) * 0.72;
+    const baseRadius = 2.0 + Math.min(safeLevel, 6) * 0.12;
+    const angle = (seed % 17) * 0.19;
+
+    const foothill = new THREE.Mesh(
+      new THREE.CylinderGeometry(baseRadius * 0.9, baseRadius * 1.26, 0.72 + safeLevel * 0.08, 11),
+      safeLevel <= 2 ? low : dirt,
+    );
+    foothill.position.y = 2.45;
+    foothill.rotation.y = angle;
+    foothill.scale.z = 0.82 + (seed % 5) * 0.035;
+    foothill.castShadow = true;
+    foothill.receiveShadow = true;
+    group.add(foothill);
+
+    const main = new THREE.Mesh(
+      new THREE.ConeGeometry(baseRadius * scale, height, 8),
+      safeLevel >= 3 ? rockA : dirt,
+    );
+    main.position.set(-0.28, 2.55 + height / 2, 0.12);
+    main.rotation.y = angle + 0.22;
+    main.scale.z = 0.78 + (seed % 4) * 0.06;
     main.castShadow = true;
     main.receiveShadow = true;
     group.add(main);
 
-    const ridge = new THREE.Mesh(new THREE.ConeGeometry(1.05 * variation, 3.6 * variation, 6), rockB);
-    ridge.position.set(1.05, 3.85, 0.65);
-    ridge.rotation.y = -0.28;
+    const ridgeHeight = height * (0.62 + (seed % 3) * 0.05);
+    const ridge = new THREE.Mesh(
+      new THREE.ConeGeometry(baseRadius * 0.62, ridgeHeight, 7),
+      rockB,
+    );
+    ridge.position.set(
+      1.05 + (seed % 3) * 0.12,
+      2.46 + ridgeHeight / 2,
+      0.6 - (seed % 4) * 0.1,
+    );
+    ridge.rotation.y = angle - 0.48;
+    ridge.scale.x = 0.86;
     ridge.castShadow = true;
     group.add(ridge);
 
-    const shoulder = new THREE.Mesh(new THREE.DodecahedronGeometry(0.78 * variation, 0), rockB);
-    shoulder.position.set(-1.15, 2.8, -0.65);
-    shoulder.scale.y = 0.72;
+    const shoulder = new THREE.Mesh(
+      new THREE.DodecahedronGeometry(baseRadius * 0.62, 0),
+      seed % 2 === 0 ? rockA : rockB,
+    );
+    shoulder.position.set(-1.2, 3.05 + safeLevel * 0.16, -0.75);
+    shoulder.scale.set(1.18, 0.74 + safeLevel * 0.03, 0.92);
+    shoulder.rotation.y = angle * 1.4;
     shoulder.castShadow = true;
     group.add(shoulder);
 
-    if ((gx + gy) % 2 === 0) {
-      const cap = new THREE.Mesh(new THREE.ConeGeometry(0.55 * variation, 1.25 * variation, 7), snow);
-      cap.position.set(-0.25, 6.75, 0.15);
-      cap.castShadow = true;
-      group.add(cap);
+    if (safeLevel >= 3) {
+      const cliff = new THREE.Mesh(
+        new THREE.DodecahedronGeometry(baseRadius * 0.5, 0),
+        dark,
+      );
+      cliff.position.set(0.78, 3.15 + safeLevel * 0.22, -1.03);
+      cliff.scale.set(0.72, 1.32, 0.48);
+      cliff.rotation.y = angle + 0.5;
+      cliff.castShadow = true;
+      group.add(cliff);
+    }
+
+    if (safeLevel >= 4) {
+      const peakHeight = height * 0.28;
+      const peak = new THREE.Mesh(
+        new THREE.ConeGeometry(baseRadius * 0.34, peakHeight, 7),
+        rockHigh,
+      );
+      peak.position.set(
+        -0.28,
+        2.55 + height * 0.86,
+        0.12,
+      );
+      peak.rotation.y = angle - 0.18;
+      peak.castShadow = true;
+      group.add(peak);
+    }
+
+    if (safeLevel <= 3) {
+      const shrub = this.environmentMaterial('mountain-shrub', 0x496d3e, 1);
+      for (let i = 0; i < 2; i += 1) {
+        const bush = new THREE.Mesh(
+          new THREE.DodecahedronGeometry(0.24 + i * 0.05, 0),
+          shrub,
+        );
+        bush.position.set(-1.5 + i * 2.25, 2.72, 1.15 - i * 0.38);
+        bush.scale.y = 0.72;
+        bush.castShadow = true;
+        group.add(bush);
+      }
     }
   }
 
@@ -1606,7 +1809,7 @@ export class ThreeGame {
     else if (cell.kind === 'tower') this.makeTower(group, cell.x, cell.y, cell);
     else if (cell.kind === 'farm') this.makeFarm(group);
     else if (cell.kind === 'mine') this.makeMine(group);
-    else if (cell.kind === 'mountain') this.makeMountain(group, cell.level ?? 1);
+    else if (cell.kind === 'mountain') this.makeMountain(group, cell.level ?? 1, cell.x, cell.y);
     else if (cell.kind === 'tree') this.makeTree(group, cell.level ?? 1);
     else if (cell.kind === 'rock') this.makeRock(group, cell.level ?? 1);
     else if (cell.kind === 'hut') this.makeHut(group);
@@ -3494,43 +3697,14 @@ export class ThreeGame {
     return group;
   }
 
-  private makeMountain(group: THREE.Group, level: number): THREE.Group {
-    const safeLevel = Math.max(1, level);
-    const growth = Math.min(safeLevel, 12) * 1.12 + Math.max(0, safeLevel - 12) * 0.28;
-    const mainHeight = 3.4 + growth;
-    const radius = 1.25 + Math.min(safeLevel, 10) * 0.12;
-
-    const rockA = new THREE.MeshStandardMaterial({ color: 0x756b64, roughness: 1, flatShading: true });
-    const rockB = new THREE.MeshStandardMaterial({ color: 0x918379, roughness: 1, flatShading: true });
-    const rockC = new THREE.MeshStandardMaterial({ color: 0x625b57, roughness: 1, flatShading: true });
-    const snow = new THREE.MeshStandardMaterial({ color: 0xe3ddd6, roughness: 1, flatShading: true });
-
-    const main = new THREE.Mesh(new THREE.ConeGeometry(radius, mainHeight, 7), rockA);
-    main.position.set(-0.25, 2.2 + mainHeight / 2, 0.15);
-    main.rotation.y = 0.26;
-    main.castShadow = true;
-    main.receiveShadow = true;
-    group.add(main);
-
-    const ridge = new THREE.Mesh(new THREE.ConeGeometry(radius * 0.68, mainHeight * 0.68, 6), rockB);
-    ridge.position.set(radius * 0.82, 2.2 + mainHeight * 0.34, 0.55);
-    ridge.rotation.y = -0.33;
-    ridge.castShadow = true;
-    group.add(ridge);
-
-    const rear = new THREE.Mesh(new THREE.ConeGeometry(radius * 0.55, mainHeight * 0.55, 7), rockC);
-    rear.position.set(-radius * 0.72, 2.2 + mainHeight * 0.28, 0.72);
-    rear.rotation.y = 0.61;
-    rear.castShadow = true;
-    group.add(rear);
-
-    if (safeLevel >= 3) {
-      const cap = new THREE.Mesh(new THREE.ConeGeometry(radius * 0.36, mainHeight * 0.22, 7), snow);
-      cap.position.set(-0.25, 2.2 + mainHeight * 0.89, 0.15);
-      cap.castShadow = true;
-      group.add(cap);
-    }
-
+  private makeMountain(
+    group: THREE.Group,
+    level: number,
+    gx: number,
+    gy: number,
+  ): THREE.Group {
+    const seed = Math.abs((gx * 127 + gy * 211 + level * 53 + gx * gy * 7) % 997);
+    this.addMountainFormation(group, level, seed);
     return group;
   }
 
@@ -3913,6 +4087,19 @@ export class ThreeGame {
           return;
         }
 
+        if (this.selectedTool === 'mountainRange') {
+          if (!cell) return;
+          this.mountainRangeStart = cell;
+          this.mountainRangeEnd = cell;
+          this.controls.enabled = false;
+          canvas.setPointerCapture(event.pointerId);
+          this.renderMountainRangePreview([cell]);
+          this.setStatus('Mountain Range: drag A → B · release to generate ridge');
+          event.preventDefault();
+          event.stopPropagation();
+          return;
+        }
+
         if (this.isTerrainTool(this.selectedTool)) {
           if (!cell) return;
 
@@ -3965,6 +4152,19 @@ export class ThreeGame {
           return;
         }
 
+        if (this.mountainRangeStart) {
+          const cell = this.pickGridCell(event);
+          if (cell) {
+            this.mountainRangeEnd = cell;
+            const path = this.mountainRangePath(this.mountainRangeStart, cell);
+            this.renderMountainRangePreview(path);
+            this.setStatus(`Mountain Range: ${path.length} ridge nodes · release to generate`);
+          }
+          event.preventDefault();
+          event.stopPropagation();
+          return;
+        }
+
         if (this.terrainStrokeActive) {
           const cell = this.pickGridCell(event);
           if (cell) {
@@ -3996,6 +4196,8 @@ export class ThreeGame {
           this.wallDragEnd = null;
           this.roadDragStart = null;
           this.roadDragEnd = null;
+          this.mountainRangeStart = null;
+          this.mountainRangeEnd = null;
           this.terrainStrokeActive = false;
           this.terrainStrokeSnapshot = null;
           this.clearGroup(this.wallPreviewLayer);
@@ -4032,6 +4234,22 @@ export class ThreeGame {
 
           if (canvas.hasPointerCapture(event.pointerId)) canvas.releasePointerCapture(event.pointerId);
           this.buildRoadDrag(startPoint, end);
+
+          event.preventDefault();
+          event.stopPropagation();
+          return;
+        }
+
+        if (this.mountainRangeStart) {
+          const end = this.pickGridCell(event) ?? this.mountainRangeEnd ?? this.mountainRangeStart;
+          const startPoint = this.mountainRangeStart;
+
+          this.mountainRangeStart = null;
+          this.mountainRangeEnd = null;
+          this.controls.enabled = true;
+
+          if (canvas.hasPointerCapture(event.pointerId)) canvas.releasePointerCapture(event.pointerId);
+          this.buildMountainRange(startPoint, end);
 
           event.preventDefault();
           event.stopPropagation();
@@ -4079,6 +4297,8 @@ export class ThreeGame {
         this.wallDragEnd = null;
         this.roadDragStart = null;
         this.roadDragEnd = null;
+        this.mountainRangeStart = null;
+        this.mountainRangeEnd = null;
         this.terrainStrokeActive = false;
         this.terrainStrokeSnapshot = null;
         this.pointerStart = null;
@@ -4305,6 +4525,246 @@ export class ThreeGame {
     } else {
       this.setStatus('No valid road tiles in that path');
     }
+  }
+
+  private shapeMountainFootprint(gx: number, gy: number, level: number): void {
+    const radius = Math.min(3.2, 2.15 + level * 0.12);
+    const peak = 0.95 + Math.min(level, 8) * 0.48;
+
+    for (let oy = -3; oy <= 3; oy += 1) {
+      for (let ox = -3; ox <= 3; ox += 1) {
+        const x = gx + ox;
+        const y = gy + oy;
+        if (x < 1 || y < 1 || x >= SIZE - 1 || y >= SIZE - 1) continue;
+
+        const distance = Math.hypot(ox, oy);
+        if (distance > radius) continue;
+
+        const terrain = this.terrainAt(x, y);
+        if (terrain === 'water' || terrain === 'river') continue;
+        if (this.keepSystem.findAtCell(x, y)) continue;
+
+        const existing = this.state.getCell(x, y);
+        if (
+          existing &&
+          existing.kind !== 'mountain' &&
+          existing.kind !== 'tree' &&
+          existing.kind !== 'rock' &&
+          existing.kind !== 'hut'
+        ) {
+          continue;
+        }
+
+        const falloff = THREE.MathUtils.clamp(1 - distance / (radius + 0.2), 0, 1);
+        const noise =
+          Math.sin((x * 0.71 + y * 0.39 + level) * 1.1) * 0.18 +
+          Math.cos((y * 0.57 - x * 0.22) * 1.3) * 0.12;
+        const target = Math.max(0.12, falloff * peak + noise);
+
+        if (target > this.terrainElevation(x, y) + 0.05) {
+          this.setAbsoluteElevation(x, y, target);
+        }
+
+        if (
+          existing?.kind === 'tree' &&
+          (target > 1.75 || distance < 0.95)
+        ) {
+          this.state.removeCell(x, y);
+        }
+      }
+    }
+  }
+
+  private mountainRangePath(start: GridPoint, end: GridPoint): GridPoint[] {
+    const base = WallSystem.createSnappedPath(start, end, SIZE);
+    if (base.length <= 2) return base;
+
+    const result: GridPoint[] = [];
+    const seen = new Set<string>();
+
+    for (let i = 0; i < base.length; i += 1) {
+      const point = base[i];
+      const previous = base[Math.max(0, i - 1)];
+      const next = base[Math.min(base.length - 1, i + 1)];
+      const dx = Math.sign(next.x - previous.x);
+      const dy = Math.sign(next.y - previous.y);
+      const px = -dy;
+      const py = dx;
+
+      const hash = Math.abs((i * 47 + start.x * 23 + start.y * 31 + end.x * 17 + end.y * 13) % 17);
+      const jitter = hash === 3 || hash === 11 ? 1 : hash === 7 ? -1 : 0;
+      const x = THREE.MathUtils.clamp(point.x + px * jitter, 1, SIZE - 2);
+      const y = THREE.MathUtils.clamp(point.y + py * jitter, 1, SIZE - 2);
+      const key = this.key(x, y);
+
+      if (!seen.has(key)) {
+        seen.add(key);
+        result.push({ x, y });
+      }
+    }
+
+    return result;
+  }
+
+  private renderMountainRangePreview(path: GridPoint[]): void {
+    this.clearGroup(this.wallPreviewLayer);
+    if (path.length === 0) return;
+
+    const ridgeMaterial = new THREE.MeshStandardMaterial({
+      color: 0xc8b5a1,
+      emissive: 0x5b493e,
+      emissiveIntensity: 0.22,
+      transparent: true,
+      opacity: 0.5,
+      depthWrite: false,
+      flatShading: true,
+    });
+    const foothillMaterial = new THREE.MeshStandardMaterial({
+      color: 0x7fa05b,
+      transparent: true,
+      opacity: 0.24,
+      depthWrite: false,
+    });
+
+    for (let i = 0; i < path.length; i += 1) {
+      const point = path[i];
+      const world = this.gridToWorld(point.x, point.y);
+      const elevation = this.terrainElevation(point.x, point.y);
+      const peak = new THREE.Mesh(
+        new THREE.ConeGeometry(0.72 + (i % 3) * 0.08, 1.8 + (i % 4) * 0.25, 7),
+        ridgeMaterial,
+      );
+      peak.position.set(world.x, 3.1 + elevation, world.z);
+      peak.rotation.y = i * 0.41;
+      this.wallPreviewLayer.add(peak);
+
+      if (i % 2 === 0) {
+        const halo = new THREE.Mesh(
+          new THREE.CircleGeometry(TILE * 0.82, 14),
+          foothillMaterial,
+        );
+        halo.rotation.x = -Math.PI / 2;
+        halo.position.set(world.x, 2.31 + elevation, world.z);
+        this.wallPreviewLayer.add(halo);
+      }
+    }
+  }
+
+  private buildMountainRange(start: GridPoint, end: GridPoint): void {
+    const before = this.captureSnapshot();
+    const changed = this.applyMountainRange(start, end, true);
+
+    this.clearGroup(this.wallPreviewLayer);
+    this.selectedCell = end;
+
+    if (!changed) {
+      this.setStatus('Mountain Range needs open land away from deep water and buildings');
+      return;
+    }
+
+    this.pushUndoSnapshot(before);
+    this.redraw();
+    this.scheduleSave();
+    this.setStatus('Mountain Range generated · ridge, peaks, slopes, valleys and foothills');
+  }
+
+  private applyMountainRange(
+    start: GridPoint,
+    end: GridPoint,
+    replaceNaturalProps: boolean,
+  ): boolean {
+    const path = this.mountainRangePath(start, end);
+    let changed = false;
+
+    for (let i = 0; i < path.length; i += 1) {
+      const ridge = path[i];
+      const ridgeHash = Math.abs(
+        (ridge.x * 97 + ridge.y * 151 + i * 43 + start.x * 17 + end.y * 29) % 997,
+      );
+      const peakPulse =
+        0.65 +
+        Math.sin((i / Math.max(1, path.length - 1)) * Math.PI) * 0.9 +
+        (ridgeHash % 5) * 0.12;
+      const influenceRadius = 2.25 + (ridgeHash % 3) * 0.28;
+
+      for (let oy = -3; oy <= 3; oy += 1) {
+        for (let ox = -3; ox <= 3; ox += 1) {
+          const x = ridge.x + ox;
+          const y = ridge.y + oy;
+          if (x < 1 || y < 1 || x >= SIZE - 1 || y >= SIZE - 1) continue;
+
+          const distance = Math.hypot(ox, oy);
+          if (distance > influenceRadius) continue;
+
+          const terrain = this.terrainAt(x, y);
+          if (terrain === 'water' || terrain === 'river') continue;
+          if (this.keepSystem.findAtCell(x, y)) continue;
+
+          const cell = this.state.getCell(x, y);
+          const natural =
+            !cell ||
+            cell.kind === 'tree' ||
+            cell.kind === 'rock' ||
+            cell.kind === 'hut' ||
+            cell.kind === 'mountain';
+
+          if (!natural) continue;
+          if (cell && !replaceNaturalProps && cell.kind !== 'mountain') continue;
+
+          const falloff = THREE.MathUtils.clamp(
+            1 - distance / (influenceRadius + 0.4),
+            0,
+            1,
+          );
+          const localNoise =
+            Math.sin((x + i) * 0.83) * 0.28 +
+            Math.cos((y - i) * 0.61) * 0.22;
+          const valleyCut = (ridgeHash + ox * 13 + oy * 19) % 11 === 0 ? 0.55 : 0;
+          const targetElevation = Math.max(
+            0.18,
+            falloff * (1.15 + peakPulse * 1.35 + localNoise) - valleyCut,
+          );
+
+          if (targetElevation > this.terrainElevation(x, y) + 0.08) {
+            this.setAbsoluteElevation(x, y, targetElevation);
+            changed = true;
+          }
+
+          if (distance <= 0.72) {
+            if (cell && cell.kind !== 'mountain') this.state.removeCell(x, y);
+            const level = THREE.MathUtils.clamp(
+              2 + Math.round(peakPulse + (ridgeHash % 3)),
+              2,
+              6,
+            );
+            this.state.setCell(x, y, 'mountain', level);
+            changed = true;
+          } else if (distance <= 1.55) {
+            if (cell && cell.kind !== 'mountain' && replaceNaturalProps) {
+              this.state.removeCell(x, y);
+            }
+            const detailHash = Math.abs((x * 41 + y * 71 + i * 23) % 13);
+            if (!this.state.getCell(x, y) && detailHash === 2) {
+              this.state.setCell(x, y, 'rock', 1 + (ridgeHash % 2));
+            } else if (
+              !this.state.getCell(x, y) &&
+              targetElevation < 1.55 &&
+              (detailHash === 5 || detailHash === 9)
+            ) {
+              this.state.setCell(x, y, 'tree', 1 + (detailHash % 2));
+            }
+          } else if (
+            !this.state.getCell(x, y) &&
+            targetElevation < 1.1 &&
+            (ridgeHash + x + y) % 17 === 0
+          ) {
+            this.state.setCell(x, y, 'tree', 1);
+          }
+        }
+      }
+    }
+
+    return changed;
   }
 
   private wallPath(start: GridPoint, end: GridPoint): GridPoint[] {
@@ -4554,14 +5014,17 @@ export class ThreeGame {
     if (this.selectedTool === 'mountain') {
       if (current === 'mountain') {
         this.recordHistory();
-        this.state.setLevel(gx, gy, (cell?.level ?? 1) + 1);
+        const nextLevel = (cell?.level ?? 1) + 1;
+        this.state.setLevel(gx, gy, nextLevel);
+        this.shapeMountainFootprint(gx, gy, nextLevel);
         this.finishBuild();
         return;
       }
 
-      if (!current && (terrain === 'plains' || terrain === 'shore')) {
+      if (!current && (terrain === 'plains' || terrain === 'shore' || terrain === 'forest')) {
         this.recordHistory();
         this.state.setCell(gx, gy, 'mountain', 1);
+        this.shapeMountainFootprint(gx, gy, 1);
         this.finishBuild();
       }
       return;
@@ -5156,6 +5619,7 @@ export class ThreeGame {
         p: 'keep',
         i: 'dirtRoad',
         o: 'stoneRoad',
+        k: 'mountainRange',
         u: 'raise',
         j: 'lower',
         b: 'flatten',
@@ -5561,6 +6025,169 @@ export class ThreeGame {
       place(right, bottom, 'tower', 2, { towerShape: 'watch', towerTop: 'watch' });
       placeKeepTemplate(center - 4, center, 2, 3, 4, 'sloped', true);
       place(center - 5, center + 2, 'farm');
+    } else if (template === 'mountain-valley') {
+      this.applyMountainRange(
+        { x: 3, y: 3 },
+        { x: 5, y: SIZE - 4 },
+        true,
+      );
+      this.applyMountainRange(
+        { x: SIZE - 4, y: 3 },
+        { x: SIZE - 6, y: SIZE - 4 },
+        true,
+      );
+
+      for (let y = 4; y < SIZE - 3; y += 1) {
+        for (let x = center - 3; x <= center + 3; x += 1) {
+          const existing = this.state.getCell(x, y);
+          if (
+            existing &&
+            (existing.kind === 'tree' ||
+              existing.kind === 'rock' ||
+              existing.kind === 'hut' ||
+              existing.kind === 'mountain')
+          ) {
+            this.state.removeCell(x, y);
+          }
+          this.terrainOverrides.set(this.key(x, y), 'plains');
+          this.setAbsoluteElevation(x, y, 0.12 + Math.sin((x + y) * 0.4) * 0.08);
+        }
+      }
+
+      for (let y = 3; y < SIZE - 2; y += 1) {
+        const x = center + Math.round(Math.sin(y * 0.52) * 0.7);
+        this.state.removeCell(x, y);
+        this.terrainOverrides.set(this.key(x, y), 'river');
+        this.setAbsoluteElevation(x, y, Math.max(0, 0.55 - y * 0.018));
+      }
+
+      for (let y = 5; y < SIZE - 4; y += 2) {
+        for (const x of [center - 5, center + 5]) {
+          if (!this.state.getCell(x, y) && this.terrainAt(x, y) !== 'river') {
+            place(x, y, 'tree', 1 + ((x + y) % 3));
+          }
+        }
+      }
+    } else if (template === 'coastal-kingdom') {
+      for (let y = center - 5; y <= center + 5; y += 1) {
+        for (let x = center - 4; x <= center + 4; x += 1) {
+          if (x < 0 || y < 0 || x >= SIZE || y >= SIZE) continue;
+          const existing = this.state.getCell(x, y);
+          if (
+            existing &&
+            (existing.kind === 'tree' ||
+              existing.kind === 'rock' ||
+              existing.kind === 'hut')
+          ) {
+            this.state.removeCell(x, y);
+          }
+          if (this.baseTerrainAt(x, y) !== 'water') {
+            this.terrainOverrides.set(this.key(x, y), 'plains');
+            this.setAbsoluteElevation(x, y, Math.max(0, Math.sin(x * 0.42 + y * 0.18) * 0.18));
+          }
+        }
+      }
+
+      for (let y = 3; y < SIZE - 3; y += 1) {
+        for (let x = center + 5; x < SIZE; x += 1) {
+          if (this.baseTerrainAt(x, y) !== 'shore') continue;
+          const existing = this.state.getCell(x, y);
+          if (
+            existing &&
+            (existing.kind === 'tree' ||
+              existing.kind === 'rock' ||
+              existing.kind === 'hut')
+          ) {
+            this.state.removeCell(x, y);
+          }
+          this.elevationOverrides.delete(this.key(x, y));
+        }
+      }
+
+      for (let y = 4; y <= center + 3; y += 2) {
+        for (let x = 3; x <= center - 4; x += 2) {
+          if (!this.state.getCell(x, y) && this.terrainAt(x, y) !== 'water') {
+            if ((x + y) % 3 !== 0) place(x, y, 'tree', 1 + ((x * 3 + y) % 3));
+          }
+        }
+      }
+
+      for (const hill of [
+        { x: center - 4, y: center - 5, h: 1.2 },
+        { x: center + 1, y: center - 6, h: 0.8 },
+        { x: center - 5, y: center + 5, h: 1.0 },
+      ]) {
+        for (let oy = -2; oy <= 2; oy += 1) {
+          for (let ox = -2; ox <= 2; ox += 1) {
+            const distance = Math.hypot(ox, oy);
+            if (distance > 2.35) continue;
+            const x = hill.x + ox;
+            const y = hill.y + oy;
+            if (x < 1 || y < 1 || x >= SIZE - 1 || y >= SIZE - 1) continue;
+            if (this.terrainAt(x, y) === 'water' || this.terrainAt(x, y) === 'river') continue;
+            const height = hill.h * Math.max(0.12, 1 - distance / 2.6);
+            this.setAbsoluteElevation(x, y, Math.max(this.terrainElevation(x, y), height));
+          }
+        }
+      }
+    } else if (template === 'highland-river') {
+      this.applyMountainRange(
+        { x: 3, y: 4 },
+        { x: SIZE - 4, y: 6 },
+        true,
+      );
+
+      for (let y = 4; y < SIZE - 1; y += 1) {
+        const t = (y - 4) / Math.max(1, SIZE - 6);
+        const x =
+          center +
+          2 +
+          Math.round(Math.sin(y * 0.58 + 0.7) * 1.1 - t * 2.1);
+
+        this.state.removeCell(x, y);
+        this.terrainOverrides.set(this.key(x, y), 'river');
+        this.setAbsoluteElevation(
+          x,
+          y,
+          Math.max(0, 2.45 * (1 - t) + Math.sin(y * 0.35) * 0.08),
+        );
+
+        if (x + 1 < SIZE && y < center + 1 && y % 3 === 0) {
+          this.state.removeCell(x + 1, y);
+          this.terrainOverrides.set(this.key(x + 1, y), 'river');
+          this.setAbsoluteElevation(x + 1, y, Math.max(0, 2.3 * (1 - t)));
+        }
+      }
+
+      for (let y = center + 2; y <= center + 6; y += 1) {
+        for (let x = center - 5; x <= center - 1; x += 1) {
+          const existing = this.state.getCell(x, y);
+          if (
+            existing &&
+            (existing.kind === 'tree' ||
+              existing.kind === 'rock' ||
+              existing.kind === 'hut' ||
+              existing.kind === 'mountain')
+          ) {
+            this.state.removeCell(x, y);
+          }
+          this.terrainOverrides.set(this.key(x, y), 'plains');
+          this.setAbsoluteElevation(x, y, 0.62 + Math.sin((x + y) * 0.5) * 0.12);
+        }
+      }
+
+      for (let y = 8; y < SIZE - 4; y += 2) {
+        for (const x of [4, 6, SIZE - 6, SIZE - 4]) {
+          if (
+            !this.state.getCell(x, y) &&
+            this.terrainAt(x, y) !== 'water' &&
+            this.terrainAt(x, y) !== 'river'
+          ) {
+            const kind = (x + y) % 5 === 0 ? 'rock' : 'tree';
+            place(x, y, kind, 1 + ((x + y) % 2));
+          }
+        }
+      }
     }
 
     this.selectedCell = null;

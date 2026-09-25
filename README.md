@@ -1,5 +1,46 @@
 # Castle Role
 
+## Battle, mountains, coast & templates update
+
+This update extends the existing systems rather than replacing them.
+
+### Battle behavior
+
+- Attackers keep the castle objective as their strategic destination but now prioritize Defenders who are attacking them, blocking the advance, or guarding the entrance/objective area.
+- Attackers drop targets that pull them too far away from the castle and resume their original advance immediately after the local threat is gone.
+- Friendly movement uses a softer personal-space model across neighboring spatial buckets instead of hard collision.
+- Ground units track progress while moving. Units that fail to make progress trigger automatic recovery: path recalculation for attackers, temporary side-steering, reduced separation pressure, and a new local approach.
+- Swordsmen use distributed melee approach slots around a target. Extra attackers form a second ring or select another Defender instead of all forcing the same point.
+- Target focus penalties limit unnecessary combat clumping while still allowing an immediate threat to be answered.
+
+### Mountains and mountain ranges
+
+- The single Mountain tool now shapes nearby terrain into broad foothills before raising irregular rock formations.
+- Mountain geometry uses overlapping foothills, slopes, shoulders, cliff faces, ridges, and weathered upper peaks instead of one stretched square/vertical block.
+- Lower mountain levels keep vegetation accents; high slopes and peaks become increasingly rocky.
+- New **Mountain Range (K)** uses the same A → B workflow as walls/roads.
+- The generated range bends slightly around the chosen direction and creates a major ridge, secondary heights, small valleys, rocky details, smooth surrounding elevation, foothill trees, and sparse high-elevation vegetation.
+- Terrain elevation patches use overlapping rounded geometry so mountain terrain blends across multiple cells instead of exposing obvious square columns.
+
+### Coastline
+
+The coastal transition is now deliberately readable as:
+
+**Grassland → coastal vegetation → sand/rock → wet shoreline → shallow water → deep ocean**
+
+Beach width and material vary by location. Rocky sections can contain low cliffs and stone groups, while sandy sections can contain restrained driftwood, grass, shell-like details, and foam. Harbor validation remains based on usable land beside ocean water, so improved beach visuals do not lock out maritime construction.
+
+### New editable templates
+
+Existing templates remain available, with three additional starting worlds:
+
+- **Mountain Valley** — two mountain ranges, forested foothills, a central river, and a broad open valley for castle construction.
+- **Coastal Kingdom** — a cleared harbor-friendly coast, visible beaches, inland forest, open castle land, and gentle hills.
+- **Highland River** — a rugged ridge, elevated highlands, a descending editable river, forest/rock groups, and an open castle shelf.
+
+All templates remain normal editable game state: terrain, rivers, walls, roads, trees, Harbors, Keeps, and Battle Mode continue to work normally.
+
+
 ## World, Water, Roads & Harbor expansion
 
 The island environment now has a richer medieval-world layer while preserving castle building and battle mode.
