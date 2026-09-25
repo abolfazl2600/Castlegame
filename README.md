@@ -10,6 +10,22 @@ The player builds the castle. The game architects the details.
 
 Players control major architectural decisions such as wall layout, wall height/thickness/material, tower type, Keep dimensions/floors/roof, gates, terrain, and defensive layout. Secondary details such as windows, arrow slits, flags, Keep stairs, wall-access stairs/ladders, battlement spacing, and small structural supports are generated procedurally.
 
+## Medieval visual overhaul
+
+The fortress rendering now prioritizes silhouette, scale, material depth, and terrain integration instead of decorative cubes.
+
+- Castle walls are taller and thicker relative to workers and houses.
+- Stone walls use a shared procedural medieval masonry material with irregular block sizes, dark mortar, subtle tone variation, weathering, foundation dirt, and restrained moss.
+- Wall bodies remain vertical on slopes. Terrain differences are absorbed by deeper/stepped foundations instead of rotating the entire wall.
+- Battlements use continuous crenellated parapet geometry rather than rows of tiny decorative cubes.
+- Tall and reinforced walls receive tapered structural buttresses at controlled intervals.
+- Towers are wider, taller, and visually heavier than curtain walls, with expanded foundations, floor bands, arrow slits, and stronger corner structure.
+- Tower roofs now include dark undersides/eaves and real overhang before the roof volume.
+- Round/rounded defensive tops use continuous parapet rings and larger tapered merlons.
+- Automatic wall corners now connect foundations, bodies, wall walks, and battlements with dedicated square, rounded, reinforced, turret, or buttressed architecture.
+- Lighting uses stronger directional contrast, softer ambient fill, improved shadows, and filmic tone mapping so recesses and masonry depth read from the gameplay camera.
+- Materials are shared across castle pieces for browser performance; major silhouette remains geometry-driven while small masonry/weathering is texture/shading-driven.
+
 ## Modular Keep Builder
 
 Press **P** or choose **Modular Keep**.

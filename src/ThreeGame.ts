@@ -8,6 +8,7 @@ import { WallCornerSystem } from './building/WallCornerSystem';
 import { CastleAccessSystem } from './building/CastleAccessSystem';
 import { CastleDetailGenerator } from './building/CastleDetailGenerator';
 import { KeepRenderer } from './rendering/KeepRenderer';
+import { MedievalMaterials } from './rendering/MedievalMaterials';
 import type {
   AccessKind,
   GridCell,
@@ -145,7 +146,8 @@ export class ThreeGame {
   private readonly wallCornerSystem = new WallCornerSystem();
   private readonly castleAccessSystem = new CastleAccessSystem();
   private readonly detailGenerator = new CastleDetailGenerator();
-  private readonly keepRenderer = new KeepRenderer(this.detailGenerator);
+  private readonly medievalMaterials = new MedievalMaterials();
+  private readonly keepRenderer = new KeepRenderer(this.detailGenerator, this.medievalMaterials);
   private readonly terrainOverrides = new Map<string, TerrainOverrideKind>();
   private readonly elevationOverrides = new Map<string, number>();
   private readonly raycaster = new THREE.Raycaster();
@@ -213,12 +215,14 @@ export class ThreeGame {
     });
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.6));
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
+    this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    this.renderer.toneMappingExposure = 1.08;
     this.renderer.shadowMap.enabled = true;
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     root.appendChild(this.renderer.domElement);
 
-    this.scene.background = new THREE.Color(0x071b2a);
-    this.scene.fog = new THREE.Fog(0x071b2a, 98, 225);
+    this.scene.background = new THREE.Color(0x718c91);
+    this.scene.fog = new THREE.Fog(0x718c91, 112, 235);
     this.camera.position.set(68, 80, 76);
 
     this.controls = new OrbitControls(this.camera, this.renderer.domElement);
@@ -315,21 +319,31 @@ export class ThreeGame {
   }
 
   private addLights(): void {
-    this.scene.add(new THREE.HemisphereLight(0xbbeeff, 0x23384d, 2.25));
+    const sky = new THREE.HemisphereLight(0xb8d9e5, 0x2f2a24, 1.15);
+    this.scene.add(sky);
 
-    const sun = new THREE.DirectionalLight(0xffe5c8, 4.2);
-    sun.position.set(42, 90, 30);
+    const sun = new THREE.DirectionalLight(0xffddb4, 4.65);
+    sun.position.set(48, 92, 26);
     sun.castShadow = true;
     sun.shadow.mapSize.set(2048, 2048);
-    sun.shadow.camera.left = -78;
-    sun.shadow.camera.right = 78;
-    sun.shadow.camera.top = 78;
-    sun.shadow.camera.bottom = -78;
+    sun.shadow.camera.left = -82;
+    sun.shadow.camera.right = 82;
+    sun.shadow.camera.top = 82;
+    sun.shadow.camera.bottom = -82;
+    sun.shadow.camera.near = 8;
+    sun.shadow.camera.far = 220;
+    sun.shadow.bias = -0.00018;
+    sun.shadow.normalBias = 0.035;
+    sun.shadow.radius = 3;
     this.scene.add(sun);
 
-    const rim = new THREE.PointLight(0x4cc9ff, 62, 130);
-    rim.position.set(-46, 30, -40);
-    this.scene.add(rim);
+    const coolFill = new THREE.DirectionalLight(0x7eb8c8, 0.56);
+    coolFill.position.set(-50, 34, -42);
+    this.scene.add(coolFill);
+
+    const warmBounce = new THREE.PointLight(0xd2a56f, 8, 95, 2);
+    warmBounce.position.set(22, 12, 34);
+    this.scene.add(warmBounce);
   }
 
   private createWorld(): void {
@@ -486,9 +500,18 @@ export class ThreeGame {
       const material = mesh.material as THREE.Material | THREE.Material[] | undefined;
       if (Array.isArray(material)) {
         for (const item of material) {
-          if (item !== this.riverWaterMaterial) item.dispose();
+          if (
+            item !== this.riverWaterMaterial &&
+            !this.medievalMaterials.isSharedMaterial(item)
+          ) {
+            item.dispose();
+          }
         }
-      } else if (material && material !== this.riverWaterMaterial) {
+      } else if (
+        material &&
+        material !== this.riverWaterMaterial &&
+        !this.medievalMaterials.isSharedMaterial(material)
+      ) {
         material.dispose();
       }
     });
@@ -856,8 +879,8 @@ export class ThreeGame {
   }
 
   private wallThicknessValue(kind: WallKind, thickness: WallThickness): number {
-    const base = kind === 'wall1' ? 1.45 : kind === 'wall2' ? 1.5 : 1.72;
-    const multiplier = thickness === 'thin' ? 0.74 : thickness === 'thick' ? 1.34 : 1;
+    const base = kind === 'wall1' ? 1.85 : kind === 'wall2' ? 1.65 : 2.05;
+    const multiplier = thickness === 'thin' ? 0.78 : thickness === 'thick' ? 1.3 : 1;
     return base * multiplier;
   }
 
@@ -900,42 +923,32 @@ export class ThreeGame {
     const walkway = cell.walkway ?? false;
     const links = this.wallConnections(gx, gy, cell);
 
-    const config = {
-      wall1: {
-        color: 0xcdbb9f,
-        dark: 0x8d7a62,
-        accent: 0xe2d3bc,
-        baseHeight: 3.45,
-        walkway: 0xa98f72,
-      },
-      wall2: {
-        color: 0x8b5e3b,
-        dark: 0x4f3423,
-        accent: 0xb77c4d,
-        baseHeight: 3.7,
-        walkway: 0x68462e,
-      },
-      wall3: {
-        color: 0xa7b0b8,
-        dark: 0x5c6670,
-        accent: 0xc7d0d6,
-        baseHeight: 4.3,
-        walkway: 0x58636f,
-      },
-    }[kind];
+    const baseHeight = kind === 'wall1' ? 5.2 : kind === 'wall2' ? 4.7 : 5.8;
+    const height = baseHeight + Math.max(0, level - 1) * 2.15;
+    const topY = 2.58 + height;
 
-    const height = config.baseHeight + Math.max(0, level - 1) * 1.8;
-    const topY = 2.22 + height;
-    const wallMaterial = new THREE.MeshStandardMaterial({ color: config.color, roughness: 0.88 });
-    const darkMaterial = new THREE.MeshStandardMaterial({ color: config.dark, roughness: 0.97 });
-    const accentMaterial = new THREE.MeshStandardMaterial({ color: config.accent, roughness: 0.86 });
-    const walkwayMaterial = new THREE.MeshStandardMaterial({ color: config.walkway, roughness: 0.92 });
-    const metalMaterial = new THREE.MeshStandardMaterial({
-      color: 0x535e67,
-      metalness: 0.3,
-      roughness: 0.58,
-    });
-    const slitMaterial = new THREE.MeshStandardMaterial({ color: 0x292621, roughness: 1 });
+    const wallMaterial =
+      kind === 'wall2'
+        ? this.medievalMaterials.timber
+        : this.medievalMaterials.stoneVariant(
+            gx,
+            gy,
+            kind === 'wall3' ? 'reinforced' : 'limestone',
+          );
+    const darkMaterial =
+      kind === 'wall2'
+        ? this.medievalMaterials.timberDark
+        : this.medievalMaterials.foundation;
+    const accentMaterial =
+      kind === 'wall2'
+        ? this.medievalMaterials.timberDark
+        : this.medievalMaterials.limestoneAlt;
+    const walkwayMaterial =
+      kind === 'wall2'
+        ? this.medievalMaterials.timber
+        : this.medievalMaterials.walkway;
+    const metalMaterial = this.medievalMaterials.iron;
+    const slitMaterial = this.medievalMaterials.arrowVoid;
 
     let junctionThickness = thickness;
     for (const direction of links) {
@@ -952,6 +965,28 @@ export class ThreeGame {
       }
     }
 
+    // Thick, stepped footing: the wall body stays vertical while the masonry base
+    // visually locks it into the terrain.
+    this.addBox(
+      group,
+      junctionThickness * 1.52,
+      0.72,
+      junctionThickness * 1.52,
+      darkMaterial,
+      0,
+      2.12,
+      0,
+    );
+    this.addBox(
+      group,
+      junctionThickness * 1.3,
+      0.38,
+      junctionThickness * 1.3,
+      accentMaterial,
+      0,
+      2.55,
+      0,
+    );
     this.addBox(
       group,
       junctionThickness * 1.12,
@@ -959,59 +994,32 @@ export class ThreeGame {
       junctionThickness * 1.12,
       wallMaterial,
       0,
-      2.22 + height / 2,
-      0,
-    );
-    this.addBox(
-      group,
-      junctionThickness * 1.38,
-      0.5,
-      junctionThickness * 1.38,
-      darkMaterial,
-      0,
-      2.47,
+      2.58 + height / 2,
       0,
     );
 
     if (links.length === 0) {
-      this.addDirectionalWallArm(
-        group,
-        'E',
-        0,
-        height,
-        thickness,
-        wallMaterial,
-        darkMaterial,
-        walkwayMaterial,
-        accentMaterial,
-        slitMaterial,
-        kind,
-        gx,
-        gy,
-        level,
-        battlement,
-        walkway,
-        true,
-      );
-      this.addDirectionalWallArm(
-        group,
-        'W',
-        0,
-        height,
-        thickness,
-        wallMaterial,
-        darkMaterial,
-        walkwayMaterial,
-        accentMaterial,
-        slitMaterial,
-        kind,
-        gx,
-        gy,
-        level,
-        battlement,
-        walkway,
-        true,
-      );
+      for (const direction of ['E', 'W'] as WallDirection[]) {
+        this.addDirectionalWallArm(
+          group,
+          direction,
+          0,
+          height,
+          thickness,
+          wallMaterial,
+          darkMaterial,
+          walkwayMaterial,
+          accentMaterial,
+          slitMaterial,
+          kind,
+          gx,
+          gy,
+          level,
+          battlement,
+          walkway,
+          false,
+        );
+      }
     } else {
       for (const direction of links) {
         const vector = WallSystem.vector(direction);
@@ -1062,35 +1070,42 @@ export class ThreeGame {
     } else if (walkway) {
       this.addBox(
         group,
-        junctionThickness + 0.72,
-        0.22,
-        junctionThickness + 0.72,
+        junctionThickness + 0.9,
+        0.28,
+        junctionThickness + 0.9,
         walkwayMaterial,
         0,
-        topY - 0.25,
+        topY + 0.08,
         0,
       );
     }
 
-    const visibleFloorLines = Math.min(Math.max(0, level - 1), 14);
+    // Horizontal floor/campaign bands keep very tall walls architecturally legible.
+    const visibleFloorLines = Math.min(Math.max(0, level - 1), 10);
     for (let floor = 1; floor <= visibleFloorLines; floor += 1) {
       this.addBox(
         group,
-        junctionThickness * 1.18,
-        0.13,
-        junctionThickness * 1.18,
+        junctionThickness * 1.16,
+        0.16,
+        junctionThickness * 1.16,
         darkMaterial,
         0,
-        2.22 + config.baseHeight + floor * 1.8 - 0.9,
+        2.58 + baseHeight + floor * 2.15 - 1.05,
         0,
       );
     }
 
     if (kind === 'wall3') {
-      this.addBox(group, junctionThickness + 0.42, 0.34, junctionThickness + 0.42, metalMaterial, 0, 3.15, 0);
-      for (const offset of [-junctionThickness * 0.53, junctionThickness * 0.53]) {
-        this.addBox(group, 0.2, height * 0.72, junctionThickness + 0.5, metalMaterial, offset, 2.22 + height / 2, 0);
-      }
+      this.addBox(
+        group,
+        junctionThickness + 0.45,
+        0.28,
+        junctionThickness + 0.45,
+        metalMaterial,
+        0,
+        3.45,
+        0,
+      );
     }
 
     const shouldFlag = links.some((direction) =>
@@ -1106,7 +1121,7 @@ export class ThreeGame {
     );
 
     if (shouldFlag && (corner?.major || level >= 4)) {
-      this.addAutomaticFlag(group, topY + 0.2, gx, gy, accentMaterial);
+      this.addAutomaticFlag(group, topY + 0.5, gx, gy, accentMaterial);
     }
 
     return group;
@@ -1133,82 +1148,89 @@ export class ThreeGame {
   ): void {
     const vector = WallSystem.vector(direction);
     const diagonalScale = Math.hypot(vector.x, vector.y);
-    const run = (TILE * diagonalScale) / 2 + 0.18;
-    const rise = elevationDelta / 2;
-    const slope = Math.atan2(rise, run);
+    const run = (TILE * diagonalScale) / 2 + 0.24;
     const arm = new THREE.Group();
     arm.rotation.y = WallSystem.worldAngle(direction);
     group.add(arm);
 
-    const length = Math.sqrt(run * run + rise * rise);
-    const body = this.addBox(
+    // Keep the defensive wall vertical. Terrain changes are absorbed by deeper
+    // foundations and by a stepped height transition between adjacent cells.
+    const bodyLength = run + 0.24;
+    this.addBox(
       arm,
       thickness,
       height,
-      length,
+      bodyLength,
       wallMaterial,
       0,
-      2.22 + height / 2 + rise / 2,
+      2.58 + height / 2,
       run / 2,
     );
-    body.rotation.x = -slope;
 
-    const foundation = this.addBox(
+    const terrainDrop = Math.max(0, -elevationDelta);
+    const terrainRise = Math.max(0, elevationDelta);
+    const foundationDepth = 0.82 + terrainDrop * 0.8 + Math.abs(elevationDelta) * 0.2;
+    this.addBox(
       arm,
-      thickness * 1.24,
-      0.52,
-      length + 0.08,
+      thickness * 1.34,
+      foundationDepth,
+      bodyLength + 0.16,
       darkMaterial,
       0,
-      2.48 + rise / 2,
+      2.22 - foundationDepth / 2 + 0.16,
       run / 2,
     );
-    foundation.rotation.x = -slope;
+
+    this.addBox(
+      arm,
+      thickness * 1.18,
+      0.3,
+      bodyLength + 0.08,
+      accentMaterial,
+      0,
+      2.64,
+      run / 2,
+    );
+
+    if (terrainRise > 0.35) {
+      const stepHeight = Math.min(terrainRise, 1.4);
+      this.addBox(
+        arm,
+        thickness * 1.2,
+        stepHeight,
+        Math.min(0.72, run * 0.28),
+        darkMaterial,
+        0,
+        2.22 + stepHeight / 2,
+        run - 0.18,
+      );
+    }
 
     if (walkway) {
-      const walk = this.addBox(
+      this.addBox(
         arm,
-        Math.max(0.72, thickness - 0.24),
-        0.22,
-        length,
+        Math.max(1.05, thickness - 0.32),
+        0.3,
+        bodyLength,
         walkwayMaterial,
         0,
-        2.22 + height - 0.25 + rise / 2,
+        2.58 + height - 0.17,
         run / 2,
       );
-      walk.rotation.x = -slope;
     }
 
     if (battlement) {
-      const sideOffset = Math.max(0.34, thickness / 2 - 0.05);
+      const sideOffset = Math.max(0.46, thickness / 2 - 0.03);
+      const parapetSpan = Math.max(0.95, run - (importantConnection ? 0.38 : 0.1));
       for (const side of [-1, 1]) {
-        const beam = this.addBox(
+        this.addCrenellatedParapet(
           arm,
-          0.22,
-          0.34,
-          length,
-          wallMaterial,
+          parapetSpan,
           side * sideOffset,
-          2.22 + height + 0.1 + rise / 2,
-          run / 2,
+          2.58 + height + 0.03,
+          wallMaterial,
+          importantConnection ? 0.1 : 0,
         );
-        beam.rotation.x = -slope;
-
-        const count = Math.max(2, Math.floor(run / 0.7));
-        for (let i = 0; i < count; i += 1) {
-          const t = count === 1 ? 0.5 : i / (count - 1);
-          const merlon = this.addBox(
-            arm,
-            0.4,
-            0.62,
-            0.42,
-            wallMaterial,
-            side * sideOffset,
-            2.22 + height + 0.48 + rise * t,
-            0.12 + t * (run - 0.18),
-          );
-          merlon.rotation.x = -slope;
-        }
       }
     }
 
@@ -1222,39 +1244,136 @@ export class ThreeGame {
       importantConnection,
     );
 
-    const slitY = 2.22 + Math.min(height * 0.56, 2.25 + Math.max(0, level - 1) * 0.22);
+    const slitY = 2.58 + Math.min(height * 0.52, 2.55 + Math.max(0, level - 1) * 0.3);
     for (const offset of detailPlan.slitOffsets) {
-      const z = run / 2 + offset;
+      const z = THREE.MathUtils.clamp(run / 2 + offset, 0.5, run - 0.45);
       for (const side of [-1, 1]) {
         this.addBox(
           arm,
           0.08,
-          0.64,
-          0.15,
+          0.82,
+          0.19,
           slitMaterial,
           side * (thickness / 2 + 0.045),
-          slitY + rise * (z / Math.max(run, 0.01)),
+          slitY,
           z,
         );
       }
     }
 
-    const buttressCount = kind === 'wall3' ? 2 : importantConnection ? 1 : 0;
+    const tall = height >= 7.1;
+    const buttressCount =
+      kind === 'wall3' ? 2 : tall && !importantConnection ? 1 : importantConnection && tall ? 1 : 0;
+
     for (let i = 0; i < buttressCount; i += 1) {
-      const z = run * (0.4 + i * 0.28);
+      const z = buttressCount === 1 ? run * 0.55 : run * (0.38 + i * 0.34);
       for (const side of [-1, 1]) {
-        this.addBox(
+        this.addTaperedButtress(
           arm,
-          0.34,
-          Math.min(2.3, height * 0.55),
-          0.48,
-          accentMaterial,
-          side * (thickness / 2 + 0.16),
-          3.25 + rise * (z / Math.max(run, 0.01)),
+          side * (thickness / 2 + 0.28),
+          2.3 + Math.min(height * 0.46, 3.3) / 2,
           z,
+          Math.min(height * 0.46, 3.3),
+          0.58,
+          0.9,
+          accentMaterial,
         );
       }
     }
+
+    if (kind !== 'wall2' && Math.abs(gx * 13 + gy * 23 + level) % 4 === 0) {
+      this.addBox(
+        arm,
+        thickness + 0.05,
+        0.1,
+        Math.min(1.15, run * 0.34),
+        this.medievalMaterials.moss,
+        0,
+        2.9,
+        run * 0.62,
+      );
+    }
+  }
+
+  private addCrenellatedParapet(
+    group: THREE.Group,
+    span: number,
+    sideOffset: number,
+    y: number,
+    material: THREE.Material,
+    endInset = 0,
+  ): void {
+    const merlonWidth = 0.68;
+    const crenelWidth = 0.48;
+    const baseHeight = 0.42;
+    const merlonHeight = 0.92;
+    const module = merlonWidth + crenelWidth;
+    const usable = Math.max(0.9, span - endInset * 2);
+    const count = Math.max(1, Math.floor((usable - merlonWidth) / module));
+    const actualSpan = count * module + merlonWidth;
+    const shape = new THREE.Shape();
+
+    shape.moveTo(-actualSpan / 2, 0);
+    shape.lineTo(actualSpan / 2, 0);
+    shape.lineTo(actualSpan / 2, baseHeight + merlonHeight);
+
+    for (let i = count; i >= 0; i -= 1) {
+      const right = -actualSpan / 2 + i * module + merlonWidth;
+      const left = right - merlonWidth;
+      shape.lineTo(right, baseHeight + merlonHeight);
+      shape.lineTo(left, baseHeight + merlonHeight);
+
+      if (i > 0) {
+        shape.lineTo(left, baseHeight);
+        shape.lineTo(left - crenelWidth, baseHeight);
+      }
+    }
+
+    shape.lineTo(-actualSpan / 2, 0);
+
+    const geometry = new THREE.ExtrudeGeometry(shape, {
+      depth: 0.34,
+      bevelEnabled: true,
+      bevelSize: 0.04,
+      bevelThickness: 0.035,
+      bevelSegments: 1,
+      curveSegments: 1,
+    });
+    geometry.rotateY(Math.PI / 2);
+    geometry.translate(-0.17, 0, 0);
+
+    const mesh = new THREE.Mesh(geometry, material);
+    mesh.position.set(sideOffset, y, span / 2);
+    mesh.castShadow = true;
+    mesh.receiveShadow = true;
+    group.add(mesh);
+  }
+
+  private addTaperedButtress(
+    group: THREE.Group,
+    x: number,
+    y: number,
+    z: number,
+    height: number,
+    topWidth: number,
+    bottomWidth: number,
+    material: THREE.Material,
+  ): void {
+    const geometry = new THREE.CylinderGeometry(
+      Math.max(0.18, topWidth * 0.48),
+      Math.max(0.28, bottomWidth * 0.58),
+      height,
+      4,
+      1,
+      false,
+    );
+    geometry.rotateY(Math.PI / 4);
+    const mesh = new THREE.Mesh(geometry, material);
+    mesh.position.set(x, y, z);
+    mesh.scale.z = 0.78;
+    mesh.castShadow = true;
+    mesh.receiveShadow = true;
+    group.add(mesh);
   }
 
   private addAutomaticCorner(
@@ -1270,45 +1389,86 @@ export class ThreeGame {
     walkway: boolean,
     walkwayMaterial: THREE.Material,
   ): void {
-    const radius = thickness * 0.88;
+    const radius = thickness * (kind === 'turret' ? 1.02 : 0.9);
+    const cornerExtra = kind === 'turret' ? 1.5 : kind === 'reinforced' ? 0.45 : 0;
 
     if (kind === 'rounded' || kind === 'turret') {
-      const extra = kind === 'turret' ? 1.25 : 0.25;
+      const base = new THREE.Mesh(
+        new THREE.CylinderGeometry(radius * 1.2, radius * 1.34, 0.85, 16),
+        darkMaterial,
+      );
+      base.position.y = 2.18;
+      base.castShadow = true;
+      base.receiveShadow = true;
+      group.add(base);
+
       const cylinder = new THREE.Mesh(
-        new THREE.CylinderGeometry(radius, radius * 1.05, height + extra, 12),
+        new THREE.CylinderGeometry(radius, radius * 1.06, height + cornerExtra, 16),
         wallMaterial,
       );
-      cylinder.position.y = 2.22 + (height + extra) / 2;
+      cylinder.position.y = 2.58 + (height + cornerExtra) / 2;
       cylinder.castShadow = true;
       cylinder.receiveShadow = true;
       group.add(cylinder);
 
-      if (kind === 'turret' && battlement) {
-        const count = 8;
+      if (walkway) {
+        const platform = new THREE.Mesh(
+          new THREE.CylinderGeometry(radius * 1.05, radius * 1.05, 0.3, 16),
+          walkwayMaterial,
+        );
+        platform.position.y = topY + cornerExtra - 0.2;
+        platform.castShadow = true;
+        group.add(platform);
+      }
+
+      if (battlement) {
+        const parapetRing = new THREE.Mesh(
+          new THREE.CylinderGeometry(radius * 1.04, radius * 1.04, 0.42, 16, 1, true),
+          wallMaterial,
+        );
+        parapetRing.position.y = topY + cornerExtra + 0.22;
+        parapetRing.castShadow = true;
+        parapetRing.receiveShadow = true;
+        group.add(parapetRing);
+
+        const count = kind === 'turret' ? 10 : 8;
         for (let i = 0; i < count; i += 1) {
           const angle = (i / count) * Math.PI * 2;
-          this.addBox(
-            group,
-            0.36,
-            0.62,
-            0.36,
+          const merlon = new THREE.Mesh(
+            new THREE.CylinderGeometry(0.22, 0.28, 0.92, 4),
             wallMaterial,
-            Math.cos(angle) * radius,
-            topY + extra + 0.3,
-            Math.sin(angle) * radius,
           );
+          merlon.rotation.y = Math.PI / 4 - angle;
+          merlon.position.set(
+            Math.cos(angle) * radius * 0.98,
+            topY + cornerExtra + 0.48,
+            Math.sin(angle) * radius * 0.98,
+          );
+          merlon.castShadow = true;
+          merlon.receiveShadow = true;
+          group.add(merlon);
         }
       }
     } else {
-      const scale = kind === 'reinforced' ? 1.48 : kind === 'buttressed' ? 1.38 : 1.2;
+      const scale = kind === 'reinforced' ? 1.58 : kind === 'buttressed' ? 1.48 : 1.28;
       this.addBox(
         group,
         thickness * scale,
-        height,
+        height + cornerExtra,
         thickness * scale,
         wallMaterial,
         0,
-        2.22 + height / 2,
+        2.58 + (height + cornerExtra) / 2,
+        0,
+      );
+      this.addBox(
+        group,
+        thickness * (scale + 0.28),
+        0.78,
+        thickness * (scale + 0.28),
+        darkMaterial,
+        0,
+        2.18,
         0,
       );
 
@@ -1317,28 +1477,69 @@ export class ThreeGame {
           const support = new THREE.Group();
           support.rotation.y = angle;
           group.add(support);
-          this.addBox(
+          this.addTaperedButtress(
             support,
-            thickness * 0.46,
-            Math.min(2.6, height * 0.58),
-            0.58,
-            kind === 'reinforced' ? darkMaterial : accentMaterial,
             0,
-            3.35,
-            thickness * 0.9,
+            2.25 + Math.min(3.8, height * 0.5) / 2,
+            thickness * 1.08,
+            Math.min(3.8, height * 0.5),
+            thickness * 0.34,
+            thickness * 0.62,
+            kind === 'reinforced' ? darkMaterial : accentMaterial,
           );
         }
       }
-    }
 
-    if (walkway) {
-      const platform = new THREE.Mesh(
-        new THREE.CylinderGeometry(radius * 1.04, radius * 1.04, 0.22, kind === 'rounded' || kind === 'turret' ? 12 : 4),
-        walkwayMaterial,
-      );
-      platform.position.y = topY - 0.25;
-      if (kind !== 'rounded' && kind !== 'turret') platform.rotation.y = Math.PI / 4;
-      group.add(platform);
+      if (walkway) {
+        this.addBox(
+          group,
+          thickness * scale + 0.2,
+          0.3,
+          thickness * scale + 0.2,
+          walkwayMaterial,
+          0,
+          topY - 0.2,
+          0,
+        );
+      }
+
+      if (battlement) {
+        const span = thickness * scale;
+        const edge = span / 2 - 0.18;
+        this.addCornerCrenellations(group, span, edge, topY, wallMaterial);
+      }
+    }
+  }
+
+  private addCornerCrenellations(
+    group: THREE.Group,
+    span: number,
+    edge: number,
+    y: number,
+    material: THREE.Material,
+  ): void {
+    this.addBox(group, span, 0.38, 0.28, material, 0, y + 0.18, -edge);
+    this.addBox(group, span, 0.38, 0.28, material, 0, y + 0.18, edge);
+    this.addBox(group, 0.28, 0.38, span, material, -edge, y + 0.18, 0);
+    this.addBox(group, 0.28, 0.38, span, material, edge, y + 0.18, 0);
+
+    const merlon = (x: number, z: number, rotationY: number): void => {
+      const geometry = new THREE.CylinderGeometry(0.24, 0.3, 0.9, 4);
+      geometry.rotateY(Math.PI / 4);
+      const mesh = new THREE.Mesh(geometry, material);
+      mesh.position.set(x, y + 0.46, z);
+      mesh.rotation.y += rotationY;
+      mesh.castShadow = true;
+      mesh.receiveShadow = true;
+      group.add(mesh);
+    };
+
+    const positions = [-span * 0.32, 0, span * 0.32];
+    for (const p of positions) {
+      merlon(p, -edge, 0);
+      merlon(p, edge, Math.PI);
+      merlon(-edge, p, Math.PI / 2);
+      merlon(edge, p, -Math.PI / 2);
     }
   }
 
@@ -1349,7 +1550,7 @@ export class ThreeGame {
     gy: number,
     clothMaterial: THREE.Material,
   ): void {
-    const mast = new THREE.MeshStandardMaterial({ color: 0x5d4633, roughness: 0.9 });
+    const mast = this.medievalMaterials.timberDark;
     this.addBox(group, 0.08, 2.2, 0.08, mast, 0, topY + 1.1, 0);
     const flag = this.addBox(group, 1.0, 0.46, 0.055, clothMaterial, 0.52, topY + 1.82, 0);
     flag.userData.castleFlag = { phase: (gx * 0.71 + gy * 0.37) % (Math.PI * 2) };
@@ -1364,23 +1565,32 @@ export class ThreeGame {
     thickness: number,
     material: THREE.Material,
   ): void {
-    const run = TILE / 2 + 0.16;
-    const rise = elevationDelta / 2;
-    const length = Math.sqrt(run * run + rise * rise);
-    const mesh = this.addBox(
+    const run = TILE / 2 + 0.18;
+    const bodyLength = run + 0.22;
+    const body = this.addBox(
       group,
-      axis === 'x' ? length : thickness,
+      axis === 'x' ? bodyLength : thickness,
       height,
-      axis === 'z' ? length : thickness,
+      axis === 'z' ? bodyLength : thickness,
       material,
       axis === 'x' ? sign * run / 2 : 0,
-      2.22 + height / 2 + rise / 2,
+      2.58 + height / 2,
       axis === 'z' ? sign * run / 2 : 0,
     );
+    body.castShadow = true;
 
-    const angle = Math.atan2(rise, run);
-    if (axis === 'x') mesh.rotation.z = sign * angle;
-    else mesh.rotation.x = -sign * angle;
+    const terrainDrop = Math.max(0, -elevationDelta);
+    const foundationHeight = 0.82 + terrainDrop * 0.8 + Math.abs(elevationDelta) * 0.2;
+    this.addBox(
+      group,
+      axis === 'x' ? bodyLength + 0.14 : thickness * 1.28,
+      foundationHeight,
+      axis === 'z' ? bodyLength + 0.14 : thickness * 1.28,
+      this.medievalMaterials.foundation,
+      axis === 'x' ? sign * run / 2 : 0,
+      2.22 - foundationHeight / 2 + 0.16,
+      axis === 'z' ? sign * run / 2 : 0,
+    );
   }
 
   private addMerlons(
@@ -1392,28 +1602,31 @@ export class ThreeGame {
     span: number,
     material: THREE.Material,
   ): void {
-    const count = Math.max(2, Math.floor(span / 0.72));
+    const count = Math.max(2, Math.floor(span / 1.15));
 
     for (let i = 0; i < count; i += 1) {
       const t = count === 1 ? 0 : i / (count - 1) - 0.5;
-      const offset = t * Math.max(0.5, span - 0.45);
-      this.addBox(
-        group,
-        axis === 'x' ? 0.42 : 0.62,
-        0.62,
-        axis === 'x' ? 0.62 : 0.42,
-        material,
+      const offset = t * Math.max(0.5, span - 0.55);
+      const geometry = new THREE.CylinderGeometry(0.24, 0.31, 0.9, 4);
+      geometry.rotateY(Math.PI / 4);
+      const mesh = new THREE.Mesh(geometry, material);
+      mesh.position.set(
         x + (axis === 'x' ? offset : 0),
         y,
         z + (axis === 'z' ? offset : 0),
       );
+      mesh.castShadow = true;
+      mesh.receiveShadow = true;
+      group.add(mesh);
     }
   }
 
   private makeGate(group: THREE.Group, gx: number, gy: number): THREE.Group {
-    const wallMaterial = new THREE.MeshStandardMaterial({ color: 0xe8d7c0, roughness: 0.78 });
-    const woodMaterial = new THREE.MeshStandardMaterial({ color: 0x9a5c35, roughness: 0.88 });
-    const darkWood = new THREE.MeshStandardMaterial({ color: 0x573722, roughness: 1 });
+    const wallMaterial = this.medievalMaterials.stoneVariant(gx, gy);
+    const foundation = this.medievalMaterials.foundation;
+    const woodMaterial = this.medievalMaterials.timber;
+    const darkWood = this.medievalMaterials.timberDark;
+    const shadow = this.medievalMaterials.arrowVoid;
 
     const horizontalNeighbors =
       Number(this.isWallFamily(this.kindAt(gx - 1, gy))) +
@@ -1424,13 +1637,23 @@ export class ThreeGame {
     const vertical = verticalNeighbors > horizontalNeighbors;
 
     const core = new THREE.Group();
-    this.addBox(core, 0.72, 4.35, 2.05, wallMaterial, -1.25, 4.4, 0);
-    this.addBox(core, 0.72, 4.35, 2.05, wallMaterial, 1.25, 4.4, 0);
-    this.addBox(core, 3.2, 0.72, 2.08, wallMaterial, 0, 6.25, 0);
-    this.addBox(core, 1.7, 2.85, 0.28, woodMaterial, 0, 3.7, -1.08);
-    this.addBox(core, 0.12, 2.7, 0.35, darkWood, -0.48, 3.7, -1.12);
-    this.addBox(core, 0.12, 2.7, 0.35, darkWood, 0.48, 3.7, -1.12);
-    this.addMerlons(core, 0, 6.92, 0, 'x', 3.25, wallMaterial);
+    this.addBox(core, 3.75, 0.8, 2.55, foundation, 0, 2.15, 0);
+    this.addBox(core, 0.92, 5.25, 2.38, wallMaterial, -1.42, 5.2, 0);
+    this.addBox(core, 0.92, 5.25, 2.38, wallMaterial, 1.42, 5.2, 0);
+    this.addBox(core, 3.75, 1.0, 2.42, wallMaterial, 0, 7.25, 0);
+
+    this.addBox(core, 1.95, 3.35, 0.2, shadow, 0, 4.18, -1.22);
+    this.addBox(core, 1.78, 3.2, 0.24, woodMaterial, 0, 4.16, -1.34);
+    for (const x of [-0.58, 0.58]) {
+      this.addBox(core, 0.14, 3.05, 0.34, darkWood, x, 4.16, -1.39);
+    }
+    for (const y of [3.25, 4.15, 5.05]) {
+      this.addBox(core, 1.8, 0.12, 0.34, darkWood, 0, y, -1.39);
+    }
+
+    this.addBox(core, 3.95, 0.28, 2.62, this.medievalMaterials.walkway, 0, 7.72, 0);
+    this.addTowerCrenellatedEdge(core, 3.55, 0, -1.0, 7.78, 0, wallMaterial);
+    this.addTowerCrenellatedEdge(core, 3.55, 0, 1.0, 7.78, Math.PI, wallMaterial);
 
     if (vertical) core.rotation.y = Math.PI / 2;
     group.add(core);
@@ -1447,7 +1670,15 @@ export class ThreeGame {
       const elevationDelta =
         this.terrainElevation(gx + spec.dx, gy + spec.dy) -
         this.terrainElevation(gx, gy);
-      this.addSlopedWallArm(group, spec.axis, spec.sign, elevationDelta, 3.7, 1.6, wallMaterial);
+      this.addSlopedWallArm(
+        group,
+        spec.axis,
+        spec.sign,
+        elevationDelta,
+        5.25,
+        1.9,
+        wallMaterial,
+      );
     }
 
     return group;
@@ -1457,36 +1688,127 @@ export class ThreeGame {
     const level = cell.level ?? 1;
     const shape = cell.towerShape ?? 'round';
     const top = cell.towerTop ?? 'battlement';
-    const height = (shape === 'watch' ? 4.5 : 5.3) + Math.max(0, level - 1) * 1.8;
-    const topY = 2.22 + height;
+    const height = (shape === 'watch' ? 6.4 : 7.4) + Math.max(0, level - 1) * 2.15;
+    const bodyBase = 2.58;
+    const topY = bodyBase + height;
 
-    const stone = new THREE.MeshStandardMaterial({ color: 0xe4d4c1, roughness: 0.74 });
-    const darkStone = new THREE.MeshStandardMaterial({ color: 0xa59688, roughness: 0.86 });
-    const roofMaterial = new THREE.MeshStandardMaterial({ color: 0x8d5b69, roughness: 0.7 });
-    const wood = new THREE.MeshStandardMaterial({ color: 0x76513c, roughness: 0.92 });
-    const metal = new THREE.MeshStandardMaterial({ color: 0x69747d, metalness: 0.35, roughness: 0.55 });
+    const stone = this.medievalMaterials.stoneVariant(
+      gx,
+      gy,
+      shape === 'watch' ? 'warmGrey' : 'limestone',
+    );
+    const darkStone = this.medievalMaterials.foundation;
+    const stoneAccent = this.medievalMaterials.limestoneAlt;
+    const roofMaterial = this.medievalMaterials.roofTile;
+    const wood = this.medievalMaterials.timber;
+    const metal = this.medievalMaterials.iron;
+    const openingMaterial = this.medievalMaterials.arrowVoid;
 
-    if (shape === 'square' || shape === 'corner') {
-      this.addBox(group, shape === 'corner' ? 2.95 : 2.75, height, shape === 'corner' ? 2.95 : 2.75, stone, 0, 2.22 + height / 2, 0);
+    const neighborElevations: number[] = [];
+    for (let oy = -1; oy <= 1; oy += 1) {
+      for (let ox = -1; ox <= 1; ox += 1) {
+        if (ox === 0 && oy === 0) continue;
+        neighborElevations.push(this.terrainElevation(gx + ox, gy + oy));
+      }
+    }
+    const ownElevation = this.terrainElevation(gx, gy);
+    const minNeighbor = Math.min(ownElevation, ...neighborElevations);
+    const foundationDrop = THREE.MathUtils.clamp(ownElevation - minNeighbor, 0, 2.4);
+    const foundationHeight = 0.95 + foundationDrop;
+
+    const squareLike = shape === 'square' || shape === 'corner';
+    const width = shape === 'corner' ? 4.15 : shape === 'square' ? 3.85 : 0;
+    const radius = shape === 'watch' ? 1.72 : shape === 'octagonal' ? 2.0 : 2.08;
+
+    if (squareLike) {
+      this.addBox(
+        group,
+        width + 0.75,
+        foundationHeight,
+        width + 0.75,
+        darkStone,
+        0,
+        2.22 - foundationHeight / 2 + 0.34,
+        0,
+      );
+      this.addBox(group, width + 0.3, 0.34, width + 0.3, stoneAccent, 0, 2.66, 0);
+      this.addBox(group, width, height, width, stone, 0, bodyBase + height / 2, 0);
+
+      for (const [x, z] of [
+        [-width / 2 + 0.22, -width / 2 + 0.22],
+        [width / 2 - 0.22, -width / 2 + 0.22],
+        [-width / 2 + 0.22, width / 2 - 0.22],
+        [width / 2 - 0.22, width / 2 - 0.22],
+      ] as Array<[number, number]>) {
+        this.addTaperedButtress(
+          group,
+          x,
+          2.4 + Math.min(3.8, height * 0.42) / 2,
+          z,
+          Math.min(3.8, height * 0.42),
+          0.42,
+          0.72,
+          stoneAccent,
+        );
+      }
 
       if (shape === 'corner') {
-        this.addBox(group, 0.65, height * 0.82, 3.45, darkStone, -1.55, 2.22 + height * 0.41, 0);
-        this.addBox(group, 3.45, height * 0.82, 0.65, darkStone, 0, 2.22 + height * 0.41, 1.55);
+        this.addBox(group, 0.44, height * 0.76, width + 0.38, darkStone, -width / 2 - 0.1, bodyBase + height * 0.38, 0);
+        this.addBox(group, width + 0.38, height * 0.76, 0.44, darkStone, 0, bodyBase + height * 0.38, width / 2 + 0.1);
       }
     } else {
-      const segments = shape === 'octagonal' ? 8 : shape === 'watch' ? 10 : 16;
-      const radius = shape === 'watch' ? 1.18 : 1.58;
-      const body = new THREE.Mesh(new THREE.CylinderGeometry(radius, radius + 0.16, height, segments), stone);
-      body.position.y = 2.22 + height / 2;
+      const segments = shape === 'octagonal' ? 8 : shape === 'watch' ? 12 : 20;
+      const foundationBase = new THREE.Mesh(
+        new THREE.CylinderGeometry(radius * 1.32, radius * 1.48, foundationHeight, segments),
+        darkStone,
+      );
+      foundationBase.position.y = 2.22 - foundationHeight / 2 + 0.34;
+      foundationBase.castShadow = true;
+      foundationBase.receiveShadow = true;
+      group.add(foundationBase);
+
+      const plinth = new THREE.Mesh(
+        new THREE.CylinderGeometry(radius * 1.12, radius * 1.16, 0.34, segments),
+        stoneAccent,
+      );
+      plinth.position.y = 2.66;
+      plinth.castShadow = true;
+      plinth.receiveShadow = true;
+      group.add(plinth);
+
+      const body = new THREE.Mesh(
+        new THREE.CylinderGeometry(radius, radius * 1.04, height, segments),
+        stone,
+      );
+      body.position.y = bodyBase + height / 2;
       body.castShadow = true;
       body.receiveShadow = true;
       group.add(body);
+    }
 
-      if (shape === 'watch') {
-        this.addBox(group, 3.1, 0.28, 3.1, wood, 0, topY - 0.25, 0);
-        for (const [x, z] of [[-1.25, -1.25], [1.25, -1.25], [-1.25, 1.25], [1.25, 1.25]] as Array<[number, number]>) {
-          this.addBox(group, 0.13, 1.25, 0.13, wood, x, topY + 0.34, z);
-        }
+    const floorCount = Math.max(2, level + 2);
+    for (let floor = 1; floor < floorCount; floor += 1) {
+      const y = bodyBase + (height * floor) / floorCount;
+      if (squareLike) {
+        this.addBox(
+          group,
+          width + 0.12,
+          0.16,
+          width + 0.12,
+          darkStone,
+          0,
+          y,
+          0,
+        );
+      } else {
+        const segments = shape === 'octagonal' ? 8 : shape === 'watch' ? 12 : 20;
+        const band = new THREE.Mesh(
+          new THREE.CylinderGeometry(radius * 1.04, radius * 1.04, 0.16, segments),
+          darkStone,
+        );
+        band.position.y = y;
+        band.castShadow = true;
+        group.add(band);
       }
     }
 
@@ -1502,31 +1824,31 @@ export class ThreeGame {
         group,
         direction,
         elevationDelta,
-        Math.min(height, 4.2),
+        Math.min(height, 5.7),
         stone,
       );
     }
 
-    const openingMaterial = new THREE.MeshStandardMaterial({ color: 0x252321, roughness: 1 });
-    const radius = shape === 'watch' ? 1.18 : shape === 'square' || shape === 'corner' ? 1.38 : 1.58;
-    for (let floor = 0; floor < Math.max(1, level); floor += 1) {
-      const y = 3.25 + floor * 1.7;
-      if (y > topY - 0.7) break;
+    const openingRadius = squareLike ? width / 2 : radius;
+    for (let floor = 0; floor < Math.max(2, level + 1); floor += 1) {
+      const y = 3.55 + floor * 2.0;
+      if (y > topY - 1.0) break;
 
-      this.addBox(group, 0.16, 0.68, 0.08, openingMaterial, 0, y, -radius - 0.03);
-      this.addBox(group, 0.16, 0.68, 0.08, openingMaterial, 0, y, radius + 0.03);
-      this.addBox(group, 0.08, 0.68, 0.16, openingMaterial, -radius - 0.03, y, 0);
-      this.addBox(group, 0.08, 0.68, 0.16, openingMaterial, radius + 0.03, y, 0);
+      const slitHeight = floor === 0 ? 0.92 : 0.78;
+      this.addBox(group, 0.18, slitHeight, 0.08, openingMaterial, 0, y, -openingRadius - 0.035);
+      this.addBox(group, 0.18, slitHeight, 0.08, openingMaterial, 0, y, openingRadius + 0.035);
+      this.addBox(group, 0.08, slitHeight, 0.18, openingMaterial, -openingRadius - 0.035, y, 0);
+      this.addBox(group, 0.08, slitHeight, 0.18, openingMaterial, openingRadius + 0.035, y, 0);
     }
 
-    this.addTowerTop(group, shape, top, topY, stone, roofMaterial, wood, metal);
+    this.addTowerTop(group, shape, top, topY, squareLike ? width : radius, stone, roofMaterial, wood, metal);
 
     const autoFlag =
-      level >= 4 &&
-      (shape === 'watch' || shape === 'corner' || Math.abs(gx * 31 + gy * 17 + level) % 5 === 0);
+      level >= 3 &&
+      (shape === 'watch' || shape === 'corner' || Math.abs(gx * 31 + gy * 17 + level) % 7 === 0);
     if (autoFlag && top !== 'flag') {
-      this.addBox(group, 0.08, 2.45, 0.08, wood, 0, topY + 1.25, 0);
-      const flag = this.addBox(group, 1.05, 0.48, 0.055, roofMaterial, 0.56, topY + 2.02, 0);
+      this.addBox(group, 0.08, 2.55, 0.08, wood, 0, topY + 1.3, 0);
+      const flag = this.addBox(group, 1.1, 0.5, 0.055, roofMaterial, 0.59, topY + 2.08, 0);
       flag.userData.castleFlag = { phase: gx * 0.41 + gy * 0.29 + level };
     }
 
@@ -1541,24 +1863,34 @@ export class ThreeGame {
     material: THREE.Material,
   ): void {
     const vector = WallSystem.vector(direction);
-    const run = (TILE * Math.hypot(vector.x, vector.y)) / 2 + 0.2;
-    const rise = elevationDelta / 2;
-    const length = Math.sqrt(run * run + rise * rise);
+    const run = (TILE * Math.hypot(vector.x, vector.y)) / 2 + 0.24;
     const connector = new THREE.Group();
     connector.rotation.y = WallSystem.worldAngle(direction);
     group.add(connector);
 
-    const body = this.addBox(
+    this.addBox(
       connector,
-      1.62,
+      1.92,
       height,
-      length,
+      run + 0.3,
       material,
       0,
-      2.22 + height / 2 + rise / 2,
+      2.58 + height / 2,
       run / 2,
     );
-    body.rotation.x = -Math.atan2(rise, run);
+
+    const terrainDrop = Math.max(0, -elevationDelta);
+    const foundationHeight = 0.82 + terrainDrop * 0.8 + Math.abs(elevationDelta) * 0.2;
+    this.addBox(
+      connector,
+      2.35,
+      foundationHeight,
+      run + 0.44,
+      this.medievalMaterials.foundation,
+      0,
+      2.22 - foundationHeight / 2 + 0.16,
+      run / 2,
+    );
   }
 
   private addTowerTop(
@@ -1566,74 +1898,234 @@ export class ThreeGame {
     shape: TowerShape,
     top: TowerTop,
     topY: number,
+    bodySize: number,
     stone: THREE.Material,
     roof: THREE.Material,
     wood: THREE.Material,
     metal: THREE.Material,
   ): void {
     const squareLike = shape === 'square' || shape === 'corner';
+    const platformSpan = squareLike
+      ? bodySize + 0.5
+      : shape === 'watch'
+        ? bodySize * 2 + 0.5
+        : bodySize * 2 + 0.55;
 
-    if (top === 'battlement') {
-      const span = shape === 'watch' ? 3.2 : 3.45;
-      this.addBox(group, span, 0.2, span, stone, 0, topY + 0.08, 0);
+    const addDefensivePlatform = (withCrenels: boolean): void => {
+      if (squareLike) {
+        this.addBox(
+          group,
+          platformSpan,
+          0.34,
+          platformSpan,
+          this.medievalMaterials.walkway,
+          0,
+          topY + 0.1,
+          0,
+        );
+        this.addBox(group, platformSpan + 0.26, 0.22, platformSpan + 0.26, stone, 0, topY - 0.03, 0);
 
-      for (const px of [-1.35, -0.45, 0.45, 1.35]) {
-        this.addBox(group, 0.42, 0.62, 0.48, stone, px, topY + 0.45, -span / 2 + 0.22);
-        this.addBox(group, 0.42, 0.62, 0.48, stone, px, topY + 0.45, span / 2 - 0.22);
+        if (withCrenels) {
+          const edge = platformSpan / 2 - 0.18;
+          this.addTowerCrenellatedEdge(group, platformSpan - 0.28, 0, -edge, topY + 0.15, 0, stone);
+          this.addTowerCrenellatedEdge(group, platformSpan - 0.28, 0, edge, topY + 0.15, Math.PI, stone);
+          this.addTowerCrenellatedEdge(group, platformSpan - 0.28, -edge, 0, topY + 0.15, Math.PI / 2, stone);
+          this.addTowerCrenellatedEdge(group, platformSpan - 0.28, edge, 0, topY + 0.15, -Math.PI / 2, stone);
+        }
+      } else {
+        const segments = shape === 'octagonal' ? 8 : shape === 'watch' ? 12 : 20;
+        const radius = platformSpan / 2;
+        const slab = new THREE.Mesh(
+          new THREE.CylinderGeometry(radius, radius, 0.34, segments),
+          this.medievalMaterials.walkway,
+        );
+        slab.position.y = topY + 0.1;
+        slab.castShadow = true;
+        slab.receiveShadow = true;
+        group.add(slab);
+
+        if (withCrenels) {
+          const curb = new THREE.Mesh(
+            new THREE.CylinderGeometry(radius, radius, 0.28, segments, 1, true),
+            stone,
+          );
+          curb.position.y = topY + 0.42;
+          curb.castShadow = true;
+          group.add(curb);
+
+          const count = shape === 'watch' ? 10 : 12;
+          for (let i = 0; i < count; i += 1) {
+            const angle = (i / count) * Math.PI * 2;
+            const merlon = new THREE.Mesh(
+              new THREE.CylinderGeometry(0.25, 0.31, 0.95, 4),
+              stone,
+            );
+            merlon.rotation.y = Math.PI / 4 - angle;
+            merlon.position.set(
+              Math.cos(angle) * (radius - 0.2),
+              topY + 0.78,
+              Math.sin(angle) * (radius - 0.2),
+            );
+            merlon.castShadow = true;
+            merlon.receiveShadow = true;
+            group.add(merlon);
+          }
+        }
       }
+    };
 
-      for (const pz of [-0.9, 0, 0.9]) {
-        this.addBox(group, 0.48, 0.62, 0.42, stone, -span / 2 + 0.22, topY + 0.45, pz);
-        this.addBox(group, 0.48, 0.62, 0.42, stone, span / 2 - 0.22, topY + 0.45, pz);
+    if (top === 'battlement' || top === 'flag') {
+      addDefensivePlatform(true);
+
+      if (top === 'flag') {
+        this.addBox(group, 0.09, 3.0, 0.09, metal, 0, topY + 1.8, 0);
+        const flag = this.addBox(group, 1.25, 0.58, 0.055, roof, 0.66, topY + 2.65, 0);
+        flag.userData.castleFlag = { phase: topY * 0.37 };
       }
       return;
     }
 
     if (top === 'roof') {
-      const segments = squareLike ? 4 : shape === 'octagonal' ? 8 : 12;
-      const roofMesh = new THREE.Mesh(new THREE.ConeGeometry(shape === 'watch' ? 2.0 : 2.25, 2.2, segments), roof);
-      roofMesh.position.y = topY + 1.08;
+      const segments = squareLike ? 4 : shape === 'octagonal' ? 8 : 16;
+
+      if (squareLike) {
+        this.addBox(
+          group,
+          platformSpan + 0.35,
+          0.22,
+          platformSpan + 0.35,
+          this.medievalMaterials.roofDark,
+          0,
+          topY + 0.06,
+          0,
+        );
+      } else {
+        const eave = new THREE.Mesh(
+          new THREE.CylinderGeometry(platformSpan * 0.56, platformSpan * 0.56, 0.22, segments),
+          this.medievalMaterials.roofDark,
+        );
+        eave.position.y = topY + 0.06;
+        eave.castShadow = true;
+        group.add(eave);
+      }
+
+      const roofMesh = new THREE.Mesh(
+        new THREE.ConeGeometry(platformSpan * 0.58, 2.8, segments),
+        roof,
+      );
+      roofMesh.position.y = topY + 1.48;
       if (squareLike) roofMesh.rotation.y = Math.PI / 4;
       roofMesh.castShadow = true;
+      roofMesh.receiveShadow = true;
       group.add(roofMesh);
       return;
     }
 
-    const platformSize = shape === 'watch' ? 3.35 : 3.15;
-    this.addBox(group, platformSize, 0.24, platformSize, top === 'watch' ? wood : stone, 0, topY + 0.08, 0);
-
-    if (top === 'flag') {
-      this.addBox(group, 0.1, 3.2, 0.1, metal, 0, topY + 1.72, 0);
-      const flag = this.addBox(group, 1.35, 0.65, 0.08, roof, 0.72, topY + 2.65, 0);
-      flag.position.x += 0.06;
-      flag.userData.castleFlag = { phase: topY * 0.37 };
+    if (top === 'flat') {
+      addDefensivePlatform(false);
       return;
     }
 
     if (top === 'watch') {
-      for (const [x, z] of [[-1.3, -1.3], [1.3, -1.3], [-1.3, 1.3], [1.3, 1.3]] as Array<[number, number]>) {
-        this.addBox(group, 0.12, 1.55, 0.12, wood, x, topY + 0.82, z);
+      addDefensivePlatform(false);
+      const postRadius = platformSpan * 0.34;
+
+      for (const [x, z] of [
+        [-postRadius, -postRadius],
+        [postRadius, -postRadius],
+        [-postRadius, postRadius],
+        [postRadius, postRadius],
+      ] as Array<[number, number]>) {
+        this.addBox(group, 0.16, 1.8, 0.16, wood, x, topY + 1.05, z);
+        this.addBox(group, 0.5, 0.16, 0.5, metal, x, topY + 0.25, z);
       }
-      const canopy = new THREE.Mesh(new THREE.ConeGeometry(2.15, 1.3, 4), roof);
+
+      this.addBox(
+        group,
+        platformSpan + 0.65,
+        0.18,
+        platformSpan + 0.65,
+        this.medievalMaterials.roofDark,
+        0,
+        topY + 1.94,
+        0,
+      );
+      const canopy = new THREE.Mesh(
+        new THREE.ConeGeometry(platformSpan * 0.62, 1.75, 4),
+        roof,
+      );
       canopy.rotation.y = Math.PI / 4;
-      canopy.position.y = topY + 1.78;
+      canopy.position.y = topY + 2.82;
       canopy.castShadow = true;
       group.add(canopy);
     }
   }
 
+  private addTowerCrenellatedEdge(
+    group: THREE.Group,
+    span: number,
+    x: number,
+    z: number,
+    y: number,
+    rotationY: number,
+    material: THREE.Material,
+  ): void {
+    const merlonWidth = 0.78;
+    const crenelWidth = 0.56;
+    const baseHeight = 0.42;
+    const merlonHeight = 1.0;
+    const module = merlonWidth + crenelWidth;
+    const count = Math.max(1, Math.floor((span - merlonWidth) / module));
+    const actualSpan = count * module + merlonWidth;
+    const shape = new THREE.Shape();
+
+    shape.moveTo(-actualSpan / 2, 0);
+    shape.lineTo(actualSpan / 2, 0);
+    shape.lineTo(actualSpan / 2, baseHeight + merlonHeight);
+
+    for (let i = count; i >= 0; i -= 1) {
+      const right = -actualSpan / 2 + i * module + merlonWidth;
+      const left = right - merlonWidth;
+      shape.lineTo(right, baseHeight + merlonHeight);
+      shape.lineTo(left, baseHeight + merlonHeight);
+      if (i > 0) {
+        shape.lineTo(left, baseHeight);
+        shape.lineTo(left - crenelWidth, baseHeight);
+      }
+    }
+
+    shape.lineTo(-actualSpan / 2, 0);
+
+    const geometry = new THREE.ExtrudeGeometry(shape, {
+      depth: 0.38,
+      bevelEnabled: true,
+      bevelSize: 0.04,
+      bevelThickness: 0.035,
+      bevelSegments: 1,
+      curveSegments: 1,
+    });
+    geometry.translate(0, 0, -0.19);
+
+    const mesh = new THREE.Mesh(geometry, material);
+    mesh.position.set(x, y, z);
+    mesh.rotation.y = rotationY;
+    mesh.castShadow = true;
+    mesh.receiveShadow = true;
+    group.add(mesh);
+  }
+
   private fortificationTopLocal(cell: GridCell): number {
     if (WALL_KINDS.includes(cell.kind as WallKind)) {
-      const base = cell.kind === 'wall1' ? 3.45 : cell.kind === 'wall2' ? 3.7 : 4.3;
-      return 2.22 + base + Math.max(0, (cell.level ?? 1) - 1) * 1.8;
+      const base = cell.kind === 'wall1' ? 5.2 : cell.kind === 'wall2' ? 4.7 : 5.8;
+      return 2.58 + base + Math.max(0, (cell.level ?? 1) - 1) * 2.15;
     }
 
     if (cell.kind === 'tower') {
-      const base = (cell.towerShape ?? 'round') === 'watch' ? 4.5 : 5.3;
-      return 2.22 + base + Math.max(0, (cell.level ?? 1) - 1) * 1.8;
+      const base = (cell.towerShape ?? 'round') === 'watch' ? 6.4 : 7.4;
+      return 2.58 + base + Math.max(0, (cell.level ?? 1) - 1) * 2.15;
     }
 
-    if (cell.kind === 'gate') return 6.95;
+    if (cell.kind === 'gate') return 7.85;
     return 5.9;
   }
 

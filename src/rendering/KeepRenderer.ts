@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import type { KeepState, TerrainKind, TileKind } from '../core/types';
 import { CastleDetailGenerator } from '../building/CastleDetailGenerator';
+import { MedievalMaterials } from './MedievalMaterials';
 
 export interface KeepRenderContext {
   tileSize: number;
@@ -11,7 +12,10 @@ export interface KeepRenderContext {
 }
 
 export class KeepRenderer {
-  constructor(private readonly details: CastleDetailGenerator) {}
+  constructor(
+    private readonly details: CastleDetailGenerator,
+    private readonly materials: MedievalMaterials,
+  ) {}
 
   render(keep: KeepState, context: KeepRenderContext): THREE.Group {
     const group = new THREE.Group();
@@ -42,13 +46,13 @@ export class KeepRenderer {
 
     group.position.set(center.x, 0, center.z);
 
-    const stone = new THREE.MeshStandardMaterial({ color: 0xc6b79e, roughness: 0.88 });
-    const stoneDark = new THREE.MeshStandardMaterial({ color: 0x837563, roughness: 0.96 });
-    const stoneLight = new THREE.MeshStandardMaterial({ color: 0xd9cdb9, roughness: 0.86 });
-    const wood = new THREE.MeshStandardMaterial({ color: 0x704a32, roughness: 0.94 });
-    const roof = new THREE.MeshStandardMaterial({ color: 0x79505a, roughness: 0.82 });
-    const roofDark = new THREE.MeshStandardMaterial({ color: 0x503940, roughness: 0.9 });
-    const slit = new THREE.MeshStandardMaterial({ color: 0x282521, roughness: 1 });
+    const stone = this.materials.stoneVariant(keep.x, keep.y);
+    const stoneDark = this.materials.foundation;
+    const stoneLight = this.materials.limestoneAlt;
+    const wood = this.materials.timber;
+    const roof = this.materials.roofTile;
+    const roofDark = this.materials.roofDark;
+    const slit = this.materials.arrowVoid;
     const windowMaterial = new THREE.MeshStandardMaterial({
       color: 0x8bcbd2,
       emissive: 0x123b43,
@@ -58,16 +62,26 @@ export class KeepRenderer {
 
     this.addBox(
       group,
-      width + 0.7,
-      foundationHeight,
-      depth + 0.7,
+      width + 1.05,
+      foundationHeight + 0.2,
+      depth + 1.05,
       stoneDark,
       0,
-      foundationBottom + foundationHeight / 2,
+      foundationBottom + (foundationHeight + 0.2) / 2,
+      0,
+    );
+    this.addBox(
+      group,
+      width + 0.62,
+      0.34,
+      depth + 0.62,
+      stoneLight,
+      0,
+      foundationTop - 0.08,
       0,
     );
 
-    const floorHeight = 2.25;
+    const floorHeight = 2.45;
     const floorGap = 0.13;
     const bodyBottom = foundationTop;
     const totalBodyHeight = keep.floors * floorHeight;
@@ -426,8 +440,16 @@ export class KeepRenderer {
       }
 
       if (keep.roof === 'sloped' || keep.roof === 'towered') {
-        const cap = new THREE.Mesh(new THREE.ConeGeometry(radius * 1.32, 1.65, 12), roof);
-        cap.position.set(x, foundationTop + towerHeight + 0.78, z);
+        const eave = new THREE.Mesh(
+          new THREE.CylinderGeometry(radius * 1.42, radius * 1.42, 0.2, 12),
+          this.materials.roofDark,
+        );
+        eave.position.set(x, foundationTop + towerHeight + 0.08, z);
+        eave.castShadow = true;
+        group.add(eave);
+
+        const cap = new THREE.Mesh(new THREE.ConeGeometry(radius * 1.38, 1.85, 12), roof);
+        cap.position.set(x, foundationTop + towerHeight + 1.0, z);
         cap.castShadow = true;
         group.add(cap);
       } else {
@@ -471,12 +493,14 @@ export class KeepRenderer {
     roofDark: THREE.Material,
   ): void {
     if (keep.roof === 'sloped') {
-      const roofHeight = Math.max(1.7, Math.min(width, depth) * 0.18);
+      const roofHeight = Math.max(1.9, Math.min(width, depth) * 0.2);
+      this.addBox(group, width + 0.52, 0.2, depth + 0.52, roofDark, 0, bodyTop + 0.08, 0);
+
       const mesh = new THREE.Mesh(
-        new THREE.ConeGeometry(Math.max(width, depth) * 0.62, roofHeight, 4),
+        new THREE.ConeGeometry(Math.max(width, depth) * 0.67, roofHeight, 4),
         roof,
       );
-      mesh.position.y = bodyTop + roofHeight / 2;
+      mesh.position.y = bodyTop + 0.14 + roofHeight / 2;
       mesh.rotation.y = Math.PI / 4;
       mesh.scale.set(width / Math.max(width, depth), 1, depth / Math.max(width, depth));
       mesh.castShadow = true;
@@ -516,25 +540,65 @@ export class KeepRenderer {
     y: number,
     material: THREE.Material,
   ): void {
-    const spacing = 0.9;
-    const countX = Math.max(3, Math.floor(width / spacing));
-    const countZ = Math.max(3, Math.floor(depth / spacing));
+    const inset = 0.28;
+    this.addCrenellatedStrip(group, width - inset * 2, -depth / 2 + inset, y, 0, material);
+    this.addCrenellatedStrip(group, width - inset * 2, depth / 2 - inset, y, Math.PI, material);
+    this.addCrenellatedStrip(group, depth - inset * 2, -width / 2 + inset, y, Math.PI / 2, material);
+    this.addCrenellatedStrip(group, depth - inset * 2, width / 2 - inset, y, -Math.PI / 2, material);
+  }
 
-    for (let i = 0; i < countX; i += 1) {
-      const t = countX === 1 ? 0 : i / (countX - 1) - 0.5;
-      const x = t * (width - 0.45);
-      for (const z of [-depth / 2 + 0.2, depth / 2 - 0.2]) {
-        this.addBox(group, 0.42, 0.62, 0.48, material, x, y + 0.3, z);
+  private addCrenellatedStrip(
+    group: THREE.Group,
+    span: number,
+    z: number,
+    y: number,
+    rotationY: number,
+    material: THREE.Material,
+  ): void {
+    const merlonWidth = 0.72;
+    const crenelWidth = 0.52;
+    const baseHeight = 0.38;
+    const merlonHeight = 0.82;
+    const module = merlonWidth + crenelWidth;
+    const count = Math.max(2, Math.floor(span / module));
+    const actualSpan = count * module + merlonWidth;
+    const shape = new THREE.Shape();
+
+    let x = -actualSpan / 2;
+    shape.moveTo(x, 0);
+    shape.lineTo(actualSpan / 2, 0);
+    shape.lineTo(actualSpan / 2, baseHeight + merlonHeight);
+
+    for (let i = count; i >= 0; i -= 1) {
+      const merlonRight = -actualSpan / 2 + i * module + merlonWidth;
+      const merlonLeft = merlonRight - merlonWidth;
+      shape.lineTo(merlonRight, baseHeight + merlonHeight);
+      shape.lineTo(merlonLeft, baseHeight + merlonHeight);
+
+      if (i > 0) {
+        shape.lineTo(merlonLeft, baseHeight);
+        shape.lineTo(merlonLeft - crenelWidth, baseHeight);
       }
     }
 
-    for (let i = 1; i < countZ - 1; i += 1) {
-      const t = countZ === 1 ? 0 : i / (countZ - 1) - 0.5;
-      const z = t * (depth - 0.45);
-      for (const x of [-width / 2 + 0.2, width / 2 - 0.2]) {
-        this.addBox(group, 0.48, 0.62, 0.42, material, x, y + 0.3, z);
-      }
-    }
+    shape.lineTo(-actualSpan / 2, 0);
+
+    const geometry = new THREE.ExtrudeGeometry(shape, {
+      depth: 0.34,
+      bevelEnabled: true,
+      bevelSize: 0.035,
+      bevelThickness: 0.025,
+      bevelSegments: 1,
+      curveSegments: 1,
+    });
+    geometry.translate(0, 0, -0.17);
+
+    const mesh = new THREE.Mesh(geometry, material);
+    mesh.position.set(0, y, z);
+    mesh.rotation.y = rotationY;
+    mesh.castShadow = true;
+    mesh.receiveShadow = true;
+    group.add(mesh);
   }
 
   private addFlags(
