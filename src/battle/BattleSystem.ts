@@ -1457,7 +1457,7 @@ export class BattleSystem {
         wallWorld.x,
         2.22 + this.world.elevationAt(this.siegePlan.base.x, this.siegePlan.base.y),
         wallWorld.z,
-      ).addScaledVector(towardBase, 1.38);
+      ).addScaledVector(towardBase, 2.15);
       const distance = Math.hypot(
         runtime.position.x - attackPoint.x,
         runtime.position.z - attackPoint.z,

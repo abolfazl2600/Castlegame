@@ -127,6 +127,26 @@ Castle Role is a stylized 3D medieval fortress builder built with Three.js, Type
 
 **[Play Castle Role](https://abolfazl2600.github.io/Castlegame/)**
 
+## Castle siege: breach & ladders
+
+The battle layer now reacts to the actual player-built fortification instead of assuming one universal entry plan.
+
+- Attackers first resolve nearby Defenders that threaten or block the advance.
+- Shared siege planning then prefers a reachable open entrance, an existing breach, an existing ladder, a practical new ladder position, and finally a new wall breach.
+- Route analysis considers reachability, Wall Walk availability, wall height, nearby Defenders, structural health, and existing siege routes.
+- Battle-only wall health varies by wall material, thickness, and height. Damage progresses from visible cracks to heavy masonry damage and rubble before a true breach is created.
+- Breached wall coordinates become temporary ground navigation links immediately; the original saved castle is never changed.
+- Nearby Defender Swordsmen are redirected toward an important breach instead of pulling the entire defending army away from its positions.
+- Automatic ladder carriers visually carry lightweight ladders to valid Wall Walk segments. Ladders reject water, towers, steep/impossible approaches, and unusable wall tops.
+- Ladder length adapts to the actual wall height. Once raised, the ladder stays for the rest of the battle.
+- Only one attacker occupies the climbing section at a time. Other soldiers wait in spaced queue positions or use another ladder.
+- Attackers reaching the top become Wall Walk combatants, can fight Defenders, move across connected wall/tower nodes, secure the rampart, and descend toward useful internal ground.
+- Some Defender Swordsmen now deploy on the rampart so ladder assaults can produce melee combat on top of walls.
+- Larger attacking armies can create multiple separated ladders without stacking them at nearly the same wall coordinate.
+- Battle completion and Reset Battle remove rubble, breaches, ladder navigation, and ladder models while restoring hidden wall geometry exactly.
+
+Advanced siege engines such as Rams, Siege Towers, Trebuchets, Catapults, and Cavalry are intentionally not part of this update.
+
 ## Castle battle system
 
 The game now includes a first playable **Attackers vs Defenders** battle mode built around the castle the player actually constructed.
