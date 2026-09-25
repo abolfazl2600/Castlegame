@@ -22,12 +22,8 @@ export class PopulationSystem {
     const centerX = WORLD_WIDTH / 2;
     const centerY = WORLD_HEIGHT / 2;
 
-    for (let i = 0; i < 10; i += 1) {
-      this.units.push(this.createUnit('worker', centerX + (i - 5) * 18, centerY + 55));
-    }
-    for (let i = 0; i < 6; i += 1) {
-      this.units.push(this.createUnit('soldier', centerX + (i - 3) * 24, centerY - 55));
-    }
+    for (let i = 0; i < 7; i += 1) this.units.push(this.createUnit('worker', centerX + (i - 3) * 18, centerY + 42));
+    for (let i = 0; i < 4; i += 1) this.units.push(this.createUnit('soldier', centerX + (i - 2) * 22, centerY - 40));
   }
 
   update(delta: number): void {
@@ -45,16 +41,14 @@ export class PopulationSystem {
       const distance = Math.hypot(dx, dy);
 
       if (distance < 5) {
-        unit.pauseMs = unit.kind === 'worker'
-          ? Phaser.Math.Between(900, 2200)
-          : Phaser.Math.Between(350, 800);
+        unit.pauseMs = unit.kind === 'worker' ? Phaser.Math.Between(900, 2200) : Phaser.Math.Between(350, 800);
         unit.target = this.chooseTarget(unit.kind);
         continue;
       }
 
       const step = Math.min(distance, unit.speed * delta / 1000);
-      unit.view.x += dx / distance * step;
-      unit.view.y += dy / distance * step;
+      unit.view.x += (dx / distance) * step;
+      unit.view.y += (dy / distance) * step;
       unit.view.setDepth(30 + unit.view.y / 10000);
       unit.view.setScale(1, 1 + Math.sin(unit.phase) * 0.018);
     }
@@ -62,29 +56,29 @@ export class PopulationSystem {
 
   private createUnit(kind: UnitKind, x: number, y: number): UnitAgent {
     const container = this.scene.add.container(x, y).setDepth(30 + y / 10000);
-    const shadow = this.scene.add.ellipse(0, 8, 15, 6, 0x0b1220, 0.28);
+    const shadow = this.scene.add.ellipse(0, 8, 15, 6, 0x0b1220, 0.18);
     const body = this.scene.add.graphics();
 
     if (kind === 'worker') {
-      body.fillStyle(0x7c3f19, 1);
+      body.fillStyle(0xd98f56, 1);
       body.fillRoundedRect(-5, -2, 10, 12, 3);
-      body.fillStyle(0xe5b97f, 1);
+      body.fillStyle(0xf1d4c0, 1);
       body.fillCircle(0, -6, 5);
-      body.fillStyle(0xd69e2e, 1);
+      body.fillStyle(0xeac95e, 1);
       body.fillRect(-6, -10, 12, 3);
-      body.lineStyle(2, 0x6b4423, 1);
+      body.lineStyle(2, 0x7c5236, 1);
       body.lineBetween(5, 1, 9, 7);
       body.lineBetween(8, 5, 11, 3);
     } else {
-      body.fillStyle(0x315d8a, 1);
+      body.fillStyle(0x5f8fb4, 1);
       body.fillRoundedRect(-5, -2, 10, 13, 3);
-      body.fillStyle(0xe5b97f, 1);
+      body.fillStyle(0xf1d4c0, 1);
       body.fillCircle(0, -6, 5);
-      body.fillStyle(0x6b7280, 1);
+      body.fillStyle(0xf3e6d6, 1);
       body.fillRect(-5, -11, 10, 3);
-      body.fillStyle(0x475569, 1);
+      body.fillStyle(0xadcfe5, 1);
       body.fillCircle(7, 3, 5);
-      body.lineStyle(2, 0xcbd5e1, 1);
+      body.lineStyle(2, 0xf3f8fb, 1);
       body.lineBetween(-7, -1, -10, 10);
     }
 
@@ -94,7 +88,7 @@ export class PopulationSystem {
       kind,
       view: container,
       target: this.chooseTarget(kind),
-      speed: kind === 'worker' ? Phaser.Math.Between(34, 48) : Phaser.Math.Between(48, 62),
+      speed: kind === 'worker' ? Phaser.Math.Between(30, 46) : Phaser.Math.Between(44, 58),
       pauseMs: Phaser.Math.Between(0, 800),
       phase: Phaser.Math.FloatBetween(0, Math.PI * 2),
     };
@@ -113,9 +107,9 @@ export class PopulationSystem {
 
     const centerX = WORLD_WIDTH / 2;
     const centerY = WORLD_HEIGHT / 2;
-    const radius = kind === 'soldier' ? 220 : 320;
+    const radius = kind === 'soldier' ? 170 : 220;
     const angle = Phaser.Math.FloatBetween(0, Math.PI * 2);
-    const distance = Phaser.Math.Between(45, radius);
+    const distance = Phaser.Math.Between(40, radius);
 
     return new Phaser.Math.Vector2(
       Phaser.Math.Clamp(centerX + Math.cos(angle) * distance, 30, WORLD_WIDTH - 30),
