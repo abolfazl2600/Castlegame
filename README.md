@@ -1,5 +1,21 @@
 # Castle Role
 
+## Castle architecture expansion
+
+The castle system now treats foundations, defensive details, roof silhouettes, stone language, elevated bridges, and vertical access as one architecture layer.
+
+- **Automatic foundations:** walls remain vertical while foundations extend down to local terrain. Steeper changes add deterministic stepped masonry, and the same idea is used by towers and Stair Towers. Because architecture redraws from state, foundations update automatically after terrain or height edits.
+- **Tower roof variety:** tower tops now support Conical Roof, Hipped Roof, Pyramidal Roof, Open Battlement, and Timber Roof in addition to compatible legacy platform/watch options. Square/corner towers reject conical-only geometry by normalizing to a compatible roof; round/octagonal/watch towers likewise avoid square-only hipped/pyramidal geometry.
+- **Automatic machicolations:** taller, reinforced, corner, watch, and otherwise important defensive sections receive projecting masonry and corbel supports without adding a manual placement tool.
+- **Contextual buttresses:** wall supports select among Simple, Heavy, Stepped, and Angled forms based on height, thickness, wall material, connections, and deterministic local variation.
+- **Global castle stone styles:** Limestone, Dark Stone, Sandstone, and Rough Frontier styles recolor/retexture walls, gates, towers, foundations, battlements, Stair Towers, Keeps, and stone Tower Bridges without changing structural geometry.
+- **Tower Bridges:** select Tower Bridge (D), choose the first main tower, then a second compatible tower. Distance, alignment, platform height, and intervening structures are validated. Stone bridges use masonry decks/parapets/supports; Wooden bridges use planks, beams, posts, and rails.
+- **Stair Towers:** Stair Tower (E) snaps to an adjacent wall with an active Top Walkway, stores the detected access height, and regenerates a narrow tower with foundation, door, arrow slits, implied internal stairs, and a small defensive roof/platform.
+- **Elevated navigation:** Wall Walks, tower platforms, Tower Bridges, and Stair Towers are connected in the battle navigation graph. Swordsmen can use Stair Towers to transition between ground and elevated combat, while valid bridges connect separated tower platforms.
+- **Persistence and history:** Stone Style, Tower Bridges, Stair Towers, roof choices, and access heights are saved. Undo/Redo snapshots include the global style and bridge connections; automatic supports remain part of their parent structure rather than generating separate history operations.
+- Procedural architectural variation is deterministic, and shared materials are reused to avoid thousands of independent masonry assets.
+
+
 ## Battle, mountains, coast & templates update
 
 This update extends the existing systems rather than replacing them.

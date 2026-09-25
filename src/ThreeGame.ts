@@ -20,6 +20,9 @@ import type {
   KeepRoofStyle,
   RoadKind,
   ShipKind,
+  StoneStyle,
+  TowerBridgeKind,
+  TowerBridgeState,
   KeepState,
   SavedGame,
   TerrainKind,
@@ -47,6 +50,7 @@ const BUILDING_KINDS: TileKind[] = [
   'wall3',
   'gate',
   'tower',
+  'stairTower',
   'road',
   'dirtRoad',
   'stoneRoad',
@@ -106,6 +110,8 @@ interface HistorySnapshot {
   keeps: KeepState[];
   terrain: Array<[string, TerrainOverrideKind]>;
   elevations: Array<[string, number]>;
+  stoneStyle: StoneStyle;
+  towerBridges: TowerBridgeState[];
 }
 
 const TOOL_GROUPS: Array<{ label: string; tools: ToolDefinition[] }> = [
@@ -116,7 +122,9 @@ const TOOL_GROUPS: Array<{ label: string; tools: ToolDefinition[] }> = [
       { id: 'wall2', icon: '🪵', label: 'Wooden Wall', detail: 'Drag A → B · timber defense', shortcut: '2' },
       { id: 'wall3', icon: '🛡️', label: 'Reinforced Wall', detail: 'Drag A → B · heavy defense', shortcut: '3' },
       { id: 'gate', icon: '🚪', label: 'Gate', detail: 'Snaps into fortification lines', shortcut: '4' },
-      { id: 'tower', icon: '🏰', label: 'Modular Tower', detail: '5 bases · 5 top modules', shortcut: '5' },
+      { id: 'tower', icon: '🏰', label: 'Modular Tower', detail: '5 bases · medieval roof modules', shortcut: '5' },
+      { id: 'stairTower', icon: '🗼', label: 'Stair Tower', detail: 'Ground ↕ Wall Walk access', shortcut: 'E' },
+      { id: 'towerBridge', icon: '🌉', label: 'Tower Bridge', detail: 'Select two compatible towers', shortcut: 'D' },
       { id: 'keep', icon: '🏯', label: 'Modular Keep', detail: 'Width · depth · floors · roof', shortcut: 'P' },
       { id: 'moat', icon: '💧', label: 'Moat', detail: 'Workers excavate queued tiles', shortcut: 'Q' },
     ],
@@ -218,7 +226,13 @@ export class ThreeGame {
   private wallBattlement = true;
   private wallWalkway = false;
   private towerShape: TowerShape = 'round';
-  private towerTop: TowerTop = 'battlement';
+  private towerTop: TowerTop = 'openBattlement';
+  private stoneStyle: StoneStyle = 'limestone';
+  private towerBridgeKind: TowerBridgeKind = 'stone';
+  private towerBridgeStart: GridPoint | null = null;
+  private towerBridgeHover: GridPoint | null = null;
+  private readonly towerBridges = new Map<number, TowerBridgeState>();
+  private nextTowerBridgeId = 1;
   private keepWidth = 3;
   private keepDepth = 3;
   private keepFloors = 3;
@@ -340,6 +354,7 @@ export class ThreeGame {
         cellAt: (x, y) => this.state.getCell(x, y),
         fortificationTopAt: (_x, _y, cell) => this.fortificationTopLocal(cell),
         keeps: () => this.keepSystem.entries(),
+        towerBridges: () => Array.from(this.towerBridges.values()).map((bridge) => ({ ...bridge })),
         setWallBattleVisibility: (x, y, visible) => this.setBattleWallVisibility(x, y, visible),
       },
       (status) => this.updateBattleUI(status),
@@ -821,8 +836,13 @@ export class ThreeGame {
           elevationAt: (x, y) => this.terrainElevation(x, y),
           terrainAt: (x, y) => this.terrainAt(x, y),
           kindAt: (x, y) => this.kindAt(x, y),
+          stoneStyle: this.stoneStyle,
         }),
       );
+    }
+
+    for (const bridge of this.towerBridges.values()) {
+      this.buildLayer.add(this.makeTowerBridge(bridge));
     }
 
     const generatedAccess = this.castleAccessSystem.generate(
@@ -1003,6 +1023,7 @@ export class ThreeGame {
       wall3: 0x9ba4a7,
       gate: 0x9e7041,
       tower: 0xb7ab91,
+      stairTower: 0xa89d8a,
       road: 0x9a7658,
       dirtRoad: 0x8a6142,
       stoneRoad: 0xa9a195,
@@ -1069,11 +1090,21 @@ export class ThreeGame {
         continue;
       }
 
-      if (cell.kind === 'tower') {
+      if (cell.kind === 'tower' || cell.kind === 'stairTower') {
         const radius =
+          cell.kind === 'stairTower'
+            ? 1.35
+            :
           (cell.towerShape ?? 'round') === 'watch' ? 1.7 : 2.08;
         const tower = new THREE.Mesh(
-          new THREE.CircleGeometry(radius, (cell.towerShape ?? 'round') === 'octagonal' ? 8 : 20),
+          new THREE.CircleGeometry(
+            radius,
+            cell.kind === 'stairTower'
+              ? 10
+              : (cell.towerShape ?? 'round') === 'octagonal'
+                ? 8
+                : 20,
+          ),
           this.planMaterial(color),
         );
         tower.rotation.x = -Math.PI / 2;
@@ -1820,6 +1851,7 @@ export class ThreeGame {
       this.makeWall(group, cell.kind as WallKind, cell.x, cell.y, cell);
     } else if (cell.kind === 'gate') this.makeGate(group, cell.x, cell.y);
     else if (cell.kind === 'tower') this.makeTower(group, cell.x, cell.y, cell);
+    else if (cell.kind === 'stairTower') this.makeStairTower(group, cell.x, cell.y, cell);
     else if (cell.kind === 'farm') this.makeFarm(group);
     else if (cell.kind === 'mine') this.makeMine(group);
     else if (cell.kind === 'mountain') this.makeMountain(group, cell.level ?? 1, cell.x, cell.y);
@@ -2208,23 +2240,19 @@ export class ThreeGame {
     const wallMaterial =
       kind === 'wall2'
         ? this.medievalMaterials.timber
-        : this.medievalMaterials.stoneVariant(
-            gx,
-            gy,
-            kind === 'wall3' ? 'reinforced' : 'limestone',
-          );
+        : this.medievalMaterials.castleStone(this.stoneStyle, 'body', gx, gy);
     const darkMaterial =
       kind === 'wall2'
         ? this.medievalMaterials.timberDark
-        : this.medievalMaterials.foundation;
+        : this.medievalMaterials.castleStone(this.stoneStyle, 'foundation', gx, gy);
     const accentMaterial =
       kind === 'wall2'
         ? this.medievalMaterials.timberDark
-        : this.medievalMaterials.limestoneAlt;
+        : this.medievalMaterials.castleStone(this.stoneStyle, 'alt', gx, gy);
     const walkwayMaterial =
       kind === 'wall2'
         ? this.medievalMaterials.timber
-        : this.medievalMaterials.walkway;
+        : this.medievalMaterials.castleStone(this.stoneStyle, 'walkway', gx, gy);
     const metalMaterial = this.medievalMaterials.iron;
     const slitMaterial = this.medievalMaterials.arrowVoid;
 
@@ -2243,16 +2271,25 @@ export class ThreeGame {
       }
     }
 
-    // Thick, stepped footing: the wall body stays vertical while the masonry base
-    // visually locks it into the terrain.
+    // Terrain-adaptive foundations keep the wall vertical while stepped masonry
+    // reaches down into lower surrounding ground.
+    const ownElevation = this.terrainElevation(gx, gy);
+    const adjacentElevations = WallSystem.directions
+      .map((direction) => WallSystem.vector(direction))
+      .filter((vector) => Math.abs(vector.x) + Math.abs(vector.y) === 1)
+      .map((vector) => this.terrainElevation(gx + vector.x, gy + vector.y));
+    const localLow = Math.min(ownElevation, ...adjacentElevations);
+    const foundationDrop = THREE.MathUtils.clamp(ownElevation - localLow, 0, 3.4);
+    const foundationHeight = 0.72 + foundationDrop;
+
     this.addBox(
       group,
       junctionThickness * 1.52,
-      0.72,
+      foundationHeight,
       junctionThickness * 1.52,
       darkMaterial,
       0,
-      2.12,
+      2.22 - foundationHeight / 2 + 0.24,
       0,
     );
     this.addBox(
@@ -2265,6 +2302,27 @@ export class ThreeGame {
       2.55,
       0,
     );
+
+    if (foundationDrop > 0.45) {
+      const steps = Math.min(3, Math.ceil(foundationDrop / 0.8));
+      for (let step = 0; step < steps; step += 1) {
+        const stepHeight = Math.min(
+          foundationDrop,
+          0.55 + step * 0.42,
+        );
+        const widthScale = 1.62 + step * 0.18;
+        this.addBox(
+          group,
+          junctionThickness * widthScale,
+          0.32,
+          junctionThickness * widthScale,
+          step % 2 === 0 ? darkMaterial : accentMaterial,
+          0,
+          2.12 - stepHeight,
+          0,
+        );
+      }
+    }
     this.addBox(
       group,
       junctionThickness * 1.12,
@@ -2546,17 +2604,40 @@ export class ThreeGame {
     for (let i = 0; i < buttressCount; i += 1) {
       const z = buttressCount === 1 ? run * 0.55 : run * (0.38 + i * 0.34);
       for (const side of [-1, 1]) {
-        this.addTaperedButtress(
+        const style =
+          kind === 'wall3' || thickness >= 2.3
+            ? 'heavy'
+            : height >= 9.2
+              ? 'stepped'
+              : Math.abs(gx * 17 + gy * 29 + i) % 3 === 0
+                ? 'angled'
+                : 'simple';
+        this.addContextualButtress(
           arm,
+          style,
           side * (thickness / 2 + 0.28),
-          2.3 + Math.min(height * 0.46, 3.3) / 2,
           z,
-          Math.min(height * 0.46, 3.3),
-          0.58,
-          0.9,
+          Math.min(height * 0.5, 4.1),
           accentMaterial,
+          side,
         );
       }
+    }
+
+    const shouldMachicolate =
+      kind !== 'wall2' &&
+      (level >= 3 || kind === 'wall3') &&
+      (!importantConnection || level >= 4) &&
+      Math.abs(gx * 37 + gy * 17 + level) % 3 !== 1;
+    if (shouldMachicolate) {
+      this.addWallMachicolations(
+        arm,
+        thickness,
+        run,
+        2.58 + height,
+        wallMaterial,
+        darkMaterial,
+      );
     }
 
     if (kind !== 'wall2' && Math.abs(gx * 13 + gy * 23 + level) % 4 === 0) {
@@ -2625,6 +2706,182 @@ export class ThreeGame {
     mesh.castShadow = true;
     mesh.receiveShadow = true;
     group.add(mesh);
+  }
+
+  private addContextualButtress(
+    group: THREE.Group,
+    style: 'simple' | 'heavy' | 'stepped' | 'angled',
+    x: number,
+    z: number,
+    height: number,
+    material: THREE.Material,
+    side: number,
+  ): void {
+    if (style === 'simple') {
+      this.addTaperedButtress(
+        group,
+        x,
+        2.28 + height / 2,
+        z,
+        height,
+        0.46,
+        0.74,
+        material,
+      );
+      return;
+    }
+
+    if (style === 'heavy') {
+      this.addTaperedButtress(
+        group,
+        x + side * 0.1,
+        2.28 + height / 2,
+        z,
+        height,
+        0.64,
+        1.08,
+        material,
+      );
+      this.addBox(
+        group,
+        0.82,
+        0.34,
+        1.15,
+        material,
+        x + side * 0.18,
+        2.35,
+        z,
+      );
+      return;
+    }
+
+    if (style === 'stepped') {
+      const stages = 3;
+      for (let stage = 0; stage < stages; stage += 1) {
+        const stageHeight = height * (0.44 - stage * 0.075);
+        const stageWidth = 1.0 - stage * 0.18;
+        const stageX = x + side * stage * 0.08;
+        this.addBox(
+          group,
+          stageWidth,
+          stageHeight,
+          0.82 - stage * 0.12,
+          material,
+          stageX,
+          2.26 + stageHeight / 2 + stage * height * 0.24,
+          z,
+        );
+      }
+      return;
+    }
+
+    const brace = this.addBox(
+      group,
+      0.72,
+      Math.sqrt(height * height + 1.25 * 1.25),
+      0.72,
+      material,
+      x + side * 0.38,
+      2.18 + height / 2,
+      z,
+    );
+    brace.rotation.z = side * Math.atan2(1.25, height);
+  }
+
+  private addWallMachicolations(
+    group: THREE.Group,
+    thickness: number,
+    span: number,
+    topY: number,
+    stone: THREE.Material,
+    support: THREE.Material,
+  ): void {
+    const projection = thickness / 2 + 0.38;
+    const count = Math.max(2, Math.min(4, Math.floor(span / 1.1)));
+
+    for (const side of [-1, 1]) {
+      this.addBox(
+        group,
+        0.48,
+        0.32,
+        Math.max(1.25, span * 0.78),
+        stone,
+        side * projection,
+        topY - 0.46,
+        span / 2,
+      );
+
+      for (let i = 0; i < count; i += 1) {
+        const z = span * (0.2 + (i / Math.max(1, count - 1)) * 0.6);
+        const corbel = this.addBox(
+          group,
+          0.36,
+          0.62,
+          0.36,
+          support,
+          side * (thickness / 2 + 0.18),
+          topY - 0.72,
+          z,
+        );
+        corbel.rotation.z = side * 0.12;
+      }
+    }
+  }
+
+  private addTowerMachicolations(
+    group: THREE.Group,
+    shape: TowerShape,
+    topY: number,
+    size: number,
+    stone: THREE.Material,
+    support: THREE.Material,
+  ): void {
+    const squareLike = shape === 'square' || shape === 'corner';
+    if (squareLike) {
+      const span = size + 0.5;
+      const edge = span / 2;
+      for (const side of [-1, 1]) {
+        this.addBox(group, span + 0.4, 0.3, 0.5, stone, 0, topY - 0.5, side * (edge + 0.16));
+        this.addBox(group, 0.5, 0.3, span + 0.4, stone, side * (edge + 0.16), topY - 0.5, 0);
+      }
+      for (const x of [-span * 0.32, 0, span * 0.32]) {
+        for (const z of [-edge, edge]) {
+          this.addBox(group, 0.3, 0.62, 0.38, support, x, topY - 0.78, z);
+        }
+      }
+      for (const z of [-span * 0.32, 0, span * 0.32]) {
+        for (const x of [-edge, edge]) {
+          this.addBox(group, 0.38, 0.62, 0.3, support, x, topY - 0.78, z);
+        }
+      }
+      return;
+    }
+
+    const radius = size + 0.28;
+    const segments = shape === 'octagonal' ? 8 : 12;
+    const ring = new THREE.Mesh(
+      new THREE.CylinderGeometry(radius + 0.18, radius + 0.18, 0.32, segments),
+      stone,
+    );
+    ring.position.y = topY - 0.48;
+    ring.castShadow = true;
+    group.add(ring);
+
+    for (let i = 0; i < segments; i += 2) {
+      const angle = (i / segments) * Math.PI * 2;
+      const corbel = new THREE.Mesh(
+        new THREE.BoxGeometry(0.32, 0.66, 0.38),
+        support,
+      );
+      corbel.position.set(
+        Math.cos(angle) * radius,
+        topY - 0.78,
+        Math.sin(angle) * radius,
+      );
+      corbel.rotation.y = -angle;
+      corbel.castShadow = true;
+      group.add(corbel);
+    }
   }
 
   private addTaperedButtress(
@@ -2864,7 +3121,7 @@ export class ThreeGame {
       axis === 'x' ? bodyLength + 0.14 : thickness * 1.28,
       foundationHeight,
       axis === 'z' ? bodyLength + 0.14 : thickness * 1.28,
-      this.medievalMaterials.foundation,
+      this.medievalMaterials.castleStone(this.stoneStyle, 'foundation'),
       axis === 'x' ? sign * run / 2 : 0,
       2.22 - foundationHeight / 2 + 0.16,
       axis === 'z' ? sign * run / 2 : 0,
@@ -2872,8 +3129,8 @@ export class ThreeGame {
   }
 
   private makeGate(group: THREE.Group, gx: number, gy: number): THREE.Group {
-    const wallMaterial = this.medievalMaterials.stoneVariant(gx, gy);
-    const foundation = this.medievalMaterials.foundation;
+    const wallMaterial = this.medievalMaterials.castleStone(this.stoneStyle, 'body', gx, gy);
+    const foundation = this.medievalMaterials.castleStone(this.stoneStyle, 'foundation', gx, gy);
     const woodMaterial = this.medievalMaterials.timber;
     const darkWood = this.medievalMaterials.timberDark;
     const shadow = this.medievalMaterials.arrowVoid;
@@ -2901,7 +3158,7 @@ export class ThreeGame {
       this.addBox(core, 1.8, 0.12, 0.34, darkWood, 0, y, -1.39);
     }
 
-    this.addBox(core, 3.95, 0.28, 2.62, this.medievalMaterials.walkway, 0, 7.72, 0);
+    this.addBox(core, 3.95, 0.28, 2.62, this.medievalMaterials.castleStone(this.stoneStyle, 'walkway', gx, gy), 0, 7.72, 0);
     this.addTowerCrenellatedEdge(core, 3.55, 0, -1.0, 7.78, 0, wallMaterial);
     this.addTowerCrenellatedEdge(core, 3.55, 0, 1.0, 7.78, Math.PI, wallMaterial);
 
@@ -2942,13 +3199,9 @@ export class ThreeGame {
     const bodyBase = 2.58;
     const topY = bodyBase + height;
 
-    const stone = this.medievalMaterials.stoneVariant(
-      gx,
-      gy,
-      shape === 'watch' ? 'warmGrey' : 'limestone',
-    );
-    const darkStone = this.medievalMaterials.foundation;
-    const stoneAccent = this.medievalMaterials.limestoneAlt;
+    const stone = this.medievalMaterials.castleStone(this.stoneStyle, 'body', gx, gy);
+    const darkStone = this.medievalMaterials.castleStone(this.stoneStyle, 'foundation', gx, gy);
+    const stoneAccent = this.medievalMaterials.castleStone(this.stoneStyle, 'alt', gx, gy);
     const roofMaterial = this.medievalMaterials.roofTile;
     const wood = this.medievalMaterials.timber;
     const metal = this.medievalMaterials.iron;
@@ -3091,6 +3344,20 @@ export class ThreeGame {
       this.addBox(group, 0.08, slitHeight, 0.18, openingMaterial, openingRadius + 0.035, y, 0);
     }
 
+    if (
+      level >= 2 &&
+      (shape === 'corner' || shape === 'watch' || level >= 3 || Math.abs(gx * 19 + gy * 23) % 3 === 0)
+    ) {
+      this.addTowerMachicolations(
+        group,
+        shape,
+        topY,
+        squareLike ? width : radius,
+        stone,
+        darkStone,
+      );
+    }
+
     this.addTowerTop(group, shape, top, topY, squareLike ? width : radius, stone, roofMaterial, wood, metal);
 
     const autoFlag =
@@ -3103,6 +3370,455 @@ export class ThreeGame {
     }
 
     return group;
+  }
+
+  private findStairTowerSnap(
+    gx: number,
+    gy: number,
+  ): { rotation: number; accessHeight: number; wall: GridPoint } | null {
+    const candidates = [
+      { dx: 0, dy: -1 },
+      { dx: 1, dy: 0 },
+      { dx: 0, dy: 1 },
+      { dx: -1, dy: 0 },
+    ];
+
+    for (const candidate of candidates) {
+      const wx = gx + candidate.dx;
+      const wy = gy + candidate.dy;
+      const wall = this.state.getCell(wx, wy);
+      if (!wall || !WALL_KINDS.includes(wall.kind as WallKind)) continue;
+      if (wall.walkway !== true) continue;
+
+      const targetWorldTop =
+        this.terrainElevation(wx, wy) +
+        this.fortificationTopLocal(wall);
+      const localAccessHeight =
+        targetWorldTop - this.terrainElevation(gx, gy);
+
+      if (localAccessHeight < 5.2 || localAccessHeight > 18) continue;
+
+      return {
+        rotation: this.accessRotationForNeighbor(candidate.dx, candidate.dy),
+        accessHeight: localAccessHeight,
+        wall: { x: wx, y: wy },
+      };
+    }
+
+    return null;
+  }
+
+  private makeStairTower(
+    group: THREE.Group,
+    gx: number,
+    gy: number,
+    cell: GridCell,
+  ): THREE.Group {
+    const topY = Math.max(7.2, cell.accessHeight ?? 8.1);
+    const bodyBase = 2.58;
+    const bodyHeight = Math.max(4.6, topY - bodyBase);
+    const width = 2.35;
+    const ownElevation = this.terrainElevation(gx, gy);
+    const neighborElevations = [
+      this.terrainElevation(gx + 1, gy),
+      this.terrainElevation(gx - 1, gy),
+      this.terrainElevation(gx, gy + 1),
+      this.terrainElevation(gx, gy - 1),
+    ];
+    const localLow = Math.min(ownElevation, ...neighborElevations);
+    const foundationDrop = THREE.MathUtils.clamp(ownElevation - localLow, 0, 2.8);
+    const foundationHeight = 0.72 + foundationDrop;
+
+    const stone = this.medievalMaterials.castleStone(this.stoneStyle, 'body', gx, gy);
+    const accent = this.medievalMaterials.castleStone(this.stoneStyle, 'alt', gx, gy);
+    const foundation = this.medievalMaterials.castleStone(this.stoneStyle, 'foundation', gx, gy);
+    const walkway = this.medievalMaterials.castleStone(this.stoneStyle, 'walkway', gx, gy);
+    const shadow = this.medievalMaterials.arrowVoid;
+    const wood = this.medievalMaterials.timberDark;
+
+    this.addBox(
+      group,
+      width + 0.6,
+      foundationHeight,
+      width + 0.6,
+      foundation,
+      0,
+      2.22 - foundationHeight / 2 + 0.22,
+      0,
+    );
+    this.addBox(group, width + 0.28, 0.28, width + 0.28, accent, 0, 2.62, 0);
+    this.addBox(group, width, bodyHeight, width, stone, 0, bodyBase + bodyHeight / 2, 0);
+
+    this.addBox(group, 0.88, 1.62, 0.12, shadow, 0, 3.28, -width / 2 - 0.035);
+    this.addBox(group, 0.72, 1.48, 0.16, wood, 0, 3.24, -width / 2 - 0.1);
+
+    const slitCount = Math.max(2, Math.floor(bodyHeight / 2.2));
+    for (let i = 0; i < slitCount; i += 1) {
+      const y = 4.35 + i * 1.75;
+      if (y > topY - 1) break;
+      const side = i % 2 === 0 ? -1 : 1;
+      this.addBox(
+        group,
+        0.1,
+        0.72,
+        0.16,
+        shadow,
+        side * (width / 2 + 0.035),
+        y,
+        i % 3 === 0 ? -0.38 : 0.35,
+      );
+
+      const stairStep = this.addBox(
+        group,
+        0.92,
+        0.13,
+        0.42,
+        accent,
+        side * 0.36,
+        y - 0.38,
+        0,
+      );
+      stairStep.rotation.y = i % 2 === 0 ? 0.18 : -0.18;
+    }
+
+    this.addBox(group, width + 0.25, 0.3, width + 0.25, walkway, 0, topY - 0.12, 0);
+    const edge = width / 2 - 0.08;
+    this.addTowerCrenellatedEdge(group, width - 0.18, 0, -edge, topY + 0.02, 0, stone);
+    this.addTowerCrenellatedEdge(group, width - 0.18, 0, edge, topY + 0.02, Math.PI, stone);
+
+    const cap = new THREE.Mesh(
+      new THREE.ConeGeometry(width * 0.72, 1.25, 4),
+      this.medievalMaterials.roofTile,
+    );
+    cap.rotation.y = Math.PI / 4;
+    cap.position.y = topY + 1.28;
+    cap.castShadow = true;
+    group.add(cap);
+
+    group.userData.castleAccess = {
+      groundConnected: true,
+      wallWalkConnected: true,
+      topY,
+    };
+
+    return group;
+  }
+
+  private bridgePairKey(
+    a: GridPoint,
+    b: GridPoint,
+  ): string {
+    const first = a.x < b.x || (a.x === b.x && a.y <= b.y) ? a : b;
+    const second = first === a ? b : a;
+    return `${first.x},${first.y}:${second.x},${second.y}`;
+  }
+
+  private existingTowerBridge(
+    a: GridPoint,
+    b: GridPoint,
+  ): TowerBridgeState | undefined {
+    const key = this.bridgePairKey(a, b);
+    return Array.from(this.towerBridges.values()).find(
+      (bridge) =>
+        this.bridgePairKey(
+          { x: bridge.ax, y: bridge.ay },
+          { x: bridge.bx, y: bridge.by },
+        ) === key,
+    );
+  }
+
+  private validateTowerBridge(
+    a: GridPoint,
+    b: GridPoint,
+  ): { valid: boolean; reason?: string } {
+    const cellA = this.state.getCell(a.x, a.y);
+    const cellB = this.state.getCell(b.x, b.y);
+    if (cellA?.kind !== 'tower' || cellB?.kind !== 'tower') {
+      return { valid: false, reason: 'Tower Bridge requires two main towers' };
+    }
+
+    const dx = b.x - a.x;
+    const dy = b.y - a.y;
+    const distance = Math.hypot(dx, dy);
+    if (distance < 2 || distance > 8.5) {
+      return { valid: false, reason: 'Tower Bridge distance must be 2–8 tiles' };
+    }
+
+    const aligned =
+      dx === 0 ||
+      dy === 0 ||
+      Math.abs(dx) === Math.abs(dy);
+    if (!aligned) {
+      return { valid: false, reason: 'Towers must align straight or diagonally' };
+    }
+
+    const topA =
+      this.terrainElevation(a.x, a.y) +
+      this.fortificationTopLocal(cellA);
+    const topB =
+      this.terrainElevation(b.x, b.y) +
+      this.fortificationTopLocal(cellB);
+    if (Math.abs(topA - topB) > 1.8) {
+      return { valid: false, reason: 'Tower platforms are too different in height' };
+    }
+
+    const steps = Math.max(Math.abs(dx), Math.abs(dy));
+    for (let i = 1; i < steps; i += 1) {
+      const x = Math.round(a.x + (dx * i) / steps);
+      const y = Math.round(a.y + (dy * i) / steps);
+      if (this.keepSystem.findAtCell(x, y)) {
+        return { valid: false, reason: 'Bridge path crosses the Keep' };
+      }
+
+      const cell = this.state.getCell(x, y);
+      if (
+        cell &&
+        cell.kind !== 'road' &&
+        cell.kind !== 'dirtRoad' &&
+        cell.kind !== 'stoneRoad' &&
+        cell.kind !== 'moat'
+      ) {
+        return { valid: false, reason: 'Bridge path must remain clear' };
+      }
+    }
+
+    return { valid: true };
+  }
+
+  private handleTowerBridgeClick(point: GridPoint): void {
+    const cell = this.state.getCell(point.x, point.y);
+    if (cell?.kind !== 'tower') {
+      this.setStatus('Tower Bridge: select a main tower platform');
+      return;
+    }
+
+    if (!this.towerBridgeStart) {
+      this.towerBridgeStart = { ...point };
+      this.towerBridgeHover = null;
+      this.clearGroup(this.wallPreviewLayer);
+      this.setStatus('Tower Bridge: select the second compatible tower');
+      return;
+    }
+
+    const start = this.towerBridgeStart;
+    if (start.x === point.x && start.y === point.y) {
+      this.towerBridgeStart = null;
+      this.towerBridgeHover = null;
+      this.clearGroup(this.wallPreviewLayer);
+      this.setStatus('Tower Bridge selection cancelled');
+      return;
+    }
+
+    const existing = this.existingTowerBridge(start, point);
+    if (existing) {
+      this.recordHistory();
+      this.towerBridges.delete(existing.id);
+      this.towerBridgeStart = null;
+      this.towerBridgeHover = null;
+      this.clearGroup(this.wallPreviewLayer);
+      this.finishBuild();
+      this.setStatus('Tower Bridge removed · Undo available');
+      return;
+    }
+
+    const validation = this.validateTowerBridge(start, point);
+    if (!validation.valid) {
+      this.setStatus(validation.reason ?? 'Invalid Tower Bridge');
+      this.renderTowerBridgePreview(start, point);
+      return;
+    }
+
+    this.recordHistory();
+    const bridge: TowerBridgeState = {
+      id: this.nextTowerBridgeId++,
+      ax: start.x,
+      ay: start.y,
+      bx: point.x,
+      by: point.y,
+      kind: this.towerBridgeKind,
+    };
+    this.towerBridges.set(bridge.id, bridge);
+    this.towerBridgeStart = null;
+    this.towerBridgeHover = null;
+    this.clearGroup(this.wallPreviewLayer);
+    this.finishBuild();
+    this.setStatus(
+      bridge.kind === 'stone'
+        ? 'Stone Tower Bridge built'
+        : 'Wooden Tower Bridge built',
+    );
+  }
+
+  private renderTowerBridgePreview(
+    a: GridPoint,
+    b: GridPoint,
+  ): void {
+    this.clearGroup(this.wallPreviewLayer);
+    const validation = this.validateTowerBridge(a, b);
+    const cellA = this.state.getCell(a.x, a.y);
+    const cellB = this.state.getCell(b.x, b.y);
+    if (cellA?.kind !== 'tower' || cellB?.kind !== 'tower') return;
+
+    const aw = this.gridToWorld(a.x, a.y);
+    const bw = this.gridToWorld(b.x, b.y);
+    const start = new THREE.Vector3(
+      aw.x,
+      this.terrainElevation(a.x, a.y) + this.fortificationTopLocal(cellA),
+      aw.z,
+    );
+    const end = new THREE.Vector3(
+      bw.x,
+      this.terrainElevation(b.x, b.y) + this.fortificationTopLocal(cellB),
+      bw.z,
+    );
+    const material = new THREE.MeshStandardMaterial({
+      color: validation.valid ? 0x89d7ad : 0xe56f67,
+      emissive: validation.valid ? 0x1f5a3e : 0x641f1c,
+      emissiveIntensity: 0.28,
+      transparent: true,
+      opacity: 0.52,
+      depthWrite: false,
+    });
+    this.addBridgeBeamBetween(
+      this.wallPreviewLayer,
+      start,
+      end,
+      1.6,
+      0.22,
+      material,
+    );
+  }
+
+  private addBridgeBeamBetween(
+    group: THREE.Group,
+    start: THREE.Vector3,
+    end: THREE.Vector3,
+    width: number,
+    height: number,
+    material: THREE.Material,
+  ): THREE.Mesh {
+    const direction = end.clone().sub(start);
+    const length = direction.length();
+    const mesh = new THREE.Mesh(
+      new THREE.BoxGeometry(width, height, Math.max(0.05, length)),
+      material,
+    );
+    mesh.position.copy(start).add(end).multiplyScalar(0.5);
+    mesh.quaternion.setFromUnitVectors(
+      new THREE.Vector3(0, 0, 1),
+      direction.normalize(),
+    );
+    mesh.castShadow = true;
+    mesh.receiveShadow = true;
+    group.add(mesh);
+    return mesh;
+  }
+
+  private makeTowerBridge(bridge: TowerBridgeState): THREE.Group {
+    const group = new THREE.Group();
+    const aCell = this.state.getCell(bridge.ax, bridge.ay);
+    const bCell = this.state.getCell(bridge.bx, bridge.by);
+    if (aCell?.kind !== 'tower' || bCell?.kind !== 'tower') return group;
+
+    const aw = this.gridToWorld(bridge.ax, bridge.ay);
+    const bw = this.gridToWorld(bridge.bx, bridge.by);
+    const start = new THREE.Vector3(
+      aw.x,
+      this.terrainElevation(bridge.ax, bridge.ay) + this.fortificationTopLocal(aCell) - 0.18,
+      aw.z,
+    );
+    const end = new THREE.Vector3(
+      bw.x,
+      this.terrainElevation(bridge.bx, bridge.by) + this.fortificationTopLocal(bCell) - 0.18,
+      bw.z,
+    );
+    const forward = end.clone().sub(start);
+    const horizontal = new THREE.Vector3(forward.x, 0, forward.z).normalize();
+    const side = new THREE.Vector3(-horizontal.z, 0, horizontal.x);
+    const span = start.distanceTo(end);
+
+    if (bridge.kind === 'stone') {
+      const stone = this.medievalMaterials.castleStone(this.stoneStyle, 'body', bridge.ax, bridge.ay);
+      const walkway = this.medievalMaterials.castleStone(this.stoneStyle, 'walkway', bridge.ax, bridge.ay);
+      const support = this.medievalMaterials.castleStone(this.stoneStyle, 'foundation', bridge.ax, bridge.ay);
+
+      this.addBridgeBeamBetween(group, start, end, 1.9, 0.34, walkway);
+      for (const sign of [-1, 1]) {
+        const offset = side.clone().multiplyScalar(sign * 0.82);
+        const railStart = start.clone().add(offset).add(new THREE.Vector3(0, 0.38, 0));
+        const railEnd = end.clone().add(offset).add(new THREE.Vector3(0, 0.38, 0));
+        this.addBridgeBeamBetween(group, railStart, railEnd, 0.26, 0.68, stone);
+      }
+
+      const supportCount = Math.max(1, Math.floor(span / 6));
+      for (let i = 1; i <= supportCount; i += 1) {
+        const t = i / (supportCount + 1);
+        const center = start.clone().lerp(end, t);
+        for (const sign of [-1, 1]) {
+          const offset = side.clone().multiplyScalar(sign * 0.72);
+          const corbel = new THREE.Mesh(
+            new THREE.BoxGeometry(0.42, 0.72, 0.52),
+            support,
+          );
+          corbel.position.copy(center).add(offset);
+          corbel.position.y -= 0.5;
+          corbel.rotation.y = Math.atan2(horizontal.x, horizontal.z);
+          corbel.castShadow = true;
+          group.add(corbel);
+        }
+      }
+    } else {
+      const wood = this.medievalMaterials.timber;
+      const dark = this.medievalMaterials.timberDark;
+      const plankCount = Math.max(5, Math.round(span / 0.7));
+
+      for (let i = 0; i < plankCount; i += 1) {
+        const t0 = i / plankCount;
+        const t1 = (i + 0.9) / plankCount;
+        const p0 = start.clone().lerp(end, t0);
+        const p1 = start.clone().lerp(end, t1);
+        this.addBridgeBeamBetween(group, p0, p1, 1.75, 0.18, wood);
+      }
+
+      for (const sign of [-1, 1]) {
+        const offset = side.clone().multiplyScalar(sign * 0.78);
+        const railStart = start.clone().add(offset).add(new THREE.Vector3(0, 0.62, 0));
+        const railEnd = end.clone().add(offset).add(new THREE.Vector3(0, 0.62, 0));
+        this.addBridgeBeamBetween(group, railStart, railEnd, 0.11, 0.11, dark);
+      }
+
+      const postCount = Math.max(3, Math.floor(span / 2.2));
+      for (let i = 0; i <= postCount; i += 1) {
+        const t = i / postCount;
+        const center = start.clone().lerp(end, t);
+        for (const sign of [-1, 1]) {
+          const offset = side.clone().multiplyScalar(sign * 0.78);
+          const post = this.addBridgeBeamBetween(
+            group,
+            center.clone().add(offset).add(new THREE.Vector3(0, 0.1, 0)),
+            center.clone().add(offset).add(new THREE.Vector3(0, 1.05, 0)),
+            0.13,
+            0.13,
+            dark,
+          );
+          post.castShadow = true;
+        }
+      }
+    }
+
+    group.userData.towerBridge = { ...bridge };
+    return group;
+  }
+
+  private removeTowerBridgesAt(x: number, y: number): void {
+    for (const [id, bridge] of this.towerBridges) {
+      if (
+        (bridge.ax === x && bridge.ay === y) ||
+        (bridge.bx === x && bridge.by === y)
+      ) {
+        this.towerBridges.delete(id);
+      }
+    }
   }
 
   private addTowerWallConnector(
@@ -3136,7 +3852,7 @@ export class ThreeGame {
       2.35,
       foundationHeight,
       run + 0.44,
-      this.medievalMaterials.foundation,
+      this.medievalMaterials.castleStone(this.stoneStyle, 'foundation'),
       0,
       2.22 - foundationHeight / 2 + 0.16,
       run / 2,
@@ -3160,6 +3876,17 @@ export class ThreeGame {
       : shape === 'watch'
         ? bodySize * 2 + 0.5
         : bodySize * 2 + 0.55;
+    const walkwayMaterial = this.medievalMaterials.castleStone(
+      this.stoneStyle,
+      'walkway',
+    );
+
+    let resolvedTop: TowerTop = top;
+    if (top === 'roof') resolvedTop = squareLike ? 'hipped' : 'conical';
+    if (top === 'battlement') resolvedTop = 'openBattlement';
+    if (top === 'hipped' && !squareLike) resolvedTop = 'conical';
+    if (top === 'pyramidal' && !squareLike) resolvedTop = 'conical';
+    if (top === 'conical' && squareLike) resolvedTop = 'hipped';
 
     const addDefensivePlatform = (withCrenels: boolean): void => {
       if (squareLike) {
@@ -3168,12 +3895,21 @@ export class ThreeGame {
           platformSpan,
           0.34,
           platformSpan,
-          this.medievalMaterials.walkway,
+          walkwayMaterial,
           0,
           topY + 0.1,
           0,
         );
-        this.addBox(group, platformSpan + 0.26, 0.22, platformSpan + 0.26, stone, 0, topY - 0.03, 0);
+        this.addBox(
+          group,
+          platformSpan + 0.26,
+          0.22,
+          platformSpan + 0.26,
+          stone,
+          0,
+          topY - 0.03,
+          0,
+        );
 
         if (withCrenels) {
           const edge = platformSpan / 2 - 0.18;
@@ -3187,7 +3923,7 @@ export class ThreeGame {
         const radius = platformSpan / 2;
         const slab = new THREE.Mesh(
           new THREE.CylinderGeometry(radius, radius, 0.34, segments),
-          this.medievalMaterials.walkway,
+          walkwayMaterial,
         );
         slab.position.y = topY + 0.1;
         slab.castShadow = true;
@@ -3224,7 +3960,7 @@ export class ThreeGame {
       }
     };
 
-    if (top === 'battlement' || top === 'flag') {
+    if (resolvedTop === 'openBattlement' || top === 'flag') {
       addDefensivePlatform(true);
 
       if (top === 'flag') {
@@ -3235,48 +3971,151 @@ export class ThreeGame {
       return;
     }
 
-    if (top === 'roof') {
-      const segments = squareLike ? 4 : shape === 'octagonal' ? 8 : 16;
-
-      if (squareLike) {
-        this.addBox(
-          group,
-          platformSpan + 0.35,
-          0.22,
-          platformSpan + 0.35,
-          this.medievalMaterials.roofDark,
-          0,
-          topY + 0.06,
-          0,
-        );
-      } else {
-        const eave = new THREE.Mesh(
-          new THREE.CylinderGeometry(platformSpan * 0.56, platformSpan * 0.56, 0.22, segments),
-          this.medievalMaterials.roofDark,
-        );
-        eave.position.y = topY + 0.06;
-        eave.castShadow = true;
-        group.add(eave);
-      }
-
-      const roofMesh = new THREE.Mesh(
-        new THREE.ConeGeometry(platformSpan * 0.58, 2.8, segments),
-        roof,
-      );
-      roofMesh.position.y = topY + 1.48;
-      if (squareLike) roofMesh.rotation.y = Math.PI / 4;
-      roofMesh.castShadow = true;
-      roofMesh.receiveShadow = true;
-      group.add(roofMesh);
-      return;
-    }
-
-    if (top === 'flat') {
+    if (resolvedTop === 'flat') {
       addDefensivePlatform(false);
       return;
     }
 
-    if (top === 'watch') {
+    if (resolvedTop === 'conical') {
+      const segments = shape === 'octagonal' ? 8 : shape === 'watch' ? 12 : 18;
+      const radius = platformSpan * 0.58;
+      const roofHeight = THREE.MathUtils.clamp(platformSpan * 0.72, 2.25, 3.7);
+
+      const eave = new THREE.Mesh(
+        new THREE.CylinderGeometry(radius * 1.04, radius * 1.04, 0.22, segments),
+        this.medievalMaterials.roofDark,
+      );
+      eave.position.y = topY + 0.08;
+      eave.castShadow = true;
+      group.add(eave);
+
+      const lowerSkirt = new THREE.Mesh(
+        new THREE.CylinderGeometry(radius * 0.96, radius * 1.05, 0.34, segments),
+        roof,
+      );
+      lowerSkirt.position.y = topY + 0.28;
+      lowerSkirt.castShadow = true;
+      group.add(lowerSkirt);
+
+      const roofMesh = new THREE.Mesh(
+        new THREE.ConeGeometry(radius, roofHeight, segments),
+        roof,
+      );
+      roofMesh.position.y = topY + 0.34 + roofHeight / 2;
+      roofMesh.castShadow = true;
+      roofMesh.receiveShadow = true;
+      group.add(roofMesh);
+
+      this.addBox(group, 0.07, 0.8, 0.07, metal, 0, topY + roofHeight + 0.68, 0);
+      return;
+    }
+
+    if (resolvedTop === 'hipped' || resolvedTop === 'pyramidal') {
+      const steep = resolvedTop === 'pyramidal';
+      const roofHeight = steep
+        ? THREE.MathUtils.clamp(platformSpan * 0.75, 2.8, 4.2)
+        : THREE.MathUtils.clamp(platformSpan * 0.48, 2.0, 3.2);
+      const radius = platformSpan * (steep ? 0.62 : 0.66);
+
+      this.addBox(
+        group,
+        platformSpan + 0.48,
+        0.24,
+        platformSpan + 0.48,
+        this.medievalMaterials.roofDark,
+        0,
+        topY + 0.08,
+        0,
+      );
+
+      const lower = new THREE.Mesh(
+        new THREE.ConeGeometry(radius, roofHeight * 0.72, 4),
+        roof,
+      );
+      lower.rotation.y = Math.PI / 4;
+      lower.position.y = topY + 0.24 + roofHeight * 0.36;
+      lower.castShadow = true;
+      lower.receiveShadow = true;
+      group.add(lower);
+
+      const cap = new THREE.Mesh(
+        new THREE.ConeGeometry(radius * 0.55, roofHeight * 0.48, 4),
+        roof,
+      );
+      cap.rotation.y = Math.PI / 4;
+      cap.position.y = topY + roofHeight * 0.72;
+      cap.castShadow = true;
+      group.add(cap);
+
+      for (const angle of [0, Math.PI / 2, Math.PI, Math.PI * 1.5]) {
+        const beam = this.addBox(
+          group,
+          0.09,
+          roofHeight * 0.86,
+          0.09,
+          this.medievalMaterials.timberDark,
+          Math.sin(angle) * radius * 0.54,
+          topY + roofHeight * 0.44,
+          Math.cos(angle) * radius * 0.54,
+        );
+        beam.rotation.x = angle === 0 || angle === Math.PI
+          ? (angle === 0 ? -0.46 : 0.46)
+          : 0;
+        beam.rotation.z = angle === Math.PI / 2 || angle === Math.PI * 1.5
+          ? (angle === Math.PI / 2 ? 0.46 : -0.46)
+          : 0;
+      }
+      return;
+    }
+
+    if (resolvedTop === 'timberRoof') {
+      addDefensivePlatform(false);
+      const roofRadius = platformSpan * 0.58;
+      const postRadius = platformSpan * 0.34;
+
+      for (const [x, z] of [
+        [-postRadius, -postRadius],
+        [postRadius, -postRadius],
+        [-postRadius, postRadius],
+        [postRadius, postRadius],
+      ] as Array<[number, number]>) {
+        this.addBox(group, 0.18, 1.75, 0.18, wood, x, topY + 1.08, z);
+        this.addBox(group, 0.5, 0.16, 0.5, metal, x, topY + 0.3, z);
+      }
+
+      const collar = this.addBox(
+        group,
+        platformSpan + 0.55,
+        0.22,
+        platformSpan + 0.55,
+        this.medievalMaterials.timberDark,
+        0,
+        topY + 1.92,
+        0,
+      );
+      collar.castShadow = true;
+
+      const canopy = new THREE.Mesh(
+        new THREE.ConeGeometry(
+          roofRadius,
+          THREE.MathUtils.clamp(platformSpan * 0.46, 1.75, 2.7),
+          squareLike ? 4 : shape === 'octagonal' ? 8 : 12,
+        ),
+        roof,
+      );
+      if (squareLike) canopy.rotation.y = Math.PI / 4;
+      canopy.position.y = topY + 2.78;
+      canopy.castShadow = true;
+      canopy.receiveShadow = true;
+      group.add(canopy);
+
+      for (const z of [-postRadius, postRadius]) {
+        this.addBox(group, platformSpan * 0.7, 0.11, 0.11, wood, 0, topY + 1.52, z);
+      }
+      return;
+    }
+
+    if (resolvedTop === 'watch') {
       addDefensivePlatform(false);
       const postRadius = platformSpan * 0.34;
 
@@ -3308,7 +4147,10 @@ export class ThreeGame {
       canopy.position.y = topY + 2.82;
       canopy.castShadow = true;
       group.add(canopy);
+      return;
     }
+
+    addDefensivePlatform(true);
   }
 
   private addTowerCrenellatedEdge(
@@ -3373,6 +4215,10 @@ export class ThreeGame {
     if (cell.kind === 'tower') {
       const base = (cell.towerShape ?? 'round') === 'watch' ? 6.4 : 7.4;
       return 2.58 + base + Math.max(0, (cell.level ?? 1) - 1) * 2.15;
+    }
+
+    if (cell.kind === 'stairTower') {
+      return THREE.MathUtils.clamp(cell.accessHeight ?? 8.1, 7.2, 20);
     }
 
     if (cell.kind === 'gate') return 7.85;
@@ -3824,6 +4670,8 @@ export class ThreeGame {
       keeps: this.keepSystem.entries(),
       terrain: Array.from(this.terrainOverrides.entries()),
       elevations: Array.from(this.elevationOverrides.entries()),
+      stoneStyle: this.stoneStyle,
+      towerBridges: Array.from(this.towerBridges.values()).map((bridge) => ({ ...bridge })),
     };
   }
 
@@ -3840,6 +4688,13 @@ export class ThreeGame {
   private restoreSnapshot(snapshot: HistorySnapshot): void {
     this.state.replace(snapshot.cells);
     this.keepSystem.replace(snapshot.keeps ?? []);
+    this.stoneStyle = snapshot.stoneStyle ?? 'limestone';
+    this.towerBridges.clear();
+    for (const bridge of snapshot.towerBridges ?? []) {
+      this.towerBridges.set(bridge.id, { ...bridge });
+    }
+    this.nextTowerBridgeId =
+      Math.max(0, ...Array.from(this.towerBridges.keys())) + 1;
     this.terrainOverrides.clear();
     this.elevationOverrides.clear();
 
@@ -3848,6 +4703,10 @@ export class ThreeGame {
 
     this.selectedCell = null;
     this.selectedKeepId = null;
+    this.towerBridgeStart = null;
+    this.towerBridgeHover = null;
+    const stoneSelect = document.getElementById('castle-stone-style') as HTMLSelectElement | null;
+    if (stoneSelect) stoneSelect.value = this.stoneStyle;
     this.redraw();
     this.save(false);
   }
@@ -4026,8 +4885,12 @@ export class ThreeGame {
 
     this.recordHistory();
 
+    const sourceX = this.selectedCell.x;
+    const sourceY = this.selectedCell.y;
+    if (source.kind === 'tower') this.removeTowerBridgesAt(sourceX, sourceY);
+
     const { kind, level, ...options } = source;
-    this.state.removeCell(this.selectedCell.x, this.selectedCell.y);
+    this.state.removeCell(sourceX, sourceY);
     this.state.setCell(nx, ny, kind, level ?? 1, options);
     this.selectedCell = { x: nx, y: ny };
 
@@ -4072,7 +4935,7 @@ export class ThreeGame {
         if (this.battleSystem.isActive()) return;
 
         const cell = this.pickGridCell(event);
-        if (cell) this.beginLongPress(event, cell);
+        if (cell && this.selectedTool !== 'towerBridge') this.beginLongPress(event, cell);
 
         if (this.isWallTool(this.selectedTool)) {
           if (!cell) return;
@@ -4163,6 +5026,21 @@ export class ThreeGame {
           event.preventDefault();
           event.stopPropagation();
           return;
+        }
+
+        if (this.selectedTool === 'towerBridge' && this.towerBridgeStart) {
+          const cell = this.pickGridCell(event);
+          if (
+            cell &&
+            (cell.x !== this.towerBridgeHover?.x || cell.y !== this.towerBridgeHover?.y)
+          ) {
+            this.towerBridgeHover = cell;
+            if (this.state.getCell(cell.x, cell.y)?.kind === 'tower') {
+              this.renderTowerBridgePreview(this.towerBridgeStart, cell);
+            } else {
+              this.clearGroup(this.wallPreviewLayer);
+            }
+          }
         }
 
         if (this.mountainRangeStart) {
@@ -4409,6 +5287,7 @@ export class ThreeGame {
       if (this.selectedKeepId === keep.id) this.selectedKeepId = null;
       this.setStatus('Long-press removal · Keep removed · Undo available');
     } else if (cell) {
+      if (cell.kind === 'tower') this.removeTowerBridgesAt(point.x, point.y);
       this.state.removeCell(point.x, point.y);
       this.setStatus('Long-press removal · object removed · Undo available');
     }
@@ -4956,6 +5835,7 @@ export class ThreeGame {
       }
       if (current) {
         this.recordHistory();
+        if (current === 'tower') this.removeTowerBridgesAt(gx, gy);
         this.state.removeCell(gx, gy);
         this.finishBuild();
         return;
@@ -4971,6 +5851,11 @@ export class ThreeGame {
 
     if (this.selectedTool === 'keep') {
       this.placeKeep(gx, gy);
+      return;
+    }
+
+    if (this.selectedTool === 'towerBridge') {
+      this.handleTowerBridgeClick(point);
       return;
     }
 
@@ -5068,6 +5953,32 @@ export class ThreeGame {
       return;
     }
 
+    if (this.selectedTool === 'stairTower') {
+      if (current) {
+        this.setStatus('Stair Tower needs an empty tile beside a Wall Walk');
+        return;
+      }
+      if (!this.canBuildFortificationOnTerrain(terrain)) {
+        this.setStatus('Stair Tower needs stable ground');
+        return;
+      }
+
+      const snap = this.findStairTowerSnap(gx, gy);
+      if (!snap) {
+        this.setStatus('Place Stair Tower directly beside a wall with Top Walkway enabled');
+        return;
+      }
+
+      this.recordHistory();
+      this.state.setCell(gx, gy, 'stairTower', 1, {
+        rotation: snap.rotation,
+        accessHeight: snap.accessHeight,
+      });
+      this.finishBuild();
+      this.setStatus('Stair Tower connected Ground ↕ Wall Walk');
+      return;
+    }
+
     if (this.selectedTool === 'tower') {
       if (current === 'tower') {
         const nextLevel = event.shiftKey
@@ -5075,10 +5986,12 @@ export class ThreeGame {
           : (cell?.level ?? 1) + 1;
 
         this.recordHistory();
+        const compatibleTop = this.compatibleTowerTop(this.towerShape, this.towerTop);
+        this.towerTop = compatibleTop;
         this.state.updateCell(gx, gy, {
           level: nextLevel,
           towerShape: this.towerShape,
-          towerTop: this.towerTop,
+          towerTop: compatibleTop,
         });
         this.finishBuild();
         return;
@@ -5088,9 +6001,11 @@ export class ThreeGame {
       if (!current && !this.canBuildFortificationOnTerrain(terrain)) return;
 
       this.recordHistory();
+      const compatibleTop = this.compatibleTowerTop(this.towerShape, this.towerTop);
+      this.towerTop = compatibleTop;
       this.state.setCell(gx, gy, 'tower', cell?.level ?? 1, {
         towerShape: this.towerShape,
-        towerTop: this.towerTop,
+        towerTop: compatibleTop,
       });
       this.finishBuild();
       return;
@@ -5232,6 +6147,8 @@ export class ThreeGame {
       updatedAt: Date.now(),
       cells: this.state.entries(),
       keeps: this.keepSystem.entries(),
+      stoneStyle: this.stoneStyle,
+      towerBridges: Array.from(this.towerBridges.values()).map((bridge) => ({ ...bridge })),
       terrain,
       elevations,
       worldSeeded: this.worldSeeded,
@@ -5261,8 +6178,11 @@ export class ThreeGame {
           rotation?: number;
           wallLinks?: WallDirection[];
           shipKind?: ShipKind;
+          accessHeight?: number;
         }>;
         keeps?: KeepState[];
+        stoneStyle?: StoneStyle;
+        towerBridges?: TowerBridgeState[];
         terrain?: Array<{ x: number; y: number; kind: TerrainOverrideKind }>;
         elevations?: Array<{ x: number; y: number; value: number }>;
         worldSeeded?: boolean;
@@ -5289,11 +6209,32 @@ export class ThreeGame {
           rotation: cell.rotation,
           wallLinks: cell.wallLinks,
           shipKind: cell.shipKind,
+          accessHeight: cell.accessHeight,
         });
       }
 
       this.state.replace(cells);
       this.keepSystem.replace(data.keeps ?? []);
+      this.stoneStyle =
+        data.stoneStyle === 'darkStone' ||
+        data.stoneStyle === 'sandstone' ||
+        data.stoneStyle === 'frontier'
+          ? data.stoneStyle
+          : 'limestone';
+      this.towerBridges.clear();
+      for (const bridge of data.towerBridges ?? []) {
+        if (
+          !Number.isInteger(bridge.id) ||
+          !Number.isInteger(bridge.ax) ||
+          !Number.isInteger(bridge.ay) ||
+          !Number.isInteger(bridge.bx) ||
+          !Number.isInteger(bridge.by)
+        ) continue;
+        if (bridge.kind !== 'stone' && bridge.kind !== 'wood') continue;
+        this.towerBridges.set(bridge.id, { ...bridge });
+      }
+      this.nextTowerBridgeId =
+        Math.max(0, ...Array.from(this.towerBridges.keys())) + 1;
       this.terrainOverrides.clear();
       this.elevationOverrides.clear();
 
@@ -5370,13 +6311,24 @@ export class ThreeGame {
       '<label class="settings-check"><input id="wall-battlement" type="checkbox" checked /><span>Battlement</span></label>' +
       '<label class="settings-check"><input id="wall-walkway" type="checkbox" /><span>Top Walkway</span></label>' +
       '<div class="settings-actions"><button id="selected-down" type="button">− Height</button><button id="selected-up" type="button">+ Height</button></div>' +
+      '<div class="settings-title">Castle Architecture</div>' +
+      '<label class="settings-row"><span>Stone Style</span><select id="castle-stone-style">' +
+      '<option value="limestone" selected>Limestone</option><option value="darkStone">Dark Stone</option>' +
+      '<option value="sandstone">Sandstone</option><option value="frontier">Rough Frontier</option>' +
+      '</select></label>' +
+      '<label class="settings-row"><span>Tower Bridge</span><select id="tower-bridge-kind">' +
+      '<option value="stone" selected>Stone Bridge</option><option value="wood">Wooden Bridge</option>' +
+      '</select></label>' +
+      '<div class="settings-hint">Foundations, buttresses and machicolations are generated automatically from height, terrain and structure importance.</div>' +
       '<div class="settings-title">Tower Builder</div>' +
       '<label class="settings-row"><span>Base</span><select id="tower-shape">' +
       '<option value="square">Square Tower</option><option value="round" selected>Round Tower</option>' +
       '<option value="octagonal">Octagonal Tower</option><option value="corner">Corner Tower</option>' +
       '<option value="watch">Watch Tower</option></select></label>' +
       '<label class="settings-row"><span>Top</span><select id="tower-top">' +
-      '<option value="battlement">Battlement</option><option value="roof">Roof</option>' +
+      '<option value="openBattlement" selected>Open Battlement</option>' +
+      '<option value="conical">Conical Roof</option><option value="hipped">Hipped Roof</option>' +
+      '<option value="pyramidal">Pyramidal Roof</option><option value="timberRoof">Timber Roof</option>' +
       '<option value="flat">Flat Platform</option><option value="watch">Watch Platform</option></select></label>' +
       '<div class="settings-title">Modular Keep</div>' +
       '<label class="settings-row"><span>Width</span><select id="keep-width">' +
@@ -5443,13 +6395,37 @@ export class ThreeGame {
     const towerShape = get<HTMLSelectElement>('tower-shape');
     towerShape.onchange = () => {
       this.towerShape = towerShape.value as TowerShape;
+      this.towerTop = this.compatibleTowerTop(this.towerShape, this.towerTop);
+      const topSelect = document.getElementById('tower-top') as HTMLSelectElement | null;
+      if (topSelect) topSelect.value = this.towerTop;
       this.applyTowerSettingsToSelected();
     };
 
     const towerTop = get<HTMLSelectElement>('tower-top');
     towerTop.onchange = () => {
-      this.towerTop = towerTop.value as TowerTop;
+      const requested = towerTop.value as TowerTop;
+      this.towerTop = this.compatibleTowerTop(this.towerShape, requested);
+      towerTop.value = this.towerTop;
       this.applyTowerSettingsToSelected();
+    };
+
+    const stoneStyle = get<HTMLSelectElement>('castle-stone-style');
+    stoneStyle.value = this.stoneStyle;
+    stoneStyle.onchange = () => {
+      const next = stoneStyle.value as StoneStyle;
+      if (next === this.stoneStyle) return;
+      this.recordHistory();
+      this.stoneStyle = next;
+      this.redraw();
+      this.scheduleSave();
+      this.setStatus('Castle stone style: ' + next);
+    };
+
+    const bridgeKind = get<HTMLSelectElement>('tower-bridge-kind');
+    bridgeKind.value = this.towerBridgeKind;
+    bridgeKind.onchange = () => {
+      this.towerBridgeKind = bridgeKind.value as TowerBridgeKind;
+      this.setStatus('Tower bridge material: ' + this.towerBridgeKind);
     };
 
     const keepWidth = get<HTMLSelectElement>('keep-width');
@@ -5574,6 +6550,11 @@ export class ThreeGame {
         this.recordHistory();
         this.state.clear();
         this.keepSystem.clear();
+        this.towerBridges.clear();
+        this.nextTowerBridgeId = 1;
+        this.towerBridgeStart = null;
+        this.towerBridgeHover = null;
+        this.clearGroup(this.wallPreviewLayer);
         this.selectedKeepId = null;
         this.terrainOverrides.clear();
         this.elevationOverrides.clear();
@@ -5630,6 +6611,8 @@ export class ThreeGame {
         r: 'river',
         l: 'land',
         p: 'keep',
+        d: 'towerBridge',
+        e: 'stairTower',
         i: 'dirtRoad',
         o: 'stoneRoad',
         k: 'mountainRange',
@@ -5651,6 +6634,9 @@ export class ThreeGame {
       if (event.key === 'Escape') {
         help.hidden = true;
         templates.hidden = true;
+        this.towerBridgeStart = null;
+        this.towerBridgeHover = null;
+        this.clearGroup(this.wallPreviewLayer);
       }
     });
   }
@@ -5670,15 +6656,34 @@ export class ThreeGame {
     this.scheduleSave();
   }
 
+  private compatibleTowerTop(shape: TowerShape, top: TowerTop): TowerTop {
+    const squareLike = shape === 'square' || shape === 'corner';
+
+    if (top === 'roof') return squareLike ? 'hipped' : 'conical';
+    if (top === 'battlement') return 'openBattlement';
+
+    if (squareLike && top === 'conical') return 'hipped';
+    if (!squareLike && (top === 'hipped' || top === 'pyramidal')) {
+      return 'conical';
+    }
+
+    return top;
+  }
+
   private applyTowerSettingsToSelected(): void {
     if (!this.selectedCell) return;
     const cell = this.state.getCell(this.selectedCell.x, this.selectedCell.y);
     if (!cell || cell.kind !== 'tower') return;
 
+    const compatibleTop = this.compatibleTowerTop(this.towerShape, this.towerTop);
+    this.towerTop = compatibleTop;
+    const topSelect = document.getElementById('tower-top') as HTMLSelectElement | null;
+    if (topSelect) topSelect.value = compatibleTop;
+
     this.recordHistory();
     this.state.updateCell(this.selectedCell.x, this.selectedCell.y, {
       towerShape: this.towerShape,
-      towerTop: this.towerTop,
+      towerTop: compatibleTop,
     });
     this.redraw();
     this.scheduleSave();
@@ -5899,6 +6904,11 @@ export class ThreeGame {
     this.recordHistory();
     this.state.clear();
     this.keepSystem.clear();
+    this.towerBridges.clear();
+    this.nextTowerBridgeId = 1;
+    this.towerBridgeStart = null;
+    this.towerBridgeHover = null;
+    this.clearGroup(this.wallPreviewLayer);
     this.selectedKeepId = null;
     this.terrainOverrides.clear();
     this.elevationOverrides.clear();
@@ -6363,6 +7373,12 @@ export class ThreeGame {
     if (this.battleSystem.isActive()) {
       this.setStatus('Reset Battle before returning to construction');
       return;
+    }
+
+    if (tool !== 'towerBridge') {
+      this.towerBridgeStart = null;
+      this.towerBridgeHover = null;
+      this.clearGroup(this.wallPreviewLayer);
     }
 
     this.selectedTool = tool;

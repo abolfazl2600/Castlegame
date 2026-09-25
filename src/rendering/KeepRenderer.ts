@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import type { KeepState, TerrainKind, TileKind } from '../core/types';
+import type { KeepState, StoneStyle, TerrainKind, TileKind } from '../core/types';
 import { CastleDetailGenerator } from '../building/CastleDetailGenerator';
 import { MedievalMaterials } from './MedievalMaterials';
 
@@ -9,6 +9,7 @@ export interface KeepRenderContext {
   elevationAt: (x: number, y: number) => number;
   terrainAt: (x: number, y: number) => TerrainKind;
   kindAt: (x: number, y: number) => TileKind | undefined;
+  stoneStyle: StoneStyle;
 }
 
 export class KeepRenderer {
@@ -46,9 +47,9 @@ export class KeepRenderer {
 
     group.position.set(center.x, 0, center.z);
 
-    const stone = this.materials.stoneVariant(keep.x, keep.y);
-    const stoneDark = this.materials.foundation;
-    const stoneLight = this.materials.limestoneAlt;
+    const stone = this.materials.castleStone(context.stoneStyle, 'body', keep.x, keep.y);
+    const stoneDark = this.materials.castleStone(context.stoneStyle, 'foundation', keep.x, keep.y);
+    const stoneLight = this.materials.castleStone(context.stoneStyle, 'alt', keep.x, keep.y);
     const wood = this.materials.timber;
     const roof = this.materials.roofTile;
     const roofDark = this.materials.roofDark;

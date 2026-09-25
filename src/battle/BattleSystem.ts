@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import type { GridCell, KeepState, TerrainKind, TileKind } from '../core/types';
+import type { GridCell, KeepState, TerrainKind, TileKind, TowerBridgeState } from '../core/types';
 import { BattleNavigation, type NavPoint, type WallNavNode } from './BattleNavigation';
 import { FactionRelations } from './FactionRelations';
 import type {
@@ -21,6 +21,7 @@ export interface BattleWorldContext {
   cellAt: (x: number, y: number) => GridCell | undefined;
   fortificationTopAt: (x: number, y: number, cell: GridCell) => number;
   keeps: () => KeepState[];
+  towerBridges: () => TowerBridgeState[];
   setWallBattleVisibility: (x: number, y: number, visible: boolean) => void;
 }
 
@@ -202,6 +203,7 @@ export class BattleSystem {
       cellAt: world.cellAt,
       fortificationTopAt: world.fortificationTopAt,
       keeps: world.keeps,
+      towerBridges: world.towerBridges,
       temporaryGroundPassable: (x, y) => this.breachedWalls.has(this.gridKey(x, y)),
     });
   }
@@ -641,6 +643,28 @@ export class BattleSystem {
       : undefined;
 
     if (target && target.data.state !== 'dead') {
+      if (
+        runtime.data.unitType === 'swordsman' &&
+        runtime.surface === 'ground' &&
+        target.surface === 'wall' &&
+        this.tryUseStairTowerToReach(runtime, target, delta)
+      ) {
+        runtime.view.position.copy(runtime.position);
+        this.animateUnit(runtime);
+        return;
+      }
+
+      if (
+        runtime.data.unitType === 'swordsman' &&
+        runtime.surface === 'wall' &&
+        target.surface === 'ground' &&
+        this.tryUseStairTowerToDescend(runtime, target, delta)
+      ) {
+        runtime.view.position.copy(runtime.position);
+        this.animateUnit(runtime);
+        return;
+      }
+
       this.faceTarget(runtime, target.position);
       const distance = runtime.position.distanceTo(target.position);
 
@@ -753,6 +777,138 @@ export class BattleSystem {
     }
 
     runtime.data.state = state;
+  }
+
+  private tryUseStairTowerToReach(
+    runtime: UnitRuntime,
+    target: UnitRuntime,
+    delta: number,
+  ): boolean {
+    const accesses = this.navigation.stairTowerAccessNodes();
+    if (accesses.length === 0) return false;
+
+    const candidates = accesses
+      .map((access) => {
+        const path = this.navigation.findPath(
+          { x: runtime.gridX, y: runtime.gridY },
+          access.ground,
+          false,
+        );
+        return {
+          access,
+          path,
+          score:
+            (path.length > 0 ? path.length : 999) +
+            this.gridDistance(access.top, { x: target.gridX, y: target.gridY }),
+        };
+      })
+      .filter((candidate) => candidate.path.length > 0)
+      .sort((a, b) => a.score - b.score);
+
+    const chosen = candidates[0];
+    if (!chosen) return false;
+
+    const groundWorld = this.world.gridToWorld(
+      chosen.access.ground.x,
+      chosen.access.ground.y,
+    );
+    const distance = Math.hypot(
+      runtime.position.x - groundWorld.x,
+      runtime.position.z - groundWorld.z,
+    );
+
+    if (distance <= 0.7) {
+      const topWorld = this.world.gridToWorld(
+        chosen.access.top.x,
+        chosen.access.top.y,
+      );
+      runtime.surface = 'wall';
+      runtime.gridX = chosen.access.top.x;
+      runtime.gridY = chosen.access.top.y;
+      runtime.position.set(topWorld.x, chosen.access.top.worldY, topWorld.z);
+      runtime.path = [];
+      runtime.pathIndex = 0;
+      runtime.wallSeconds = 0;
+      runtime.data.state = 'moving';
+      return true;
+    }
+
+    if (
+      runtime.path.length === 0 ||
+      runtime.pathIndex >= runtime.path.length ||
+      runtime.path[runtime.path.length - 1]?.x !== chosen.access.ground.x ||
+      runtime.path[runtime.path.length - 1]?.y !== chosen.access.ground.y
+    ) {
+      runtime.path = chosen.path;
+      runtime.pathIndex = Math.min(1, Math.max(0, runtime.path.length - 1));
+    }
+
+    this.followGroundPath(runtime, delta, 'moving');
+    return true;
+  }
+
+  private tryUseStairTowerToDescend(
+    runtime: UnitRuntime,
+    target: UnitRuntime,
+    delta: number,
+  ): boolean {
+    const accesses = this.navigation.stairTowerAccessNodes();
+    if (accesses.length === 0) return false;
+
+    accesses.sort(
+      (a, b) =>
+        this.gridDistance(a.top, { x: target.gridX, y: target.gridY }) -
+        this.gridDistance(b.top, { x: target.gridX, y: target.gridY }),
+    );
+    const chosen = accesses[0];
+
+    if (
+      runtime.gridX === chosen.top.x &&
+      runtime.gridY === chosen.top.y
+    ) {
+      const world = this.world.gridToWorld(
+        chosen.ground.x,
+        chosen.ground.y,
+      );
+      runtime.surface = 'ground';
+      runtime.gridX = chosen.ground.x;
+      runtime.gridY = chosen.ground.y;
+      runtime.position.set(
+        world.x,
+        2.22 + this.world.elevationAt(chosen.ground.x, chosen.ground.y),
+        world.z,
+      );
+      runtime.path = this.navigation.findPath(
+        chosen.ground,
+        { x: target.gridX, y: target.gridY },
+        true,
+      );
+      runtime.pathIndex = Math.min(1, Math.max(0, runtime.path.length - 1));
+      runtime.data.state = 'moving';
+      return true;
+    }
+
+    const node = this.wallNodes.get(this.gridKey(runtime.gridX, runtime.gridY));
+    if (!node) return false;
+
+    const neighbors = this.navigation.connectedWallNeighbors(node, this.wallNodes);
+    if (neighbors.length === 0) return false;
+    neighbors.sort(
+      (a, b) =>
+        this.gridDistance(a, chosen.top) -
+        this.gridDistance(b, chosen.top),
+    );
+
+    const next = neighbors[0];
+    const world = this.world.gridToWorld(next.x, next.y);
+    const destination = new THREE.Vector3(world.x, next.worldY, world.z);
+    if (this.moveTowardWallPoint(runtime, destination, delta, 0.28)) {
+      runtime.gridX = next.x;
+      runtime.gridY = next.y;
+      runtime.position.y = next.worldY;
+    }
+    runtime.data.state = 'moving';
+    return true;
   }
 
   private moveTowardTarget(runtime: UnitRuntime, target: THREE.Vector3, delta: number): void {

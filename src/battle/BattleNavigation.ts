@@ -1,4 +1,4 @@
-import type { GridCell, KeepState, TerrainKind, TileKind, WallDirection } from '../core/types';
+import type { GridCell, KeepState, TerrainKind, TileKind, TowerBridgeState, WallDirection } from '../core/types';
 import { WallSystem } from '../building/WallSystem';
 
 export interface NavPoint {
@@ -19,6 +19,7 @@ export interface BattleNavigationContext {
   cellAt: (x: number, y: number) => GridCell | undefined;
   fortificationTopAt: (x: number, y: number, cell: GridCell) => number;
   keeps: () => KeepState[];
+  towerBridges?: () => TowerBridgeState[];
   temporaryGroundPassable?: (x: number, y: number) => boolean;
 }
 
@@ -340,9 +341,10 @@ export class BattleNavigation {
           (cell.kind === 'wall1' || cell.kind === 'wall2' || cell.kind === 'wall3') &&
           cell.walkway === true;
         const tower = cell.kind === 'tower';
+        const stairTower = cell.kind === 'stairTower';
         const gate = cell.kind === 'gate';
 
-        if (!usable && !tower && !gate) continue;
+        if (!usable && !tower && !stairTower && !gate) continue;
 
         nodes.push({
           x,
@@ -373,6 +375,62 @@ export class BattleNavigation {
       if (!neighbor) continue;
       if (Math.abs(neighbor.worldY - node.worldY) > 3.2) continue;
       result.push(neighbor);
+    }
+
+    for (const direction of ['N', 'E', 'S', 'W'] as WallDirection[]) {
+      const vector = WallSystem.vector(direction);
+      const neighbor = nodes.get(this.key(node.x + vector.x, node.y + vector.y));
+      if (!neighbor) continue;
+      if (node.kind !== 'stairTower' && neighbor.kind !== 'stairTower') continue;
+      if (Math.abs(neighbor.worldY - node.worldY) > 3.2) continue;
+      if (!result.some((candidate) => candidate.x === neighbor.x && candidate.y === neighbor.y)) {
+        result.push(neighbor);
+      }
+    }
+
+    for (const bridge of this.context.towerBridges?.() ?? []) {
+      const isA = bridge.ax === node.x && bridge.ay === node.y;
+      const isB = bridge.bx === node.x && bridge.by === node.y;
+      if (!isA && !isB) continue;
+
+      const other = nodes.get(
+        this.key(
+          isA ? bridge.bx : bridge.ax,
+          isA ? bridge.by : bridge.ay,
+        ),
+      );
+      if (!other) continue;
+      if (Math.abs(other.worldY - node.worldY) > 2.2) continue;
+      if (!result.some((candidate) => candidate.x === other.x && candidate.y === other.y)) {
+        result.push(other);
+      }
+    }
+
+    return result;
+  }
+
+  stairTowerAccessNodes(): Array<{ top: WallNavNode; ground: NavPoint }> {
+    const nodes = this.wallPlatformNodes();
+    const result: Array<{ top: WallNavNode; ground: NavPoint }> = [];
+
+    for (const node of nodes) {
+      if (node.kind !== 'stairTower') continue;
+
+      const groundCandidates = [
+        { x: node.x + 1, y: node.y },
+        { x: node.x - 1, y: node.y },
+        { x: node.x, y: node.y + 1 },
+        { x: node.x, y: node.y - 1 },
+      ]
+        .filter((point) => this.isGroundWalkable(point.x, point.y))
+        .sort(
+          (a, b) =>
+            this.heuristic(a, this.castleObjective()) -
+            this.heuristic(b, this.castleObjective()),
+        );
+
+      const ground = groundCandidates[0];
+      if (ground) result.push({ top: node, ground });
     }
 
     return result;

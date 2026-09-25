@@ -7,7 +7,19 @@ export type WallDirection = 'N' | 'NE' | 'E' | 'SE' | 'S' | 'SW' | 'W' | 'NW';
 export type WallCornerKind = 'square' | 'rounded' | 'reinforced' | 'turret' | 'buttressed';
 
 export type TowerShape = 'square' | 'round' | 'octagonal' | 'corner' | 'watch';
-export type TowerTop = 'battlement' | 'roof' | 'flat' | 'flag' | 'watch';
+export type TowerTop =
+  | 'conical'
+  | 'hipped'
+  | 'pyramidal'
+  | 'openBattlement'
+  | 'timberRoof'
+  | 'battlement'
+  | 'roof'
+  | 'flat'
+  | 'flag'
+  | 'watch';
+export type StoneStyle = 'limestone' | 'darkStone' | 'sandstone' | 'frontier';
+export type TowerBridgeKind = 'stone' | 'wood';
 export type AccessKind = 'stoneStairs' | 'woodenStairs' | 'ramp' | 'ladder';
 export type TerrainToolKind = 'raise' | 'lower' | 'flatten' | 'smooth' | 'dig' | 'hill' | 'cliff';
 export type KeepRoofStyle = 'flatBattlement' | 'sloped' | 'defensivePlatform' | 'towered';
@@ -32,6 +44,7 @@ export type TileKind =
   | HarborKind
   | 'gate'
   | 'tower'
+  | 'stairTower'
   | 'cottage'
   | 'house'
   | 'manor'
@@ -48,6 +61,7 @@ export type TileKind =
 export type ToolKind =
   | TileKind
   | 'keep'
+  | 'towerBridge'
   | 'mountainRange'
   | 'river'
   | 'land'
@@ -68,6 +82,16 @@ export interface GridCell {
   rotation?: number;
   wallLinks?: WallDirection[];
   shipKind?: ShipKind;
+  accessHeight?: number;
+}
+
+export interface TowerBridgeState {
+  id: number;
+  ax: number;
+  ay: number;
+  bx: number;
+  by: number;
+  kind: TowerBridgeKind;
 }
 
 export interface SavedGame {
@@ -86,8 +110,11 @@ export interface SavedGame {
     rotation?: number;
     wallLinks?: WallDirection[];
     shipKind?: ShipKind;
+    accessHeight?: number;
   }>;
   keeps?: KeepState[];
+  stoneStyle?: StoneStyle;
+  towerBridges?: TowerBridgeState[];
   terrain?: Array<{ x: number; y: number; kind: TerrainOverrideKind }>;
   elevations?: Array<{ x: number; y: number; value: number }>;
   worldSeeded?: boolean;
