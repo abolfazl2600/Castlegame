@@ -31,7 +31,13 @@ export class GameScene extends Phaser.Scene {
     const loadButton = document.querySelector<HTMLButtonElement>('#load-button');
     const saveButton = document.querySelector<HTMLButtonElement>('#save-button');
     const resetButton = document.querySelector<HTMLButtonElement>('#reset-button');
-    if (!toolbarRoot || !loadButton || !saveButton || !resetButton) throw new Error('Game UI did not initialize');
+    const helpButton = document.querySelector<HTMLButtonElement>('#help-button');
+    const helpModal = document.querySelector<HTMLElement>('#help-modal');
+    const helpCloseButton = document.querySelector<HTMLButtonElement>('#help-close-button');
+    const fullscreenButton = document.querySelector<HTMLButtonElement>('#fullscreen-button');
+    if (!toolbarRoot || !loadButton || !saveButton || !resetButton || !helpButton || !helpModal || !helpCloseButton || !fullscreenButton) {
+      throw new Error('Game UI did not initialize');
+    }
 
     this.environment = new EnvironmentSystem(this);
     this.grid = new GridSystem(this);
@@ -53,6 +59,38 @@ export class GameScene extends Phaser.Scene {
     });
     saveButton.addEventListener('click', () => this.saveSystem.save());
     resetButton.addEventListener('click', () => this.resetMap());
+
+    const closeHelp = () => {
+      helpModal.hidden = true;
+      helpButton.focus();
+    };
+    const openHelp = () => {
+      helpModal.hidden = false;
+      helpCloseButton.focus();
+    };
+
+    helpButton.addEventListener('click', openHelp);
+    helpCloseButton.addEventListener('click', closeHelp);
+    helpModal.addEventListener('click', (event) => {
+      if (event.target === helpModal) closeHelp();
+    });
+
+    const updateFullscreenLabel = () => {
+      fullscreenButton.textContent = document.fullscreenElement ? 'Exit Fullscreen' : 'Fullscreen';
+    };
+    fullscreenButton.addEventListener('click', async () => {
+      try {
+        if (document.fullscreenElement) {
+          await document.exitFullscreen();
+        } else {
+          await document.documentElement.requestFullscreen();
+        }
+      } catch {
+        this.setStatus('Fullscreen is not available');
+      }
+      updateFullscreenLabel();
+    });
+    document.addEventListener('fullscreenchange', updateFullscreenLabel);
 
     this.bindShortcuts();
     this.bindBuildingInput();
@@ -80,6 +118,13 @@ export class GameScene extends Phaser.Scene {
     keyboard.on('keydown-SIX', () => this.toolbar.select('house'));
     keyboard.on('keydown-SEVEN', () => this.toolbar.select('manor'));
     keyboard.on('keydown-EIGHT', () => this.toolbar.select('erase'));
+    keyboard.on('keydown-ESC', () => {
+      const modal = document.querySelector<HTMLElement>('#help-modal');
+      if (modal && !modal.hidden) {
+        modal.hidden = true;
+        document.querySelector<HTMLButtonElement>('#help-button')?.focus();
+      }
+    });
   }
 
   private bindBuildingInput(): void {
