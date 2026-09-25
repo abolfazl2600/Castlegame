@@ -24,9 +24,12 @@ export class GameScene extends Phaser.Scene {
 
   create(): void {
     const toolbarRoot = document.querySelector<HTMLElement>('#toolbar');
+    const loadButton = document.querySelector<HTMLButtonElement>('#load-button');
     const saveButton = document.querySelector<HTMLButtonElement>('#save-button');
     const resetButton = document.querySelector<HTMLButtonElement>('#reset-button');
-    if (!toolbarRoot || !saveButton || !resetButton) throw new Error('Game UI did not initialize');
+    if (!toolbarRoot || !loadButton || !saveButton || !resetButton) {
+      throw new Error('Game UI did not initialize');
+    }
 
     this.grid = new GridSystem(this);
     this.saveSystem = new SaveSystem(this.state, (message) => this.setStatus(message));
@@ -39,6 +42,10 @@ export class GameScene extends Phaser.Scene {
       this.lastPaintedCell = '';
     });
 
+    loadButton.addEventListener('click', () => {
+      this.saveSystem.load();
+      this.build.redraw();
+    });
     saveButton.addEventListener('click', () => this.saveSystem.save());
     resetButton.addEventListener('click', () => this.resetMap());
 

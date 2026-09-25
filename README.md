@@ -14,7 +14,7 @@ Version 0.1 focuses on the core interaction loop: navigate a grid, place castle 
 - Remove tool
 - Selected-tile hover feedback
 - Compact build toolbar with keyboard shortcuts
-- Manual save, debounced automatic save, load-on-start, and reset
+- Manual load/save, debounced automatic save, load-on-start, and reset
 - `localStorage` save format with an explicit version number
 - Procedural/basic graphics only; no art pipeline yet
 
