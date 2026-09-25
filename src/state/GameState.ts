@@ -25,9 +25,7 @@ export class GameState {
 
   replace(cells: Array<{ x: number; y: number; kind: TileKind }>): void {
     this.clear();
-    for (const cell of cells) {
-      this.setCell(cell.x, cell.y, cell.kind);
-    }
+    for (const cell of cells) this.setCell(cell.x, cell.y, cell.kind);
   }
 
   entries(): Array<{ x: number; y: number; kind: TileKind }> {

@@ -9,13 +9,13 @@ interface ToolDefinition {
 }
 
 const TOOLS: ToolDefinition[] = [
-  { id: 'castle', label: 'Castle', shortcut: '1', icon: '♜', description: 'Place a castle tile' },
-  { id: 'road', label: 'Road', shortcut: '2', icon: '═', description: 'Draw roads across the grid' },
-  { id: 'erase', label: 'Remove', shortcut: '3', icon: '⌫', description: 'Remove placed tiles' },
+  { id: 'wall', label: 'Wall', shortcut: '1', icon: '▥', description: 'Build the castle walls' },
+  { id: 'road', label: 'Road', shortcut: '2', icon: '═', description: 'Draw roads across the land' },
+  { id: 'erase', label: 'Remove', shortcut: '3', icon: '⌫', description: 'Remove walls or roads' },
 ];
 
 export class Toolbar {
-  private selected: ToolKind = 'castle';
+  private selected: ToolKind = 'wall';
   private readonly buttons = new Map<ToolKind, HTMLButtonElement>();
 
   constructor(
@@ -24,7 +24,7 @@ export class Toolbar {
   ) {
     const title = document.createElement('div');
     title.className = 'toolbar-title';
-    title.innerHTML = '<span>Build</span><small>Select a tool</small>';
+    title.innerHTML = '<span>Build</span><small>Shape your stronghold</small>';
     root.append(title);
 
     for (const tool of TOOLS) {

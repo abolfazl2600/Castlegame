@@ -1,6 +1,11 @@
 import { SAVE_KEY, SAVE_VERSION } from '../core/constants';
-import type { SavedGame } from '../core/types';
+import type { SavedGame, TileKind } from '../core/types';
 import { GameState } from '../state/GameState';
+
+interface RawSavedGame {
+  version?: number;
+  cells?: Array<{ x?: number; y?: number; kind?: string }>;
+}
 
 export class SaveSystem {
   constructor(
@@ -13,13 +18,25 @@ export class SaveSystem {
       const raw = localStorage.getItem(SAVE_KEY);
       if (!raw) return false;
 
-      const parsed = JSON.parse(raw) as SavedGame;
+      const parsed = JSON.parse(raw) as RawSavedGame;
       if (parsed.version !== SAVE_VERSION || !Array.isArray(parsed.cells)) {
         this.onStatus('Save version unsupported');
         return false;
       }
 
-      this.state.replace(parsed.cells);
+      const cells: Array<{ x: number; y: number; kind: TileKind }> = [];
+      for (const cell of parsed.cells) {
+        if (!Number.isInteger(cell.x) || !Number.isInteger(cell.y)) continue;
+
+        const kind: TileKind | null =
+          cell.kind === 'road' ? 'road' :
+          cell.kind === 'wall' || cell.kind === 'castle' ? 'wall' :
+          null;
+
+        if (kind) cells.push({ x: cell.x as number, y: cell.y as number, kind });
+      }
+
+      this.state.replace(cells);
       this.onStatus('Loaded local save');
       return true;
     } catch {

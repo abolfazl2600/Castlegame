@@ -1,5 +1,6 @@
-export type TileKind = 'castle' | 'road';
+export type TileKind = 'wall' | 'road';
 export type ToolKind = TileKind | 'erase';
+export type UnitKind = 'worker' | 'soldier';
 
 export interface GridCell {
   kind: TileKind;

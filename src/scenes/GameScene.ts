@@ -4,6 +4,7 @@ import { GameState } from '../state/GameState';
 import { BuildSystem } from '../systems/BuildSystem';
 import { CameraController } from '../systems/CameraController';
 import { GridSystem } from '../systems/GridSystem';
+import { PopulationSystem } from '../systems/PopulationSystem';
 import { SaveSystem } from '../systems/SaveSystem';
 import { Toolbar } from '../ui/Toolbar';
 
@@ -11,10 +12,11 @@ export class GameScene extends Phaser.Scene {
   private readonly state = new GameState();
   private grid!: GridSystem;
   private build!: BuildSystem;
+  private population!: PopulationSystem;
   private cameraController!: CameraController;
   private saveSystem!: SaveSystem;
   private toolbar!: Toolbar;
-  private selectedTool: ToolKind = 'castle';
+  private selectedTool: ToolKind = 'wall';
   private lastPaintedCell = '';
   private autosaveTimer: number | null = null;
 
@@ -35,6 +37,7 @@ export class GameScene extends Phaser.Scene {
     this.saveSystem = new SaveSystem(this.state, (message) => this.setStatus(message));
     this.saveSystem.load();
     this.build = new BuildSystem(this.state, this);
+    this.population = new PopulationSystem(this, this.state);
     this.cameraController = new CameraController(this);
 
     this.toolbar = new Toolbar(toolbarRoot, (tool) => {
@@ -51,11 +54,12 @@ export class GameScene extends Phaser.Scene {
 
     this.bindShortcuts();
     this.bindBuildingInput();
-    this.setStatus(this.state.entries().length > 0 ? 'Local save loaded' : 'Ready to build');
+    this.setStatus(this.state.entries().length > 0 ? 'Local save loaded' : 'Ready to build walls');
   }
 
   update(_time: number, delta: number): void {
     this.cameraController.update(delta);
+    this.population.update(delta);
 
     const pointer = this.input.activePointer;
     const cell = this.grid.pointerToCell(pointer);
@@ -66,7 +70,7 @@ export class GameScene extends Phaser.Scene {
   private bindShortcuts(): void {
     const keyboard = this.input.keyboard;
     if (!keyboard) return;
-    keyboard.on('keydown-ONE', () => this.toolbar.select('castle'));
+    keyboard.on('keydown-ONE', () => this.toolbar.select('wall'));
     keyboard.on('keydown-TWO', () => this.toolbar.select('road'));
     keyboard.on('keydown-THREE', () => this.toolbar.select('erase'));
   }
@@ -93,9 +97,7 @@ export class GameScene extends Phaser.Scene {
     if (key === this.lastPaintedCell) return;
     this.lastPaintedCell = key;
 
-    if (this.build.apply(cell.x, cell.y, this.selectedTool)) {
-      this.scheduleAutosave();
-    }
+    if (this.build.apply(cell.x, cell.y, this.selectedTool)) this.scheduleAutosave();
   }
 
   private scheduleAutosave(): void {

@@ -1,40 +1,24 @@
 # Castle Role
 
-Castle Role is a small 2D top-down castle-building game prototype built with Phaser, TypeScript, and Vite.
+Castle Role is a lightweight 2D top-down castle-building game built with Phaser, TypeScript, and Vite.
 
-Version 0.1 focuses on the core interaction loop: navigate a grid, place castle tiles and roads, remove structures, and persist the map locally in the browser.
+The player is not placing complete castles. The core construction fantasy is building the **castle walls piece by piece**, laying roads, and gradually growing a living stronghold around them.
 
-## MVP features
+## Current playable features
 
 - 80 × 80 grid world using 40 px tiles
 - Camera pan with WASD, arrow keys, or middle/right mouse drag
 - Mouse-wheel zoom centered around the pointer
-- Castle tile placement
+- Connected-looking stone castle-wall construction
 - Road drawing by click/drag
 - Remove tool
 - Selected-tile hover feedback
-- Compact build toolbar with keyboard shortcuts
+- 8 ambient workers who move between construction areas and pause to work
+- 5 soldiers who patrol around the developing stronghold
 - Manual load/save, debounced automatic save, load-on-start, and reset
-- `localStorage` save format with an explicit version number
-- Procedural/basic graphics only; no art pipeline yet
-
-## Run locally
-
-Requirements: a current Node.js release supported by your installed Vite version.
-
-```bash
-npm install
-npm run dev
-```
-
-Then open the local URL printed by Vite.
-
-For a production build:
-
-```bash
-npm run build
-npm run preview
-```
+- Backward-compatible loading: old `castle` tiles are migrated to `wall`
+- `localStorage` persistence for construction
+- Procedural graphics only; no external art pipeline yet
 
 ## Controls
 
@@ -42,37 +26,50 @@ npm run preview
 - **Middle or right mouse drag** — pan camera
 - **Mouse wheel** — zoom
 - **Left click / drag** — apply selected build tool
-- **1** — Castle tool
-- **2** — Road tool
-- **3** — Remove tool
+- **1** — Wall
+- **2** — Road
+- **3** — Remove
 
-## Project structure
+## Architecture
 
 ```text
 src/
   core/       Shared constants and game types
   scenes/     Phaser scenes and orchestration
-  state/      Serializable game state
-  systems/    Grid, building, camera, and persistence systems
+  state/      Serializable construction state
+  systems/
+    BuildSystem.ts       Wall/road placement and rendering
+    CameraController.ts  Pan and zoom
+    GridSystem.ts        World grid and selection
+    PopulationSystem.ts  Workers and soldiers
+    SaveSystem.ts        Browser persistence
   ui/         DOM-based build toolbar
-  main.ts     Phaser bootstrap
-  style.css   Lightweight game shell/UI styling
 ```
 
-## Architecture notes
+Construction state and population simulation are intentionally separate. Workers and soldiers are currently lightweight ambient agents rather than persisted units. This keeps the prototype simple while giving us a clean place to add jobs, homes, barracks, enemies, orders, combat, and pathfinding later.
 
-The MVP keeps persistent game data separate from Phaser rendering. `GameState` owns serializable cells; `BuildSystem` renders them; `SaveSystem` only handles persistence. This makes future systems such as costs, workers, pathfinding, buildings with footprints, or multiple tile layers easier to add without coupling them directly to storage or UI.
+## Run locally
 
-`localStorage` is intentionally used for v0.1 because the save is a very small JSON payload. IndexedDB can be introduced later if saves grow to include large maps, NPC state, generated worlds, replays, or binary data.
+```bash
+npm install
+npm run dev
+```
+
+Production build:
+
+```bash
+npm run build
+npm run preview
+```
 
 ## Known limitations
 
-- One structure layer per grid cell; roads and castle tiles cannot overlap.
-- No construction costs, economy, terrain types, NPCs, combat, or pathfinding.
-- Castle tiles are decorative single-cell placeholders, not multi-cell buildings.
-- Saves are local to the current browser/profile and have no export/import UI yet.
-- No automated test suite yet; the MVP is intentionally kept lightweight.
+- Workers currently choose simple local destinations rather than using pathfinding.
+- Soldiers patrol but do not yet receive commands or fight.
+- Population is recreated on page load; only construction is saved.
+- Walls and roads still use one grid layer and cannot overlap.
+- No gates, towers, houses, resources, economy, jobs, barracks, or enemies yet.
 
-## Suggested next milestone
+## Recommended next milestone
 
-Add a small building catalog with typed definitions and footprints (for example wall, tower, gate, keep), plus placement validation and a basic resource cost model. That expands gameplay without forcing a premature simulation architecture.
+Add **gates + towers + a small house/workplace system**. Then workers can have real jobs and destinations, and soldiers can be tied to barracks and wall/gate guard posts before combat is introduced.
