@@ -2,36 +2,42 @@
 
 Castle Role is a lightweight 2D top-down fortress-building game built with Phaser, TypeScript, and Vite.
 
-The core fantasy is building the walls of a growing castle settlement rather than placing a single finished castle.
+## Latest direction
+
+The visual direction now moves toward a **compact, stylized island-settlement look** inspired by soft, colorful strategy-builder references, while still staying in a lightweight 2D Phaser architecture.
 
 ## Current playable features
 
-- 80 × 80 grid world using 40 px tiles
+- Smaller **48 × 48** world for better performance
+- Compact island-like map with coast, plains, river, mountain, and forest zones
 - Camera pan and zoom
-- Connected stone wall construction
+- Wall building with multiple automatic visual states based on neighbors
+- Dedicated **Gate** tool
+- Dedicated **Tower** tool
 - Road building
-- Three home types: Cottage, House, Manor
-- Procedural river, mountain, and forest terrain
-- Terrain-aware placement rules
+- Three house types: Cottage, House, Manor
 - Ambient workers and patrolling soldiers
 - Local browser save/load/reset
 
 ## Controls
 
-- 1 — Wall
-- 2 — Road
-- 3 — Cottage
-- 4 — House
-- 5 — Manor
-- 6 — Remove
+- **1** — Wall
+- **2** — Gate
+- **3** — Tower
+- **4** — Road
+- **5** — Cottage
+- **6** — House
+- **7** — Manor
+- **8** — Remove
 
-## Architecture
+## Notes
 
-Environment, construction, population, camera, grid, UI, and persistence are kept in separate systems so future terrain clearing, economy, pathfinding, towers, gates, and combat can grow without turning the scene into one large file.
+This is still a 2D top-down prototype. The new look is inspired by the colorful island-builder style reference, not a full 3D/isometric conversion. That keeps performance high and the codebase simpler while still pushing the atmosphere in the requested direction.
 
-## Known limitations
+## Recommended next milestone
 
-- Houses are currently decorative residences.
-- Units are ambient and not persisted.
-- Forest and mountain terrain are not yet clearable.
-- No bridges or terrain resource extraction yet.
+- Add wall upgrading / wall material variants
+- Add gate orientation logic
+- Add tower radius / guard posts
+- Add bridges and docks for water-adjacent building
+- Add terrain clearing and resource gathering
