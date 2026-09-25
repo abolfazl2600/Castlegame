@@ -22,12 +22,11 @@ export class PopulationSystem {
     const centerX = WORLD_WIDTH / 2;
     const centerY = WORLD_HEIGHT / 2;
 
-    for (let i = 0; i < 8; i += 1) {
-      this.units.push(this.createUnit('worker', centerX + (i - 4) * 18, centerY + 55));
+    for (let i = 0; i < 10; i += 1) {
+      this.units.push(this.createUnit('worker', centerX + (i - 5) * 18, centerY + 55));
     }
-
-    for (let i = 0; i < 5; i += 1) {
-      this.units.push(this.createUnit('soldier', centerX + (i - 2) * 24, centerY - 55));
+    for (let i = 0; i < 6; i += 1) {
+      this.units.push(this.createUnit('soldier', centerX + (i - 3) * 24, centerY - 55));
     }
   }
 
@@ -47,7 +46,7 @@ export class PopulationSystem {
 
       if (distance < 5) {
         unit.pauseMs = unit.kind === 'worker'
-          ? Phaser.Math.Between(900, 2100)
+          ? Phaser.Math.Between(900, 2200)
           : Phaser.Math.Between(350, 800);
         unit.target = this.chooseTarget(unit.kind);
         continue;
@@ -102,20 +101,19 @@ export class PopulationSystem {
   }
 
   private chooseTarget(kind: UnitKind): Phaser.Math.Vector2 {
-    if (kind === 'worker') {
-      const buildCells = this.state.entries();
-      if (buildCells.length > 0 && Math.random() < 0.78) {
-        const target = Phaser.Utils.Array.GetRandom(buildCells);
-        return new Phaser.Math.Vector2(
-          target.x * TILE_SIZE + TILE_SIZE / 2 + Phaser.Math.Between(-22, 22),
-          target.y * TILE_SIZE + TILE_SIZE / 2 + Phaser.Math.Between(-22, 22),
-        );
-      }
+    const builtCells = this.state.entries().filter((cell) => cell.kind !== 'road');
+
+    if (kind === 'worker' && builtCells.length > 0 && Math.random() < 0.82) {
+      const target = Phaser.Utils.Array.GetRandom(builtCells);
+      return new Phaser.Math.Vector2(
+        target.x * TILE_SIZE + TILE_SIZE / 2 + Phaser.Math.Between(-18, 18),
+        target.y * TILE_SIZE + TILE_SIZE / 2 + Phaser.Math.Between(-18, 18),
+      );
     }
 
     const centerX = WORLD_WIDTH / 2;
     const centerY = WORLD_HEIGHT / 2;
-    const radius = kind === 'soldier' ? 210 : 310;
+    const radius = kind === 'soldier' ? 220 : 320;
     const angle = Phaser.Math.FloatBetween(0, Math.PI * 2);
     const distance = Phaser.Math.Between(45, radius);
 
