@@ -15,6 +15,8 @@
         </div>
         <div class="status-group">
           <span id="save-status" class="status-pill">Ready</span>
+          <button id="help-button" class="secondary-button" type="button">Help</button>
+          <button id="fullscreen-button" class="secondary-button" type="button">Fullscreen</button>
           <button id="load-button" class="secondary-button" type="button">Load</button>
           <button id="save-button" class="secondary-button" type="button">Save</button>
           <button id="reset-button" class="danger-button" type="button">Reset</button>
@@ -23,19 +25,49 @@
       <main id="game-shell">
         <div id="game"></div>
         <aside id="toolbar" class="toolbar" aria-label="Build tools"></aside>
-        <div class="help-card">
-          <strong>Controls</strong>
-          <span>WASD / arrows: pan</span>
-          <span>Middle/right drag: pan</span>
-          <span>Mouse wheel: zoom</span>
-          <span>1 Wall · 2 Gate · 3 Tower · 4 Road</span>
-          <span>5 Cottage · 6 House · 7 Manor · 8 Remove</span>
-        </div>
-        <div class="info-card">
-          <strong>Build Notes</strong>
-          <span>Smaller world for better performance.</span>
-          <span>Wall pieces auto-form varied shapes.</span>
-          <span>Gates and towers connect into wall lines.</span>
+
+        <div id="help-modal" class="modal-backdrop" hidden>
+          <section class="help-modal" role="dialog" aria-modal="true" aria-labelledby="help-title">
+            <div class="help-modal-header">
+              <div>
+                <div class="eyebrow">CASTLE ROLE</div>
+                <h2 id="help-title">Game Help</h2>
+              </div>
+              <button id="help-close-button" class="icon-button" type="button" aria-label="Close help">×</button>
+            </div>
+            <div class="help-grid">
+              <div class="help-section">
+                <strong>Camera</strong>
+                <span>WASD / Arrow keys — Pan</span>
+                <span>Middle / right mouse drag — Pan</span>
+                <span>Mouse wheel — Zoom</span>
+              </div>
+              <div class="help-section">
+                <strong>Build Shortcuts</strong>
+                <span>1 — Wall</span>
+                <span>2 — Gate</span>
+                <span>3 — Tower</span>
+                <span>4 — Road</span>
+                <span>5 — Cottage</span>
+                <span>6 — House</span>
+                <span>7 — Manor</span>
+                <span>8 — Remove</span>
+              </div>
+              <div class="help-section">
+                <strong>Game Notes</strong>
+                <span>Build and shape your island stronghold.</span>
+                <span>Wall pieces auto-form varied shapes.</span>
+                <span>Gates and towers connect into wall lines.</span>
+                <span>The world is intentionally compact for better performance.</span>
+              </div>
+              <div class="help-section">
+                <strong>Save</strong>
+                <span>Changes are saved automatically after building.</span>
+                <span>Use Save / Load for manual control.</span>
+                <span>Reset clears the map and local save.</span>
+              </div>
+            </div>
+          </section>
         </div>
       </main>
     </div>
