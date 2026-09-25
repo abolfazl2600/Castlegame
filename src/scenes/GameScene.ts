@@ -22,7 +22,9 @@ export class GameScene extends Phaser.Scene {
   private lastPaintedCell = '';
   private autosaveTimer: number | null = null;
 
-  constructor() { super('game'); }
+  constructor() {
+    super('game');
+  }
 
   create(): void {
     const toolbarRoot = document.querySelector<HTMLElement>('#toolbar');
@@ -54,12 +56,13 @@ export class GameScene extends Phaser.Scene {
 
     this.bindShortcuts();
     this.bindBuildingInput();
-    this.setStatus(this.state.entries().length > 0 ? 'Local save loaded' : 'Lay out walls, roads, and homes');
+    this.setStatus(this.state.entries().length > 0 ? 'Local save loaded' : 'Build a compact island fortress');
   }
 
   update(_time: number, delta: number): void {
     this.cameraController.update(delta);
     this.population.update(delta);
+
     const pointer = this.input.activePointer;
     const cell = this.grid.pointerToCell(pointer);
     const valid = cell ? this.build.canApply(cell.x, cell.y, this.selectedTool) : false;
@@ -70,29 +73,37 @@ export class GameScene extends Phaser.Scene {
     const keyboard = this.input.keyboard;
     if (!keyboard) return;
     keyboard.on('keydown-ONE', () => this.toolbar.select('wall'));
-    keyboard.on('keydown-TWO', () => this.toolbar.select('road'));
-    keyboard.on('keydown-THREE', () => this.toolbar.select('cottage'));
-    keyboard.on('keydown-FOUR', () => this.toolbar.select('house'));
-    keyboard.on('keydown-FIVE', () => this.toolbar.select('manor'));
-    keyboard.on('keydown-SIX', () => this.toolbar.select('erase'));
+    keyboard.on('keydown-TWO', () => this.toolbar.select('gate'));
+    keyboard.on('keydown-THREE', () => this.toolbar.select('tower'));
+    keyboard.on('keydown-FOUR', () => this.toolbar.select('road'));
+    keyboard.on('keydown-FIVE', () => this.toolbar.select('cottage'));
+    keyboard.on('keydown-SIX', () => this.toolbar.select('house'));
+    keyboard.on('keydown-SEVEN', () => this.toolbar.select('manor'));
+    keyboard.on('keydown-EIGHT', () => this.toolbar.select('erase'));
   }
 
   private bindBuildingInput(): void {
     this.input.on('pointerdown', (pointer: Phaser.Input.Pointer) => {
       if (pointer.leftButtonDown()) this.applyPointer(pointer);
     });
+
     this.input.on('pointermove', (pointer: Phaser.Input.Pointer) => {
       if (pointer.leftButtonDown() && !this.cameraController.isDragging()) this.applyPointer(pointer);
     });
-    this.input.on('pointerup', () => { this.lastPaintedCell = ''; });
+
+    this.input.on('pointerup', () => {
+      this.lastPaintedCell = '';
+    });
   }
 
   private applyPointer(pointer: Phaser.Input.Pointer): void {
     const cell = this.grid.pointerToCell(pointer);
     if (!cell) return;
+
     const key = `${cell.x},${cell.y}`;
     if (key === this.lastPaintedCell) return;
     this.lastPaintedCell = key;
+
     if (this.build.apply(cell.x, cell.y, this.selectedTool)) this.scheduleAutosave();
   }
 
@@ -108,10 +119,12 @@ export class GameScene extends Phaser.Scene {
   private resetMap(): void {
     const confirmed = window.confirm('Reset the entire map and delete the local save?');
     if (!confirmed) return;
+
     if (this.autosaveTimer !== null) {
       window.clearTimeout(this.autosaveTimer);
       this.autosaveTimer = null;
     }
+
     this.saveSystem.reset();
     this.build.redraw();
   }
