@@ -16,6 +16,24 @@ The castle system now treats foundations, defensive details, roof silhouettes, s
 - Procedural architectural variation is deterministic, and shared materials are reused to avoid thousands of independent masonry assets.
 
 
+## Template collection
+
+Castle Role now includes **17 starting templates**: the original seven plus ten new showcase worlds. The new set is intentionally distributed so every major build family and architecture variant appears in at least one ready-to-play world.
+
+- **Grand Citadel** — limestone, thick Wall Walks, advanced tower roofs, Stair Tower access, Keep, farms, houses, and stone roads.
+- **Dark Fortress** — Dark Stone style, reinforced walls, tall defensive towers, moat, and Defensive Platform Keep.
+- **Sandstone Oasis** — Sandstone style, thin walls, oasis river, farms, Conical/Hipped/Pyramidal roofs, and a Keep without battlements.
+- **Frontier Outpost** — Rough Frontier style, timber walls, Timber Roof and Watch towers, dirt roads, huts, farm, and Stair Tower.
+- **Bridge Stronghold** — both Stone and Wooden Tower Bridges connecting multiple elevated tower platforms.
+- **Siege Academy** — moat, heavy walls, Wall Walks, Stair Tower, Stone Stairs, Wooden Stairs, Ramp, Ladder, gate, and a battle-ready Keep.
+- **Harbor Capital** — Small Dock, Wooden Pier, Harbor, Fishing Dock, Fishing Boat, Trading Boat, and Transport Ship.
+- **Mountain Fortress** — steep edited terrain, stepped foundations, cliff-like plateau, Mountain, Mine, Rock, Tree, and high defensive structures.
+- **Royal City** — Cottage, House, Manor, Villa, Farm, Road, Dirt Road, and Stone Road inside a walled city.
+- **Architecture Gallery** — Square/Round/Octagonal/Corner/Watch towers; Conical/Hipped/Pyramidal/Open Battlement/Timber Roof plus Flat/Watch/Flag tops; all four Keep roof modes; all three wall families and thicknesses; diagonal walls; both bridge materials; Stair Tower; lowered terrain, hills, plateau, and cliff-like height changes.
+
+Together with the original templates, the collection includes Stone, Timber, and Reinforced walls; thin/medium/thick profiles; battlements on/off; Wall Walks on/off; the four global castle stone styles; all settlement building families; mountains/mines/nature props; river and land edits; maritime construction; elevated castle access; and siege-oriented layouts.
+
+
 ## Battle, mountains, coast & templates update
 
 This update extends the existing systems rather than replacing them.

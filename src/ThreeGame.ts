@@ -6934,6 +6934,8 @@ export class ThreeGame {
       floors: number,
       roof: KeepRoofStyle,
       cornerTowers: boolean,
+      rotation = 0,
+      battlements = true,
     ): void => {
       const draft = {
         x,
@@ -6941,10 +6943,10 @@ export class ThreeGame {
         width,
         depth,
         floors,
-        rotation: 0,
+        rotation,
         cornerTowers,
         roof,
-        battlements: true,
+        battlements,
       };
 
       for (const footprintCell of this.keepSystem.footprint(draft)) {
@@ -6952,6 +6954,98 @@ export class ThreeGame {
       }
 
       this.keepSystem.add(draft);
+    };
+
+    const prepareArea = (
+      minX: number,
+      minY: number,
+      maxX: number,
+      maxY: number,
+      elevation = 0,
+    ): void => {
+      for (let y = Math.max(0, minY); y <= Math.min(SIZE - 1, maxY); y += 1) {
+        for (let x = Math.max(0, minX); x <= Math.min(SIZE - 1, maxX); x += 1) {
+          this.state.removeCell(x, y);
+          this.terrainOverrides.set(this.key(x, y), 'plains');
+          this.setAbsoluteElevation(x, y, elevation);
+        }
+      }
+    };
+
+    const placeWallRect = (
+      minX: number,
+      minY: number,
+      maxX: number,
+      maxY: number,
+      kind: WallKind,
+      level: number,
+      options: Partial<GridCell>,
+    ): void => {
+      for (let x = minX; x <= maxX; x += 1) {
+        place(x, minY, kind, level, options);
+        place(x, maxY, kind, level, options);
+      }
+      for (let y = minY; y <= maxY; y += 1) {
+        place(minX, y, kind, level, options);
+        place(maxX, y, kind, level, options);
+      }
+    };
+
+    const addTemplateBridge = (
+      a: GridPoint,
+      b: GridPoint,
+      kind: TowerBridgeKind,
+    ): void => {
+      if (!this.validateTowerBridge(a, b).valid) return;
+      const bridge: TowerBridgeState = {
+        id: this.nextTowerBridgeId++,
+        ax: a.x,
+        ay: a.y,
+        bx: b.x,
+        by: b.y,
+        kind,
+      };
+      this.towerBridges.set(bridge.id, bridge);
+    };
+
+    const addTemplateStairTower = (x: number, y: number): void => {
+      const snap = this.findStairTowerSnap(x, y);
+      if (!snap) return;
+      place(x, y, 'stairTower', 1, {
+        rotation: snap.rotation,
+        accessHeight: snap.accessHeight,
+      });
+    };
+
+    const placeHarborTemplate = (
+      kind: HarborKind,
+      shipKind: ShipKind,
+      targetX: number,
+      targetY: number,
+    ): GridPoint | null => {
+      const candidates: Array<{ point: GridPoint; rotation: number; score: number }> = [];
+      for (let y = 1; y < SIZE - 1; y += 1) {
+        for (let x = 1; x < SIZE - 1; x += 1) {
+          if (this.state.getCell(x, y) || this.keepSystem.findAtCell(x, y)) continue;
+          const coast = this.maritimeSystem.canPlace(kind, x, y);
+          if (!coast) continue;
+          candidates.push({
+            point: { x, y },
+            rotation: coast.rotation,
+            score: Math.hypot(x - targetX, y - targetY),
+          });
+        }
+      }
+      candidates.sort((a, b) => a.score - b.score);
+      const choice = candidates[0];
+      if (!choice) return null;
+
+      this.state.removeCell(choice.point.x, choice.point.y);
+      place(choice.point.x, choice.point.y, kind, 1, {
+        rotation: choice.rotation,
+        shipKind,
+      });
+      return choice.point;
     };
 
     if (template !== 'empty-land') this.seedNaturalProps();
@@ -7211,10 +7305,378 @@ export class ThreeGame {
           }
         }
       }
+    } else if (template === 'grand-citadel') {
+      this.stoneStyle = 'limestone';
+      this.towerBridgeKind = 'stone';
+      prepareArea(center - 9, center - 8, center + 9, center + 8, 0.18);
+
+      const minX = center - 7;
+      const maxX = center + 7;
+      const minY = center - 6;
+      const maxY = center + 6;
+      placeWallRect(minX, minY, maxX, maxY, 'wall1', 3, {
+        battlement: true,
+        walkway: true,
+        thickness: 'thick',
+      });
+      place(center, maxY, 'gate', 2);
+      place(minX, minY, 'tower', 3, { towerShape: 'round', towerTop: 'conical' });
+      place(maxX, minY, 'tower', 3, { towerShape: 'square', towerTop: 'hipped' });
+      place(minX, maxY, 'tower', 3, { towerShape: 'octagonal', towerTop: 'openBattlement' });
+      place(maxX, maxY, 'tower', 3, { towerShape: 'corner', towerTop: 'pyramidal' });
+
+      placeKeepTemplate(center, center - 1, 4, 4, 5, 'towered', true, 0, true);
+      addTemplateStairTower(minX + 1, center);
+      place(center, center + 3, 'stoneRoad');
+      place(center - 2, center + 2, 'manor');
+      place(center + 2, center + 2, 'house');
+      place(center - 3, center - 3, 'farm');
+      place(center + 3, center - 3, 'villa');
+
+      for (let y = center + 1; y < maxY; y += 1) place(center, y, 'stoneRoad');
+    } else if (template === 'dark-fortress') {
+      this.stoneStyle = 'darkStone';
+      this.towerBridgeKind = 'stone';
+      prepareArea(center - 10, center - 9, center + 10, center + 9, 0.55);
+
+      for (let y = center - 7; y <= center + 7; y += 1) {
+        for (let x = center - 8; x <= center + 8; x += 1) {
+          const distance = Math.hypot(x - center, y - center);
+          if (distance <= 8.7) {
+            this.setAbsoluteElevation(
+              x,
+              y,
+              0.42 + Math.max(0, 1.9 - distance * 0.2),
+            );
+          }
+        }
+      }
+
+      placeWallRect(center - 6, center - 5, center + 6, center + 5, 'wall3', 4, {
+        battlement: true,
+        walkway: true,
+        thickness: 'thick',
+      });
+      place(center, center + 5, 'gate', 3);
+      place(center - 6, center - 5, 'tower', 4, { towerShape: 'corner', towerTop: 'pyramidal' });
+      place(center + 6, center - 5, 'tower', 4, { towerShape: 'square', towerTop: 'hipped' });
+      place(center - 6, center + 5, 'tower', 4, { towerShape: 'watch', towerTop: 'timberRoof' });
+      place(center + 6, center + 5, 'tower', 4, { towerShape: 'octagonal', towerTop: 'openBattlement' });
+      placeKeepTemplate(center, center - 1, 3, 4, 7, 'defensivePlatform', true, 1, true);
+
+      for (let x = center - 7; x <= center + 7; x += 1) {
+        if (x === center) continue;
+        place(x, center + 7, 'moat');
+      }
+      addTemplateStairTower(center - 5, center);
+      place(center, center + 6, 'stoneRoad');
+    } else if (template === 'sandstone-oasis') {
+      this.stoneStyle = 'sandstone';
+      this.towerBridgeKind = 'stone';
+      prepareArea(center - 10, center - 8, center + 10, center + 8, 0.05);
+
+      const minX = center - 7;
+      const maxX = center + 7;
+      const minY = center - 5;
+      const maxY = center + 5;
+      placeWallRect(minX, minY, maxX, maxY, 'wall1', 2, {
+        battlement: true,
+        walkway: true,
+        thickness: 'thin',
+      });
+      place(center, maxY, 'gate');
+      place(minX, minY, 'tower', 2, { towerShape: 'round', towerTop: 'conical' });
+      place(maxX, minY, 'tower', 2, { towerShape: 'round', towerTop: 'conical' });
+      place(minX, maxY, 'tower', 2, { towerShape: 'square', towerTop: 'hipped' });
+      place(maxX, maxY, 'tower', 2, { towerShape: 'square', towerTop: 'pyramidal' });
+      placeKeepTemplate(center, center - 1, 3, 3, 3, 'sloped', false, 0, false);
+
+      for (let y = center - 2; y <= center + 2; y += 1) {
+        this.terrainOverrides.set(this.key(center + 4, y), 'river');
+      }
+      place(center - 3, center + 1, 'cottage');
+      place(center - 1, center + 2, 'farm');
+      place(center + 2, center + 2, 'farm');
+      place(center + 3, center - 2, 'hut');
+      for (let x = center - 4; x <= center + 3; x += 1) {
+        if (!this.state.getCell(x, center + 3)) place(x, center + 3, 'dirtRoad');
+      }
+    } else if (template === 'frontier-outpost') {
+      this.stoneStyle = 'frontier';
+      this.towerBridgeKind = 'wood';
+      prepareArea(center - 10, center - 8, center + 10, center + 8, 0.12);
+
+      placeWallRect(center - 7, center - 5, center + 7, center + 5, 'wall2', 2, {
+        battlement: false,
+        walkway: true,
+        thickness: 'medium',
+      });
+      place(center, center + 5, 'gate');
+      place(center - 7, center - 5, 'tower', 2, { towerShape: 'watch', towerTop: 'timberRoof' });
+      place(center + 7, center - 5, 'tower', 2, { towerShape: 'watch', towerTop: 'watch' });
+      place(center - 7, center + 5, 'tower', 2, { towerShape: 'round', towerTop: 'timberRoof' });
+      place(center + 7, center + 5, 'tower', 2, { towerShape: 'square', towerTop: 'flat' });
+      placeKeepTemplate(center, center - 1, 2, 3, 3, 'towered', false, 1, false);
+
+      place(center - 3, center + 1, 'hut');
+      place(center - 1, center + 2, 'cottage');
+      place(center + 2, center + 2, 'farm');
+      place(center + 4, center - 1, 'tree', 2);
+      place(center + 5, center - 2, 'rock', 2);
+      for (let y = center + 1; y < center + 5; y += 1) place(center, y, 'dirtRoad');
+      addTemplateStairTower(center - 6, center);
+    } else if (template === 'bridge-stronghold') {
+      this.stoneStyle = 'limestone';
+      prepareArea(center - 11, center - 8, center + 11, center + 8, 0.22);
+
+      const towers = [
+        { x: center - 7, y: center - 4, shape: 'round' as TowerShape, top: 'conical' as TowerTop },
+        { x: center, y: center - 4, shape: 'octagonal' as TowerShape, top: 'openBattlement' as TowerTop },
+        { x: center + 7, y: center - 4, shape: 'round' as TowerShape, top: 'conical' as TowerTop },
+        { x: center - 7, y: center + 4, shape: 'square' as TowerShape, top: 'hipped' as TowerTop },
+        { x: center, y: center + 4, shape: 'corner' as TowerShape, top: 'pyramidal' as TowerTop },
+        { x: center + 7, y: center + 4, shape: 'watch' as TowerShape, top: 'timberRoof' as TowerTop },
+      ];
+      for (const tower of towers) {
+        place(tower.x, tower.y, 'tower', 3, {
+          towerShape: tower.shape,
+          towerTop: tower.top,
+        });
+      }
+
+      addTemplateBridge(towers[0], towers[1], 'stone');
+      addTemplateBridge(towers[1], towers[2], 'wood');
+      addTemplateBridge(towers[3], towers[4], 'wood');
+      addTemplateBridge(towers[4], towers[5], 'stone');
+
+      placeWallRect(center - 9, center - 6, center + 9, center + 6, 'wall1', 2, {
+        battlement: true,
+        walkway: true,
+        thickness: 'medium',
+      });
+      place(center, center + 6, 'gate');
+      placeKeepTemplate(center, center, 3, 3, 4, 'flatBattlement', true);
+      addTemplateStairTower(center - 8, center);
+      for (let y = center + 2; y < center + 6; y += 1) place(center, y, 'stoneRoad');
+    } else if (template === 'siege-academy') {
+      this.stoneStyle = 'darkStone';
+      prepareArea(center - 12, center - 9, center + 12, center + 9, 0);
+
+      placeWallRect(center - 7, center - 5, center + 7, center + 5, 'wall3', 3, {
+        battlement: true,
+        walkway: true,
+        thickness: 'thick',
+      });
+      place(center, center + 5, 'gate', 2);
+      place(center - 7, center - 5, 'tower', 3, { towerShape: 'round', towerTop: 'openBattlement' });
+      place(center + 7, center - 5, 'tower', 3, { towerShape: 'square', towerTop: 'hipped' });
+      place(center - 7, center + 5, 'tower', 3, { towerShape: 'corner', towerTop: 'openBattlement' });
+      place(center + 7, center + 5, 'tower', 3, { towerShape: 'watch', towerTop: 'timberRoof' });
+      placeKeepTemplate(center, center - 1, 3, 3, 5, 'defensivePlatform', true);
+
+      for (let x = center - 9; x <= center + 9; x += 1) {
+        if (Math.abs(x - center) <= 1) continue;
+        place(x, center + 7, 'moat');
+      }
+      for (let y = center - 7; y <= center + 7; y += 1) {
+        place(center - 9, y, 'moat');
+        place(center + 9, y, 'moat');
+      }
+
+      addTemplateStairTower(center - 6, center);
+      place(center + 6, center, 'stoneStairs', 1, { rotation: 3 });
+      place(center - 5, center + 6, 'woodenStairs', 1, { rotation: 0 });
+      place(center + 5, center + 6, 'ramp', 1, { rotation: 0 });
+      place(center, center - 6, 'ladder', 1, { rotation: 2 });
+      for (let y = center + 6; y <= center + 9; y += 1) place(center, y, 'road');
+    } else if (template === 'harbor-capital') {
+      this.stoneStyle = 'limestone';
+      this.towerBridgeKind = 'wood';
+
+      const harbor = placeHarborTemplate('harbor', 'tradingBoat', SIZE - 5, center);
+      const pier = placeHarborTemplate('woodenPier', 'transportShip', SIZE - 6, center - 6);
+      const fishing = placeHarborTemplate('fishingDock', 'fishingBoat', SIZE - 6, center + 6);
+      const smallDock = placeHarborTemplate('smallDock', 'fishingBoat', 5, center);
+
+      const portPoints = [harbor, pier, fishing, smallDock].filter(
+        (point): point is GridPoint => point !== null,
+      );
+      for (const point of portPoints) {
+        this.state.removeCell(point.x - 1, point.y);
+        if (this.terrainAt(point.x - 1, point.y) !== 'water') {
+          place(point.x - 1, point.y, 'stoneRoad');
+        }
+      }
+
+      prepareArea(center - 7, center - 5, center + 5, center + 6, 0.08);
+      placeKeepTemplate(center - 2, center - 1, 3, 3, 4, 'sloped', true);
+      place(center - 5, center - 3, 'manor');
+      place(center - 2, center + 3, 'villa');
+      place(center + 2, center + 3, 'house');
+      place(center + 3, center - 2, 'cottage');
+      for (let x = center - 6; x <= center + 4; x += 1) {
+        if (!this.state.getCell(x, center + 1)) place(x, center + 1, 'stoneRoad');
+      }
+      for (let y = center - 4; y <= center + 5; y += 1) {
+        if (!this.state.getCell(center, y)) place(center, y, 'road');
+      }
+    } else if (template === 'mountain-fortress') {
+      this.stoneStyle = 'frontier';
+      prepareArea(center - 10, center - 9, center + 10, center + 9, 0.25);
+
+      for (let y = center - 8; y <= center + 6; y += 1) {
+        for (let x = center - 9; x <= center + 9; x += 1) {
+          const dx = (x - center) / 8.5;
+          const dy = (y - (center - 1)) / 6.8;
+          const d = Math.hypot(dx, dy);
+          if (d <= 1) {
+            const ridge = Math.max(0, 3.8 * (1 - d) + Math.sin(x * 0.7 + y * 0.31) * 0.35);
+            this.setAbsoluteElevation(x, y, 0.35 + ridge);
+          }
+        }
+      }
+
+      for (let y = center - 7; y <= center - 4; y += 1) {
+        for (let x = center + 5; x <= center + 8; x += 1) {
+          this.setAbsoluteElevation(x, y, 4.4);
+        }
+      }
+
+      placeWallRect(center - 5, center - 4, center + 5, center + 4, 'wall1', 3, {
+        battlement: true,
+        walkway: true,
+        thickness: 'thick',
+      });
+      place(center, center + 4, 'gate', 2);
+      place(center - 5, center - 4, 'tower', 4, { towerShape: 'round', towerTop: 'conical' });
+      place(center + 5, center - 4, 'tower', 4, { towerShape: 'octagonal', towerTop: 'conical' });
+      place(center - 5, center + 4, 'tower', 3, { towerShape: 'corner', towerTop: 'pyramidal' });
+      place(center + 5, center + 4, 'tower', 3, { towerShape: 'watch', towerTop: 'timberRoof' });
+      placeKeepTemplate(center, center - 1, 3, 3, 5, 'towered', true);
+
+      place(center + 7, center - 6, 'mountain', 4);
+      place(center + 6, center - 5, 'mine');
+      place(center - 8, center - 6, 'rock', 3);
+      place(center - 7, center + 5, 'tree', 3);
+      addTemplateStairTower(center - 4, center);
+      for (let y = center + 5; y <= center + 8; y += 1) place(center, y, 'stoneRoad');
+    } else if (template === 'royal-city') {
+      this.stoneStyle = 'sandstone';
+      prepareArea(center - 11, center - 9, center + 11, center + 9, 0);
+
+      placeWallRect(center - 9, center - 7, center + 9, center + 7, 'wall1', 2, {
+        battlement: true,
+        walkway: false,
+        thickness: 'medium',
+      });
+      place(center, center + 7, 'gate');
+      place(center - 9, center - 7, 'tower', 2, { towerShape: 'square', towerTop: 'hipped' });
+      place(center + 9, center - 7, 'tower', 2, { towerShape: 'round', towerTop: 'conical' });
+      place(center - 9, center + 7, 'tower', 2, { towerShape: 'octagonal', towerTop: 'openBattlement' });
+      place(center + 9, center + 7, 'tower', 2, { towerShape: 'corner', towerTop: 'pyramidal' });
+
+      placeKeepTemplate(center, center - 2, 4, 3, 4, 'sloped', true);
+      place(center - 5, center - 3, 'manor');
+      place(center + 5, center - 3, 'villa');
+      place(center - 5, center + 1, 'house');
+      place(center + 5, center + 1, 'cottage');
+      place(center - 4, center + 5, 'farm');
+      place(center + 4, center + 5, 'farm');
+
+      for (let x = center - 7; x <= center + 7; x += 1) {
+        if (!this.state.getCell(x, center + 3)) place(x, center + 3, 'road');
+      }
+      for (let y = center - 5; y <= center + 6; y += 1) {
+        if (!this.state.getCell(center, y)) place(center, y, 'stoneRoad');
+      }
+      for (let y = center - 5; y <= center + 5; y += 1) {
+        if (!this.state.getCell(center - 3, y)) place(center - 3, y, 'dirtRoad');
+      }
+    } else if (template === 'architecture-gallery') {
+      this.stoneStyle = 'limestone';
+      this.towerBridgeKind = 'stone';
+      prepareArea(center - 13, center - 10, center + 13, center + 10, 0.1);
+
+      const galleryTowers: Array<{
+        x: number;
+        y: number;
+        shape: TowerShape;
+        top: TowerTop;
+      }> = [
+        { x: center - 10, y: center - 6, shape: 'round', top: 'conical' },
+        { x: center - 5, y: center - 6, shape: 'square', top: 'hipped' },
+        { x: center, y: center - 6, shape: 'corner', top: 'pyramidal' },
+        { x: center + 5, y: center - 6, shape: 'octagonal', top: 'openBattlement' },
+        { x: center + 10, y: center - 6, shape: 'watch', top: 'timberRoof' },
+        { x: center - 7, y: center + 1, shape: 'square', top: 'flat' },
+        { x: center, y: center + 1, shape: 'watch', top: 'watch' },
+        { x: center + 7, y: center + 1, shape: 'octagonal', top: 'flag' },
+      ];
+      for (const tower of galleryTowers) {
+        place(tower.x, tower.y, 'tower', 2 + (Math.abs(tower.x - center) % 2), {
+          towerShape: tower.shape,
+          towerTop: tower.top,
+        });
+      }
+
+      addTemplateBridge(galleryTowers[0], galleryTowers[1], 'stone');
+      addTemplateBridge(galleryTowers[1], galleryTowers[2], 'wood');
+      addTemplateBridge(galleryTowers[2], galleryTowers[3], 'stone');
+      addTemplateBridge(galleryTowers[3], galleryTowers[4], 'wood');
+
+      placeKeepTemplate(center - 8, center + 7, 2, 2, 2, 'flatBattlement', true, 0, true);
+      placeKeepTemplate(center - 3, center + 7, 2, 2, 2, 'sloped', false, 1, true);
+      placeKeepTemplate(center + 3, center + 7, 2, 2, 2, 'defensivePlatform', true, 0, false);
+      placeKeepTemplate(center + 8, center + 7, 2, 2, 3, 'towered', true, 1, true);
+
+      place(center - 11, center + 4, 'wall1', 1, {
+        battlement: true,
+        walkway: true,
+        thickness: 'thin',
+      });
+      place(center - 10, center + 4, 'wall2', 2, {
+        battlement: false,
+        walkway: true,
+        thickness: 'medium',
+      });
+      place(center - 9, center + 4, 'wall3', 4, {
+        battlement: true,
+        walkway: true,
+        thickness: 'thick',
+      });
+      addTemplateStairTower(center - 8, center + 4);
+
+      const diagonal = WallSystem.createSnappedPath(
+        { x: center + 5, y: center + 4 },
+        { x: center + 9, y: center + 8 },
+        SIZE,
+      );
+      for (const point of diagonal) {
+        place(point.x, point.y, 'wall1', 3, {
+          battlement: true,
+          walkway: true,
+          thickness: 'thick',
+        });
+      }
+      this.linkWallPath(diagonal);
+
+      // Terrain-editing showcase: lowered ground, smooth hill, raised plateau and cliff edge.
+      for (let x = center - 2; x <= center + 2; x += 1) {
+        this.setAbsoluteElevation(x, center + 4, -0.8 + Math.abs(x - center) * 0.12);
+      }
+      for (let y = center + 3; y <= center + 6; y += 1) {
+        for (let x = center + 10; x <= center + 12; x += 1) {
+          this.setAbsoluteElevation(x, y, y <= center + 4 ? 2.8 : 0.55);
+        }
+      }
     }
 
     this.selectedCell = null;
     this.selectedKeepId = null;
+    const stoneSelect = document.getElementById('castle-stone-style') as HTMLSelectElement | null;
+    if (stoneSelect) stoneSelect.value = this.stoneStyle;
+    const bridgeSelect = document.getElementById('tower-bridge-kind') as HTMLSelectElement | null;
+    if (bridgeSelect) bridgeSelect.value = this.towerBridgeKind;
     this.redraw();
     this.save();
     this.setStatus('Template loaded: ' + template);
