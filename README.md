@@ -2,13 +2,15 @@
 
 Castle Role is a lightweight 2D top-down fortress-building game built with Phaser, TypeScript, and Vite.
 
+**[Play Castle Role](https://abolfazl2600.github.io/Castlegame/)**
+
 ## Latest direction
 
 The visual direction now moves toward a **compact, stylized island-settlement look** inspired by soft, colorful strategy-builder references, while still staying in a lightweight 2D Phaser architecture.
 
 ## Current playable features
 
-- Smaller **48 × 48** world for better performance
+- Smaller **32 × 32** world for better performance
 - Compact island-like map with coast, plains, river, mountain, and forest zones
 - Camera pan and zoom
 - Wall building with multiple automatic visual states based on neighbors
