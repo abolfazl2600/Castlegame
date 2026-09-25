@@ -9,6 +9,8 @@ import { CastleAccessSystem } from './building/CastleAccessSystem';
 import { CastleDetailGenerator } from './building/CastleDetailGenerator';
 import { KeepRenderer } from './rendering/KeepRenderer';
 import { MedievalMaterials } from './rendering/MedievalMaterials';
+import { BattleSystem } from './battle/BattleSystem';
+import type { BattleSetup, BattleStatus } from './battle/types';
 import type {
   AccessKind,
   GridCell,
@@ -159,7 +161,9 @@ export class ThreeGame {
   private readonly planLayer = new THREE.Group();
   private readonly wallPreviewLayer = new THREE.Group();
   private readonly workerLayer = new THREE.Group();
+  private readonly battleLayer = new THREE.Group();
   private readonly planMaterials = new Map<string, THREE.MeshBasicMaterial>();
+  private readonly battleSystem: BattleSystem;
   private readonly groundHit = new THREE.Mesh(
     new THREE.PlaneGeometry(WORLD, WORLD),
     new THREE.MeshBasicMaterial({ visible: false }),
@@ -191,6 +195,12 @@ export class ThreeGame {
   private animatedFlags: THREE.Mesh[] = [];
   private brushSize = 2;
   private brushStrength = 1;
+  private battleSetup: BattleSetup = {
+    attackerSwordsmen: 30,
+    attackerArchers: 20,
+    defenderSwordsmen: 10,
+    defenderArchers: 15,
+  };
 
   private readonly undoStack: HistorySnapshot[] = [];
   private readonly redoStack: HistorySnapshot[] = [];
@@ -249,7 +259,24 @@ export class ThreeGame {
     this.scene.add(this.planLayer);
     this.scene.add(this.wallPreviewLayer);
     this.scene.add(this.workerLayer);
+    this.scene.add(this.battleLayer);
     this.planLayer.visible = false;
+
+    this.battleSystem = new BattleSystem(
+      this.battleLayer,
+      {
+        size: SIZE,
+        tileSize: TILE,
+        gridToWorld: (x, y) => this.gridToWorld(x, y),
+        terrainAt: (x, y) => this.terrainAt(x, y),
+        elevationAt: (x, y) => this.terrainElevation(x, y),
+        kindAt: (x, y) => this.kindAt(x, y),
+        cellAt: (x, y) => this.state.getCell(x, y),
+        fortificationTopAt: (_x, _y, cell) => this.fortificationTopLocal(cell),
+        keeps: () => this.keepSystem.entries(),
+      },
+      (status) => this.updateBattleUI(status),
+    );
 
     this.groundHit.rotation.x = -Math.PI / 2;
     this.groundHit.position.y = 2.05;
@@ -871,6 +898,11 @@ export class ThreeGame {
   }
 
   private setViewMode(mode: ViewMode): void {
+    if (mode === 'plan2d' && this.battleSystem.isActive()) {
+      this.setStatus('Battle Mode uses the 3D isometric battlefield');
+      return;
+    }
+
     if (mode === this.viewMode && mode === 'world3d') {
       this.updateViewModeUI();
       return;
@@ -927,6 +959,11 @@ export class ThreeGame {
   }
 
   private setToolbarOpen(open: boolean): void {
+    if (open && this.battleSystem.isActive()) {
+      this.setStatus('Construction is disabled during Battle Mode');
+      return;
+    }
+
     this.toolbarOpen = open;
     const toolbar = document.getElementById('toolbar');
     const opener = document.getElementById('toolbar-open');
@@ -3163,6 +3200,7 @@ export class ThreeGame {
       'pointerdown',
       (event) => {
         if (event.button !== 0) return;
+        if (this.battleSystem.isActive()) return;
 
         if (this.isWallTool(this.selectedTool)) {
           const cell = this.pickGridCell(event);
@@ -3986,6 +4024,31 @@ export class ThreeGame {
 
     const help = get<HTMLElement>('help-modal');
     const templates = get<HTMLElement>('templates-modal');
+    const battlePanel = get<HTMLElement>('battle-panel');
+
+    get<HTMLButtonElement>('battle-button').onclick = () => {
+      battlePanel.hidden = false;
+      this.syncBattleSetupUI();
+      this.updateBattleUI(this.battleSystem.status());
+    };
+    get<HTMLButtonElement>('battle-close').onclick = () => {
+      battlePanel.hidden = true;
+    };
+
+    document.querySelectorAll<HTMLButtonElement>('[data-battle-field]').forEach((button) => {
+      button.onclick = () => {
+        const field = button.dataset.battleField as keyof BattleSetup | undefined;
+        const delta = Number(button.dataset.delta ?? 0);
+        if (!field || !Number.isFinite(delta)) return;
+        this.adjustBattleSetup(field, delta);
+      };
+    });
+
+    get<HTMLButtonElement>('battle-start').onclick = () => this.startBattleFromUI();
+    get<HTMLButtonElement>('battle-stop').onclick = () => this.stopBattleFromUI();
+    get<HTMLButtonElement>('battle-reset').onclick = () => this.resetBattleFromUI();
+    this.syncBattleSetupUI();
+    this.updateBattleUI(this.battleSystem.status());
 
     get<HTMLButtonElement>('help-button').onclick = () => {
       help.hidden = false;
@@ -4493,7 +4556,159 @@ export class ThreeGame {
     this.setStatus('Template loaded: ' + template);
   }
 
+  private adjustBattleSetup(field: keyof BattleSetup, delta: number): void {
+    if (this.battleSystem.isActive()) {
+      this.setStatus('Reset the current battle before changing army sizes');
+      return;
+    }
+
+    this.battleSetup = {
+      ...this.battleSetup,
+      [field]: THREE.MathUtils.clamp(this.battleSetup[field] + delta, 0, 120),
+    };
+    this.syncBattleSetupUI();
+  }
+
+  private syncBattleSetupUI(): void {
+    const mappings: Array<[keyof BattleSetup, string]> = [
+      ['defenderSwordsmen', 'battle-defender-swordsmen'],
+      ['defenderArchers', 'battle-defender-archers'],
+      ['attackerSwordsmen', 'battle-attacker-swordsmen'],
+      ['attackerArchers', 'battle-attacker-archers'],
+    ];
+
+    for (const [field, id] of mappings) {
+      const element = document.getElementById(id);
+      if (element) element.textContent = String(this.battleSetup[field]);
+    }
+  }
+
+  private startBattleFromUI(): void {
+    const current = this.battleSystem.status();
+    if (current.mode === 'paused') {
+      this.battleSystem.resume();
+      this.setStatus('Battle resumed');
+      return;
+    }
+
+    const attackerTotal =
+      this.battleSetup.attackerSwordsmen + this.battleSetup.attackerArchers;
+    const defenderTotal =
+      this.battleSetup.defenderSwordsmen + this.battleSetup.defenderArchers;
+
+    if (attackerTotal <= 0) {
+      this.setStatus('Add at least one Attacker before starting the battle');
+      return;
+    }
+
+    if (defenderTotal <= 0) {
+      this.setStatus('No Defenders configured · attackers will attempt an immediate capture');
+    }
+
+    this.setViewMode('world3d');
+    this.setToolbarOpen(false);
+    this.workerLayer.visible = false;
+    document.getElementById('game-shell')?.classList.add('battle-mode');
+    this.battleSystem.start(this.battleSetup);
+    this.setStatus('Battle started · Attackers are advancing on the castle');
+  }
+
+  private stopBattleFromUI(): void {
+    this.battleSystem.stop();
+    this.setStatus('Battle stopped · press Start Battle to resume');
+  }
+
+  private resetBattleFromUI(): void {
+    this.battleSystem.reset();
+    document.getElementById('game-shell')?.classList.remove('battle-mode');
+    this.workerLayer.visible = this.viewMode === 'world3d';
+    this.setStatus('Battle reset · castle restored unchanged');
+  }
+
+  private updateBattleUI(status: BattleStatus): void {
+    const panel = document.getElementById('battle-panel');
+    const mode = document.getElementById('battle-mode-status');
+    const attackerAlive = document.getElementById('battle-attacker-alive');
+    const defenderAlive = document.getElementById('battle-defender-alive');
+    const captureLabel = document.getElementById('battle-capture-label');
+    const captureFill = document.getElementById('battle-capture-fill');
+    const result = document.getElementById('battle-result');
+    const startButton = document.getElementById('battle-start') as HTMLButtonElement | null;
+    const stopButton = document.getElementById('battle-stop') as HTMLButtonElement | null;
+
+    if (mode) {
+      mode.textContent =
+        status.mode === 'running'
+          ? 'BATTLE IN PROGRESS'
+          : status.mode === 'paused'
+            ? 'BATTLE STOPPED'
+            : status.mode === 'finished'
+              ? 'BATTLE COMPLETE'
+              : 'SETUP';
+    }
+
+    if (attackerAlive) attackerAlive.textContent = String(status.attackersAlive);
+    if (defenderAlive) defenderAlive.textContent = String(status.defendersAlive);
+
+    if (captureLabel) {
+      captureLabel.textContent =
+        status.mode === 'idle'
+          ? 'Castle capture inactive'
+          : `Castle capture ${status.captureSeconds.toFixed(1)} / ${status.captureRequiredSeconds}s`;
+    }
+
+    if (captureFill) {
+      (captureFill as HTMLElement).style.width = `${Math.round(status.captureProgress * 100)}%`;
+    }
+
+    if (startButton) {
+      startButton.textContent = status.mode === 'paused' ? 'Resume Battle' : 'Start Battle';
+      startButton.disabled = status.mode === 'running' || status.mode === 'finished';
+    }
+
+    if (stopButton) {
+      stopButton.disabled = status.mode !== 'running';
+    }
+
+    if (panel && status.mode !== 'idle') panel.removeAttribute('hidden');
+
+    if (!result) return;
+
+    if (!status.result) {
+      result.innerHTML = '';
+      result.hidden = true;
+      return;
+    }
+
+    const attackerWin = status.result.winner === 'attacker';
+    result.hidden = false;
+    result.innerHTML =
+      '<strong>' +
+      (attackerWin ? 'CASTLE CAPTURED' : 'CASTLE DEFENDED') +
+      '</strong>' +
+      '<span>Attackers remaining: ' +
+      status.result.attackersRemaining +
+      '</span>' +
+      '<span>Defenders remaining: ' +
+      status.result.defendersRemaining +
+      '</span>' +
+      '<span>Attackers killed: ' +
+      status.result.attackersKilled +
+      '</span>' +
+      '<span>Defenders killed: ' +
+      status.result.defendersKilled +
+      '</span>' +
+      '<span>Battle duration: ' +
+      status.result.durationSeconds.toFixed(1) +
+      's</span>';
+  }
+
   private selectTool(tool: ToolKind): void {
+    if (this.battleSystem.isActive()) {
+      this.setStatus('Reset Battle before returning to construction');
+      return;
+    }
+
     this.selectedTool = tool;
     document.querySelectorAll('[data-tool]').forEach((element) => {
       element.classList.toggle('is-selected', (element as HTMLElement).dataset.tool === tool);
@@ -4518,7 +4733,8 @@ export class ThreeGame {
     const deltaMs = this.lastFrameTime === 0 ? 16 : Math.min(50, time - this.lastFrameTime);
     this.lastFrameTime = time;
 
-    this.updateWorkers(deltaMs);
+    if (!this.battleSystem.isActive()) this.updateWorkers(deltaMs);
+    this.battleSystem.update(deltaMs, time);
     this.riverTexture.offset.y -= deltaMs * 0.00028;
     this.riverTexture.offset.x += deltaMs * 0.000025;
 

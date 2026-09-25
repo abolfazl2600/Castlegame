@@ -4,6 +4,28 @@ Castle Role is a stylized 3D medieval fortress builder built with Three.js, Type
 
 **[Play Castle Role](https://abolfazl2600.github.io/Castlegame/)**
 
+## Castle battle system
+
+The game now includes a first playable **Attackers vs Defenders** battle mode built around the castle the player actually constructed.
+
+- Two extensible factions are currently configured: Attacker and Defender.
+- Swordsman and Archer are the first reusable unit types.
+- Battle Setup configures army sizes independently for both factions.
+- Defender Archers prefer wall walks, towers, and elevated defensive positions.
+- Defender Swordsmen deploy inside the castle near the strategic center.
+- Attackers form outside the castle and navigate toward valid entrances and the Keep / Castle Center.
+- Ground navigation is generated from the current terrain, buildings, rivers, walls, gates, and Keep footprint.
+- Melee combat uses cooldown-based damage and local separation.
+- Archers fire visible projectiles; damage is applied when an arrow reaches its target.
+- Elevated defenders can fire down from wall and tower positions.
+- The Castle Center has a contested 10-second capture objective.
+- Results report winner, survivors, casualties, and battle duration.
+- Start / Stop / Reset Battle are available; Reset removes battle state only and never edits the player's castle.
+- Construction controls are disabled while Battle Mode is active.
+- Low-poly soldiers use shared geometries/materials and batched target decisions to keep larger groups practical in the browser.
+
+Advanced siege weapons are intentionally not part of this first battle version.
+
 ## 2D planning workflow
 
 Castle Role now supports a dedicated top-down planning mode.

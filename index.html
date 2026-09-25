@@ -16,6 +16,7 @@
 
         <div class="status-group">
           <span id="save-status" class="status-pill">3D Ready</span>
+          <button id="battle-button" class="secondary-button battle-button" type="button">Battle</button>
           <button id="templates-button" class="secondary-button" type="button">Templates</button>
           <button id="help-button" class="secondary-button" type="button">Help</button>
           <button id="fullscreen-button" class="secondary-button" type="button">Fullscreen</button>
@@ -37,6 +38,87 @@
         <aside id="toolbar" class="toolbar" aria-label="Build tools"></aside>
         <div class="scene-badge"><span class="scene-dot"></span><span id="scene-badge">REAL-TIME 3D WORLD</span></div>
 
+        <aside id="battle-panel" class="battle-panel" aria-label="Battle Setup" hidden>
+          <div class="battle-panel-header">
+            <div>
+              <div class="eyebrow">CASTLE BATTLE</div>
+              <strong id="battle-mode-status">SETUP</strong>
+            </div>
+            <button id="battle-close" class="icon-button battle-close" type="button" aria-label="Close battle panel">×</button>
+          </div>
+
+          <div class="battle-live">
+            <span>Attackers alive <b id="battle-attacker-alive">0</b></span>
+            <span>Defenders alive <b id="battle-defender-alive">0</b></span>
+          </div>
+
+          <div class="battle-armies">
+            <section class="battle-faction battle-defenders">
+              <div class="battle-faction-title">
+                <span class="battle-color-dot defender-dot"></span>
+                <strong>DEFENDERS</strong>
+              </div>
+
+              <div class="battle-unit-row">
+                <span>Swordsman</span>
+                <div class="battle-stepper">
+                  <button type="button" data-battle-field="defenderSwordsmen" data-delta="-1">−</button>
+                  <b id="battle-defender-swordsmen">10</b>
+                  <button type="button" data-battle-field="defenderSwordsmen" data-delta="1">+</button>
+                </div>
+              </div>
+
+              <div class="battle-unit-row">
+                <span>Archer</span>
+                <div class="battle-stepper">
+                  <button type="button" data-battle-field="defenderArchers" data-delta="-1">−</button>
+                  <b id="battle-defender-archers">15</b>
+                  <button type="button" data-battle-field="defenderArchers" data-delta="1">+</button>
+                </div>
+              </div>
+            </section>
+
+            <section class="battle-faction battle-attackers">
+              <div class="battle-faction-title">
+                <span class="battle-color-dot attacker-dot"></span>
+                <strong>ATTACKERS</strong>
+              </div>
+
+              <div class="battle-unit-row">
+                <span>Swordsman</span>
+                <div class="battle-stepper">
+                  <button type="button" data-battle-field="attackerSwordsmen" data-delta="-1">−</button>
+                  <b id="battle-attacker-swordsmen">30</b>
+                  <button type="button" data-battle-field="attackerSwordsmen" data-delta="1">+</button>
+                </div>
+              </div>
+
+              <div class="battle-unit-row">
+                <span>Archer</span>
+                <div class="battle-stepper">
+                  <button type="button" data-battle-field="attackerArchers" data-delta="-1">−</button>
+                  <b id="battle-attacker-archers">20</b>
+                  <button type="button" data-battle-field="attackerArchers" data-delta="1">+</button>
+                </div>
+              </div>
+            </section>
+          </div>
+
+          <div class="battle-capture">
+            <div id="battle-capture-label">Castle capture inactive</div>
+            <div class="battle-capture-track"><span id="battle-capture-fill"></span></div>
+          </div>
+
+          <div class="battle-actions">
+            <button id="battle-start" class="battle-primary" type="button">Start Battle</button>
+            <button id="battle-stop" type="button">Stop Battle</button>
+            <button id="battle-reset" type="button">Reset Battle</button>
+          </div>
+
+          <div id="battle-result" class="battle-result" hidden></div>
+          <p class="battle-hint">Battle Mode disables construction. Reset Battle removes soldiers/projectiles only and leaves the castle unchanged.</p>
+        </aside>
+
         <div id="help-modal" class="modal-backdrop" hidden>
           <section class="help-modal" role="dialog" aria-modal="true" aria-labelledby="help-title">
             <div class="help-modal-header">
@@ -48,6 +130,14 @@
             </div>
 
             <div class="help-grid">
+              <div class="help-section">
+                <strong>Castle Battle</strong>
+                <span>Open Battle to configure Attacker and Defender Swordsmen/Archers.</span>
+                <span>Defender Archers prefer wall walks and towers; ground defenders protect the castle interior.</span>
+                <span>Attackers approach valid entrances and attempt to capture the Keep / Castle Center.</span>
+                <span>Reset Battle removes the army simulation without modifying your castle.</span>
+              </div>
+
               <div class="help-section">
                 <strong>2D Plan → 3D Castle</strong>
                 <span>Use 2D Plan for a clean top-down layout of walls, towers, roads, terrain, houses, and the Keep.</span>
