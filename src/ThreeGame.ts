@@ -1593,34 +1593,6 @@ export class ThreeGame {
     );
   }
 
-  private addMerlons(
-    group: THREE.Group,
-    x: number,
-    y: number,
-    z: number,
-    axis: 'x' | 'z',
-    span: number,
-    material: THREE.Material,
-  ): void {
-    const count = Math.max(2, Math.floor(span / 1.15));
-
-    for (let i = 0; i < count; i += 1) {
-      const t = count === 1 ? 0 : i / (count - 1) - 0.5;
-      const offset = t * Math.max(0.5, span - 0.55);
-      const geometry = new THREE.CylinderGeometry(0.24, 0.31, 0.9, 4);
-      geometry.rotateY(Math.PI / 4);
-      const mesh = new THREE.Mesh(geometry, material);
-      mesh.position.set(
-        x + (axis === 'x' ? offset : 0),
-        y,
-        z + (axis === 'z' ? offset : 0),
-      );
-      mesh.castShadow = true;
-      mesh.receiveShadow = true;
-      group.add(mesh);
-    }
-  }
-
   private makeGate(group: THREE.Group, gx: number, gy: number): THREE.Group {
     const wallMaterial = this.medievalMaterials.stoneVariant(gx, gy);
     const foundation = this.medievalMaterials.foundation;
