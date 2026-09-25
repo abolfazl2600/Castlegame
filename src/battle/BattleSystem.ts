@@ -835,7 +835,6 @@ export class BattleSystem {
     if (this.mode !== 'running') return;
 
     const attackersAlive = this.countAlive('attacker');
-    const defendersAlive = this.countAlive('defender');
 
     if (attackersAlive === 0 && this.attackerStartCount > 0) {
       this.finishBattle('defender');
