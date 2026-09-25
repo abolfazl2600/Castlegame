@@ -1,9 +1,27 @@
 export type WallKind = 'wall1' | 'wall2' | 'wall3';
 export type WallThickness = 'thin' | 'medium' | 'thick';
+export type WallDirection = 'N' | 'NE' | 'E' | 'SE' | 'S' | 'SW' | 'W' | 'NW';
+export type WallCornerKind = 'square' | 'rounded' | 'reinforced' | 'turret' | 'buttressed';
+
 export type TowerShape = 'square' | 'round' | 'octagonal' | 'corner' | 'watch';
 export type TowerTop = 'battlement' | 'roof' | 'flat' | 'flag' | 'watch';
 export type AccessKind = 'stoneStairs' | 'woodenStairs' | 'ramp' | 'ladder';
 export type TerrainToolKind = 'raise' | 'lower' | 'flatten' | 'smooth' | 'dig' | 'hill' | 'cliff';
+export type KeepRoofStyle = 'flatBattlement' | 'sloped' | 'defensivePlatform' | 'towered';
+
+export interface KeepState {
+  id: number;
+  x: number;
+  y: number;
+  width: number;
+  depth: number;
+  floors: number;
+  rotation: number;
+  cornerTowers: boolean;
+  roof: KeepRoofStyle;
+  battlements: boolean;
+  seed: number;
+}
 
 export type TileKind =
   | WallKind
@@ -25,6 +43,7 @@ export type TileKind =
 
 export type ToolKind =
   | TileKind
+  | 'keep'
   | 'river'
   | 'land'
   | TerrainToolKind
@@ -42,6 +61,7 @@ export interface GridCell {
   towerShape?: TowerShape;
   towerTop?: TowerTop;
   rotation?: number;
+  wallLinks?: WallDirection[];
 }
 
 export interface SavedGame {
@@ -58,7 +78,9 @@ export interface SavedGame {
     towerShape?: TowerShape;
     towerTop?: TowerTop;
     rotation?: number;
+    wallLinks?: WallDirection[];
   }>;
+  keeps?: KeepState[];
   terrain?: Array<{ x: number; y: number; kind: TerrainOverrideKind }>;
   elevations?: Array<{ x: number; y: number; value: number }>;
   worldSeeded?: boolean;

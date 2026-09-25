@@ -2,9 +2,17 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { GameState } from './state/GameState';
 import { SAVE_KEY, SAVE_VERSION, TILE_SIZE, WORLD_COLS } from './core/constants';
+import { KeepSystem } from './building/KeepSystem';
+import { WallSystem } from './building/WallSystem';
+import { WallCornerSystem } from './building/WallCornerSystem';
+import { CastleAccessSystem } from './building/CastleAccessSystem';
+import { CastleDetailGenerator } from './building/CastleDetailGenerator';
+import { KeepRenderer } from './rendering/KeepRenderer';
 import type {
   AccessKind,
   GridCell,
+  KeepRoofStyle,
+  KeepState,
   SavedGame,
   TerrainKind,
   TerrainOverrideKind,
@@ -13,6 +21,7 @@ import type {
   ToolKind,
   TowerShape,
   TowerTop,
+  WallDirection,
   WallKind,
   WallThickness,
 } from './core/types';
@@ -76,6 +85,7 @@ interface WorkerAgent {
 
 interface HistorySnapshot {
   cells: ReturnType<GameState['entries']>;
+  keeps: KeepState[];
   terrain: Array<[string, TerrainOverrideKind]>;
   elevations: Array<[string, number]>;
 }
@@ -89,10 +99,7 @@ const TOOL_GROUPS: Array<{ label: string; tools: ToolDefinition[] }> = [
       { id: 'wall3', icon: '🛡️', label: 'Reinforced Wall', detail: 'Drag A → B · heavy defense', shortcut: '3' },
       { id: 'gate', icon: '🚪', label: 'Gate', detail: 'Snaps into fortification lines', shortcut: '4' },
       { id: 'tower', icon: '🏰', label: 'Modular Tower', detail: '5 bases · 5 top modules', shortcut: '5' },
-      { id: 'stoneStairs', icon: '🪜', label: 'Stone Stairs', detail: 'Snaps ground to wall/tower top', shortcut: 'A' },
-      { id: 'woodenStairs', icon: '🪵', label: 'Wooden Stairs', detail: 'Light access stairway', shortcut: 'S' },
-      { id: 'ramp', icon: '↗️', label: 'Ramp', detail: 'Sloped access to fortifications', shortcut: 'D' },
-      { id: 'ladder', icon: '🪜', label: 'Ladder', detail: 'Vertical wall/tower access', shortcut: 'K' },
+      { id: 'keep', icon: '🏯', label: 'Modular Keep', detail: 'Width · depth · floors · roof', shortcut: 'P' },
       { id: 'moat', icon: '💧', label: 'Moat', detail: 'Workers excavate queued tiles', shortcut: 'Q' },
     ],
   },
@@ -134,12 +141,18 @@ export class ThreeGame {
   private readonly renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
   private readonly controls: OrbitControls;
   private readonly state = new GameState();
+  private readonly keepSystem = new KeepSystem();
+  private readonly wallCornerSystem = new WallCornerSystem();
+  private readonly castleAccessSystem = new CastleAccessSystem();
+  private readonly detailGenerator = new CastleDetailGenerator();
+  private readonly keepRenderer = new KeepRenderer(this.detailGenerator);
   private readonly terrainOverrides = new Map<string, TerrainOverrideKind>();
   private readonly elevationOverrides = new Map<string, number>();
   private readonly raycaster = new THREE.Raycaster();
   private readonly pointer = new THREE.Vector2();
   private readonly terrainLayer = new THREE.Group();
   private readonly buildLayer = new THREE.Group();
+  private readonly wallPreviewLayer = new THREE.Group();
   private readonly workerLayer = new THREE.Group();
   private readonly groundHit = new THREE.Mesh(
     new THREE.PlaneGeometry(WORLD, WORLD),
@@ -157,6 +170,15 @@ export class ThreeGame {
   private wallWalkway = false;
   private towerShape: TowerShape = 'round';
   private towerTop: TowerTop = 'battlement';
+  private keepWidth = 3;
+  private keepDepth = 3;
+  private keepFloors = 3;
+  private keepRotation = 0;
+  private keepCornerTowers = true;
+  private keepRoof: KeepRoofStyle = 'flatBattlement';
+  private keepBattlements = true;
+  private selectedKeepId: number | null = null;
+  private animatedFlags: THREE.Mesh[] = [];
   private brushSize = 2;
   private brushStrength = 1;
 
@@ -212,6 +234,7 @@ export class ThreeGame {
 
     this.scene.add(this.terrainLayer);
     this.scene.add(this.buildLayer);
+    this.scene.add(this.wallPreviewLayer);
     this.scene.add(this.workerLayer);
 
     this.groundHit.rotation.x = -Math.PI / 2;
@@ -478,8 +501,52 @@ export class ThreeGame {
     this.renderTerrain();
 
     const floodedMoats = this.computeFloodedMoats();
-    for (const cell of this.state.entries()) {
+    const cells = this.state.entries();
+
+    for (const cell of cells) {
       this.buildLayer.add(this.makeBuilding(cell, floodedMoats));
+    }
+
+    for (const keep of this.keepSystem.entries()) {
+      this.buildLayer.add(
+        this.keepRenderer.render(keep, {
+          tileSize: TILE,
+          toWorld: (x, y) => this.gridToWorld(x, y),
+          elevationAt: (x, y) => this.terrainElevation(x, y),
+          terrainAt: (x, y) => this.terrainAt(x, y),
+          kindAt: (x, y) => this.kindAt(x, y),
+        }),
+      );
+    }
+
+    const generatedAccess = this.castleAccessSystem.generate(
+      cells,
+      this.keepSystem.entries(),
+      {
+        size: SIZE,
+        getCell: (x, y) => {
+          const cell = this.state.getCell(x, y);
+          return cell ? { x, y, ...cell } : undefined;
+        },
+        terrainBuildable: (x, y) => {
+          const terrain = this.terrainAt(x, y);
+          return terrain !== 'water' && terrain !== 'river';
+        },
+        isOccupied: (x, y) =>
+          Boolean(this.state.getCell(x, y)) ||
+          Boolean(this.keepSystem.findAtCell(x, y)),
+      },
+    );
+
+    for (const access of generatedAccess) {
+      const group = new THREE.Group();
+      const position = this.gridToWorld(access.x, access.y);
+      group.position.set(position.x, this.terrainElevation(access.x, access.y), position.z);
+      this.makeAccess(group, access.kind, access.x, access.y, {
+        kind: access.kind,
+        rotation: access.rotation,
+      });
+      this.buildLayer.add(group);
     }
 
     for (const task of this.moatTasks.values()) {
@@ -496,6 +563,13 @@ export class ThreeGame {
       this.addBox(pending, 3.5, 0.12, 3.5, marker, 0, 2.22, 0);
       this.buildLayer.add(pending);
     }
+
+    this.animatedFlags = [];
+    this.buildLayer.traverse((object) => {
+      if (object instanceof THREE.Mesh && object.userData.castleFlag) {
+        this.animatedFlags.push(object);
+      }
+    });
   }
 
   private renderTerrain(): void {
@@ -787,6 +861,31 @@ export class ThreeGame {
     return base * multiplier;
   }
 
+  private wallConnections(gx: number, gy: number, cell: GridCell): WallDirection[] {
+    if (cell.wallLinks && cell.wallLinks.length > 0) {
+      return cell.wallLinks.filter((direction) => {
+        const vector = WallSystem.vector(direction);
+        return this.isWallFamily(this.kindAt(gx + vector.x, gy + vector.y));
+      });
+    }
+
+    const inferred: WallDirection[] = [];
+    const cardinal: Array<{ direction: WallDirection; dx: number; dy: number }> = [
+      { direction: 'N', dx: 0, dy: -1 },
+      { direction: 'E', dx: 1, dy: 0 },
+      { direction: 'S', dx: 0, dy: 1 },
+      { direction: 'W', dx: -1, dy: 0 },
+    ];
+
+    for (const item of cardinal) {
+      if (this.isWallFamily(this.kindAt(gx + item.dx, gy + item.dy))) {
+        inferred.push(item.direction);
+      }
+    }
+
+    return inferred;
+  }
+
   private makeWall(
     group: THREE.Group,
     kind: WallKind,
@@ -799,6 +898,7 @@ export class ThreeGame {
     const thickness = this.wallThicknessValue(kind, thicknessChoice);
     const battlement = cell.battlement ?? true;
     const walkway = cell.walkway ?? false;
+    const links = this.wallConnections(gx, gy, cell);
 
     const config = {
       wall1: {
@@ -820,11 +920,12 @@ export class ThreeGame {
         dark: 0x5c6670,
         accent: 0xc7d0d6,
         baseHeight: 4.3,
-        walkway: 0x58636c,
+        walkway: 0x58636f,
       },
     }[kind];
 
     const height = config.baseHeight + Math.max(0, level - 1) * 1.8;
+    const topY = 2.22 + height;
     const wallMaterial = new THREE.MeshStandardMaterial({ color: config.color, roughness: 0.88 });
     const darkMaterial = new THREE.MeshStandardMaterial({ color: config.dark, roughness: 0.97 });
     const accentMaterial = new THREE.MeshStandardMaterial({ color: config.accent, roughness: 0.86 });
@@ -834,159 +935,150 @@ export class ThreeGame {
       metalness: 0.3,
       roughness: 0.58,
     });
+    const slitMaterial = new THREE.MeshStandardMaterial({ color: 0x292621, roughness: 1 });
 
-    const baseY = 2.22 + height / 2;
-    const topY = 2.22 + height;
-    const foundationHeight = 0.5;
+    let junctionThickness = thickness;
+    for (const direction of links) {
+      const vector = WallSystem.vector(direction);
+      const neighbor = this.state.getCell(gx + vector.x, gy + vector.y);
+      if (neighbor && WALL_KINDS.includes(neighbor.kind as WallKind)) {
+        junctionThickness = Math.max(
+          junctionThickness,
+          this.wallThicknessValue(
+            neighbor.kind as WallKind,
+            neighbor.thickness ?? 'medium',
+          ),
+        );
+      }
+    }
 
-    // Massive central pier keeps corners, T-junctions and cross-junctions visually solid.
-    this.addBox(group, thickness * 1.1, height, thickness * 1.1, wallMaterial, 0, baseY, 0);
     this.addBox(
       group,
-      thickness * 1.34,
-      foundationHeight,
-      thickness * 1.34,
+      junctionThickness * 1.12,
+      height,
+      junctionThickness * 1.12,
+      wallMaterial,
+      0,
+      2.22 + height / 2,
+      0,
+    );
+    this.addBox(
+      group,
+      junctionThickness * 1.38,
+      0.5,
+      junctionThickness * 1.38,
       darkMaterial,
       0,
-      2.22 + foundationHeight / 2,
+      2.47,
       0,
     );
 
-    const neighbors = [
-      { dx: -1, dy: 0, axis: 'x' as const, sign: -1 },
-      { dx: 1, dy: 0, axis: 'x' as const, sign: 1 },
-      { dx: 0, dy: -1, axis: 'z' as const, sign: -1 },
-      { dx: 0, dy: 1, axis: 'z' as const, sign: 1 },
-    ];
-
-    let connections = 0;
-
-    for (const neighbor of neighbors) {
-      if (!this.isWallFamily(this.kindAt(gx + neighbor.dx, gy + neighbor.dy))) continue;
-      connections += 1;
-
-      const elevationDelta =
-        this.terrainElevation(gx + neighbor.dx, gy + neighbor.dy) -
-        this.terrainElevation(gx, gy);
-
-      this.addSlopedWallArm(
+    if (links.length === 0) {
+      this.addDirectionalWallArm(
         group,
-        neighbor.axis,
-        neighbor.sign,
-        elevationDelta,
+        'E',
+        0,
         height,
         thickness,
         wallMaterial,
-      );
-
-      this.addWallFoundationArm(
-        group,
-        neighbor.axis,
-        neighbor.sign,
-        elevationDelta,
-        thickness,
         darkMaterial,
-      );
-
-      this.addWallFaceDetails(
-        group,
+        walkwayMaterial,
+        accentMaterial,
+        slitMaterial,
         kind,
-        neighbor.axis,
-        neighbor.sign,
-        elevationDelta,
+        gx,
+        gy,
+        level,
+        battlement,
+        walkway,
+        true,
+      );
+      this.addDirectionalWallArm(
+        group,
+        'W',
+        0,
         height,
         thickness,
+        wallMaterial,
         darkMaterial,
+        walkwayMaterial,
         accentMaterial,
+        slitMaterial,
+        kind,
+        gx,
+        gy,
+        level,
+        battlement,
+        walkway,
+        true,
       );
+    } else {
+      for (const direction of links) {
+        const vector = WallSystem.vector(direction);
+        const neighbor = this.state.getCell(gx + vector.x, gy + vector.y);
+        if (!neighbor || !this.isWallFamily(neighbor.kind)) continue;
 
-      if (walkway) {
-        this.addWallWalkway(
-          group,
-          neighbor.axis,
-          neighbor.sign,
-          elevationDelta,
-          topY,
-          thickness,
-          walkwayMaterial,
-        );
-      }
+        const elevationDelta =
+          this.terrainElevation(gx + vector.x, gy + vector.y) -
+          this.terrainElevation(gx, gy);
 
-      if (battlement) {
-        this.addWallParapets(
+        this.addDirectionalWallArm(
           group,
-          neighbor.axis,
-          neighbor.sign,
+          direction,
           elevationDelta,
-          topY,
+          height,
           thickness,
           wallMaterial,
+          darkMaterial,
+          walkwayMaterial,
+          accentMaterial,
+          slitMaterial,
+          kind,
+          gx,
+          gy,
+          level,
+          battlement,
+          walkway,
+          links.length >= 2 || neighbor.kind === 'tower' || neighbor.kind === 'gate',
         );
       }
     }
 
-    // An isolated section still looks like a real standalone curtain wall.
-    if (connections === 0) {
-      this.addBox(group, TILE + 0.12, height, thickness, wallMaterial, 0, baseY, 0);
-      this.addBox(group, TILE + 0.2, foundationHeight, thickness * 1.28, darkMaterial, 0, 2.22 + foundationHeight / 2, 0);
-
-      if (walkway) {
-        this.addBox(group, TILE + 0.1, 0.22, Math.max(0.7, thickness - 0.28), walkwayMaterial, 0, topY - 0.26, 0);
-      }
-
-      if (battlement) {
-        const sideOffset = Math.max(0.34, thickness / 2 - 0.08);
-        this.addParapetBeam(group, 'x', 0, topY + 0.08, -sideOffset, TILE + 0.12, wallMaterial);
-        this.addParapetBeam(group, 'x', 0, topY + 0.08, sideOffset, TILE + 0.12, wallMaterial);
-        this.addMerlons(group, 0, topY + 0.55, -sideOffset, 'x', TILE, wallMaterial);
-        this.addMerlons(group, 0, topY + 0.55, sideOffset, 'x', TILE, wallMaterial);
-      }
-
-      this.addWallFaceDetails(
+    const corner = this.wallCornerSystem.analyze(cell, links, gx, gy);
+    if (corner) {
+      this.addAutomaticCorner(
         group,
-        kind,
-        'x',
-        0,
-        0,
+        corner.kind,
         height,
-        thickness,
+        junctionThickness,
+        topY,
+        wallMaterial,
         darkMaterial,
         accentMaterial,
-        TILE,
+        battlement,
+        walkway,
+        walkwayMaterial,
       );
-    }
-
-    // Corner platform and parapet make junctions read as a continuous castle rampart.
-    if (connections >= 2) {
-      if (walkway) {
-        this.addBox(
-          group,
-          thickness + 0.86,
-          0.22,
-          thickness + 0.86,
-          walkwayMaterial,
-          0,
-          topY - 0.26,
-          0,
-        );
-      }
-
-      if (battlement) {
-        const edge = thickness / 2 + 0.28;
-        this.addBox(group, thickness + 0.92, 0.42, 0.22, wallMaterial, 0, topY + 0.22, -edge);
-        this.addBox(group, thickness + 0.92, 0.42, 0.22, wallMaterial, 0, topY + 0.22, edge);
-        this.addBox(group, 0.22, 0.42, thickness + 0.92, wallMaterial, -edge, topY + 0.22, 0);
-        this.addBox(group, 0.22, 0.42, thickness + 0.92, wallMaterial, edge, topY + 0.22, 0);
-      }
+    } else if (walkway) {
+      this.addBox(
+        group,
+        junctionThickness + 0.72,
+        0.22,
+        junctionThickness + 0.72,
+        walkwayMaterial,
+        0,
+        topY - 0.25,
+        0,
+      );
     }
 
     const visibleFloorLines = Math.min(Math.max(0, level - 1), 14);
     for (let floor = 1; floor <= visibleFloorLines; floor += 1) {
       this.addBox(
         group,
-        thickness * 1.18,
+        junctionThickness * 1.18,
         0.13,
-        thickness * 1.18,
+        junctionThickness * 1.18,
         darkMaterial,
         0,
         2.22 + config.baseHeight + floor * 1.8 - 0.9,
@@ -995,258 +1087,272 @@ export class ThreeGame {
     }
 
     if (kind === 'wall3') {
-      this.addBox(group, thickness + 0.42, 0.34, thickness + 0.42, metalMaterial, 0, 3.15, 0);
-      for (const offset of [-thickness * 0.53, thickness * 0.53]) {
-        this.addBox(group, 0.2, height * 0.72, thickness + 0.5, metalMaterial, offset, baseY, 0);
+      this.addBox(group, junctionThickness + 0.42, 0.34, junctionThickness + 0.42, metalMaterial, 0, 3.15, 0);
+      for (const offset of [-junctionThickness * 0.53, junctionThickness * 0.53]) {
+        this.addBox(group, 0.2, height * 0.72, junctionThickness + 0.5, metalMaterial, offset, 2.22 + height / 2, 0);
       }
+    }
+
+    const shouldFlag = links.some((direction) =>
+      this.detailGenerator.wallPlan(
+        gx,
+        gy,
+        level,
+        kind,
+        direction,
+        TILE,
+        links.length >= 2,
+      ).flag,
+    );
+
+    if (shouldFlag && (corner?.major || level >= 4)) {
+      this.addAutomaticFlag(group, topY + 0.2, gx, gy, accentMaterial);
     }
 
     return group;
   }
 
-  private addWallFoundationArm(
+  private addDirectionalWallArm(
     group: THREE.Group,
-    axis: 'x' | 'z',
-    sign: number,
-    elevationDelta: number,
-    thickness: number,
-    material: THREE.Material,
-  ): void {
-    const run = TILE / 2 + 0.16;
-    const rise = elevationDelta / 2;
-    const length = Math.sqrt(run * run + rise * rise);
-    const foundation = this.addBox(
-      group,
-      axis === 'x' ? length : thickness * 1.24,
-      0.52,
-      axis === 'z' ? length : thickness * 1.24,
-      material,
-      axis === 'x' ? sign * run / 2 : 0,
-      2.48 + rise / 2,
-      axis === 'z' ? sign * run / 2 : 0,
-    );
-
-    const angle = Math.atan2(rise, run);
-    if (axis === 'x') foundation.rotation.z = sign * angle;
-    else foundation.rotation.x = -sign * angle;
-  }
-
-  private addWallWalkway(
-    group: THREE.Group,
-    axis: 'x' | 'z',
-    sign: number,
-    elevationDelta: number,
-    topY: number,
-    thickness: number,
-    material: THREE.Material,
-  ): void {
-    const run = TILE / 2 + 0.14;
-    const rise = elevationDelta / 2;
-    const length = Math.sqrt(run * run + rise * rise);
-    const offset = sign * run / 2;
-    const walkway = this.addBox(
-      group,
-      axis === 'x' ? length : Math.max(0.72, thickness - 0.22),
-      0.22,
-      axis === 'z' ? length : Math.max(0.72, thickness - 0.22),
-      material,
-      axis === 'x' ? offset : 0,
-      topY - 0.25 + rise / 2,
-      axis === 'z' ? offset : 0,
-    );
-
-    const angle = Math.atan2(rise, run);
-    if (axis === 'x') walkway.rotation.z = sign * angle;
-    else walkway.rotation.x = -sign * angle;
-  }
-
-  private addWallParapets(
-    group: THREE.Group,
-    axis: 'x' | 'z',
-    sign: number,
-    elevationDelta: number,
-    topY: number,
-    thickness: number,
-    material: THREE.Material,
-  ): void {
-    const run = TILE / 2 + 0.14;
-    const rise = elevationDelta / 2;
-    const offset = sign * run / 2;
-    const sideOffset = Math.max(0.36, thickness / 2 - 0.05);
-    const y = topY + rise / 2 + 0.1;
-
-    if (axis === 'x') {
-      this.addParapetBeam(group, 'x', offset, y, -sideOffset, run, material, elevationDelta, sign);
-      this.addParapetBeam(group, 'x', offset, y, sideOffset, run, material, elevationDelta, sign);
-      this.addMerlons(group, offset, y + 0.46, -sideOffset, 'x', run, material);
-      this.addMerlons(group, offset, y + 0.46, sideOffset, 'x', run, material);
-    } else {
-      this.addParapetBeam(group, 'z', -sideOffset, y, offset, run, material, elevationDelta, sign);
-      this.addParapetBeam(group, 'z', sideOffset, y, offset, run, material, elevationDelta, sign);
-      this.addMerlons(group, -sideOffset, y + 0.46, offset, 'z', run, material);
-      this.addMerlons(group, sideOffset, y + 0.46, offset, 'z', run, material);
-    }
-  }
-
-  private addParapetBeam(
-    group: THREE.Group,
-    axis: 'x' | 'z',
-    x: number,
-    y: number,
-    z: number,
-    span: number,
-    material: THREE.Material,
-    elevationDelta = 0,
-    sign = 1,
-  ): void {
-    const run = span;
-    const rise = elevationDelta / 2;
-    const length = Math.sqrt(run * run + rise * rise);
-    const beam = this.addBox(
-      group,
-      axis === 'x' ? length : 0.24,
-      0.34,
-      axis === 'z' ? length : 0.24,
-      material,
-      x,
-      y,
-      z,
-    );
-
-    const angle = Math.atan2(rise, run);
-    if (axis === 'x') beam.rotation.z = sign * angle;
-    else beam.rotation.x = -sign * angle;
-  }
-
-  private addWallFaceDetails(
-    group: THREE.Group,
-    kind: WallKind,
-    axis: 'x' | 'z',
-    sign: number,
+    direction: WallDirection,
     elevationDelta: number,
     height: number,
     thickness: number,
+    wallMaterial: THREE.Material,
     darkMaterial: THREE.Material,
+    walkwayMaterial: THREE.Material,
     accentMaterial: THREE.Material,
-    overrideSpan?: number,
+    slitMaterial: THREE.Material,
+    kind: WallKind,
+    gx: number,
+    gy: number,
+    level: number,
+    battlement: boolean,
+    walkway: boolean,
+    importantConnection: boolean,
   ): void {
-    const span = overrideSpan ?? TILE / 2 + 0.12;
-    const offset = overrideSpan ? 0 : sign * span / 2;
-    const rise = overrideSpan ? 0 : elevationDelta / 2;
+    const vector = WallSystem.vector(direction);
+    const diagonalScale = Math.hypot(vector.x, vector.y);
+    const run = (TILE * diagonalScale) / 2 + 0.18;
+    const rise = elevationDelta / 2;
+    const slope = Math.atan2(rise, run);
+    const arm = new THREE.Group();
+    arm.rotation.y = WallSystem.worldAngle(direction);
+    group.add(arm);
 
-    if (kind === 'wall2') {
-      const plankCount = overrideSpan ? 8 : 4;
-      for (let i = 0; i < plankCount; i += 1) {
-        const t = i / (plankCount - 1) - 0.5;
-        const along = t * Math.max(0.4, span - 0.35);
+    const length = Math.sqrt(run * run + rise * rise);
+    const body = this.addBox(
+      arm,
+      thickness,
+      height,
+      length,
+      wallMaterial,
+      0,
+      2.22 + height / 2 + rise / 2,
+      run / 2,
+    );
+    body.rotation.x = -slope;
 
+    const foundation = this.addBox(
+      arm,
+      thickness * 1.24,
+      0.52,
+      length + 0.08,
+      darkMaterial,
+      0,
+      2.48 + rise / 2,
+      run / 2,
+    );
+    foundation.rotation.x = -slope;
+
+    if (walkway) {
+      const walk = this.addBox(
+        arm,
+        Math.max(0.72, thickness - 0.24),
+        0.22,
+        length,
+        walkwayMaterial,
+        0,
+        2.22 + height - 0.25 + rise / 2,
+        run / 2,
+      );
+      walk.rotation.x = -slope;
+    }
+
+    if (battlement) {
+      const sideOffset = Math.max(0.34, thickness / 2 - 0.05);
+      for (const side of [-1, 1]) {
+        const beam = this.addBox(
+          arm,
+          0.22,
+          0.34,
+          length,
+          wallMaterial,
+          side * sideOffset,
+          2.22 + height + 0.1 + rise / 2,
+          run / 2,
+        );
+        beam.rotation.x = -slope;
+
+        const count = Math.max(2, Math.floor(run / 0.7));
+        for (let i = 0; i < count; i += 1) {
+          const t = count === 1 ? 0.5 : i / (count - 1);
+          const merlon = this.addBox(
+            arm,
+            0.4,
+            0.62,
+            0.42,
+            wallMaterial,
+            side * sideOffset,
+            2.22 + height + 0.48 + rise * t,
+            0.12 + t * (run - 0.18),
+          );
+          merlon.rotation.x = -slope;
+        }
+      }
+    }
+
+    const detailPlan = this.detailGenerator.wallPlan(
+      gx,
+      gy,
+      level,
+      kind,
+      direction,
+      run,
+      importantConnection,
+    );
+
+    const slitY = 2.22 + Math.min(height * 0.56, 2.25 + Math.max(0, level - 1) * 0.22);
+    for (const offset of detailPlan.slitOffsets) {
+      const z = run / 2 + offset;
+      for (const side of [-1, 1]) {
         this.addBox(
-          group,
-          axis === 'x' ? 0.11 : thickness + 0.14,
-          height * 0.88,
-          axis === 'z' ? 0.11 : thickness + 0.14,
-          darkMaterial,
-          axis === 'x' ? offset + along : 0,
-          2.25 + height * 0.46 + rise / 2,
-          axis === 'z' ? offset + along : 0,
+          arm,
+          0.08,
+          0.64,
+          0.15,
+          slitMaterial,
+          side * (thickness / 2 + 0.045),
+          slitY + rise * (z / Math.max(run, 0.01)),
+          z,
         );
       }
-
-      this.addBox(
-        group,
-        axis === 'x' ? span : thickness + 0.22,
-        0.2,
-        axis === 'z' ? span : thickness + 0.22,
-        accentMaterial,
-        axis === 'x' ? offset : 0,
-        3.15 + rise / 2,
-        axis === 'z' ? offset : 0,
-      );
-      return;
     }
 
-    const courseCount = Math.max(2, Math.min(5, Math.floor(height / 1.15)));
-    for (let course = 1; course <= courseCount; course += 1) {
-      const y = 2.22 + (height * course) / (courseCount + 1) + rise / 2;
-      this.addBox(
-        group,
-        axis === 'x' ? span : thickness + 0.12,
-        0.1,
-        axis === 'z' ? span : thickness + 0.12,
-        darkMaterial,
-        axis === 'x' ? offset : 0,
-        y,
-        axis === 'z' ? offset : 0,
-      );
-    }
-
-    const buttressOffset = Math.max(0.42, span * 0.34);
-    for (const side of [-1, 1]) {
-      this.addBox(
-        group,
-        axis === 'x' ? 0.22 : thickness + 0.28,
-        Math.min(2.15, height * 0.55),
-        axis === 'z' ? 0.22 : thickness + 0.28,
-        accentMaterial,
-        axis === 'x' ? offset + side * buttressOffset : 0,
-        3.25 + rise / 2,
-        axis === 'z' ? offset + side * buttressOffset : 0,
-      );
+    const buttressCount = kind === 'wall3' ? 2 : importantConnection ? 1 : 0;
+    for (let i = 0; i < buttressCount; i += 1) {
+      const z = run * (0.4 + i * 0.28);
+      for (const side of [-1, 1]) {
+        this.addBox(
+          arm,
+          0.34,
+          Math.min(2.3, height * 0.55),
+          0.48,
+          accentMaterial,
+          side * (thickness / 2 + 0.16),
+          3.25 + rise * (z / Math.max(run, 0.01)),
+          z,
+        );
+      }
     }
   }
 
-  private addSlopedWallArm(
+  private addAutomaticCorner(
     group: THREE.Group,
-    axis: 'x' | 'z',
-    sign: number,
-    elevationDelta: number,
+    kind: 'square' | 'rounded' | 'reinforced' | 'turret' | 'buttressed',
     height: number,
     thickness: number,
-    material: THREE.Material,
+    topY: number,
+    wallMaterial: THREE.Material,
+    darkMaterial: THREE.Material,
+    accentMaterial: THREE.Material,
+    battlement: boolean,
+    walkway: boolean,
+    walkwayMaterial: THREE.Material,
   ): void {
-    const run = TILE / 2 + 0.16;
-    const rise = elevationDelta / 2;
-    const length = Math.sqrt(run * run + rise * rise);
-    const mesh = this.addBox(
-      group,
-      axis === 'x' ? length : thickness,
-      height,
-      axis === 'z' ? length : thickness,
-      material,
-      axis === 'x' ? sign * run / 2 : 0,
-      2.22 + height / 2 + rise / 2,
-      axis === 'z' ? sign * run / 2 : 0,
-    );
+    const radius = thickness * 0.88;
 
-    const angle = Math.atan2(rise, run);
-    if (axis === 'x') mesh.rotation.z = sign * angle;
-    else mesh.rotation.x = -sign * angle;
-  }
+    if (kind === 'rounded' || kind === 'turret') {
+      const extra = kind === 'turret' ? 1.25 : 0.25;
+      const cylinder = new THREE.Mesh(
+        new THREE.CylinderGeometry(radius, radius * 1.05, height + extra, 12),
+        wallMaterial,
+      );
+      cylinder.position.y = 2.22 + (height + extra) / 2;
+      cylinder.castShadow = true;
+      cylinder.receiveShadow = true;
+      group.add(cylinder);
 
-  private addMerlons(
-    group: THREE.Group,
-    x: number,
-    y: number,
-    z: number,
-    axis: 'x' | 'z',
-    span: number,
-    material: THREE.Material,
-  ): void {
-    const count = Math.max(2, Math.floor(span / 0.72));
-    for (let i = 0; i < count; i += 1) {
-      const t = count === 1 ? 0 : i / (count - 1) - 0.5;
-      const offset = t * Math.max(0.5, span - 0.45);
+      if (kind === 'turret' && battlement) {
+        const count = 8;
+        for (let i = 0; i < count; i += 1) {
+          const angle = (i / count) * Math.PI * 2;
+          this.addBox(
+            group,
+            0.36,
+            0.62,
+            0.36,
+            wallMaterial,
+            Math.cos(angle) * radius,
+            topY + extra + 0.3,
+            Math.sin(angle) * radius,
+          );
+        }
+      }
+    } else {
+      const scale = kind === 'reinforced' ? 1.48 : kind === 'buttressed' ? 1.38 : 1.2;
       this.addBox(
         group,
-        axis === 'x' ? 0.42 : 0.62,
-        0.62,
-        axis === 'x' ? 0.62 : 0.42,
-        material,
-        x + (axis === 'x' ? offset : 0),
-        y,
-        z + (axis === 'z' ? offset : 0),
+        thickness * scale,
+        height,
+        thickness * scale,
+        wallMaterial,
+        0,
+        2.22 + height / 2,
+        0,
       );
+
+      if (kind === 'reinforced' || kind === 'buttressed') {
+        for (const angle of [0, Math.PI / 2, Math.PI, Math.PI * 1.5]) {
+          const support = new THREE.Group();
+          support.rotation.y = angle;
+          group.add(support);
+          this.addBox(
+            support,
+            thickness * 0.46,
+            Math.min(2.6, height * 0.58),
+            0.58,
+            kind === 'reinforced' ? darkMaterial : accentMaterial,
+            0,
+            3.35,
+            thickness * 0.9,
+          );
+        }
+      }
     }
+
+    if (walkway) {
+      const platform = new THREE.Mesh(
+        new THREE.CylinderGeometry(radius * 1.04, radius * 1.04, 0.22, kind === 'rounded' || kind === 'turret' ? 12 : 4),
+        walkwayMaterial,
+      );
+      platform.position.y = topY - 0.25;
+      if (kind !== 'rounded' && kind !== 'turret') platform.rotation.y = Math.PI / 4;
+      group.add(platform);
+    }
+  }
+
+  private addAutomaticFlag(
+    group: THREE.Group,
+    topY: number,
+    gx: number,
+    gy: number,
+    clothMaterial: THREE.Material,
+  ): void {
+    const mast = new THREE.MeshStandardMaterial({ color: 0x5d4633, roughness: 0.9 });
+    this.addBox(group, 0.08, 2.2, 0.08, mast, 0, topY + 1.1, 0);
+    const flag = this.addBox(group, 1.0, 0.46, 0.055, clothMaterial, 0.52, topY + 1.82, 0);
+    flag.userData.castleFlag = { phase: (gx * 0.71 + gy * 0.37) % (Math.PI * 2) };
   }
 
   private makeGate(group: THREE.Group, gx: number, gy: number): THREE.Group {
@@ -1329,23 +1435,75 @@ export class ThreeGame {
       }
     }
 
-    const specs = [
-      { dx: -1, dy: 0, axis: 'x' as const, sign: -1 },
-      { dx: 1, dy: 0, axis: 'x' as const, sign: 1 },
-      { dx: 0, dy: -1, axis: 'z' as const, sign: -1 },
-      { dx: 0, dy: 1, axis: 'z' as const, sign: 1 },
-    ];
+    const towerLinks = this.wallConnections(gx, gy, cell);
+    for (const direction of towerLinks) {
+      const vector = WallSystem.vector(direction);
+      if (!this.isWallFamily(this.kindAt(gx + vector.x, gy + vector.y))) continue;
 
-    for (const spec of specs) {
-      if (!this.isWallFamily(this.kindAt(gx + spec.dx, gy + spec.dy))) continue;
       const elevationDelta =
-        this.terrainElevation(gx + spec.dx, gy + spec.dy) -
+        this.terrainElevation(gx + vector.x, gy + vector.y) -
         this.terrainElevation(gx, gy);
-      this.addSlopedWallArm(group, spec.axis, spec.sign, elevationDelta, Math.min(height, 4.2), 1.62, stone);
+      this.addTowerWallConnector(
+        group,
+        direction,
+        elevationDelta,
+        Math.min(height, 4.2),
+        stone,
+      );
+    }
+
+    const openingMaterial = new THREE.MeshStandardMaterial({ color: 0x252321, roughness: 1 });
+    const radius = shape === 'watch' ? 1.18 : shape === 'square' || shape === 'corner' ? 1.38 : 1.58;
+    for (let floor = 0; floor < Math.max(1, level); floor += 1) {
+      const y = 3.25 + floor * 1.7;
+      if (y > topY - 0.7) break;
+
+      this.addBox(group, 0.16, 0.68, 0.08, openingMaterial, 0, y, -radius - 0.03);
+      this.addBox(group, 0.16, 0.68, 0.08, openingMaterial, 0, y, radius + 0.03);
+      this.addBox(group, 0.08, 0.68, 0.16, openingMaterial, -radius - 0.03, y, 0);
+      this.addBox(group, 0.08, 0.68, 0.16, openingMaterial, radius + 0.03, y, 0);
     }
 
     this.addTowerTop(group, shape, top, topY, stone, roofMaterial, wood, metal);
+
+    const autoFlag =
+      level >= 4 &&
+      (shape === 'watch' || shape === 'corner' || Math.abs(gx * 31 + gy * 17 + level) % 5 === 0);
+    if (autoFlag && top !== 'flag') {
+      this.addBox(group, 0.08, 2.45, 0.08, wood, 0, topY + 1.25, 0);
+      const flag = this.addBox(group, 1.05, 0.48, 0.055, roofMaterial, 0.56, topY + 2.02, 0);
+      flag.userData.castleFlag = { phase: gx * 0.41 + gy * 0.29 + level };
+    }
+
     return group;
+  }
+
+  private addTowerWallConnector(
+    group: THREE.Group,
+    direction: WallDirection,
+    elevationDelta: number,
+    height: number,
+    material: THREE.Material,
+  ): void {
+    const vector = WallSystem.vector(direction);
+    const run = (TILE * Math.hypot(vector.x, vector.y)) / 2 + 0.2;
+    const rise = elevationDelta / 2;
+    const length = Math.sqrt(run * run + rise * rise);
+    const connector = new THREE.Group();
+    connector.rotation.y = WallSystem.worldAngle(direction);
+    group.add(connector);
+
+    const body = this.addBox(
+      connector,
+      1.62,
+      height,
+      length,
+      material,
+      0,
+      2.22 + height / 2 + rise / 2,
+      run / 2,
+    );
+    body.rotation.x = -Math.atan2(rise, run);
   }
 
   private addTowerTop(
@@ -1393,6 +1551,7 @@ export class ThreeGame {
       this.addBox(group, 0.1, 3.2, 0.1, metal, 0, topY + 1.72, 0);
       const flag = this.addBox(group, 1.35, 0.65, 0.08, roof, 0.72, topY + 2.65, 0);
       flag.position.x += 0.06;
+      flag.userData.castleFlag = { phase: topY * 0.37 };
       return;
     }
 
@@ -1410,7 +1569,7 @@ export class ThreeGame {
 
   private fortificationTopLocal(cell: GridCell): number {
     if (WALL_KINDS.includes(cell.kind as WallKind)) {
-      const base = cell.kind === 'wall1' ? 3.35 : cell.kind === 'wall2' ? 3.65 : 4.2;
+      const base = cell.kind === 'wall1' ? 3.45 : cell.kind === 'wall2' ? 3.7 : 4.3;
       return 2.22 + base + Math.max(0, (cell.level ?? 1) - 1) * 1.8;
     }
 
@@ -1890,7 +2049,11 @@ export class ThreeGame {
 
   private captureSnapshot(): HistorySnapshot {
     return {
-      cells: this.state.entries().map((cell) => ({ ...cell })),
+      cells: this.state.entries().map((cell) => ({
+        ...cell,
+        wallLinks: cell.wallLinks ? [...cell.wallLinks] : undefined,
+      })),
+      keeps: this.keepSystem.entries(),
       terrain: Array.from(this.terrainOverrides.entries()),
       elevations: Array.from(this.elevationOverrides.entries()),
     };
@@ -1908,6 +2071,7 @@ export class ThreeGame {
 
   private restoreSnapshot(snapshot: HistorySnapshot): void {
     this.state.replace(snapshot.cells);
+    this.keepSystem.replace(snapshot.keeps ?? []);
     this.terrainOverrides.clear();
     this.elevationOverrides.clear();
 
@@ -1915,6 +2079,7 @@ export class ThreeGame {
     for (const [key, value] of snapshot.elevations) this.elevationOverrides.set(key, value);
 
     this.selectedCell = null;
+    this.selectedKeepId = null;
     this.redraw();
     this.save(false);
   }
@@ -2035,6 +2200,38 @@ export class ThreeGame {
   }
 
   private moveSelected(dx: number, dy: number): void {
+    if (this.selectedKeepId !== null) {
+      const keep = this.keepSystem.get(this.selectedKeepId);
+      if (!keep) return;
+
+      const draft = {
+        x: keep.x + dx,
+        y: keep.y + dy,
+        width: keep.width,
+        depth: keep.depth,
+        floors: keep.floors,
+        rotation: keep.rotation,
+        cornerTowers: keep.cornerTowers,
+        roof: keep.roof,
+        battlements: keep.battlements,
+      };
+      const validation = this.validateKeepDraft(draft, keep.id);
+      if (!validation.valid) {
+        this.setStatus(validation.reason ?? 'Cannot move Keep there');
+        return;
+      }
+
+      this.recordHistory();
+      const updated = this.keepSystem.update(keep.id, { x: draft.x, y: draft.y });
+      if (updated) {
+        this.selectKeep(updated);
+        this.redraw();
+        this.scheduleSave();
+        this.setStatus('Moved Keep');
+      }
+      return;
+    }
+
     if (!this.selectedCell) {
       this.setStatus('Click a structure first');
       return;
@@ -2072,6 +2269,11 @@ export class ThreeGame {
   }
 
   private rotateSelected(): void {
+    if (this.selectedKeepId !== null) {
+      this.rotateSelectedKeep();
+      return;
+    }
+
     if (!this.selectedCell) {
       this.setStatus('Click a structure first');
       return;
@@ -2108,7 +2310,8 @@ export class ThreeGame {
           this.wallDragEnd = cell;
           this.controls.enabled = false;
           canvas.setPointerCapture(event.pointerId);
-          this.setStatus('Wall drag: choose end point');
+          this.renderWallPreview([cell]);
+          this.setStatus('Wall drag: choose end point · snaps to 45°');
           event.preventDefault();
           event.stopPropagation();
           return;
@@ -2143,8 +2346,9 @@ export class ThreeGame {
           const cell = this.pickGridCell(event);
           if (cell) {
             this.wallDragEnd = cell;
-            const count = this.wallPath(this.wallDragStart, cell).length;
-            this.setStatus(`Wall drag: ${count} segments`);
+            const path = this.wallPath(this.wallDragStart, cell);
+            this.renderWallPreview(path);
+            this.setStatus(`Wall drag: ${path.length} segments · preview is final path`);
           }
           event.preventDefault();
           event.stopPropagation();
@@ -2239,44 +2443,90 @@ export class ThreeGame {
   }
 
   private wallPath(start: GridPoint, end: GridPoint): GridPoint[] {
-    const result: GridPoint[] = [];
-    const pushUnique = (point: GridPoint): void => {
-      const last = result[result.length - 1];
-      if (!last || last.x !== point.x || last.y !== point.y) result.push(point);
-    };
+    return WallSystem.createSnappedPath(start, end, SIZE);
+  }
 
-    const walkX = (fromX: number, toX: number, y: number): void => {
-      const step = fromX <= toX ? 1 : -1;
-      for (let x = fromX; ; x += step) {
-        pushUnique({ x, y });
-        if (x === toX) break;
-      }
-    };
+  private renderWallPreview(path: GridPoint[]): void {
+    this.clearGroup(this.wallPreviewLayer);
+    if (path.length === 0) return;
 
-    const walkY = (fromY: number, toY: number, x: number): void => {
-      const step = fromY <= toY ? 1 : -1;
-      for (let y = fromY; ; y += step) {
-        pushUnique({ x, y });
-        if (y === toY) break;
-      }
-    };
+    const material = new THREE.MeshStandardMaterial({
+      color: 0x72e4ff,
+      emissive: 0x164c5c,
+      emissiveIntensity: 0.5,
+      transparent: true,
+      opacity: 0.48,
+      depthWrite: false,
+    });
 
-    const dx = Math.abs(end.x - start.x);
-    const dy = Math.abs(end.y - start.y);
+    for (let i = 0; i < path.length; i += 1) {
+      const point = path[i];
+      const position = this.gridToWorld(point.x, point.y);
+      const marker = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.22, 0.22, 0.18, 10),
+        material,
+      );
+      marker.position.set(
+        position.x,
+        2.38 + this.terrainElevation(point.x, point.y),
+        position.z,
+      );
+      marker.castShadow = false;
+      this.wallPreviewLayer.add(marker);
 
-    if (dx === 0) {
-      walkY(start.y, end.y, start.x);
-    } else if (dy === 0) {
-      walkX(start.x, end.x, start.y);
-    } else if (dx >= dy) {
-      walkX(start.x, end.x, start.y);
-      walkY(start.y, end.y, end.x);
-    } else {
-      walkY(start.y, end.y, start.x);
-      walkX(start.x, end.x, end.y);
+      if (i === 0) continue;
+
+      const previous = path[i - 1];
+      const previousWorld = this.gridToWorld(previous.x, previous.y);
+      const currentWorld = position;
+      const dx = currentWorld.x - previousWorld.x;
+      const dz = currentWorld.z - previousWorld.z;
+      const length = Math.hypot(dx, dz);
+      const y1 = 2.38 + this.terrainElevation(previous.x, previous.y);
+      const y2 = 2.38 + this.terrainElevation(point.x, point.y);
+      const rise = y2 - y1;
+      const beamLength = Math.sqrt(length * length + rise * rise);
+
+      const beam = new THREE.Mesh(
+        new THREE.BoxGeometry(0.42, 0.25, beamLength),
+        material,
+      );
+      beam.position.set(
+        (previousWorld.x + currentWorld.x) / 2,
+        (y1 + y2) / 2,
+        (previousWorld.z + currentWorld.z) / 2,
+      );
+      beam.rotation.y = Math.atan2(dx, dz);
+      beam.rotation.x = -Math.atan2(rise, length);
+      beam.castShadow = false;
+      this.wallPreviewLayer.add(beam);
     }
+  }
 
-    return result;
+  private linkWallPath(path: GridPoint[]): void {
+    for (let i = 0; i < path.length - 1; i += 1) {
+      const current = path[i];
+      const next = path[i + 1];
+      const direction = WallSystem.directionFromDelta(
+        next.x - current.x,
+        next.y - current.y,
+      );
+      const opposite = WallSystem.opposite(direction);
+      const currentCell = this.state.getCell(current.x, current.y);
+      const nextCell = this.state.getCell(next.x, next.y);
+
+      if (currentCell && this.isWallFamily(currentCell.kind)) {
+        this.state.updateCell(current.x, current.y, {
+          wallLinks: WallSystem.addLink(currentCell, direction),
+        });
+      }
+
+      if (nextCell && this.isWallFamily(nextCell.kind)) {
+        this.state.updateCell(next.x, next.y, {
+          wallLinks: WallSystem.addLink(nextCell, opposite),
+        });
+      }
+    }
   }
 
   private buildWallDrag(start: GridPoint, end: GridPoint, decrease: boolean): void {
@@ -2305,24 +2555,37 @@ export class ThreeGame {
         continue;
       }
 
-      if (cell && !this.isWallFamily(cell.kind)) continue;
+      if (cell?.kind === 'tower' || cell?.kind === 'gate') {
+        changed = true;
+        continue;
+      }
+
+      if (cell && !WALL_KINDS.includes(cell.kind as WallKind)) continue;
       if (!cell && !this.canBuildFortificationOnTerrain(terrain)) continue;
 
       this.state.setCell(point.x, point.y, wallKind, cell?.level ?? 1, {
         thickness: this.wallThickness,
         battlement: this.wallBattlement,
         walkway: this.wallWalkway,
+        wallLinks: cell?.wallLinks,
       });
       changed = true;
     }
 
-    this.selectedCell = end;
+    if (changed) this.linkWallPath(path);
+
+    this.selectedCell = path[path.length - 1] ?? end;
+    this.clearGroup(this.wallPreviewLayer);
 
     if (changed) {
       this.pushUndoSnapshot(before);
       this.redraw();
       this.scheduleSave();
-      this.setStatus(single ? 'Wall segment updated' : `Built ${path.length} snapped wall segments`);
+      this.setStatus(
+        single
+          ? 'Wall segment updated'
+          : `Built ${path.length} snapped wall segments · 45° angles supported`,
+      );
     }
   }
 
@@ -2342,8 +2605,17 @@ export class ThreeGame {
     const current = cell?.kind;
     const terrain = this.terrainAt(gx, gy);
     const overrideKey = this.key(gx, gy);
+    const keepAtPoint = this.keepSystem.findAtCell(gx, gy);
 
     if (this.selectedTool === 'erase') {
+      if (keepAtPoint) {
+        this.recordHistory();
+        this.keepSystem.remove(keepAtPoint.id);
+        if (this.selectedKeepId === keepAtPoint.id) this.selectedKeepId = null;
+        this.finishBuild();
+        this.setStatus('Keep removed');
+        return;
+      }
       if (current) {
         this.recordHistory();
         this.state.removeCell(gx, gy);
@@ -2358,6 +2630,18 @@ export class ThreeGame {
       }
       return;
     }
+
+    if (this.selectedTool === 'keep') {
+      this.placeKeep(gx, gy);
+      return;
+    }
+
+    if (keepAtPoint) {
+      this.selectKeep(keepAtPoint);
+      return;
+    }
+
+    this.selectedKeepId = null;
 
     if (this.selectedTool === 'river' || this.selectedTool === 'land') {
       if (current || this.moatTasks.has(overrideKey)) return;
@@ -2414,22 +2698,6 @@ export class ThreeGame {
         this.state.setCell(gx, gy, 'tree', 1 + ((gx + gy) % 3));
         this.finishBuild();
       }
-      return;
-    }
-
-    if (['stoneStairs', 'woodenStairs', 'ramp', 'ladder'].includes(this.selectedTool)) {
-      if (current) return;
-      if (terrain === 'water' || terrain === 'river') return;
-
-      const snap = this.findAccessSnap(gx, gy);
-      if (!snap) {
-        this.setStatus('Access must be placed next to a wall, gate, or tower');
-        return;
-      }
-
-      this.recordHistory();
-      this.state.setCell(gx, gy, this.selectedTool as AccessKind, 1, { rotation: snap.rotation });
-      this.finishBuild();
       return;
     }
 
@@ -2578,6 +2846,7 @@ export class ThreeGame {
       version: SAVE_VERSION,
       updatedAt: Date.now(),
       cells: this.state.entries(),
+      keeps: this.keepSystem.entries(),
       terrain,
       elevations,
       worldSeeded: this.worldSeeded,
@@ -2605,7 +2874,9 @@ export class ThreeGame {
           towerShape?: TowerShape;
           towerTop?: TowerTop;
           rotation?: number;
+          wallLinks?: WallDirection[];
         }>;
+        keeps?: KeepState[];
         terrain?: Array<{ x: number; y: number; kind: TerrainOverrideKind }>;
         elevations?: Array<{ x: number; y: number; value: number }>;
         worldSeeded?: boolean;
@@ -2630,10 +2901,12 @@ export class ThreeGame {
           towerShape: cell.towerShape,
           towerTop: cell.towerTop,
           rotation: cell.rotation,
+          wallLinks: cell.wallLinks,
         });
       }
 
       this.state.replace(cells);
+      this.keepSystem.replace(data.keeps ?? []);
       this.terrainOverrides.clear();
       this.elevationOverrides.clear();
 
@@ -2716,8 +2989,25 @@ export class ThreeGame {
       '<option value="watch">Watch Tower</option></select></label>' +
       '<label class="settings-row"><span>Top</span><select id="tower-top">' +
       '<option value="battlement">Battlement</option><option value="roof">Roof</option>' +
-      '<option value="flat">Flat Platform</option><option value="flag">Flag</option>' +
-      '<option value="watch">Watch Platform</option></select></label>' +
+      '<option value="flat">Flat Platform</option><option value="watch">Watch Platform</option></select></label>' +
+      '<div class="settings-title">Modular Keep</div>' +
+      '<label class="settings-row"><span>Width</span><select id="keep-width">' +
+      '<option value="2">2 tiles</option><option value="3" selected>3 tiles</option><option value="4">4 tiles</option><option value="5">5 tiles</option><option value="6">6 tiles</option>' +
+      '</select></label>' +
+      '<label class="settings-row"><span>Depth</span><select id="keep-depth">' +
+      '<option value="2">2 tiles</option><option value="3" selected>3 tiles</option><option value="4">4 tiles</option><option value="5">5 tiles</option><option value="6">6 tiles</option>' +
+      '</select></label>' +
+      '<label class="settings-row"><span>Floors</span><select id="keep-floors">' +
+      '<option value="1">1 floor</option><option value="2">2 floors</option><option value="3" selected>3 floors</option><option value="4">4 floors</option><option value="5">5 floors</option><option value="6">6 floors</option><option value="7">7 floors</option><option value="8">8 floors</option><option value="9">9 floors</option>' +
+      '</select></label>' +
+      '<label class="settings-row"><span>Roof</span><select id="keep-roof">' +
+      '<option value="flatBattlement">Flat Battlement</option><option value="sloped">Medieval Sloped</option><option value="defensivePlatform">Defensive Platform</option><option value="towered">Towered Roof</option>' +
+      '</select></label>' +
+      '<label class="settings-check"><input id="keep-corner-towers" type="checkbox" checked /><span>Corner Towers</span></label>' +
+      '<label class="settings-check"><input id="keep-battlements" type="checkbox" checked /><span>Keep Battlements</span></label>' +
+      '<div class="settings-actions"><button id="keep-floor-down" type="button">− Keep Floor</button><button id="keep-floor-up" type="button">+ Keep Floor</button></div>' +
+      '<div class="settings-actions"><button id="keep-rotate" type="button">↻ Keep 90°</button><button id="keep-remove" type="button">Remove Keep</button></div>' +
+      '<div class="settings-hint">Keep details are automatic: entrance, windows, arrow slits, stairs, flags and internal floor-access metadata.</div>' +
       '<div class="settings-title">Terrain Brush</div>' +
       '<label class="settings-row"><span>Brush Size</span><select id="brush-size">' +
       '<option value="1">1 tile</option><option value="2" selected>2 tiles</option><option value="3">3 tiles</option><option value="4">4 tiles</option>' +
@@ -2764,6 +3054,35 @@ export class ThreeGame {
       this.applyTowerSettingsToSelected();
     };
 
+    const keepWidth = get<HTMLSelectElement>('keep-width');
+    const keepDepth = get<HTMLSelectElement>('keep-depth');
+    const keepFloors = get<HTMLSelectElement>('keep-floors');
+    const keepRoof = get<HTMLSelectElement>('keep-roof');
+    const keepCornerTowers = get<HTMLInputElement>('keep-corner-towers');
+    const keepBattlements = get<HTMLInputElement>('keep-battlements');
+
+    const updateKeepDraft = (): void => {
+      this.keepWidth = Number(keepWidth.value);
+      this.keepDepth = Number(keepDepth.value);
+      this.keepFloors = Number(keepFloors.value);
+      this.keepRoof = keepRoof.value as KeepRoofStyle;
+      this.keepCornerTowers = keepCornerTowers.checked;
+      this.keepBattlements = keepBattlements.checked;
+      this.applyKeepSettingsToSelected();
+    };
+
+    keepWidth.onchange = updateKeepDraft;
+    keepDepth.onchange = updateKeepDraft;
+    keepFloors.onchange = updateKeepDraft;
+    keepRoof.onchange = updateKeepDraft;
+    keepCornerTowers.onchange = updateKeepDraft;
+    keepBattlements.onchange = updateKeepDraft;
+
+    get<HTMLButtonElement>('keep-floor-down').onclick = () => this.adjustSelectedKeepFloors(-1);
+    get<HTMLButtonElement>('keep-floor-up').onclick = () => this.adjustSelectedKeepFloors(1);
+    get<HTMLButtonElement>('keep-rotate').onclick = () => this.rotateSelectedKeep();
+    get<HTMLButtonElement>('keep-remove').onclick = () => this.removeSelectedKeep();
+
     get<HTMLButtonElement>('selected-down').onclick = () => this.adjustSelectedHeight(-1);
     get<HTMLButtonElement>('selected-up').onclick = () => this.adjustSelectedHeight(1);
 
@@ -2789,6 +3108,7 @@ export class ThreeGame {
     get<HTMLButtonElement>('redo-button').onclick = () => this.redo();
     get<HTMLButtonElement>('select-clear').onclick = () => {
       this.selectedCell = null;
+      this.selectedKeepId = null;
       this.setStatus('Selection cleared');
     };
 
@@ -2820,6 +3140,8 @@ export class ThreeGame {
     get<HTMLButtonElement>('save-button').onclick = () => this.save();
     get<HTMLButtonElement>('load-button').onclick = () => {
       this.load();
+      this.selectedCell = null;
+      this.selectedKeepId = null;
       this.undoStack.length = 0;
       this.redoStack.length = 0;
       this.redraw();
@@ -2828,6 +3150,8 @@ export class ThreeGame {
       if (confirm('Reset the entire island?')) {
         this.recordHistory();
         this.state.clear();
+        this.keepSystem.clear();
+        this.selectedKeepId = null;
         this.terrainOverrides.clear();
         this.elevationOverrides.clear();
         this.moatTasks.clear();
@@ -2876,10 +3200,7 @@ export class ThreeGame {
         q: 'moat',
         r: 'river',
         l: 'land',
-        a: 'stoneStairs',
-        s: 'woodenStairs',
-        d: 'ramp',
-        k: 'ladder',
+        p: 'keep',
         u: 'raise',
         j: 'lower',
         b: 'flatten',
@@ -2931,7 +3252,195 @@ export class ThreeGame {
     this.scheduleSave();
   }
 
+  private selectKeep(keep: KeepState): void {
+    this.selectedKeepId = keep.id;
+    this.selectedCell = null;
+    this.keepWidth = keep.width;
+    this.keepDepth = keep.depth;
+    this.keepFloors = keep.floors;
+    this.keepRotation = keep.rotation;
+    this.keepCornerTowers = keep.cornerTowers;
+    this.keepRoof = keep.roof;
+    this.keepBattlements = keep.battlements;
+
+    const setSelect = (id: string, value: string): void => {
+      const element = document.getElementById(id) as HTMLSelectElement | null;
+      if (element) element.value = value;
+    };
+    const setCheck = (id: string, value: boolean): void => {
+      const element = document.getElementById(id) as HTMLInputElement | null;
+      if (element) element.checked = value;
+    };
+
+    setSelect('keep-width', String(keep.width));
+    setSelect('keep-depth', String(keep.depth));
+    setSelect('keep-floors', String(keep.floors));
+    setSelect('keep-roof', keep.roof);
+    setCheck('keep-corner-towers', keep.cornerTowers);
+    setCheck('keep-battlements', keep.battlements);
+    this.setStatus(`Selected Keep #${keep.id} · ${keep.width}×${keep.depth} · ${keep.floors} floors`);
+  }
+
+  private validateKeepDraft(
+    draft: Omit<KeepState, 'id' | 'seed'>,
+    ignoreKeepId?: number,
+  ): { valid: boolean; reason?: string } {
+    return this.keepSystem.validate(
+      draft,
+      SIZE,
+      (x, y) => this.terrainAt(x, y),
+      (x, y) => this.terrainElevation(x, y),
+      (x, y) => Boolean(this.state.getCell(x, y)),
+      ignoreKeepId,
+    );
+  }
+
+  private applyKeepSettingsToSelected(): void {
+    if (this.selectedKeepId === null) return;
+    const keep = this.keepSystem.get(this.selectedKeepId);
+    if (!keep) return;
+
+    const draft = {
+      x: keep.x,
+      y: keep.y,
+      width: this.keepWidth,
+      depth: this.keepDepth,
+      floors: this.keepFloors,
+      rotation: keep.rotation,
+      cornerTowers: this.keepCornerTowers,
+      roof: this.keepRoof,
+      battlements: this.keepBattlements,
+    };
+
+    const validation = this.validateKeepDraft(draft, keep.id);
+    if (!validation.valid) {
+      this.setStatus(validation.reason ?? 'Keep update is not valid here');
+      this.selectKeep(keep);
+      return;
+    }
+
+    this.recordHistory();
+    const updated = this.keepSystem.update(keep.id, draft);
+    if (updated) {
+      this.selectKeep(updated);
+      this.redraw();
+      this.scheduleSave();
+    }
+  }
+
+  private adjustSelectedKeepFloors(delta: number): void {
+    if (this.selectedKeepId === null) {
+      this.keepFloors = THREE.MathUtils.clamp(this.keepFloors + delta, 1, 9);
+      const floors = document.getElementById('keep-floors') as HTMLSelectElement | null;
+      if (floors) floors.value = String(Math.min(9, this.keepFloors));
+      this.setStatus(`Keep draft floors: ${this.keepFloors}`);
+      return;
+    }
+
+    const keep = this.keepSystem.get(this.selectedKeepId);
+    if (!keep) return;
+
+    this.keepFloors = Math.max(1, keep.floors + delta);
+    this.recordHistory();
+    const updated = this.keepSystem.update(keep.id, { floors: this.keepFloors });
+    if (updated) {
+      this.selectKeep(updated);
+      this.redraw();
+      this.scheduleSave();
+      this.setStatus(`Keep floors: ${updated.floors}`);
+    }
+  }
+
+  private rotateSelectedKeep(): void {
+    if (this.selectedKeepId === null) {
+      this.keepRotation = (this.keepRotation + 1) % 4;
+      this.setStatus(`Keep draft rotation: ${this.keepRotation * 90}°`);
+      return;
+    }
+
+    const keep = this.keepSystem.get(this.selectedKeepId);
+    if (!keep) return;
+
+    const nextRotation = (keep.rotation + 1) % 4;
+    const draft = {
+      x: keep.x,
+      y: keep.y,
+      width: keep.width,
+      depth: keep.depth,
+      floors: keep.floors,
+      rotation: nextRotation,
+      cornerTowers: keep.cornerTowers,
+      roof: keep.roof,
+      battlements: keep.battlements,
+    };
+    const validation = this.validateKeepDraft(draft, keep.id);
+    if (!validation.valid) {
+      this.setStatus(validation.reason ?? 'Keep cannot rotate here');
+      return;
+    }
+
+    this.recordHistory();
+    const updated = this.keepSystem.update(keep.id, { rotation: nextRotation });
+    if (updated) {
+      this.selectKeep(updated);
+      this.redraw();
+      this.scheduleSave();
+    }
+  }
+
+  private removeSelectedKeep(): void {
+    if (this.selectedKeepId === null) {
+      this.setStatus('Select a Keep first');
+      return;
+    }
+
+    this.recordHistory();
+    this.keepSystem.remove(this.selectedKeepId);
+    this.selectedKeepId = null;
+    this.redraw();
+    this.scheduleSave();
+    this.setStatus('Keep removed');
+  }
+
+  private placeKeep(gx: number, gy: number): void {
+    const existing = this.keepSystem.findAtCell(gx, gy);
+    if (existing) {
+      this.selectKeep(existing);
+      return;
+    }
+
+    const draft = {
+      x: gx,
+      y: gy,
+      width: this.keepWidth,
+      depth: this.keepDepth,
+      floors: this.keepFloors,
+      rotation: this.keepRotation,
+      cornerTowers: this.keepCornerTowers,
+      roof: this.keepRoof,
+      battlements: this.keepBattlements,
+    };
+
+    const validation = this.validateKeepDraft(draft);
+    if (!validation.valid) {
+      this.setStatus(validation.reason ?? 'Invalid Keep placement');
+      return;
+    }
+
+    this.recordHistory();
+    const keep = this.keepSystem.add(draft);
+    this.selectKeep(keep);
+    this.redraw();
+    this.scheduleSave();
+    this.setStatus(`Keep built · ${keep.width}×${keep.depth} · ${keep.floors} floors · details generated automatically`);
+  }
+
   private adjustSelectedHeight(delta: number): void {
+    if (this.selectedKeepId !== null) {
+      this.adjustSelectedKeepFloors(delta);
+      return;
+    }
+
     if (!this.selectedCell) {
       this.setStatus('Click a wall or tower first');
       return;
@@ -2957,6 +3466,8 @@ export class ThreeGame {
   private applyTemplate(template: string): void {
     this.recordHistory();
     this.state.clear();
+    this.keepSystem.clear();
+    this.selectedKeepId = null;
     this.terrainOverrides.clear();
     this.elevationOverrides.clear();
     this.moatTasks.clear();
@@ -2971,6 +3482,34 @@ export class ThreeGame {
       options: Partial<GridCell> = {},
     ): void => {
       this.state.setCell(x, y, kind, level, options);
+    };
+
+    const placeKeepTemplate = (
+      x: number,
+      y: number,
+      width: number,
+      depth: number,
+      floors: number,
+      roof: KeepRoofStyle,
+      cornerTowers: boolean,
+    ): void => {
+      const draft = {
+        x,
+        y,
+        width,
+        depth,
+        floors,
+        rotation: 0,
+        cornerTowers,
+        roof,
+        battlements: true,
+      };
+
+      for (const footprintCell of this.keepSystem.footprint(draft)) {
+        this.state.removeCell(footprintCell.x, footprintCell.y);
+      }
+
+      this.keepSystem.add(draft);
     };
 
     if (template !== 'empty-land') this.seedNaturalProps();
@@ -3001,12 +3540,11 @@ export class ThreeGame {
       place(max, min, 'tower', 2, { towerShape: 'square', towerTop: 'roof' });
       place(min, max, 'tower', 2, { towerShape: 'octagonal', towerTop: 'flag' });
       place(max, max, 'tower', 2, { towerShape: 'corner', towerTop: 'battlement' });
-      place(center, center, 'manor');
+      placeKeepTemplate(center, center, 3, 3, 3, 'flatBattlement', true);
       place(center - 2, center, 'house');
       place(center + 2, center, 'cottage');
 
-      for (let y = center + 1; y < max; y += 1) place(center, y, 'road');
-      place(center - 1, max - 1, 'stoneStairs', 1, { rotation: 2 });
+      for (let y = center + 2; y < max; y += 1) place(center, y, 'road');
     } else if (template === 'motte-bailey') {
       for (let y = center - 4; y <= center + 4; y += 1) {
         for (let x = center - 4; x <= center + 4; x += 1) {
@@ -3036,8 +3574,7 @@ export class ThreeGame {
       }
 
       place(center, maxY, 'gate');
-      place(center, center - 1, 'tower', 4, { towerShape: 'square', towerTop: 'battlement' });
-      place(center - 1, center + 1, 'woodenStairs', 1, { rotation: 0 });
+      placeKeepTemplate(center, center - 1, 2, 2, 5, 'towered', true);
       place(center - 3, center + 2, 'cottage');
       place(center + 3, center + 2, 'farm');
       place(center - 3, center - 2, 'farm');
@@ -3067,12 +3604,12 @@ export class ThreeGame {
       place(right, top, 'tower', 3, { towerShape: 'octagonal', towerTop: 'flag' });
       place(left, bottom, 'tower', 2, { towerShape: 'corner', towerTop: 'battlement' });
       place(right, bottom, 'tower', 2, { towerShape: 'watch', towerTop: 'watch' });
-      place(center - 3, center, 'villa');
+      placeKeepTemplate(center - 4, center, 2, 3, 4, 'sloped', true);
       place(center - 5, center + 2, 'farm');
-      place(center - 2, bottom - 1, 'ramp', 1, { rotation: 2 });
     }
 
     this.selectedCell = null;
+    this.selectedKeepId = null;
     this.redraw();
     this.save();
     this.setStatus('Template loaded: ' + template);
@@ -3106,6 +3643,14 @@ export class ThreeGame {
     this.updateWorkers(deltaMs);
     this.riverTexture.offset.y -= deltaMs * 0.00028;
     this.riverTexture.offset.x += deltaMs * 0.000025;
+
+    for (const flag of this.animatedFlags) {
+      const phase = Number(flag.userData.castleFlag?.phase ?? 0);
+      const wave = Math.sin(time * 0.0032 + phase);
+      flag.rotation.y = wave * 0.08;
+      flag.scale.x = 0.94 + Math.abs(wave) * 0.09;
+    }
+
     this.controls.update();
     this.renderer.render(this.scene, this.camera);
 

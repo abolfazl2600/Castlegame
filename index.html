@@ -42,64 +42,76 @@
 
             <div class="help-grid">
               <div class="help-section">
+                <strong>Design Philosophy</strong>
+                <span>You design the major castle architecture; Castle Role generates secondary details automatically.</span>
+                <span>Windows, arrow slits, flags, Keep stairs, wall-access stairs/ladders, battlements, and structural details are procedural.</span>
+              </div>
+
+              <div class="help-section">
+                <strong>Modular Keep Builder</strong>
+                <span>P — Modular Keep.</span>
+                <span>Choose width, depth, floors, roof style, corner towers, battlements, position, and rotation.</span>
+                <span>Each floor is built as its own architectural level instead of stretching one model.</span>
+                <span>The Keep automatically generates entrance, defensive openings, upper windows, stairs, tower details, and flags.</span>
+              </div>
+
+              <div class="help-section">
+                <strong>Diagonal Walls</strong>
+                <span>Wall drag now snaps to the nearest 45° direction.</span>
+                <span>Supported directions cover all eight compass angles.</span>
+                <span>The cyan ghost preview shows the actual final path before placement.</span>
+                <span>Diagonal foundations, walkways, battlements, arrow slits, and terrain adaptation are generated automatically.</span>
+              </div>
+
+              <div class="help-section">
+                <strong>Automatic Corners</strong>
+                <span>Wall junctions are analyzed automatically.</span>
+                <span>Square, rounded, reinforced, turret, and buttressed corner solutions are selected from wall height, thickness, angle, and importance.</span>
+                <span>Straight-to-diagonal transitions retain continuous ramparts without a manual corner tool.</span>
+              </div>
+
+              <div class="help-section">
+                <strong>Automatic Castle Access</strong>
+                <span>Stairs, ladders, and ramps are no longer primary build-menu tools.</span>
+                <span>Wall networks with walkways receive deterministic access points where required.</span>
+                <span>Towers and gates are preferred access anchors; longer isolated walls receive additional access automatically.</span>
+                <span>Access is recalculated whenever the castle or terrain redraws after an architectural change.</span>
+              </div>
+
+              <div class="help-section">
+                <strong>Procedural Details</strong>
+                <span>Lower Keep floors favor arrow slits; upper floors receive more windows.</span>
+                <span>Wall arrow slits avoid important junctions and supports.</span>
+                <span>Flags are intentionally rare and animate subtly.</span>
+                <span>Generation is deterministic, so Save/Load reconstructs the same architectural details.</span>
+              </div>
+
+              <div class="help-section">
                 <strong>Terrain Editing</strong>
-                <span>Raise / Lower — change elevation.</span>
-                <span>Flatten — level the brush toward its center.</span>
-                <span>Smooth — blend nearby heights.</span>
-                <span>Dig — excavate deeper terrain.</span>
-                <span>Create Hill / Cliff — rounded or sharp elevation.</span>
-                <span>Brush Size and Strength are adjustable in the build panel.</span>
-              </div>
-
-              <div class="help-section">
-                <strong>Terrain-aware Castle</strong>
-                <span>Buildings follow edited terrain height.</span>
-                <span>Walls use slope-aware connections between different elevations.</span>
-                <span>This supports hill castles, mountain castles, and river-side castles.</span>
-              </div>
-
-              <div class="help-section">
-                <strong>Castle Access</strong>
-                <span>Stone Stairs, Wooden Stairs, Ramp, and Ladder are available.</span>
-                <span>Access pieces must be placed next to a Wall, Gate, or Tower.</span>
-                <span>They automatically snap toward the fortification and match its height.</span>
+                <span>Raise / Lower / Flatten / Smooth / Dig / Hill / Cliff remain available.</span>
+                <span>Keep foundations adapt to moderate elevation differences; excessively steep new Keep placements are rejected.</span>
+                <span>Walls follow edited slopes and automatic access is regenerated after terrain changes.</span>
               </div>
 
               <div class="help-section">
                 <strong>Walls & Towers</strong>
-                <span>Drag a wall from A to B for a snapped continuous line.</span>
-                <span>Walls now use heavier foundations, masonry/timber details, double-sided parapets, merlons, and real rampart walkways.</span>
-                <span>Stone / Wooden / Reinforced wall materials remain independently configurable.</span>
-                <span>Towers have five bases and five top modules.</span>
+                <span>1 / 2 / 3 — Stone / Wooden / Reinforced Wall.</span>
+                <span>Drag A → B to build a snapped straight or diagonal run.</span>
+                <span>Wall thickness, height, battlements, and walkway remain player-controlled.</span>
+                <span>Tower bases and roof/platform styles remain modular; defensive openings and occasional flags are automatic.</span>
               </div>
 
               <div class="help-section">
                 <strong>Undo / Redo</strong>
-                <span>Ctrl + Z — Undo</span>
-                <span>Ctrl + Y — Redo</span>
-                <span>Build, Delete, Move, Rotate, Terrain Edit, and Wall/Tower Height changes are recorded.</span>
+                <span>Ctrl + Z — Undo · Ctrl + Y — Redo.</span>
+                <span>Keep placement/configuration, wall placement, wall height, terrain editing, Move, Rotate, Delete, and other major state changes use architectural snapshots.</span>
+                <span>Generated windows, slits, flags, and automatic access are regenerated from the restored parent state instead of becoming separate Undo steps.</span>
               </div>
 
               <div class="help-section">
-                <strong>Selection</strong>
-                <span>Click a structure to make its grid tile the active selection.</span>
-                <span>Use the arrow controls to move it one tile.</span>
-                <span>Rotate turns supported structures 90°.</span>
-                <span>[ / ] lower or raise selected Wall/Tower floors.</span>
-              </div>
-
-              <div class="help-section">
-                <strong>Rivers & Water</strong>
-                <span>River tiles now connect into a continuous channel with lowered riverbed and natural banks.</span>
-                <span>The river surface is animated so the water visibly flows through the world.</span>
-                <span>Workers dig queued moat tiles and connected moats fill when they reach the river.</span>
-                <span>River and Land tools still reshape waterways.</span>
-              </div>
-
-              <div class="help-section">
-                <strong>Residential Clusters</strong>
-                <span>Housing tools no longer place one oversized building.</span>
-                <span>Cottage, House, Manor, and Villa now create small groups of homes with paths, chimneys, windows, fences, wells, and courtyards.</span>
+                <strong>Rivers & Settlements</strong>
+                <span>Flowing connected rivers, moats, housing clusters, farms, roads, trees, mountains, and mines remain intact.</span>
+                <span>Existing saves remain supported; old manual stairs/ladders still render even though new castles use automatic access.</span>
               </div>
 
               <div class="help-section">
