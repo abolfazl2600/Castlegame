@@ -1,5 +1,87 @@
 # Castle Role
 
+## World, Water, Roads & Harbor expansion
+
+The island environment now has a richer medieval-world layer while preserving castle building and battle mode.
+
+### Water and coastline
+
+- The surrounding ocean now uses an animated procedural surface texture with slow wave motion, color variation, stronger highlights, separate shallow/deep water layers, and a softer coastal transition.
+- The island silhouette is no longer a mathematically perfect circle; the base geometry uses controlled radial variation.
+- Shore tiles gain deterministic sand/rock patches, coastal stones, occasional small cliffs, vegetation, and subtle foam where shoreline tiles meet ocean water.
+- Rivers use a lower wet riverbed, variable channel width, blended circular junctions/connectors, uneven banks, wet earth, grass, edge stones, and faster directional surface flow.
+- Connected river pieces merge visually without exposing hard open seams at ordinary gameplay distance.
+- Moat flooding still uses the river network.
+- Roads crossing river terrain automatically render as lightweight bridges.
+
+### Harbor and shipping
+
+A new **Harbor & Shipping** build category contains:
+
+- Small Dock
+- Wooden Pier
+- Harbor
+- Fishing Dock
+
+Maritime placement validates the coastline and automatically rotates the structure toward ocean water. Larger piers/harbors require deeper open water. River tiles are not accepted as harbor coast.
+
+Dock details include timber decks, support posts, ropes, barrels, crates, and fishing equipment. Each structure can also generate a small docked vessel:
+
+- Fishing Boat
+- Small Trading Boat
+- Transport Ship
+
+The maritime code uses extensible harbor/ship types so more vessel classes can be introduced later.
+
+### Road construction
+
+The road system now mirrors wall construction:
+
+1. Select Standard Road, Dirt Road, or Stone Road.
+2. Press/drag from point A to point B.
+3. Preview the complete route.
+4. Release to confirm.
+
+Road paths use orthogonal connected tiles with automatic corners, T-junctions, and intersections. Each tile follows local terrain elevation, and connections slope toward neighboring road elevations instead of floating.
+
+Road styles:
+
+- Standard Road — existing general-purpose route.
+- Dirt Road — packed earth with wheel tracks.
+- Stone Road — heavier medieval paving and visible joints.
+
+### Long-press removal
+
+Holding directly on a removable object for approximately **3 seconds** removes it without switching to the Remove tool.
+
+- A circular red progress indicator appears at the pointer/touch location.
+- Moving more than a small gesture threshold cancels the hold.
+- Short taps and normal camera movement do not delete objects.
+- Walls, towers, roads, buildings, decorations, Keeps, and harbor structures use the same behavior.
+- Removal records an Undo snapshot.
+
+### Population foundation
+
+Population is now split into separate, visible counters:
+
+- **Population** — civilian population derived from settlement/economic structures.
+- **Army** — the configured Defender military when idle, or living Defender military during a battle.
+
+The population system already exposes additional internal groups such as workers, farmers, miners, sailors, and merchants so later systems can expand without replacing the current foundation.
+
+### Natural terrain zones and denser forests
+
+Procedural terrain now emphasizes distinct but blended zones:
+
+- Open plains
+- Dense/medium forest
+- Rocky highlands
+- Riverbanks
+- Coast
+
+Deterministic environmental details add clustered trees, bushes, wild grass, rocks, occasional fallen logs, clearings, dirt/grass variation, shoreline stones, and small coastal cliffs. Existing saves are enriched when migrating to save version 6 without overwriting occupied build cells.
+
+
 Castle Role is a stylized 3D medieval fortress builder built with Three.js, TypeScript, and Vite.
 
 **[Play Castle Role](https://abolfazl2600.github.io/Castlegame/)**

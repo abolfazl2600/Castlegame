@@ -1,4 +1,7 @@
 export type WallKind = 'wall1' | 'wall2' | 'wall3';
+export type RoadKind = 'road' | 'dirtRoad' | 'stoneRoad';
+export type HarborKind = 'smallDock' | 'woodenPier' | 'harbor' | 'fishingDock';
+export type ShipKind = 'fishingBoat' | 'tradingBoat' | 'transportShip';
 export type WallThickness = 'thin' | 'medium' | 'thick';
 export type WallDirection = 'N' | 'NE' | 'E' | 'SE' | 'S' | 'SW' | 'W' | 'NW';
 export type WallCornerKind = 'square' | 'rounded' | 'reinforced' | 'turret' | 'buttressed';
@@ -25,9 +28,10 @@ export interface KeepState {
 
 export type TileKind =
   | WallKind
+  | RoadKind
+  | HarborKind
   | 'gate'
   | 'tower'
-  | 'road'
   | 'cottage'
   | 'house'
   | 'manor'
@@ -62,6 +66,7 @@ export interface GridCell {
   towerTop?: TowerTop;
   rotation?: number;
   wallLinks?: WallDirection[];
+  shipKind?: ShipKind;
 }
 
 export interface SavedGame {
@@ -79,6 +84,7 @@ export interface SavedGame {
     towerTop?: TowerTop;
     rotation?: number;
     wallLinks?: WallDirection[];
+    shipKind?: ShipKind;
   }>;
   keeps?: KeepState[];
   terrain?: Array<{ x: number; y: number; kind: TerrainOverrideKind }>;

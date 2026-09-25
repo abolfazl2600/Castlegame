@@ -36,6 +36,16 @@
 
         <button id="toolbar-open" class="toolbar-open" type="button" aria-controls="toolbar" aria-expanded="true">☰ Build</button>
         <aside id="toolbar" class="toolbar" aria-label="Build tools"></aside>
+
+        <div class="world-counters" aria-label="Population counters">
+          <span id="city-population">Population: 0</span>
+          <span id="military-population">Army: 0</span>
+        </div>
+
+        <div id="long-press-indicator" class="long-press-indicator" hidden>
+          <span>REMOVE</span>
+        </div>
+
         <div class="scene-badge"><span class="scene-dot"></span><span id="scene-badge">REAL-TIME 3D WORLD</span></div>
 
         <aside id="battle-panel" class="battle-panel" aria-label="Battle Setup" hidden>
@@ -213,9 +223,19 @@
               </div>
 
               <div class="help-section">
-                <strong>Rivers & Settlements</strong>
-                <span>Flowing connected rivers, moats, housing clusters, farms, roads, trees, mountains, and mines remain intact.</span>
-                <span>Existing saves remain supported; old manual stairs/ladders still render even though new castles use automatic access.</span>
+                <strong>World, Roads & Harbor</strong>
+                <span>Rivers now use variable width, lower beds, wet banks, shoreline stones, and flowing water.</span>
+                <span>Road, Dirt Road, and Stone Road all support A → B drag preview and automatic intersections; roads crossing rivers render as bridges.</span>
+                <span>Small Dock, Wooden Pier, Harbor, and Fishing Dock only place on valid ocean coastlines and automatically face the water.</span>
+                <span>Harbors generate lightweight docked Fishing, Trading, or Transport vessels.</span>
+              </div>
+
+              <div class="help-section">
+                <strong>Long-Press Remove & Population</strong>
+                <span>Hold directly on a removable object for about 3 seconds to remove it without selecting the Remove tool.</span>
+                <span>The circular red indicator shows hold progress; moving the pointer cancels it.</span>
+                <span>Population and Army are displayed separately. Army tracks the configured/living Defender force.</span>
+                <span>Long-press deletion is included in Undo history.</span>
               </div>
 
               <div class="help-section">

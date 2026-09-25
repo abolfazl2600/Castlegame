@@ -73,7 +73,13 @@ export class BattleNavigation {
     const kind = this.context.kindAt(x, y);
     if (!kind) return true;
 
-    if (kind === 'road' || kind === 'farm' || kind === 'gate') {
+    if (
+      kind === 'road' ||
+      kind === 'dirtRoad' ||
+      kind === 'stoneRoad' ||
+      kind === 'farm' ||
+      kind === 'gate'
+    ) {
       return true;
     }
 

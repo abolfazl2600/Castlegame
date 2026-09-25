@@ -11,10 +11,15 @@ import { KeepRenderer } from './rendering/KeepRenderer';
 import { MedievalMaterials } from './rendering/MedievalMaterials';
 import { BattleSystem } from './battle/BattleSystem';
 import type { BattleSetup, BattleStatus } from './battle/types';
+import { PopulationSystem } from './systems/PopulationSystem';
+import { MaritimeSystem } from './systems/MaritimeSystem';
 import type {
   AccessKind,
   GridCell,
+  HarborKind,
   KeepRoofStyle,
+  RoadKind,
+  ShipKind,
   KeepState,
   SavedGame,
   TerrainKind,
@@ -34,6 +39,8 @@ const TILE = TILE_SIZE;
 const WORLD = SIZE * TILE;
 
 const WALL_KINDS: WallKind[] = ['wall1', 'wall2', 'wall3'];
+const ROAD_KINDS: RoadKind[] = ['road', 'dirtRoad', 'stoneRoad'];
+const HARBOR_KINDS: HarborKind[] = ['smallDock', 'woodenPier', 'harbor', 'fishingDock'];
 const BUILDING_KINDS: TileKind[] = [
   'wall1',
   'wall2',
@@ -41,6 +48,12 @@ const BUILDING_KINDS: TileKind[] = [
   'gate',
   'tower',
   'road',
+  'dirtRoad',
+  'stoneRoad',
+  'smallDock',
+  'woodenPier',
+  'harbor',
+  'fishingDock',
   'cottage',
   'house',
   'manor',
@@ -111,12 +124,23 @@ const TOOL_GROUPS: Array<{ label: string; tools: ToolDefinition[] }> = [
   {
     label: 'Settlement',
     tools: [
-      { id: 'road', icon: '🛣️', label: 'Road', detail: 'Auto-connects edge to edge', shortcut: '6' },
+      { id: 'road', icon: '🛣️', label: 'Road', detail: 'Drag A → B · standard road', shortcut: '6' },
+      { id: 'dirtRoad', icon: '🟫', label: 'Dirt Road', detail: 'Drag A → B · village track', shortcut: 'I' },
+      { id: 'stoneRoad', icon: '◼️', label: 'Stone Road', detail: 'Drag A → B · paved route', shortcut: 'O' },
       { id: 'cottage', icon: '🏠', label: 'Cottage Cluster', detail: '3 small cottages + village props', shortcut: '7' },
       { id: 'house', icon: '🏡', label: 'House Cluster', detail: '4 connected village homes', shortcut: '8' },
       { id: 'manor', icon: '🏯', label: 'Manor Court', detail: 'Main hall + service houses', shortcut: '9' },
       { id: 'villa', icon: '🏘️', label: 'Villa Quarter', detail: '3 detailed homes + courtyard', shortcut: '0' },
       { id: 'farm', icon: '🌾', label: 'Farm', detail: 'Cultivated crop field', shortcut: 'F' },
+    ],
+  },
+  {
+    label: 'Harbor & Shipping',
+    tools: [
+      { id: 'smallDock', icon: '🛶', label: 'Small Dock', detail: 'Coast only · fishing boat', shortcut: '-' },
+      { id: 'woodenPier', icon: '⚓', label: 'Wooden Pier', detail: 'Deep coast · transport dock', shortcut: '-' },
+      { id: 'harbor', icon: '⛵', label: 'Harbor', detail: 'Deep coast · trading vessel', shortcut: '-' },
+      { id: 'fishingDock', icon: '🎣', label: 'Fishing Dock', detail: 'Coast only · fishing gear', shortcut: '-' },
     ],
   },
   {
@@ -149,6 +173,11 @@ export class ThreeGame {
   private readonly keepSystem = new KeepSystem();
   private readonly wallCornerSystem = new WallCornerSystem();
   private readonly castleAccessSystem = new CastleAccessSystem();
+  private readonly populationSystem = new PopulationSystem();
+  private readonly maritimeSystem = new MaritimeSystem({
+    size: SIZE,
+    terrainAt: (x, y) => this.terrainAt(x, y),
+  });
   private readonly detailGenerator = new CastleDetailGenerator();
   private readonly medievalMaterials = new MedievalMaterials();
   private readonly keepRenderer = new KeepRenderer(this.detailGenerator, this.medievalMaterials);
@@ -163,6 +192,7 @@ export class ThreeGame {
   private readonly workerLayer = new THREE.Group();
   private readonly battleLayer = new THREE.Group();
   private readonly planMaterials = new Map<string, THREE.MeshBasicMaterial>();
+  private readonly environmentMaterials = new Map<string, THREE.MeshStandardMaterial>();
   private readonly battleSystem: BattleSystem;
   private readonly groundHit = new THREE.Mesh(
     new THREE.PlaneGeometry(WORLD, WORLD),
@@ -172,6 +202,9 @@ export class ThreeGame {
   private readonly workers: WorkerAgent[] = [];
   private readonly riverTexture: THREE.CanvasTexture;
   private readonly riverWaterMaterial: THREE.MeshStandardMaterial;
+  private readonly oceanTexture: THREE.CanvasTexture;
+  private readonly oceanWaterMaterial: THREE.MeshStandardMaterial;
+  private readonly shallowWaterMaterial: THREE.MeshStandardMaterial;
 
   private selectedTool: ToolKind = 'wall1';
   private selectedCell: GridPoint | null = null;
@@ -211,16 +244,25 @@ export class ThreeGame {
 
   private wallDragStart: GridPoint | null = null;
   private wallDragEnd: GridPoint | null = null;
+  private roadDragStart: GridPoint | null = null;
+  private roadDragEnd: GridPoint | null = null;
   private pointerStart: { x: number; y: number } | null = null;
+  private longPressCell: GridPoint | null = null;
+  private longPressPointerId: number | null = null;
+  private longPressStartedAt = 0;
+  private longPressTriggered = false;
+  private longPressStartScreen: { x: number; y: number } | null = null;
 
   private saveTimer: number | null = null;
   private worldSeeded = false;
+  private loadedSaveVersion = 0;
   private lastFrameTime = 0;
 
   constructor(root: HTMLElement) {
     const hadSave = localStorage.getItem(SAVE_KEY) !== null;
     this.root = root;
     this.riverTexture = this.createRiverTexture();
+    this.oceanTexture = this.createOceanTexture();
     this.riverWaterMaterial = new THREE.MeshStandardMaterial({
       color: 0x55b9ca,
       map: this.riverTexture,
@@ -230,6 +272,26 @@ export class ThreeGame {
       opacity: 0.92,
       emissive: 0x0b4050,
       emissiveIntensity: 0.16,
+    });
+    this.oceanWaterMaterial = new THREE.MeshStandardMaterial({
+      color: 0x0b7897,
+      map: this.oceanTexture,
+      roughness: 0.25,
+      metalness: 0.08,
+      transparent: true,
+      opacity: 0.95,
+      emissive: 0x062d42,
+      emissiveIntensity: 0.12,
+    });
+    this.shallowWaterMaterial = new THREE.MeshStandardMaterial({
+      color: 0x4aaeb6,
+      map: this.oceanTexture,
+      roughness: 0.34,
+      metalness: 0.02,
+      transparent: true,
+      opacity: 0.78,
+      emissive: 0x123b43,
+      emissiveIntensity: 0.08,
     });
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.6));
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
@@ -283,9 +345,10 @@ export class ThreeGame {
     this.scene.add(this.groundHit);
 
     this.load();
-    if (!this.worldSeeded) {
+    if (!this.worldSeeded || this.loadedSaveVersion < SAVE_VERSION) {
       this.seedNaturalProps();
       this.worldSeeded = true;
+      this.loadedSaveVersion = SAVE_VERSION;
       this.save(false);
     }
 
@@ -311,6 +374,14 @@ export class ThreeGame {
 
   private isWallTool(tool: ToolKind): tool is WallKind {
     return WALL_KINDS.includes(tool as WallKind);
+  }
+
+  private isRoadTool(tool: ToolKind): tool is RoadKind {
+    return ROAD_KINDS.includes(tool as RoadKind);
+  }
+
+  private isHarborTool(tool: ToolKind): tool is HarborKind {
+    return HARBOR_KINDS.includes(tool as HarborKind);
   }
 
   private createRiverTexture(): THREE.CanvasTexture {
@@ -357,6 +428,53 @@ export class ThreeGame {
     return texture;
   }
 
+  private createOceanTexture(): THREE.CanvasTexture {
+    const canvas = document.createElement('canvas');
+    canvas.width = 256;
+    canvas.height = 256;
+    const context = canvas.getContext('2d');
+
+    if (context) {
+      const gradient = context.createLinearGradient(0, 0, 256, 256);
+      gradient.addColorStop(0, '#0d667f');
+      gradient.addColorStop(0.42, '#167f96');
+      gradient.addColorStop(1, '#084f6b');
+      context.fillStyle = gradient;
+      context.fillRect(0, 0, 256, 256);
+
+      context.globalAlpha = 0.18;
+      for (let i = 0; i < 16; i += 1) {
+        const y = i * 18 - 8;
+        context.strokeStyle = i % 3 === 0 ? '#d7fbff' : '#78d8e0';
+        context.lineWidth = i % 3 === 0 ? 2 : 1;
+        context.beginPath();
+        context.moveTo(-20, y);
+        context.bezierCurveTo(52, y - 8, 118, y + 10, 286, y - 2);
+        context.stroke();
+      }
+
+      context.globalAlpha = 0.12;
+      for (let i = 0; i < 40; i += 1) {
+        const x = (i * 67) % 256;
+        const y = (i * 103) % 256;
+        context.fillStyle = i % 2 === 0 ? '#ffffff' : '#022c42';
+        context.beginPath();
+        context.ellipse(x, y, 8 + (i % 5), 1.6 + (i % 3), 0.2, 0, Math.PI * 2);
+        context.fill();
+      }
+
+      context.globalAlpha = 1;
+    }
+
+    const texture = new THREE.CanvasTexture(canvas);
+    texture.colorSpace = THREE.SRGBColorSpace;
+    texture.wrapS = THREE.RepeatWrapping;
+    texture.wrapT = THREE.RepeatWrapping;
+    texture.repeat.set(5.2, 5.2);
+    texture.anisotropy = 4;
+    return texture;
+  }
+
   private addLights(): void {
     const sky = new THREE.HemisphereLight(0xb8d9e5, 0x2f2a24, 1.15);
     this.scene.add(sky);
@@ -386,26 +504,49 @@ export class ThreeGame {
   }
 
   private createWorld(): void {
-    const water = new THREE.Mesh(
-      new THREE.CircleGeometry(WORLD * 0.78, 80),
-      new THREE.MeshStandardMaterial({ color: 0x0b7897, roughness: 0.22, metalness: 0.07 }),
+    const deepWater = new THREE.Mesh(
+      new THREE.CircleGeometry(WORLD * 0.86, 112),
+      this.oceanWaterMaterial,
     );
-    water.rotation.x = -Math.PI / 2;
-    water.position.y = -0.8;
-    water.receiveShadow = true;
-    this.scene.add(water);
+    deepWater.rotation.x = -Math.PI / 2;
+    deepWater.position.y = -0.55;
+    deepWater.receiveShadow = true;
+    deepWater.userData.waterLayer = 'deep';
+    this.scene.add(deepWater);
 
+    const shallowWater = new THREE.Mesh(
+      new THREE.RingGeometry(WORLD * 0.43, WORLD * 0.65, 112),
+      this.shallowWaterMaterial,
+    );
+    shallowWater.rotation.x = -Math.PI / 2;
+    shallowWater.position.y = 0.95;
+    shallowWater.receiveShadow = true;
+    shallowWater.userData.waterLayer = 'shallow';
+    this.scene.add(shallowWater);
+
+    const islandGeometry = this.createIrregularIslandGeometry(
+      WORLD * 0.49,
+      WORLD * 0.55,
+      2.6,
+      112,
+    );
     const island = new THREE.Mesh(
-      new THREE.CylinderGeometry(WORLD * 0.49, WORLD * 0.55, 2.6, 80),
-      new THREE.MeshStandardMaterial({ color: 0x7e9f55, roughness: 0.95 }),
+      islandGeometry,
+      new THREE.MeshStandardMaterial({ color: 0x79694c, roughness: 1 }),
     );
     island.receiveShadow = true;
     island.castShadow = true;
     this.scene.add(island);
 
+    const grassGeometry = this.createIrregularIslandGeometry(
+      WORLD * 0.46,
+      WORLD * 0.49,
+      1.2,
+      112,
+    );
     const grass = new THREE.Mesh(
-      new THREE.CylinderGeometry(WORLD * 0.46, WORLD * 0.49, 1.2, 80),
-      new THREE.MeshStandardMaterial({ color: 0xb3c968, roughness: 0.9 }),
+      grassGeometry,
+      new THREE.MeshStandardMaterial({ color: 0x94aa58, roughness: 0.94 }),
     );
     grass.position.y = 1.55;
     grass.receiveShadow = true;
@@ -413,38 +554,98 @@ export class ThreeGame {
 
     const grid = new THREE.GridHelper(WORLD, SIZE, 0xe8f7ff, 0x7eb8bd);
     grid.position.y = 2.18;
-    (grid.material as THREE.Material).opacity = 0.1;
+    (grid.material as THREE.Material).opacity = 0.075;
     (grid.material as THREE.Material).transparent = true;
     this.scene.add(grid);
+  }
+
+  private createIrregularIslandGeometry(
+    topRadius: number,
+    bottomRadius: number,
+    height: number,
+    segments: number,
+  ): THREE.CylinderGeometry {
+    const geometry = new THREE.CylinderGeometry(
+      topRadius,
+      bottomRadius,
+      height,
+      segments,
+      1,
+      false,
+    );
+    const position = geometry.attributes.position;
+
+    for (let i = 0; i < position.count; i += 1) {
+      const x = position.getX(i);
+      const z = position.getZ(i);
+      const radius = Math.hypot(x, z);
+      if (radius < 0.01) continue;
+
+      const angle = Math.atan2(z, x);
+      const variation =
+        1 +
+        Math.sin(angle * 5 + 0.7) * 0.022 +
+        Math.cos(angle * 9 - 1.1) * 0.014 +
+        Math.sin(angle * 13 + 2.4) * 0.009;
+      position.setX(i, x * variation);
+      position.setZ(i, z * variation);
+    }
+
+    position.needsUpdate = true;
+    geometry.computeVertexNormals();
+    return geometry;
   }
 
   private baseTerrainAt(x: number, y: number): TerrainKind {
     if (x < 0 || y < 0 || x >= SIZE || y >= SIZE) return 'water';
 
-    const nx = x / SIZE - 0.5;
-    const ny = y / SIZE - 0.5;
-    const radial = Math.sqrt(nx * nx + ny * ny);
-    const noise =
-      Math.sin(x * 0.19) * 0.03 +
-      Math.cos(y * 0.16) * 0.04 +
-      Math.sin((x + y) * 0.11) * 0.02;
-    const islandValue = 0.43 - radial + noise;
+    const nx = (x + 0.5) / SIZE - 0.5;
+    const ny = (y + 0.5) / SIZE - 0.5;
+    const radial = Math.sqrt(nx * nx * 0.94 + ny * ny * 1.04);
+    const coastNoise =
+      Math.sin(x * 0.73 + y * 0.19) * 0.018 +
+      Math.cos(y * 0.61 - x * 0.17) * 0.022 +
+      Math.sin((x + y) * 0.31) * 0.014 +
+      Math.cos((x - y) * 0.24) * 0.011;
+    const islandValue = 0.43 - radial + coastNoise;
 
-    if (islandValue < -0.04) return 'water';
-    if (islandValue < 0.015) return 'shore';
+    if (islandValue < -0.035) return 'water';
+    if (islandValue < 0.02) return 'shore';
 
-    const riverCenter = SIZE * 0.48 + Math.sin(y * 0.58) * 1.0 + Math.cos(y * 0.21) * 0.45;
-    if (y > 3 && y < SIZE - 3 && Math.abs(x - riverCenter) < 0.58 && islandValue > 0.07) {
+    const riverCenter =
+      SIZE * 0.48 +
+      Math.sin(y * 0.54) * 1.18 +
+      Math.sin(y * 0.18 + 1.2) * 0.42;
+    const riverWidth =
+      0.48 +
+      (Math.sin(y * 0.37 + 0.8) + 1) * 0.16 +
+      (y > SIZE * 0.62 ? 0.12 : 0);
+    if (
+      y > 2 &&
+      y < SIZE - 2 &&
+      Math.abs(x - riverCenter) < riverWidth &&
+      islandValue > 0.055
+    ) {
       return 'river';
     }
 
-    const mountainZone = x > SIZE * 0.62 && y < SIZE * 0.4;
-    if (mountainZone && Math.sin(x * 0.62) + Math.cos(y * 0.48) > 0.48) return 'mountain';
+    const rockyNoise =
+      Math.sin(x * 0.47 + y * 0.22) +
+      Math.cos(y * 0.53 - x * 0.18);
+    const mountainZone =
+      (x > SIZE * 0.61 && y < SIZE * 0.43) ||
+      (x > SIZE * 0.7 && y > SIZE * 0.46 && y < SIZE * 0.7);
+    if (mountainZone && rockyNoise > 0.48) return 'mountain';
 
-    const forestZone =
-      (x < SIZE * 0.34 && y > SIZE * 0.4) ||
-      (x > SIZE * 0.64 && y > SIZE * 0.58);
-    if (forestZone && Math.sin(x * 0.53) + Math.cos(y * 0.47) > 0.35) return 'forest';
+    const forestNoise =
+      Math.sin(x * 0.61) +
+      Math.cos(y * 0.49) +
+      Math.sin((x + y) * 0.33);
+    const denseForest =
+      (x < SIZE * 0.37 && y > SIZE * 0.35) ||
+      (x > SIZE * 0.62 && y > SIZE * 0.56) ||
+      (x < SIZE * 0.28 && y < SIZE * 0.34);
+    if (denseForest && forestNoise > -0.25) return 'forest';
 
     return 'plains';
   }
@@ -487,14 +688,38 @@ export class ThreeGame {
         if (this.state.getCell(x, y)) continue;
 
         const terrain = this.baseTerrainAt(x, y);
-        const hash = (x * 37 + y * 61 + x * y * 7) % 29;
+        const h1 = Math.abs((x * 92821 + y * 68917 + x * y * 137) % 997);
+        const h2 = Math.abs((x * 53 + y * 97 + x * y * 11) % 101);
 
-        if (terrain === 'forest' && hash % 3 !== 0) {
-          this.state.setCell(x, y, 'tree', 1 + (hash % 3));
-        } else if ((terrain === 'shore' || terrain === 'mountain') && hash === 4) {
-          this.state.setCell(x, y, 'rock', 1 + ((x + y) % 2));
-        } else if (terrain === 'plains' && (hash === 8 || hash === 19) && x > 3 && y > 3) {
-          this.state.setCell(x, y, 'hut', 1);
+        if (terrain === 'forest') {
+          const clearing = ((x - 5) * (x - 5) + (y - 12) * (y - 12)) < 7;
+          if (!clearing && h1 % 5 !== 0) {
+            this.state.setCell(x, y, 'tree', 1 + (h2 % 3));
+          } else if (h2 % 9 === 0) {
+            this.state.setCell(x, y, 'rock', 1);
+          }
+          continue;
+        }
+
+        if (terrain === 'shore') {
+          if (h2 % 8 === 0) this.state.setCell(x, y, 'rock', 1 + (h1 % 2));
+          else if (h2 % 11 === 0) this.state.setCell(x, y, 'tree', 1);
+          continue;
+        }
+
+        if (terrain === 'mountain') {
+          if (h2 % 4 === 0) this.state.setCell(x, y, 'rock', 1 + (h1 % 3));
+          continue;
+        }
+
+        if (terrain === 'plains') {
+          if (h1 % 31 === 5 && x > 3 && y > 3) {
+            this.state.setCell(x, y, 'hut', 1);
+          } else if (h1 % 23 === 7 && h2 % 3 !== 0) {
+            this.state.setCell(x, y, 'tree', 1 + (h2 % 2));
+          } else if (h1 % 41 === 3) {
+            this.state.setCell(x, y, 'rock', 1);
+          }
         }
       }
     }
@@ -541,8 +766,11 @@ export class ThreeGame {
         for (const item of material) {
           if (
             item !== this.riverWaterMaterial &&
+            item !== this.oceanWaterMaterial &&
+            item !== this.shallowWaterMaterial &&
             !this.medievalMaterials.isSharedMaterial(item) &&
-            !this.isPlanMaterial(item)
+            !this.isPlanMaterial(item) &&
+            !this.isEnvironmentMaterial(item)
           ) {
             item.dispose();
           }
@@ -550,8 +778,11 @@ export class ThreeGame {
       } else if (
         material &&
         material !== this.riverWaterMaterial &&
+        material !== this.oceanWaterMaterial &&
+        material !== this.shallowWaterMaterial &&
         !this.medievalMaterials.isSharedMaterial(material) &&
-        !this.isPlanMaterial(material)
+        !this.isPlanMaterial(material) &&
+        !this.isEnvironmentMaterial(material)
       ) {
         material.dispose();
       }
@@ -630,6 +861,7 @@ export class ThreeGame {
     }
 
     this.renderPlanLayer(cells);
+    this.updatePopulationUI();
 
     this.animatedFlags = [];
     this.buildLayer.traverse((object) => {
@@ -637,6 +869,27 @@ export class ThreeGame {
         this.animatedFlags.push(object);
       }
     });
+  }
+
+  private environmentMaterial(key: string, color: number, roughness = 0.95): THREE.MeshStandardMaterial {
+    const existing = this.environmentMaterials.get(key);
+    if (existing) return existing;
+
+    const material = new THREE.MeshStandardMaterial({
+      color,
+      roughness,
+      metalness: 0,
+      flatShading: key.includes('rock'),
+    });
+    this.environmentMaterials.set(key, material);
+    return material;
+  }
+
+  private isEnvironmentMaterial(material: THREE.Material): boolean {
+    for (const candidate of this.environmentMaterials.values()) {
+      if (candidate === material) return true;
+    }
+    return false;
   }
 
   private isPlanMaterial(material: THREE.Material): boolean {
@@ -735,6 +988,12 @@ export class ThreeGame {
       gate: 0x9e7041,
       tower: 0xb7ab91,
       road: 0x9a7658,
+      dirtRoad: 0x8a6142,
+      stoneRoad: 0xa9a195,
+      smallDock: 0x765137,
+      woodenPier: 0x6d4931,
+      harbor: 0x57402f,
+      fishingDock: 0x805a3d,
       cottage: 0xd69f78,
       house: 0xb899ce,
       manor: 0xc97888,
@@ -993,11 +1252,14 @@ export class ThreeGame {
         }
 
         if (this.terrainOverrides.get(this.key(x, y)) === 'plains' && (base === 'water' || base === 'river')) {
-          const soil = new THREE.MeshStandardMaterial({ color: 0x7e9f55, roughness: 1 });
-          const grass = new THREE.MeshStandardMaterial({ color: 0xb3c968, roughness: 0.92 });
+          const soil = this.environmentMaterial('filled-soil', 0x786b50, 1);
+          const grass = this.environmentMaterial('filled-grass', 0x9ebc62, 0.94);
           this.addBox(group, TILE, 0.5, TILE, soil, 0, 1.87, 0);
           this.addBox(group, TILE, 0.14, TILE, grass, 0, 2.19, 0);
         }
+
+        if (terrain === 'shore') this.renderCoastPatch(group, x, y);
+        else if (terrain === 'forest' || terrain === 'plains') this.renderGroundVariation(group, x, y, terrain);
 
         if (edited) {
           this.renderElevationPatch(group, elevation);
@@ -1015,7 +1277,155 @@ export class ThreeGame {
           group.add(mountainGroup);
         }
 
+        if (!occupying && terrain !== 'water' && terrain !== 'mountain') {
+          this.addEnvironmentalDetail(group, x, y, terrain);
+        }
+
         if (group.children.length > 0) this.terrainLayer.add(group);
+      }
+    }
+  }
+
+  private renderGroundVariation(
+    group: THREE.Group,
+    gx: number,
+    gy: number,
+    terrain: 'forest' | 'plains',
+  ): void {
+    const hash = Math.abs((gx * 109 + gy * 173 + gx * gy * 13) % 97);
+    if (hash % 5 !== 0) return;
+
+    const color =
+      terrain === 'forest'
+        ? hash % 2 === 0 ? 0x718f4b : 0x5f7f46
+        : hash % 3 === 0 ? 0xa6b966 : 0x94aa5b;
+    const patch = new THREE.Mesh(
+      new THREE.CircleGeometry(0.55 + (hash % 4) * 0.17, 10),
+      this.environmentMaterial(`grass-${terrain}-${hash % 3}`, color, 1),
+    );
+    patch.rotation.x = -Math.PI / 2;
+    patch.position.set(
+      ((hash % 5) - 2) * 0.18,
+      2.215 + this.terrainElevation(gx, gy),
+      (((hash * 3) % 5) - 2) * 0.2,
+    );
+    patch.scale.y = 0.62;
+    group.add(patch);
+  }
+
+  private renderCoastPatch(group: THREE.Group, gx: number, gy: number): void {
+    const hash = Math.abs((gx * 79 + gy * 131 + gx * gy * 7) % 101);
+    const rocky = hash % 3 === 0;
+    const material = rocky
+      ? this.environmentMaterial('coast-rock', 0x817a6e, 1)
+      : this.environmentMaterial('coast-sand', 0xc2b17d, 1);
+
+    const patch = new THREE.Mesh(
+      new THREE.CircleGeometry(1.2 + (hash % 4) * 0.18, 12),
+      material,
+    );
+    patch.rotation.x = -Math.PI / 2;
+    patch.position.y = 2.23;
+    patch.scale.set(1.15, 0.75, 1);
+    group.add(patch);
+
+    const waterNeighbors = [
+      { dx: 0, dy: -1, x: 0, z: -1.68, w: 2.2, d: 0.18 },
+      { dx: 1, dy: 0, x: 1.68, z: 0, w: 0.18, d: 2.2 },
+      { dx: 0, dy: 1, x: 0, z: 1.68, w: 2.2, d: 0.18 },
+      { dx: -1, dy: 0, x: -1.68, z: 0, w: 0.18, d: 2.2 },
+    ].filter((item) => this.terrainAt(gx + item.dx, gy + item.dy) === 'water');
+
+    const foam = new THREE.MeshBasicMaterial({
+      color: 0xe8fff8,
+      transparent: true,
+      opacity: 0.26,
+      depthWrite: false,
+      side: THREE.DoubleSide,
+    });
+
+    for (const edge of waterNeighbors) {
+      const foamMesh = new THREE.Mesh(
+        new THREE.PlaneGeometry(edge.w, edge.d),
+        foam,
+      );
+      foamMesh.rotation.x = -Math.PI / 2;
+      foamMesh.position.set(edge.x, 1.38, edge.z);
+      foamMesh.renderOrder = 2;
+      group.add(foamMesh);
+    }
+
+    if (rocky && hash % 2 === 0) {
+      const stone = new THREE.Mesh(
+        new THREE.DodecahedronGeometry(0.24 + (hash % 3) * 0.06, 0),
+        this.environmentMaterial('coast-stone', 0x6c6860, 1),
+      );
+      stone.position.set(0.72, 2.45, -0.55);
+      stone.scale.y = 0.65;
+      stone.castShadow = true;
+      group.add(stone);
+    }
+
+    if (rocky && hash % 7 === 0) {
+      const cliff = this.addBox(
+        group,
+        1.1,
+        0.8,
+        0.72,
+        this.environmentMaterial('coast-cliff', 0x6f655d, 1),
+        -0.75,
+        1.92,
+        0.65,
+      );
+      cliff.rotation.y = (hash % 5) * 0.14;
+    }
+  }
+
+  private addEnvironmentalDetail(
+    group: THREE.Group,
+    gx: number,
+    gy: number,
+    terrain: TerrainKind,
+  ): void {
+    const hash = Math.abs((gx * 313 + gy * 197 + gx * gy * 43) % 997);
+
+    if ((terrain === 'plains' || terrain === 'forest') && hash % 19 === 0) {
+      const bush = new THREE.Mesh(
+        new THREE.DodecahedronGeometry(0.28 + (hash % 4) * 0.04, 0),
+        this.environmentMaterial('bush', 0x4f783e, 1),
+      );
+      bush.position.set(-0.8 + (hash % 5) * 0.32, 2.44, 0.65 - (hash % 3) * 0.35);
+      bush.scale.y = 0.72;
+      bush.castShadow = true;
+      group.add(bush);
+    }
+
+    if (terrain === 'plains' && hash % 47 === 0) {
+      const log = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.13, 0.16, 1.25, 7),
+        this.environmentMaterial('fallen-log', 0x66503a, 1),
+      );
+      log.rotation.z = Math.PI / 2;
+      log.rotation.y = (hash % 6) * 0.42;
+      log.position.set(0.3, 2.39, -0.4);
+      log.castShadow = true;
+      group.add(log);
+    }
+
+    if ((terrain === 'shore' || terrain === 'plains') && hash % 29 === 0) {
+      const grass = this.environmentMaterial('wild-grass', 0x728d43, 1);
+      for (let i = 0; i < 3; i += 1) {
+        const blade = this.addBox(
+          group,
+          0.05,
+          0.4 + i * 0.08,
+          0.05,
+          grass,
+          -0.35 + i * 0.18,
+          2.4,
+          0.5,
+        );
+        blade.rotation.z = (i - 1) * 0.18;
       }
     }
   }
@@ -1047,74 +1457,83 @@ export class ThreeGame {
     const right = this.isRiverAt(gx + 1, gy);
     const up = this.isRiverAt(gx, gy - 1);
     const down = this.isRiverAt(gx, gy + 1);
+    const connections = Number(left) + Number(right) + Number(up) + Number(down);
+    const hash = Math.abs((gx * 157 + gy * 263 + gx * gy * 17) % 997);
+    const width = 2.3 + (hash % 5) * 0.11;
+    const radius = width * 0.57;
 
-    const riverBed = new THREE.MeshStandardMaterial({ color: 0x5e5548, roughness: 1 });
-    const wetEarth = new THREE.MeshStandardMaterial({ color: 0x756850, roughness: 1 });
-    const bank = new THREE.MeshStandardMaterial({ color: 0x8f7f59, roughness: 0.98 });
-    const grass = new THREE.MeshStandardMaterial({ color: 0x9eb95f, roughness: 0.94 });
-    const foam = new THREE.MeshBasicMaterial({
-      color: 0xcdf8ff,
-      transparent: true,
-      opacity: 0.45,
-      depthWrite: false,
-    });
+    const riverBed = this.environmentMaterial('river-bed', 0x4b463e, 1);
+    const wetEarth = this.environmentMaterial('river-wet-earth', 0x625948, 1);
+    const bankSand = this.environmentMaterial('river-bank-sand', 0x9d8b64, 1);
+    const bankGrass = this.environmentMaterial('river-bank-grass', 0x829d50, 0.98);
+    const stoneMaterial = this.environmentMaterial('river-stone', 0x7f7b74, 1);
 
-    this.addBox(group, TILE, 0.26, TILE, wetEarth, 0, 1.96, 0);
-    this.addBox(group, 2.75, 0.12, 2.75, riverBed, 0, 2.02, 0);
+    this.addBox(group, TILE, 0.34, TILE, wetEarth, 0, 1.86, 0);
+    const bed = new THREE.Mesh(new THREE.CircleGeometry(radius + 0.28, 24), riverBed);
+    bed.rotation.x = -Math.PI / 2;
+    bed.position.y = 2.005;
+    group.add(bed);
 
-    const centerGeometry = new THREE.CircleGeometry(1.42, 28);
+    const centerGeometry = new THREE.CircleGeometry(radius, 30);
     centerGeometry.rotateX(-Math.PI / 2);
     const centerWater = new THREE.Mesh(centerGeometry, this.riverWaterMaterial);
-    centerWater.position.y = 2.08;
+    centerWater.position.y = 2.055;
     group.add(centerWater);
 
-    const connectorLength = TILE / 2 + 0.44;
-    const connectorWidth = 2.48;
-
-    if (left) this.addRiverSurface(group, connectorLength, connectorWidth, -1.24, 0, Math.PI / 2);
-    if (right) this.addRiverSurface(group, connectorLength, connectorWidth, 1.24, 0, Math.PI / 2);
-    if (up) this.addRiverSurface(group, connectorWidth, connectorLength, 0, -1.24);
-    if (down) this.addRiverSurface(group, connectorWidth, connectorLength, 0, 1.24);
-
-    if (!left && !right && !up && !down) {
-      this.addRiverSurface(group, 2.5, TILE + 0.08, 0, 0);
-    }
-
-    const addBank = (
-      width: number,
-      depth: number,
-      x: number,
-      z: number,
-      foamWidth: number,
-      foamDepth: number,
-      foamX: number,
-      foamZ: number,
-    ): void => {
-      this.addBox(group, width, 0.48, depth, bank, x, 2.18, z);
-      this.addBox(group, width * 0.92, 0.08, depth * 0.92, grass, x, 2.46, z);
-
-      const foamGeometry = new THREE.PlaneGeometry(foamWidth, foamDepth);
-      foamGeometry.rotateX(-Math.PI / 2);
-      const foamMesh = new THREE.Mesh(foamGeometry, foam);
-      foamMesh.position.set(foamX, 2.095, foamZ);
-      group.add(foamMesh);
+    const connectorLength = TILE / 2 + radius * 0.68;
+    const addConnection = (dx: number, dz: number, rotation: number, scale = 1): void => {
+      this.addRiverSurface(
+        group,
+        connectorLength,
+        width * scale,
+        dx,
+        dz,
+        rotation,
+      );
     };
 
-    if (!left) addBank(0.62, TILE, -1.69, 0, 0.16, 3.2, -1.36, 0);
-    if (!right) addBank(0.62, TILE, 1.69, 0, 0.16, 3.2, 1.36, 0);
-    if (!up) addBank(TILE, 0.62, 0, -1.69, 3.2, 0.16, 0, -1.36);
-    if (!down) addBank(TILE, 0.62, 0, 1.69, 3.2, 0.16, 0, 1.36);
+    if (left) addConnection(-1.22, 0, Math.PI / 2, 0.98);
+    if (right) addConnection(1.22, 0, Math.PI / 2, 1.02);
+    if (up) addConnection(0, -1.22, 0, 0.96);
+    if (down) addConnection(0, 1.22, 0, 1.04);
 
-    const stoneMaterial = new THREE.MeshStandardMaterial({ color: 0x8d887e, roughness: 1 });
-    const pebbleCount = 1 + ((gx * 7 + gy * 11) % 3);
+    if (connections === 0) {
+      this.addRiverSurface(group, width, TILE + 0.4, 0, 0);
+    }
+
+    const bankWidth = 0.5 + (hash % 4) * 0.04;
+    const addBank = (x: number, z: number, bw: number, bd: number, rotation = 0): void => {
+      const bank = this.addBox(group, bw, 0.38, bd, bankSand, x, 2.17, z);
+      bank.rotation.y = rotation;
+      const cap = this.addBox(group, bw * 0.9, 0.08, bd * 0.92, bankGrass, x, 2.39, z);
+      cap.rotation.y = rotation;
+    };
+
+    if (!left) addBank(-1.72, 0, bankWidth, TILE * 1.04, 0.04 * ((hash % 3) - 1));
+    if (!right) addBank(1.72, 0, bankWidth, TILE * 1.04, -0.05 * ((hash % 3) - 1));
+    if (!up) addBank(0, -1.72, TILE * 1.04, bankWidth, -0.04);
+    if (!down) addBank(0, 1.72, TILE * 1.04, bankWidth, 0.05);
+
+    if ((left && down) || (right && up) || (left && up) || (right && down)) {
+      const turnFoam = new THREE.Mesh(
+        new THREE.RingGeometry(radius * 0.82, radius * 0.94, 20, 1, 0, Math.PI * 0.75),
+        this.planMaterial(0xd7fbff, 0.18),
+      );
+      turnFoam.rotation.x = -Math.PI / 2;
+      turnFoam.rotation.z = (hash % 4) * Math.PI / 2;
+      turnFoam.position.y = 2.07;
+      group.add(turnFoam);
+    }
+
+    const pebbleCount = hash % 4 === 0 ? 2 : hash % 5 === 0 ? 1 : 0;
     for (let i = 0; i < pebbleCount; i += 1) {
       const pebble = new THREE.Mesh(
-        new THREE.DodecahedronGeometry(0.12 + ((gx + gy + i) % 3) * 0.05, 0),
+        new THREE.DodecahedronGeometry(0.13 + ((hash + i) % 3) * 0.05, 0),
         stoneMaterial,
       );
-      const side = (gx + gy + i) % 2 === 0 ? -1 : 1;
-      pebble.position.set(side * (1.36 + i * 0.08), 2.31, -0.9 + i * 0.78);
-      pebble.scale.y = 0.55;
+      const side = (hash + i) % 2 === 0 ? -1 : 1;
+      pebble.position.set(side * (1.38 + i * 0.18), 2.32, -0.75 + i * 0.9);
+      pebble.scale.y = 0.52;
       pebble.castShadow = true;
       group.add(pebble);
     }
@@ -1179,7 +1598,8 @@ export class ThreeGame {
     const position = this.gridToWorld(cell.x, cell.y);
     group.position.set(position.x, this.terrainElevation(cell.x, cell.y), position.z);
 
-    if (cell.kind === 'road') this.makeRoad(group, cell.x, cell.y);
+    if (ROAD_KINDS.includes(cell.kind as RoadKind)) this.makeRoad(group, cell.x, cell.y, cell.kind as RoadKind);
+    else if (HARBOR_KINDS.includes(cell.kind as HarborKind)) this.makeHarbor(group, cell.kind as HarborKind, cell.x, cell.y, cell);
     else if (WALL_KINDS.includes(cell.kind as WallKind)) {
       this.makeWall(group, cell.kind as WallKind, cell.x, cell.y, cell);
     } else if (cell.kind === 'gate') this.makeGate(group, cell.x, cell.y);
@@ -1197,7 +1617,7 @@ export class ThreeGame {
       this.makeHouse(group, cell.kind as 'cottage' | 'house' | 'manor' | 'villa');
     }
 
-    if (!this.isWallFamily(cell.kind) && cell.kind !== 'road' && cell.kind !== 'moat') {
+    if (!this.isWallFamily(cell.kind) && !ROAD_KINDS.includes(cell.kind as RoadKind) && cell.kind !== 'moat') {
       group.rotation.y = (cell.rotation ?? 0) * Math.PI / 2;
     }
 
@@ -1231,31 +1651,293 @@ export class ThreeGame {
   }
 
   private isRoadFamily(kind: TileKind | undefined): boolean {
-    return kind === 'road' || kind === 'gate';
+    return kind === 'road' || kind === 'dirtRoad' || kind === 'stoneRoad' || kind === 'gate';
   }
 
-  private makeRoad(group: THREE.Group, gx: number, gy: number): THREE.Group {
-    const road = new THREE.MeshStandardMaterial({ color: 0x8b6d55, roughness: 0.95 });
-    const edge = new THREE.MeshStandardMaterial({ color: 0x70523f, roughness: 1 });
+  private makeRoad(group: THREE.Group, gx: number, gy: number, kind: RoadKind): THREE.Group {
+    const road =
+      kind === 'dirtRoad'
+        ? this.environmentMaterial('road-dirt', 0x8a6142, 1)
+        : kind === 'stoneRoad'
+          ? this.environmentMaterial('road-stone', 0x9b9487, 0.98)
+          : this.environmentMaterial('road-standard', 0x8b6d55, 0.95);
+    const edge =
+      kind === 'stoneRoad'
+        ? this.environmentMaterial('road-stone-edge', 0x6e6961, 1)
+        : this.environmentMaterial('road-edge', 0x70523f, 1);
 
     const left = this.isRoadFamily(this.kindAt(gx - 1, gy));
     const right = this.isRoadFamily(this.kindAt(gx + 1, gy));
     const up = this.isRoadFamily(this.kindAt(gx, gy - 1));
     const down = this.isRoadFamily(this.kindAt(gx, gy + 1));
 
-    this.addBox(group, 1.72, 0.16, 1.72, road, 0, 2.25, 0);
+    if (this.terrainAt(gx, gy) === 'river') {
+      const horizontal = left || right || (!up && !down);
+      const bridgeMaterial =
+        kind === 'stoneRoad'
+          ? this.environmentMaterial('bridge-stone', 0x918a7d, 1)
+          : this.environmentMaterial('bridge-timber', 0x775137, 0.98);
+      const support =
+        kind === 'stoneRoad'
+          ? this.environmentMaterial('bridge-stone-support', 0x625f58, 1)
+          : this.environmentMaterial('bridge-timber-support', 0x4f3526, 1);
 
-    if (left) this.addBox(group, TILE / 2 + 0.1, 0.16, 1.72, road, -TILE / 4 - 0.45, 2.25, 0);
-    if (right) this.addBox(group, TILE / 2 + 0.1, 0.16, 1.72, road, TILE / 4 + 0.45, 2.25, 0);
-    if (up) this.addBox(group, 1.72, 0.16, TILE / 2 + 0.1, road, 0, 2.25, -TILE / 4 - 0.45);
-    if (down) this.addBox(group, 1.72, 0.16, TILE / 2 + 0.1, road, 0, 2.25, TILE / 4 + 0.45);
+      const deck = this.addBox(
+        group,
+        horizontal ? TILE + 0.3 : 1.95,
+        0.28,
+        horizontal ? 1.95 : TILE + 0.3,
+        bridgeMaterial,
+        0,
+        2.58,
+        0,
+      );
+      deck.castShadow = true;
 
-    if (!left && !right && !up && !down) {
-      this.addBox(group, 3.35, 0.16, 1.72, road, 0, 2.25, 0);
+      if (kind === 'stoneRoad') {
+        for (const offset of [-0.72, 0.72]) {
+          this.addBox(
+            group,
+            horizontal ? TILE + 0.2 : 0.22,
+            0.48,
+            horizontal ? 0.22 : TILE + 0.2,
+            support,
+            horizontal ? 0 : offset,
+            2.42,
+            horizontal ? offset : 0,
+          );
+        }
+      } else {
+        for (const along of [-1.35, 0, 1.35]) {
+          for (const side of [-0.72, 0.72]) {
+            this.addBox(
+              group,
+              0.14,
+              1.7,
+              0.14,
+              support,
+              horizontal ? along : side,
+              1.72,
+              horizontal ? side : along,
+            );
+          }
+        }
+      }
+
+      return group;
     }
 
-    this.addBox(group, 1.82, 0.05, 1.82, edge, 0, 2.16, 0);
+    const roadWidth = kind === 'stoneRoad' ? 1.9 : kind === 'dirtRoad' ? 1.82 : 1.86;
+    this.addBox(group, roadWidth, 0.14, roadWidth, road, 0, 2.28, 0);
+
+    const arms: Array<{ active: boolean; dx: number; dy: number; axis: 'x' | 'z'; sign: number }> = [
+      { active: left, dx: -1, dy: 0, axis: 'x', sign: -1 },
+      { active: right, dx: 1, dy: 0, axis: 'x', sign: 1 },
+      { active: up, dx: 0, dy: -1, axis: 'z', sign: -1 },
+      { active: down, dx: 0, dy: 1, axis: 'z', sign: 1 },
+    ];
+
+    for (const arm of arms) {
+      if (!arm.active) continue;
+      const delta =
+        this.terrainElevation(gx + arm.dx, gy + arm.dy) -
+        this.terrainElevation(gx, gy);
+      this.addRoadArm(group, arm.axis, arm.sign, delta, roadWidth, road);
+    }
+
+    if (!left && !right && !up && !down) {
+      this.addBox(group, 3.35, 0.14, roadWidth, road, 0, 2.28, 0);
+    }
+
+    this.addBox(group, roadWidth + 0.12, 0.045, roadWidth + 0.12, edge, 0, 2.2, 0);
+
+    if (kind === 'dirtRoad') {
+      const track = this.environmentMaterial('road-track', 0x604632, 1);
+      this.addBox(group, 0.15, 0.025, 1.6, track, -0.42, 2.37, 0);
+      this.addBox(group, 0.15, 0.025, 1.6, track, 0.42, 2.37, 0);
+    } else if (kind === 'stoneRoad') {
+      const joint = this.environmentMaterial('road-joint', 0x5b5751, 1);
+      for (let i = -1; i <= 1; i += 1) {
+        this.addBox(group, 1.62, 0.025, 0.055, joint, 0, 2.38, i * 0.5);
+      }
+    }
+
     return group;
+  }
+
+  private addRoadArm(
+    group: THREE.Group,
+    axis: 'x' | 'z',
+    sign: number,
+    elevationDelta: number,
+    roadWidth: number,
+    material: THREE.Material,
+  ): void {
+    const run = TILE / 2 + 0.12;
+    const rise = elevationDelta / 2;
+    const length = Math.sqrt(run * run + rise * rise);
+    const arm = this.addBox(
+      group,
+      axis === 'x' ? length : roadWidth,
+      0.14,
+      axis === 'z' ? length : roadWidth,
+      material,
+      axis === 'x' ? sign * run / 2 : 0,
+      2.28 + rise / 2,
+      axis === 'z' ? sign * run / 2 : 0,
+    );
+
+    const angle = Math.atan2(rise, run);
+    if (axis === 'x') arm.rotation.z = sign * angle;
+    else arm.rotation.x = -sign * angle;
+  }
+
+  private makeHarbor(
+    group: THREE.Group,
+    kind: HarborKind,
+    gx: number,
+    gy: number,
+    cell: GridCell,
+  ): THREE.Group {
+    const timber = this.environmentMaterial('harbor-timber', 0x6c4a32, 0.98);
+    const timberDark = this.environmentMaterial('harbor-timber-dark', 0x493224, 1);
+    const rope = this.environmentMaterial('harbor-rope', 0xb29a68, 1);
+    const crate = this.environmentMaterial('harbor-crate', 0x855f3d, 1);
+    const barrel = this.environmentMaterial('harbor-barrel', 0x70482f, 1);
+    const stone = this.environmentMaterial('harbor-stone', 0x777168, 1);
+
+    const pierLength =
+      kind === 'smallDock' ? 4.9 :
+      kind === 'fishingDock' ? 5.7 :
+      kind === 'woodenPier' ? 7.0 :
+      7.8;
+    const pierWidth =
+      kind === 'harbor' ? 2.7 :
+      kind === 'woodenPier' ? 1.65 :
+      kind === 'fishingDock' ? 1.55 :
+      1.35;
+
+    const shoreDeck = this.addBox(
+      group,
+      pierWidth + (kind === 'harbor' ? 1.9 : 0.55),
+      0.28,
+      2.1,
+      kind === 'harbor' ? stone : timber,
+      0,
+      2.42,
+      -0.45,
+    );
+    shoreDeck.castShadow = true;
+
+    this.addBox(
+      group,
+      pierWidth,
+      0.24,
+      pierLength,
+      timber,
+      0,
+      2.36,
+      -pierLength / 2 - 0.6,
+    );
+
+    const supportCount = Math.max(3, Math.floor(pierLength / 1.45));
+    for (let i = 0; i < supportCount; i += 1) {
+      const z = -1.35 - i * ((pierLength - 0.8) / Math.max(1, supportCount - 1));
+      for (const x of [-pierWidth * 0.42, pierWidth * 0.42]) {
+        this.addBox(group, 0.14, 2.6, 0.14, timberDark, x, 1.2, z);
+      }
+    }
+
+    if (kind === 'harbor' || kind === 'fishingDock') {
+      const side = kind === 'harbor' ? 1.7 : 1.05;
+      this.addBox(group, side, 0.22, 2.4, timber, pierWidth / 2 + side / 2 - 0.08, 2.38, -pierLength + 0.65);
+      this.addBox(group, side, 0.22, 2.4, timber, -pierWidth / 2 - side / 2 + 0.08, 2.38, -pierLength + 0.65);
+    }
+
+    const postMaterial = timberDark;
+    for (const x of [-pierWidth * 0.55, pierWidth * 0.55]) {
+      this.addBox(group, 0.13, 1.0, 0.13, postMaterial, x, 2.82, -1.5);
+      this.addBox(group, 0.13, 1.0, 0.13, postMaterial, x, 2.82, -pierLength + 0.25);
+    }
+
+    const ropeMesh = new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.025, pierLength - 1.8, 5), rope);
+    ropeMesh.rotation.x = Math.PI / 2;
+    ropeMesh.position.set(pierWidth * 0.58, 3.0, -pierLength / 2 - 0.58);
+    group.add(ropeMesh);
+
+    const detailZ = -1.45;
+    this.addBox(group, 0.62, 0.55, 0.62, crate, -0.45, 2.75, detailZ);
+    this.addBox(group, 0.48, 0.68, 0.48, barrel, 0.48, 2.78, detailZ - 0.18);
+
+    if (kind === 'fishingDock') {
+      const mast = this.addBox(group, 0.08, 1.8, 0.08, timberDark, -0.42, 3.35, -2.4);
+      mast.rotation.z = -0.18;
+      this.addBox(group, 0.85, 0.05, 0.05, rope, -0.72, 4.05, -2.4);
+    }
+
+    const shipKind = cell.shipKind ?? this.maritimeSystem.defaultShip(kind);
+    if (shipKind) {
+      this.makeDockedShip(group, shipKind, -pierLength - 1.35, kind === 'harbor' ? 1.6 : -1.15);
+    }
+
+    return group;
+  }
+
+  private makeDockedShip(
+    group: THREE.Group,
+    kind: ShipKind,
+    z: number,
+    x: number,
+  ): void {
+    const hull = this.environmentMaterial('ship-hull', 0x5f3d2d, 1);
+    const hullDark = this.environmentMaterial('ship-hull-dark', 0x34251f, 1);
+    const sail = this.environmentMaterial('ship-sail', 0xd4c6a1, 0.96);
+    const sailAccent = this.environmentMaterial('ship-sail-accent', 0x9f4d43, 0.96);
+    const mast = this.environmentMaterial('ship-mast', 0x6c5035, 1);
+
+    const length =
+      kind === 'fishingBoat' ? 2.5 :
+      kind === 'tradingBoat' ? 3.8 :
+      4.6;
+    const width =
+      kind === 'fishingBoat' ? 0.95 :
+      kind === 'tradingBoat' ? 1.25 :
+      1.45;
+
+    const boat = new THREE.Group();
+    boat.position.set(x, 0, z);
+    boat.rotation.y = kind === 'fishingBoat' ? 0.08 : -0.04;
+    group.add(boat);
+
+    const hullMesh = new THREE.Mesh(
+      new THREE.CylinderGeometry(width * 0.42, width * 0.62, length, 8),
+      hull,
+    );
+    hullMesh.rotation.x = Math.PI / 2;
+    hullMesh.scale.y = 0.55;
+    hullMesh.position.y = 1.18;
+    hullMesh.castShadow = true;
+    boat.add(hullMesh);
+
+    this.addBox(boat, width * 0.72, 0.18, length * 0.62, hullDark, 0, 1.38, 0);
+
+    if (kind !== 'fishingBoat') {
+      this.addBox(boat, 0.08, 2.25, 0.08, mast, 0, 2.46, 0.05);
+      const canvas = this.addBox(
+        boat,
+        kind === 'transportShip' ? 1.35 : 1.1,
+        kind === 'transportShip' ? 1.5 : 1.25,
+        0.045,
+        kind === 'transportShip' ? sailAccent : sail,
+        0.58,
+        2.81,
+        0.05,
+      );
+      canvas.rotation.z = -0.08;
+    } else {
+      this.addBox(boat, 0.06, 1.15, 0.06, mast, -0.15, 1.96, 0);
+      this.addBox(boat, 0.75, 0.04, 0.04, mast, 0.18, 2.38, 0);
+    }
   }
 
   private wallThicknessValue(kind: WallKind, thickness: WallThickness): number {
@@ -3202,10 +3884,11 @@ export class ThreeGame {
         if (event.button !== 0) return;
         if (this.battleSystem.isActive()) return;
 
-        if (this.isWallTool(this.selectedTool)) {
-          const cell = this.pickGridCell(event);
-          if (!cell) return;
+        const cell = this.pickGridCell(event);
+        if (cell) this.beginLongPress(event, cell);
 
+        if (this.isWallTool(this.selectedTool)) {
+          if (!cell) return;
           this.wallDragStart = cell;
           this.wallDragEnd = cell;
           this.controls.enabled = false;
@@ -3217,8 +3900,20 @@ export class ThreeGame {
           return;
         }
 
+        if (this.isRoadTool(this.selectedTool)) {
+          if (!cell) return;
+          this.roadDragStart = cell;
+          this.roadDragEnd = cell;
+          this.controls.enabled = false;
+          canvas.setPointerCapture(event.pointerId);
+          this.renderRoadPreview([cell]);
+          this.setStatus('Road drag: choose end point · release to confirm');
+          event.preventDefault();
+          event.stopPropagation();
+          return;
+        }
+
         if (this.isTerrainTool(this.selectedTool)) {
-          const cell = this.pickGridCell(event);
           if (!cell) return;
 
           this.terrainStrokeActive = true;
@@ -3242,6 +3937,8 @@ export class ThreeGame {
     canvas.addEventListener(
       'pointermove',
       (event) => {
+        this.cancelLongPressOnMovement(event);
+
         if (this.wallDragStart) {
           const cell = this.pickGridCell(event);
           if (cell) {
@@ -3249,6 +3946,19 @@ export class ThreeGame {
             const path = this.wallPath(this.wallDragStart, cell);
             this.renderWallPreview(path);
             this.setStatus(`Wall drag: ${path.length} segments · preview is final path`);
+          }
+          event.preventDefault();
+          event.stopPropagation();
+          return;
+        }
+
+        if (this.roadDragStart) {
+          const cell = this.pickGridCell(event);
+          if (cell) {
+            this.roadDragEnd = cell;
+            const path = this.roadPath(this.roadDragStart, cell);
+            this.renderRoadPreview(path);
+            this.setStatus(`Road drag: ${path.length} tiles · release to build`);
           }
           event.preventDefault();
           event.stopPropagation();
@@ -3277,16 +3987,51 @@ export class ThreeGame {
       (event) => {
         if (event.button !== 0) return;
 
+        const longPressTriggered = this.longPressTriggered;
+        this.cancelLongPress();
+        this.longPressTriggered = false;
+
+        if (longPressTriggered) {
+          this.wallDragStart = null;
+          this.wallDragEnd = null;
+          this.roadDragStart = null;
+          this.roadDragEnd = null;
+          this.terrainStrokeActive = false;
+          this.terrainStrokeSnapshot = null;
+          this.clearGroup(this.wallPreviewLayer);
+          this.controls.enabled = true;
+          if (canvas.hasPointerCapture(event.pointerId)) canvas.releasePointerCapture(event.pointerId);
+          event.preventDefault();
+          event.stopPropagation();
+          return;
+        }
+
         if (this.wallDragStart) {
           const end = this.pickGridCell(event) ?? this.wallDragEnd ?? this.wallDragStart;
-          const start = this.wallDragStart;
+          const startPoint = this.wallDragStart;
 
           this.wallDragStart = null;
           this.wallDragEnd = null;
           this.controls.enabled = true;
 
           if (canvas.hasPointerCapture(event.pointerId)) canvas.releasePointerCapture(event.pointerId);
-          this.buildWallDrag(start, end, event.shiftKey);
+          this.buildWallDrag(startPoint, end, event.shiftKey);
+
+          event.preventDefault();
+          event.stopPropagation();
+          return;
+        }
+
+        if (this.roadDragStart) {
+          const end = this.pickGridCell(event) ?? this.roadDragEnd ?? this.roadDragStart;
+          const startPoint = this.roadDragStart;
+
+          this.roadDragStart = null;
+          this.roadDragEnd = null;
+          this.controls.enabled = true;
+
+          if (canvas.hasPointerCapture(event.pointerId)) canvas.releasePointerCapture(event.pointerId);
+          this.buildRoadDrag(startPoint, end);
 
           event.preventDefault();
           event.stopPropagation();
@@ -3324,6 +4069,125 @@ export class ThreeGame {
       },
       true,
     );
+
+    canvas.addEventListener(
+      'pointercancel',
+      () => {
+        this.cancelLongPress();
+        this.longPressTriggered = false;
+        this.wallDragStart = null;
+        this.wallDragEnd = null;
+        this.roadDragStart = null;
+        this.roadDragEnd = null;
+        this.terrainStrokeActive = false;
+        this.terrainStrokeSnapshot = null;
+        this.pointerStart = null;
+        this.clearGroup(this.wallPreviewLayer);
+        this.controls.enabled = true;
+      },
+      true,
+    );
+  }
+
+  private beginLongPress(event: PointerEvent, cell: GridPoint): void {
+    const removable =
+      Boolean(this.state.getCell(cell.x, cell.y)) ||
+      Boolean(this.keepSystem.findAtCell(cell.x, cell.y));
+
+    if (!removable) {
+      this.cancelLongPress();
+      return;
+    }
+
+    this.longPressCell = cell;
+    this.longPressPointerId = event.pointerId;
+    this.longPressStartedAt = performance.now();
+    this.longPressTriggered = false;
+    this.longPressStartScreen = { x: event.clientX, y: event.clientY };
+
+    const indicator = document.getElementById('long-press-indicator');
+    if (indicator) {
+      indicator.hidden = false;
+      indicator.style.left = `${event.clientX}px`;
+      indicator.style.top = `${event.clientY}px`;
+      indicator.style.background =
+        'conic-gradient(#ff6c61 0deg, rgba(8,20,30,.72) 0deg)';
+    }
+  }
+
+  private cancelLongPressOnMovement(event: PointerEvent): void {
+    if (
+      !this.longPressCell ||
+      this.longPressPointerId !== event.pointerId ||
+      !this.longPressStartScreen
+    ) {
+      return;
+    }
+
+    const movement = Math.hypot(
+      event.clientX - this.longPressStartScreen.x,
+      event.clientY - this.longPressStartScreen.y,
+    );
+
+    if (movement > 9) this.cancelLongPress();
+  }
+
+  private cancelLongPress(): void {
+    this.longPressCell = null;
+    this.longPressPointerId = null;
+    this.longPressStartedAt = 0;
+    this.longPressStartScreen = null;
+    const indicator = document.getElementById('long-press-indicator');
+    if (indicator) indicator.hidden = true;
+  }
+
+  private updateLongPress(time: number): void {
+    if (!this.longPressCell || this.longPressTriggered) return;
+
+    const progress = THREE.MathUtils.clamp(
+      (time - this.longPressStartedAt) / 3000,
+      0,
+      1,
+    );
+    const indicator = document.getElementById('long-press-indicator');
+    if (indicator) {
+      indicator.style.background =
+        `conic-gradient(#ff6c61 ${Math.round(progress * 360)}deg, rgba(8,20,30,.72) 0deg)`;
+      indicator.setAttribute('aria-label', `Hold to remove ${Math.round(progress * 100)}%`);
+    }
+
+    if (progress < 1) return;
+
+    const target = this.longPressCell;
+    this.longPressTriggered = true;
+    this.performLongPressRemoval(target);
+    this.cancelLongPress();
+  }
+
+  private performLongPressRemoval(point: GridPoint): void {
+    const keep = this.keepSystem.findAtCell(point.x, point.y);
+    const cell = this.state.getCell(point.x, point.y);
+    if (!keep && !cell) return;
+
+    this.recordHistory();
+
+    if (keep) {
+      this.keepSystem.remove(keep.id);
+      if (this.selectedKeepId === keep.id) this.selectedKeepId = null;
+      this.setStatus('Long-press removal · Keep removed · Undo available');
+    } else if (cell) {
+      this.state.removeCell(point.x, point.y);
+      this.setStatus('Long-press removal · object removed · Undo available');
+    }
+
+    this.wallDragStart = null;
+    this.wallDragEnd = null;
+    this.roadDragStart = null;
+    this.roadDragEnd = null;
+    this.clearGroup(this.wallPreviewLayer);
+    this.controls.enabled = true;
+    this.selectedCell = point;
+    this.finishBuild();
   }
 
   private pickGridCell(event: PointerEvent): GridPoint | null {
@@ -3340,6 +4204,107 @@ export class ThreeGame {
     if (x < 0 || y < 0 || x >= SIZE || y >= SIZE) return null;
 
     return { x, y };
+  }
+
+  private roadPath(start: GridPoint, end: GridPoint): GridPoint[] {
+    const points: GridPoint[] = [{ ...start }];
+    let x = start.x;
+    let y = start.y;
+    const dx = end.x - start.x;
+    const dy = end.y - start.y;
+    const xFirst = Math.abs(dx) >= Math.abs(dy);
+
+    const walkX = (): void => {
+      const step = Math.sign(end.x - x);
+      while (x !== end.x) {
+        x += step;
+        points.push({ x, y });
+      }
+    };
+
+    const walkY = (): void => {
+      const step = Math.sign(end.y - y);
+      while (y !== end.y) {
+        y += step;
+        points.push({ x, y });
+      }
+    };
+
+    if (xFirst) {
+      walkX();
+      walkY();
+    } else {
+      walkY();
+      walkX();
+    }
+
+    return points.filter(
+      (point) => point.x >= 0 && point.y >= 0 && point.x < SIZE && point.y < SIZE,
+    );
+  }
+
+  private renderRoadPreview(path: GridPoint[]): void {
+    this.clearGroup(this.wallPreviewLayer);
+    const roadKind = this.selectedTool as RoadKind;
+    const color =
+      roadKind === 'dirtRoad' ? 0xb17d4f :
+      roadKind === 'stoneRoad' ? 0xb8b0a2 :
+      0xc39a70;
+    const material = new THREE.MeshStandardMaterial({
+      color,
+      emissive: color,
+      emissiveIntensity: 0.14,
+      transparent: true,
+      opacity: 0.52,
+      depthWrite: false,
+    });
+
+    for (const point of path) {
+      const position = this.gridToWorld(point.x, point.y);
+      const preview = new THREE.Mesh(
+        new THREE.BoxGeometry(2.25, 0.12, 2.25),
+        material,
+      );
+      preview.position.set(
+        position.x,
+        2.34 + this.terrainElevation(point.x, point.y),
+        position.z,
+      );
+      preview.castShadow = false;
+      this.wallPreviewLayer.add(preview);
+    }
+  }
+
+  private buildRoadDrag(start: GridPoint, end: GridPoint): void {
+    const roadKind = this.selectedTool as RoadKind;
+    const path = this.roadPath(start, end);
+    const before = this.captureSnapshot();
+    let changed = 0;
+
+    for (const point of path) {
+      const terrain = this.terrainAt(point.x, point.y);
+      const current = this.state.getCell(point.x, point.y);
+
+      if (current && !this.isRoadFamily(current.kind)) continue;
+      if (terrain === 'water' || terrain === 'mountain') {
+        continue;
+      }
+
+      this.state.setCell(point.x, point.y, roadKind, 1);
+      changed += 1;
+    }
+
+    this.clearGroup(this.wallPreviewLayer);
+    this.selectedCell = path[path.length - 1] ?? end;
+
+    if (changed > 0) {
+      this.pushUndoSnapshot(before);
+      this.redraw();
+      this.scheduleSave();
+      this.setStatus(`Built ${changed} connected road tiles · preview confirmed`);
+    } else {
+      this.setStatus('No valid road tiles in that path');
+    }
   }
 
   private wallPath(start: GridPoint, end: GridPoint): GridPoint[] {
@@ -3551,6 +4516,32 @@ export class ThreeGame {
       return;
     }
 
+    if (this.isHarborTool(this.selectedTool)) {
+      if (current || keepAtPoint) {
+        this.setStatus('Harbor structures need a clear coastal land tile');
+        return;
+      }
+
+      const direction = this.maritimeSystem.canPlace(this.selectedTool, gx, gy);
+      if (!direction) {
+        this.setStatus(
+          this.selectedTool === 'harbor' || this.selectedTool === 'woodenPier'
+            ? 'This structure needs a valid coast with deeper open water'
+            : 'Dock placement requires a valid coastline next to ocean water',
+        );
+        return;
+      }
+
+      this.recordHistory();
+      this.state.setCell(gx, gy, this.selectedTool, 1, {
+        rotation: direction.rotation,
+        shipKind: this.maritimeSystem.defaultShip(this.selectedTool) ?? undefined,
+      });
+      this.finishBuild();
+      this.setStatus('Maritime structure placed · orientation matched to coastline');
+      return;
+    }
+
     if (this.selectedTool === 'moat') {
       if (current || this.moatTasks.has(overrideKey)) return;
       if (terrain !== 'plains' && terrain !== 'shore') return;
@@ -3660,6 +4651,24 @@ export class ThreeGame {
   private finishBuild(): void {
     this.redraw();
     this.scheduleSave();
+  }
+
+  private updatePopulationUI(): void {
+    const battleStatus = this.battleSystem.status();
+    const configuredMilitary =
+      this.battleSetup.defenderSwordsmen + this.battleSetup.defenderArchers;
+    const military =
+      battleStatus.mode === 'running' ||
+      battleStatus.mode === 'paused' ||
+      battleStatus.mode === 'finished'
+        ? battleStatus.defendersAlive
+        : configuredMilitary;
+    const groups = this.populationSystem.calculate(this.state.entries(), military);
+
+    const population = document.getElementById('city-population');
+    const army = document.getElementById('military-population');
+    if (population) population.textContent = `Population: ${groups.civilians}`;
+    if (army) army.textContent = `Army: ${groups.military}`;
   }
 
   private updateWorkers(deltaMs: number): void {
@@ -3775,6 +4784,7 @@ export class ThreeGame {
           towerTop?: TowerTop;
           rotation?: number;
           wallLinks?: WallDirection[];
+          shipKind?: ShipKind;
         }>;
         keeps?: KeepState[];
         terrain?: Array<{ x: number; y: number; kind: TerrainOverrideKind }>;
@@ -3802,6 +4812,7 @@ export class ThreeGame {
           towerTop: cell.towerTop,
           rotation: cell.rotation,
           wallLinks: cell.wallLinks,
+          shipKind: cell.shipKind,
         });
       }
 
@@ -3826,6 +4837,7 @@ export class ThreeGame {
       }
 
       this.worldSeeded = Boolean(data.worldSeeded);
+      this.loadedSaveVersion = Math.max(0, Math.floor(data.version ?? 0));
       this.setStatus('Loaded');
     } catch {
       this.setStatus('Could not load save');
@@ -4142,6 +5154,8 @@ export class ThreeGame {
         r: 'river',
         l: 'land',
         p: 'keep',
+        i: 'dirtRoad',
+        o: 'stoneRoad',
         u: 'raise',
         j: 'lower',
         b: 'flatten',
@@ -4567,6 +5581,7 @@ export class ThreeGame {
       [field]: THREE.MathUtils.clamp(this.battleSetup[field] + delta, 0, 120),
     };
     this.syncBattleSetupUI();
+    this.updatePopulationUI();
   }
 
   private syncBattleSetupUI(): void {
@@ -4649,6 +5664,7 @@ export class ThreeGame {
 
     if (attackerAlive) attackerAlive.textContent = String(status.attackersAlive);
     if (defenderAlive) defenderAlive.textContent = String(status.defendersAlive);
+    this.updatePopulationUI();
 
     if (captureLabel) {
       captureLabel.textContent =
@@ -4735,8 +5751,11 @@ export class ThreeGame {
 
     if (!this.battleSystem.isActive()) this.updateWorkers(deltaMs);
     this.battleSystem.update(deltaMs, time);
-    this.riverTexture.offset.y -= deltaMs * 0.00028;
-    this.riverTexture.offset.x += deltaMs * 0.000025;
+    this.updateLongPress(time);
+    this.riverTexture.offset.y -= deltaMs * 0.00032;
+    this.riverTexture.offset.x += deltaMs * 0.000035;
+    this.oceanTexture.offset.x += deltaMs * 0.000018;
+    this.oceanTexture.offset.y -= deltaMs * 0.000012;
 
     for (const flag of this.animatedFlags) {
       const phase = Number(flag.userData.castleFlag?.phase ?? 0);
