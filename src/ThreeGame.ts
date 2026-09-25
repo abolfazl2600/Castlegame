@@ -1355,6 +1355,61 @@ export class ThreeGame {
     flag.userData.castleFlag = { phase: (gx * 0.71 + gy * 0.37) % (Math.PI * 2) };
   }
 
+  private addSlopedWallArm(
+    group: THREE.Group,
+    axis: 'x' | 'z',
+    sign: number,
+    elevationDelta: number,
+    height: number,
+    thickness: number,
+    material: THREE.Material,
+  ): void {
+    const run = TILE / 2 + 0.16;
+    const rise = elevationDelta / 2;
+    const length = Math.sqrt(run * run + rise * rise);
+    const mesh = this.addBox(
+      group,
+      axis === 'x' ? length : thickness,
+      height,
+      axis === 'z' ? length : thickness,
+      material,
+      axis === 'x' ? sign * run / 2 : 0,
+      2.22 + height / 2 + rise / 2,
+      axis === 'z' ? sign * run / 2 : 0,
+    );
+
+    const angle = Math.atan2(rise, run);
+    if (axis === 'x') mesh.rotation.z = sign * angle;
+    else mesh.rotation.x = -sign * angle;
+  }
+
+  private addMerlons(
+    group: THREE.Group,
+    x: number,
+    y: number,
+    z: number,
+    axis: 'x' | 'z',
+    span: number,
+    material: THREE.Material,
+  ): void {
+    const count = Math.max(2, Math.floor(span / 0.72));
+
+    for (let i = 0; i < count; i += 1) {
+      const t = count === 1 ? 0 : i / (count - 1) - 0.5;
+      const offset = t * Math.max(0.5, span - 0.45);
+      this.addBox(
+        group,
+        axis === 'x' ? 0.42 : 0.62,
+        0.62,
+        axis === 'x' ? 0.62 : 0.42,
+        material,
+        x + (axis === 'x' ? offset : 0),
+        y,
+        z + (axis === 'z' ? offset : 0),
+      );
+    }
+  }
+
   private makeGate(group: THREE.Group, gx: number, gy: number): THREE.Group {
     const wallMaterial = new THREE.MeshStandardMaterial({ color: 0xe8d7c0, roughness: 0.78 });
     const woodMaterial = new THREE.MeshStandardMaterial({ color: 0x9a5c35, roughness: 0.88 });
