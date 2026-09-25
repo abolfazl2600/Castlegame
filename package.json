@@ -1,7 +1,7 @@
 {
   "name": "castle-role",
   "private": true,
-  "version": "0.1.0",
+  "version": "0.2.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -9,9 +9,10 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "phaser": "^3.90.0"
+    "three": "^0.180.0"
   },
   "devDependencies": {
+    "@types/three": "^0.180.0",
     "typescript": "^7.0.2",
     "vite": "^8.3.1"
   }
