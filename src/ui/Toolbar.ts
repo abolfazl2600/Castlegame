@@ -11,7 +11,10 @@ interface ToolDefinition {
 const TOOLS: ToolDefinition[] = [
   { id: 'wall', label: 'Wall', shortcut: '1', icon: '▥', description: 'Build the castle walls' },
   { id: 'road', label: 'Road', shortcut: '2', icon: '═', description: 'Draw roads across the land' },
-  { id: 'erase', label: 'Remove', shortcut: '3', icon: '⌫', description: 'Remove walls or roads' },
+  { id: 'cottage', label: 'Cottage', shortcut: '3', icon: '⌂', description: 'Small worker cottage' },
+  { id: 'house', label: 'House', shortcut: '4', icon: '⌘', description: 'Standard family house' },
+  { id: 'manor', label: 'Manor', shortcut: '5', icon: '◫', description: 'Large noble residence' },
+  { id: 'erase', label: 'Remove', shortcut: '6', icon: '⌫', description: 'Remove placed structures' },
 ];
 
 export class Toolbar {
@@ -24,7 +27,7 @@ export class Toolbar {
   ) {
     const title = document.createElement('div');
     title.className = 'toolbar-title';
-    title.innerHTML = '<span>Build</span><small>Shape your stronghold</small>';
+    title.innerHTML = '<span>Build</span><small>Grow your fortress frontier</small>';
     root.append(title);
 
     for (const tool of TOOLS) {
@@ -57,8 +60,6 @@ export class Toolbar {
   }
 
   private render(): void {
-    for (const [id, button] of this.buttons) {
-      button.classList.toggle('is-selected', id === this.selected);
-    }
+    for (const [id, button] of this.buttons) button.classList.toggle('is-selected', id === this.selected);
   }
 }
