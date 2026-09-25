@@ -21,6 +21,7 @@ export interface BattleWorldContext {
   cellAt: (x: number, y: number) => GridCell | undefined;
   fortificationTopAt: (x: number, y: number, cell: GridCell) => number;
   keeps: () => KeepState[];
+  setWallBattleVisibility: (x: number, y: number, visible: boolean) => void;
 }
 
 interface UnitRuntime {
@@ -31,7 +32,7 @@ interface UnitRuntime {
   home: THREE.Vector3;
   path: NavPoint[];
   pathIndex: number;
-  surface: 'ground' | 'wall';
+  surface: 'ground' | 'wall' | 'ladder';
   gridX: number;
   gridY: number;
   attackTimer: number;
@@ -46,6 +47,48 @@ interface UnitRuntime {
   recoveryTime: number;
   recoverySign: number;
   lastProgressPosition: THREE.Vector3;
+  assignedLadderId?: string;
+  activeLadderId?: string;
+  climbProgress: number;
+  wallSeconds: number;
+}
+
+type WallDamageStage = 'healthy' | 'damaged' | 'heavy' | 'breached';
+type SiegeMode = 'entrance' | 'breach' | 'ladder';
+
+interface WallBattleState {
+  x: number;
+  y: number;
+  cell: GridCell;
+  maxHealth: number;
+  health: number;
+  stage: WallDamageStage;
+  visual: THREE.Group;
+}
+
+interface SiegeLadder {
+  id: string;
+  wall: NavPoint;
+  base: NavPoint;
+  inside: NavPoint;
+  topY: number;
+  status: 'carrying' | 'placed';
+  carrierId?: string;
+  climberId?: string;
+  view?: THREE.Group;
+}
+
+interface SiegePlan {
+  mode: SiegeMode;
+  wall?: NavPoint;
+  base?: NavPoint;
+  inside?: NavPoint;
+  ladderId?: string;
+}
+
+interface WallSides {
+  base: NavPoint;
+  inside: NavPoint;
 }
 
 interface ArrowProjectile {
@@ -110,6 +153,20 @@ export class BattleSystem {
   private readonly objectiveMaterial = this.material(
     new THREE.MeshBasicMaterial({ color: 0xffd477, transparent: true, opacity: 0.56, depthWrite: false }),
   );
+  private readonly damageDarkMaterial = this.material(
+    new THREE.MeshStandardMaterial({ color: 0x3d332d, roughness: 1 }),
+  );
+  private readonly rubbleMaterial = this.material(
+    new THREE.MeshStandardMaterial({ color: 0x81766c, roughness: 1, flatShading: true }),
+  );
+  private readonly rubbleLightMaterial = this.material(
+    new THREE.MeshStandardMaterial({ color: 0xa19587, roughness: 1, flatShading: true }),
+  );
+  private readonly ladderWoodMaterial = this.material(
+    new THREE.MeshStandardMaterial({ color: 0x6f4d31, roughness: 0.96 }),
+  );
+  private readonly ladderRailGeometry = this.geometry(new THREE.CylinderGeometry(0.055, 0.065, 1, 6));
+  private readonly ladderRungGeometry = this.geometry(new THREE.CylinderGeometry(0.038, 0.042, 1, 6));
 
   private mode: BattleStatus['mode'] = 'idle';
   private captureSeconds = 0;
@@ -124,6 +181,13 @@ export class BattleSystem {
   private statusTimer = 0;
   private globalDecisionTimer = 0;
   private finalResult: BattleResult | undefined;
+  private readonly wallStates = new Map<string, WallBattleState>();
+  private readonly wallNodes = new Map<string, WallNavNode>();
+  private readonly breachedWalls = new Set<string>();
+  private readonly ladders = new Map<string, SiegeLadder>();
+  private siegePlan: SiegePlan | null = null;
+  private siegeDecisionTimer = 0;
+  private ladderCounter = 0;
 
   constructor(
     private readonly layer: THREE.Group,
@@ -138,6 +202,7 @@ export class BattleSystem {
       cellAt: world.cellAt,
       fortificationTopAt: world.fortificationTopAt,
       keeps: world.keeps,
+      temporaryGroundPassable: (x, y) => this.breachedWalls.has(this.gridKey(x, y)),
     });
   }
 
@@ -152,10 +217,13 @@ export class BattleSystem {
   start(setup: BattleSetup): void {
     this.reset(false);
     this.navigation.invalidate();
+    this.clearSiegeState();
     this.mode = 'running';
     this.captureSeconds = 0;
     this.battleSeconds = 0;
     this.finalResult = undefined;
+    this.siegeDecisionTimer = 0;
+    this.initializeWallStates();
 
     const normalized = this.normalizeSetup(setup);
     this.attackerStartCount = normalized.attackerSwordsmen + normalized.attackerArchers;
@@ -175,6 +243,7 @@ export class BattleSystem {
 
     this.spawnAttackers(normalized);
     this.spawnDefenders(normalized);
+    this.refreshSiegePlan(true);
     this.emitStatus();
   }
 
@@ -207,6 +276,8 @@ export class BattleSystem {
       this.objectiveMarker = null;
     }
 
+    this.clearSiegeState();
+
     this.mode = 'idle';
     this.captureSeconds = 0;
     this.battleSeconds = 0;
@@ -227,10 +298,17 @@ export class BattleSystem {
     this.battleSeconds += delta;
     this.globalDecisionTimer -= delta;
     this.statusTimer -= delta;
+    this.siegeDecisionTimer -= delta;
 
     if (this.globalDecisionTimer <= 0) {
       this.globalDecisionTimer = 0.28;
       this.refreshTargets();
+    }
+
+    if (this.siegeDecisionTimer <= 0) {
+      this.siegeDecisionTimer = 1.2;
+      this.refreshSiegePlan(false);
+      this.ensureAdditionalLadder();
     }
 
     const buckets = this.buildSpatialBuckets();
@@ -324,11 +402,27 @@ export class BattleSystem {
     }
 
     const remainingArchers = setup.defenderArchers - usedWallNodes.size;
-    const groundCount = setup.defenderSwordsmen + Math.max(0, remainingArchers);
+    const wallSwordCount = Math.min(
+      Math.floor(setup.defenderSwordsmen * 0.3),
+      Math.max(0, wallNodes.length - usedWallNodes.size),
+    );
+    let wallSwordPlaced = 0;
+
+    for (let i = 0; i < wallNodes.length && wallSwordPlaced < wallSwordCount; i += 1) {
+      const node = wallNodes[(i * 3 + 1) % wallNodes.length];
+      const key = `${node.x},${node.y}`;
+      if (usedWallNodes.has(key)) continue;
+      usedWallNodes.add(key);
+      this.spawnWallUnit('defender', 'swordsman', node, i + 23);
+      wallSwordPlaced += 1;
+    }
+
+    const remainingSwordsmen = setup.defenderSwordsmen - wallSwordPlaced;
+    const groundCount = remainingSwordsmen + Math.max(0, remainingArchers);
     const groundCells = this.navigation.defenderGroundCells(this.capturePointGrid, Math.max(1, groundCount));
     let cursor = 0;
 
-    for (let i = 0; i < setup.defenderSwordsmen; i += 1) {
+    for (let i = 0; i < remainingSwordsmen; i += 1) {
       const cell = groundCells[cursor % groundCells.length] ?? this.capturePointGrid;
       this.spawnGroundUnit('defender', 'swordsman', cell, cursor, false);
       cursor += 1;
@@ -379,7 +473,7 @@ export class BattleSystem {
 
   private spawnWallUnit(
     faction: Faction,
-    unitType: 'archer',
+    unitType: 'swordsman' | 'archer',
     node: WallNavNode,
     index: number,
   ): void {
@@ -449,6 +543,8 @@ export class BattleSystem {
       recoveryTime: 0,
       recoverySign: this.units.size % 2 === 0 ? 1 : -1,
       lastProgressPosition: position.clone(),
+      climbProgress: 0,
+      wallSeconds: 0,
     };
   }
 
@@ -533,6 +629,13 @@ export class BattleSystem {
       return;
     }
 
+    if (runtime.surface === 'ladder') {
+      this.updateLadderClimb(runtime, delta);
+      runtime.view.position.copy(runtime.position);
+      this.animateUnit(runtime);
+      return;
+    }
+
     const target = runtime.data.targetId
       ? this.units.get(runtime.data.targetId)
       : undefined;
@@ -547,6 +650,8 @@ export class BattleSystem {
           if (runtime.attackTimer <= 0) this.fireArrow(runtime, target);
         } else if (runtime.surface === 'ground') {
           this.moveTowardTarget(runtime, target.position, delta);
+        } else if (runtime.surface === 'wall' && target.surface === 'wall') {
+          this.moveAlongWallToward(runtime, target, delta);
         }
       } else {
         const verticalDifference = Math.abs(runtime.position.y - target.position.y);
@@ -556,16 +661,26 @@ export class BattleSystem {
         } else if (runtime.surface === 'ground') {
           const attackPosition = this.meleeApproachPoint(runtime, target);
           this.moveTowardTarget(runtime, attackPosition, delta);
+        } else if (runtime.surface === 'wall' && target.surface === 'wall') {
+          this.moveAlongWallToward(runtime, target, delta);
         }
       }
     } else if (runtime.surface === 'ground') {
-      if (runtime.data.faction === 'attacker') this.followAttackerObjective(runtime, delta);
-      else this.guardDefenderArea(runtime, delta);
-    } else {
-      runtime.data.state = 'guarding';
+      if (runtime.data.faction === 'attacker') {
+        if (!this.updateSiegeGroundAttacker(runtime, delta)) {
+          this.followAttackerObjective(runtime, delta);
+        }
+      } else {
+        this.guardDefenderArea(runtime, delta);
+      }
+    } else if (runtime.surface === 'wall') {
+      this.updateWallSurfaceUnit(runtime, delta);
     }
 
-    if (runtime.surface === 'ground' && runtime.moving) {
+    if (
+      (runtime.surface === 'ground' || runtime.surface === 'wall') &&
+      runtime.moving
+    ) {
       this.applySeparation(runtime, delta, buckets);
     }
 
@@ -599,6 +714,11 @@ export class BattleSystem {
   }
 
   private guardDefenderArea(runtime: UnitRuntime, delta: number): void {
+    if (runtime.path.length > 0 && runtime.pathIndex < runtime.path.length) {
+      this.followGroundPath(runtime, delta, 'moving');
+      return;
+    }
+
     const distanceHome = runtime.position.distanceTo(runtime.home);
     if (distanceHome > 0.42) {
       this.moveTowardPoint(runtime, runtime.home, delta, 0.3);
@@ -606,6 +726,33 @@ export class BattleSystem {
     } else {
       runtime.data.state = 'guarding';
     }
+  }
+
+  private followGroundPath(
+    runtime: UnitRuntime,
+    delta: number,
+    state: BattleUnit['state'],
+  ): void {
+    if (runtime.path.length === 0 || runtime.pathIndex >= runtime.path.length) {
+      runtime.data.state = state;
+      return;
+    }
+
+    const waypoint = runtime.path[runtime.pathIndex];
+    const world = this.world.gridToWorld(waypoint.x, waypoint.y);
+    const target = new THREE.Vector3(
+      world.x,
+      2.22 + this.world.elevationAt(waypoint.x, waypoint.y),
+      world.z,
+    );
+
+    if (this.moveTowardPoint(runtime, target, delta, 0.34)) {
+      runtime.gridX = waypoint.x;
+      runtime.gridY = waypoint.y;
+      runtime.pathIndex += 1;
+    }
+
+    runtime.data.state = state;
   }
 
   private moveTowardTarget(runtime: UnitRuntime, target: THREE.Vector3, delta: number): void {
@@ -661,6 +808,1186 @@ export class BattleSystem {
     }
 
     return false;
+  }
+
+  private initializeWallStates(): void {
+    this.wallStates.clear();
+    this.breachedWalls.clear();
+    this.wallNodes.clear();
+
+    for (let y = 0; y < this.world.size; y += 1) {
+      for (let x = 0; x < this.world.size; x += 1) {
+        const cell = this.world.cellAt(x, y);
+        if (!cell) continue;
+        if (cell.kind !== 'wall1' && cell.kind !== 'wall2' && cell.kind !== 'wall3') continue;
+
+        const maxHealth = this.wallMaxHealth(cell);
+        const visual = new THREE.Group();
+        const world = this.world.gridToWorld(x, y);
+        visual.position.set(world.x, this.world.elevationAt(x, y), world.z);
+        this.layer.add(visual);
+
+        this.wallStates.set(this.gridKey(x, y), {
+          x,
+          y,
+          cell,
+          maxHealth,
+          health: maxHealth,
+          stage: 'healthy',
+          visual,
+        });
+      }
+    }
+
+    for (const node of this.navigation.wallPlatformNodes()) {
+      this.wallNodes.set(this.gridKey(node.x, node.y), node);
+    }
+  }
+
+  private wallMaxHealth(cell: GridCell): number {
+    const base =
+      cell.kind === 'wall2' ? 430 :
+      cell.kind === 'wall3' ? 860 :
+      650;
+    const thickness =
+      cell.thickness === 'thin' ? 0.82 :
+      cell.thickness === 'thick' ? 1.28 :
+      1;
+    const level = Math.max(1, cell.level ?? 1);
+    return Math.round(base * thickness * (1 + (level - 1) * 0.18));
+  }
+
+  private clearSiegeState(): void {
+    for (const wall of this.wallStates.values()) {
+      this.world.setWallBattleVisibility(wall.x, wall.y, true);
+      this.layer.remove(wall.visual);
+      this.clearSiegeVisualGroup(wall.visual);
+    }
+
+    for (const ladder of this.ladders.values()) {
+      if (ladder.view) {
+        this.layer.remove(ladder.view);
+        this.clearSiegeVisualGroup(ladder.view);
+      }
+    }
+
+    for (const runtime of this.units.values()) {
+      this.clearCarrierLadder(runtime);
+      runtime.assignedLadderId = undefined;
+      runtime.activeLadderId = undefined;
+      runtime.climbProgress = 0;
+      if (runtime.surface === 'ladder') runtime.surface = 'ground';
+    }
+
+    this.wallStates.clear();
+    this.breachedWalls.clear();
+    this.ladders.clear();
+    this.wallNodes.clear();
+    this.siegePlan = null;
+    this.ladderCounter = 0;
+    this.navigation.invalidate();
+  }
+
+  private clearSiegeVisualGroup(group: THREE.Group): void {
+    group.traverse((object) => {
+      if (
+        object instanceof THREE.Mesh &&
+        object.geometry !== this.ladderRailGeometry &&
+        object.geometry !== this.ladderRungGeometry
+      ) {
+        object.geometry.dispose();
+      }
+    });
+    group.clear();
+  }
+
+  private refreshSiegePlan(force: boolean): void {
+    if (this.mode !== 'running') return;
+
+    const anchor = this.primaryGroundAttacker();
+    if (!anchor) return;
+
+    const exactPath = this.navigation.findPath(
+      { x: anchor.gridX, y: anchor.gridY },
+      this.capturePointGrid,
+      false,
+    );
+
+    if (exactPath.length > 0) {
+      const breachInPath = exactPath.find((point) =>
+        this.breachedWalls.has(this.gridKey(point.x, point.y)),
+      );
+      const nextPlan: SiegePlan = breachInPath
+        ? { mode: 'breach', wall: breachInPath }
+        : { mode: 'entrance' };
+
+      if (force || !this.sameSiegePlan(this.siegePlan, nextPlan)) {
+        this.siegePlan = nextPlan;
+        this.assignObjectivePaths(exactPath);
+      }
+      return;
+    }
+
+    const placed = Array.from(this.ladders.values())
+      .filter((ladder) => ladder.status === 'placed')
+      .sort(
+        (a, b) =>
+          this.gridDistance(a.base, { x: anchor.gridX, y: anchor.gridY }) -
+          this.gridDistance(b.base, { x: anchor.gridX, y: anchor.gridY }),
+      )[0];
+
+    if (placed) {
+      const nextPlan: SiegePlan = {
+        mode: 'ladder',
+        wall: placed.wall,
+        base: placed.base,
+        inside: placed.inside,
+        ladderId: placed.id,
+      };
+      if (force || !this.sameSiegePlan(this.siegePlan, nextPlan)) {
+        this.siegePlan = nextPlan;
+        this.assignSiegePaths();
+      }
+      return;
+    }
+
+    const carrying = Array.from(this.ladders.values()).find(
+      (ladder) => ladder.status === 'carrying',
+    );
+    if (carrying) {
+      this.siegePlan = {
+        mode: 'ladder',
+        wall: carrying.wall,
+        base: carrying.base,
+        inside: carrying.inside,
+        ladderId: carrying.id,
+      };
+      if (force) this.assignSiegePaths();
+      return;
+    }
+
+    const ladderCandidate = this.selectLadderCandidate(anchor, false);
+    if (ladderCandidate) {
+      const ladder = this.createLadderAttack(ladderCandidate.wall, ladderCandidate.sides);
+      if (ladder) {
+        this.siegePlan = {
+          mode: 'ladder',
+          wall: ladder.wall,
+          base: ladder.base,
+          inside: ladder.inside,
+          ladderId: ladder.id,
+        };
+        this.assignSiegePaths();
+        return;
+      }
+    }
+
+    const breachCandidate = this.selectBreachCandidate(anchor);
+    if (breachCandidate) {
+      const nextPlan: SiegePlan = {
+        mode: 'breach',
+        wall: { x: breachCandidate.wall.x, y: breachCandidate.wall.y },
+        base: breachCandidate.sides.base,
+        inside: breachCandidate.sides.inside,
+      };
+      if (force || !this.sameSiegePlan(this.siegePlan, nextPlan)) {
+        this.siegePlan = nextPlan;
+        this.assignSiegePaths();
+      }
+    }
+  }
+
+  private primaryGroundAttacker(): UnitRuntime | undefined {
+    return Array.from(this.units.values()).find(
+      (runtime) =>
+        runtime.data.faction === 'attacker' &&
+        runtime.data.state !== 'dead' &&
+        runtime.surface === 'ground',
+    );
+  }
+
+  private sameSiegePlan(a: SiegePlan | null, b: SiegePlan): boolean {
+    if (!a || a.mode !== b.mode) return false;
+    if (a.ladderId !== b.ladderId) return false;
+    if ((a.wall?.x ?? -1) !== (b.wall?.x ?? -1)) return false;
+    if ((a.wall?.y ?? -1) !== (b.wall?.y ?? -1)) return false;
+    return true;
+  }
+
+  private assignObjectivePaths(sharedPath?: NavPoint[]): void {
+    for (const runtime of this.units.values()) {
+      if (
+        runtime.data.faction !== 'attacker' ||
+        runtime.data.state === 'dead' ||
+        runtime.surface !== 'ground' ||
+        runtime.assignedLadderId
+      ) {
+        continue;
+      }
+
+      const path =
+        sharedPath &&
+        runtime.gridX === sharedPath[0]?.x &&
+        runtime.gridY === sharedPath[0]?.y
+          ? sharedPath
+          : this.navigation.findPath(
+              { x: runtime.gridX, y: runtime.gridY },
+              this.capturePointGrid,
+              false,
+            );
+
+      runtime.path =
+        path.length > 0
+          ? path
+          : this.navigation.findPath(
+              { x: runtime.gridX, y: runtime.gridY },
+              this.capturePointGrid,
+              true,
+            );
+      runtime.pathIndex = Math.min(1, Math.max(0, runtime.path.length - 1));
+    }
+  }
+
+  private assignSiegePaths(): void {
+    if (!this.siegePlan) return;
+
+    for (const runtime of this.units.values()) {
+      if (
+        runtime.data.faction !== 'attacker' ||
+        runtime.data.state === 'dead' ||
+        runtime.surface !== 'ground'
+      ) {
+        continue;
+      }
+
+      let target: NavPoint | undefined;
+
+      if (runtime.assignedLadderId) {
+        target = this.ladders.get(runtime.assignedLadderId)?.base;
+      } else if (this.siegePlan.mode === 'ladder') {
+        const ladder = this.nearestLadderFor(runtime, true);
+        target = ladder?.base ?? this.siegePlan.base;
+      } else if (this.siegePlan.mode === 'breach') {
+        target = this.siegePlan.base;
+      }
+
+      if (!target) continue;
+
+      runtime.path = this.navigation.findPath(
+        { x: runtime.gridX, y: runtime.gridY },
+        target,
+        true,
+      );
+      runtime.pathIndex = Math.min(1, Math.max(0, runtime.path.length - 1));
+    }
+  }
+
+  private selectLadderCandidate(
+    anchor: UnitRuntime,
+    avoidExisting: boolean,
+  ): { wall: WallBattleState; sides: WallSides; score: number } | null {
+    let best: { wall: WallBattleState; sides: WallSides; score: number } | null = null;
+    const anchorPoint = { x: anchor.gridX, y: anchor.gridY };
+
+    for (const wall of this.wallStates.values()) {
+      if (wall.stage === 'breached') continue;
+      if (wall.cell.walkway !== true) continue;
+
+      if (
+        avoidExisting &&
+        Array.from(this.ladders.values()).some(
+          (ladder) => this.gridDistance(ladder.wall, { x: wall.x, y: wall.y }) < 3.2,
+        )
+      ) {
+        continue;
+      }
+
+      const sides = this.wallSides(wall.x, wall.y);
+      if (!sides) continue;
+
+      const path = this.navigation.findPath(anchorPoint, sides.base, false);
+      if (path.length === 0) continue;
+
+      const topY =
+        this.world.elevationAt(wall.x, wall.y) +
+        this.world.fortificationTopAt(wall.x, wall.y, wall.cell) +
+        0.22;
+      const groundY = 2.22 + this.world.elevationAt(sides.base.x, sides.base.y);
+      const rise = topY - groundY;
+      if (rise < 3.2 || rise > 13.5) continue;
+
+      const slope = Math.abs(
+        this.world.elevationAt(wall.x, wall.y) -
+        this.world.elevationAt(sides.base.x, sides.base.y),
+      );
+      if (slope > 2.2) continue;
+
+      const nearbyDefenders = this.defendersNearGrid(wall.x, wall.y, 2.4);
+      const score =
+        path.length +
+        rise * 0.32 +
+        nearbyDefenders * 1.75 +
+        Math.max(0, (wall.cell.level ?? 1) - 2) * 1.4;
+
+      if (!best || score < best.score) {
+        best = { wall, sides, score };
+      }
+    }
+
+    return best;
+  }
+
+  private selectBreachCandidate(
+    anchor: UnitRuntime,
+  ): { wall: WallBattleState; sides: WallSides; score: number } | null {
+    let best: { wall: WallBattleState; sides: WallSides; score: number } | null = null;
+    const anchorPoint = { x: anchor.gridX, y: anchor.gridY };
+
+    for (const wall of this.wallStates.values()) {
+      if (wall.stage === 'breached') continue;
+
+      const sides = this.wallSides(wall.x, wall.y);
+      if (!sides) continue;
+
+      const path = this.navigation.findPath(anchorPoint, sides.base, false);
+      if (path.length === 0) continue;
+
+      const insidePath = this.navigation.findPath(
+        sides.inside,
+        this.capturePointGrid,
+        true,
+      );
+      if (insidePath.length === 0) continue;
+
+      const nearbyDefenders = this.defendersNearGrid(wall.x, wall.y, 2.2);
+      const healthFactor = wall.maxHealth / 520;
+      const score =
+        path.length +
+        healthFactor * 2.2 +
+        nearbyDefenders * 1.35 +
+        Math.max(0, (wall.cell.level ?? 1) - 1) * 1.1;
+
+      if (!best || score < best.score) {
+        best = { wall, sides, score };
+      }
+    }
+
+    return best;
+  }
+
+  private wallSides(x: number, y: number): WallSides | null {
+    const candidates = [
+      { x: x + 1, y },
+      { x: x - 1, y },
+      { x, y: y + 1 },
+      { x, y: y - 1 },
+    ].filter((point) => this.navigation.isGroundWalkable(point.x, point.y));
+
+    if (candidates.length < 2) return null;
+
+    candidates.sort(
+      (a, b) =>
+        this.gridDistance(a, this.objectiveGrid) -
+        this.gridDistance(b, this.objectiveGrid),
+    );
+
+    const inside = candidates[0];
+    const base = candidates[candidates.length - 1];
+    if (inside.x === base.x && inside.y === base.y) return null;
+    return { base, inside };
+  }
+
+  private defendersNearGrid(x: number, y: number, radiusCells: number): number {
+    const center = this.world.gridToWorld(x, y);
+    const radius = radiusCells * this.world.tileSize;
+    let count = 0;
+
+    for (const runtime of this.units.values()) {
+      if (
+        runtime.data.faction !== 'defender' ||
+        runtime.data.state === 'dead'
+      ) {
+        continue;
+      }
+
+      if (
+        Math.hypot(
+          runtime.position.x - center.x,
+          runtime.position.z - center.z,
+        ) <= radius
+      ) {
+        count += 1;
+      }
+    }
+
+    return count;
+  }
+
+  private createLadderAttack(
+    wall: WallBattleState,
+    sides: WallSides,
+  ): SiegeLadder | null {
+    const candidates = Array.from(this.units.values())
+      .filter(
+        (runtime) =>
+          runtime.data.faction === 'attacker' &&
+          runtime.data.state !== 'dead' &&
+          runtime.surface === 'ground' &&
+          !runtime.assignedLadderId,
+      )
+      .sort((a, b) => {
+        const aSword = a.data.unitType === 'swordsman' ? 0 : 1;
+        const bSword = b.data.unitType === 'swordsman' ? 0 : 1;
+        if (aSword !== bSword) return aSword - bSword;
+        return (
+          this.gridDistance({ x: a.gridX, y: a.gridY }, sides.base) -
+          this.gridDistance({ x: b.gridX, y: b.gridY }, sides.base)
+        );
+      });
+
+    const carrier = candidates[0];
+    if (!carrier) return null;
+
+    const id = `siege-ladder-${++this.ladderCounter}`;
+    const topY =
+      this.world.elevationAt(wall.x, wall.y) +
+      this.world.fortificationTopAt(wall.x, wall.y, wall.cell) +
+      0.18;
+
+    const ladder: SiegeLadder = {
+      id,
+      wall: { x: wall.x, y: wall.y },
+      base: { ...sides.base },
+      inside: { ...sides.inside },
+      topY,
+      status: 'carrying',
+      carrierId: carrier.data.id,
+    };
+
+    this.ladders.set(id, ladder);
+    carrier.assignedLadderId = id;
+    this.attachCarrierLadder(carrier);
+
+    carrier.path = this.navigation.findPath(
+      { x: carrier.gridX, y: carrier.gridY },
+      ladder.base,
+      true,
+    );
+    carrier.pathIndex = Math.min(1, Math.max(0, carrier.path.length - 1));
+    return ladder;
+  }
+
+  private ensureAdditionalLadder(): void {
+    if (this.mode !== 'running' || this.siegePlan?.mode !== 'ladder') return;
+
+    const attackers = this.countAlive('attacker');
+    const desired = Math.min(3, Math.max(1, Math.ceil(attackers / 22)));
+    if (this.ladders.size >= desired) return;
+
+    const anchor = this.primaryGroundAttacker();
+    if (!anchor) return;
+    const candidate = this.selectLadderCandidate(anchor, true);
+    if (!candidate) return;
+
+    const ladder = this.createLadderAttack(candidate.wall, candidate.sides);
+    if (ladder) this.assignSiegePaths();
+  }
+
+  private attachCarrierLadder(runtime: UnitRuntime): void {
+    if (runtime.view.userData.siegeCarrierLadder) return;
+
+    const ladder = new THREE.Group();
+    ladder.name = 'carried-siege-ladder';
+    ladder.rotation.z = Math.PI / 2;
+    ladder.rotation.y = 0.26;
+    ladder.position.set(0, 0.95, 0.24);
+
+    for (const x of [-0.22, 0.22]) {
+      const rail = new THREE.Mesh(this.ladderRailGeometry, this.ladderWoodMaterial);
+      rail.scale.y = 1.55;
+      rail.position.x = x;
+      ladder.add(rail);
+    }
+
+    for (let i = 0; i < 5; i += 1) {
+      const rung = new THREE.Mesh(this.ladderRungGeometry, this.ladderWoodMaterial);
+      rung.rotation.z = Math.PI / 2;
+      rung.scale.y = 0.48;
+      rung.position.y = -0.62 + i * 0.31;
+      ladder.add(rung);
+    }
+
+    runtime.view.userData.siegeCarrierLadder = ladder;
+    runtime.view.add(ladder);
+  }
+
+  private clearCarrierLadder(runtime: UnitRuntime): void {
+    const ladder = runtime.view.userData.siegeCarrierLadder as THREE.Group | undefined;
+    if (!ladder) return;
+    runtime.view.remove(ladder);
+    delete runtime.view.userData.siegeCarrierLadder;
+  }
+
+  private updateSiegeGroundAttacker(runtime: UnitRuntime, delta: number): boolean {
+    if (runtime.assignedLadderId) {
+      const assigned = this.ladders.get(runtime.assignedLadderId);
+      if (assigned && assigned.status === 'carrying') {
+        if (runtime.path.length > 0 && runtime.pathIndex < runtime.path.length) {
+          this.followGroundPath(runtime, delta, 'moving');
+          return true;
+        }
+
+        const baseWorld = this.world.gridToWorld(assigned.base.x, assigned.base.y);
+        const base = new THREE.Vector3(
+          baseWorld.x,
+          2.22 + this.world.elevationAt(assigned.base.x, assigned.base.y),
+          baseWorld.z,
+        );
+
+        if (this.moveTowardPoint(runtime, base, delta, 0.58)) {
+          this.placeLadder(assigned, runtime);
+        }
+        runtime.data.state = 'moving';
+        return true;
+      }
+
+      runtime.assignedLadderId = undefined;
+      this.clearCarrierLadder(runtime);
+    }
+
+    const placedLadder = this.nearestLadderFor(runtime, false);
+    if (this.siegePlan?.mode === 'ladder' && placedLadder) {
+      if (runtime.path.length > 0 && runtime.pathIndex < runtime.path.length) {
+        this.followGroundPath(runtime, delta, 'moving');
+        return true;
+      }
+
+      const baseWorld = this.world.gridToWorld(
+        placedLadder.base.x,
+        placedLadder.base.y,
+      );
+      const distance = Math.hypot(
+        runtime.position.x - baseWorld.x,
+        runtime.position.z - baseWorld.z,
+      );
+
+      if (distance <= 1.3) {
+        if (!this.tryBeginLadderClimb(runtime, placedLadder)) {
+          this.holdAtLadderQueue(runtime, placedLadder, delta);
+        }
+      } else {
+        runtime.path = this.navigation.findPath(
+          { x: runtime.gridX, y: runtime.gridY },
+          placedLadder.base,
+          true,
+        );
+        runtime.pathIndex = Math.min(1, Math.max(0, runtime.path.length - 1));
+        this.followGroundPath(runtime, delta, 'moving');
+      }
+      return true;
+    }
+
+    if (
+      this.siegePlan?.mode === 'ladder' &&
+      this.siegePlan.base
+    ) {
+      const stageWorld = this.world.gridToWorld(
+        this.siegePlan.base.x,
+        this.siegePlan.base.y,
+      );
+      const wait = new THREE.Vector3(
+        stageWorld.x,
+        2.22 + this.world.elevationAt(this.siegePlan.base.x, this.siegePlan.base.y),
+        stageWorld.z,
+      );
+      const slot = Math.abs(this.hashString(runtime.data.id)) % 6;
+      wait.x += ((slot % 3) - 1) * 0.82;
+      wait.z += (Math.floor(slot / 3) + 1) * 0.72;
+      this.moveTowardPoint(runtime, wait, delta, 0.36);
+      runtime.data.state = 'moving';
+      return true;
+    }
+
+    if (
+      this.siegePlan?.mode === 'breach' &&
+      this.siegePlan.wall &&
+      this.siegePlan.base
+    ) {
+      const wall = this.wallStates.get(
+        this.gridKey(this.siegePlan.wall.x, this.siegePlan.wall.y),
+      );
+
+      if (!wall || wall.stage === 'breached') return false;
+
+      const baseWorld = this.world.gridToWorld(
+        this.siegePlan.base.x,
+        this.siegePlan.base.y,
+      );
+      const base = new THREE.Vector3(
+        baseWorld.x,
+        2.22 + this.world.elevationAt(this.siegePlan.base.x, this.siegePlan.base.y),
+        baseWorld.z,
+      );
+
+      if (runtime.data.unitType === 'archer') {
+        const wallWorld = this.world.gridToWorld(wall.x, wall.y);
+        const away = new THREE.Vector3(
+          base.x - wallWorld.x,
+          0,
+          base.z - wallWorld.z,
+        ).normalize();
+        const support = base.clone().addScaledVector(away, 3.2);
+        this.moveTowardPoint(runtime, support, delta, 0.55);
+        runtime.data.state = 'guarding';
+        return true;
+      }
+
+      if (runtime.path.length > 0 && runtime.pathIndex < runtime.path.length) {
+        this.followGroundPath(runtime, delta, 'moving');
+        return true;
+      }
+
+      const wallWorld = this.world.gridToWorld(wall.x, wall.y);
+      const towardBase = new THREE.Vector3(
+        base.x - wallWorld.x,
+        0,
+        base.z - wallWorld.z,
+      ).normalize();
+      const attackPoint = new THREE.Vector3(
+        wallWorld.x,
+        2.22 + this.world.elevationAt(this.siegePlan.base.x, this.siegePlan.base.y),
+        wallWorld.z,
+      ).addScaledVector(towardBase, 1.38);
+      const distance = Math.hypot(
+        runtime.position.x - attackPoint.x,
+        runtime.position.z - attackPoint.z,
+      );
+
+      if (distance <= 0.95) {
+        runtime.data.state = 'attacking';
+        this.faceTarget(runtime, new THREE.Vector3(wallWorld.x, attackPoint.y, wallWorld.z));
+        if (runtime.attackTimer <= 0) {
+          runtime.attackTimer = runtime.stats.attackCooldown * 1.1;
+          this.damageWall(wall, runtime.stats.damage * 1.45);
+        }
+      } else {
+        this.moveTowardPoint(runtime, attackPoint, delta, 0.32);
+        runtime.data.state = 'moving';
+      }
+      return true;
+    }
+
+    return false;
+  }
+
+  private nearestLadderFor(
+    runtime: UnitRuntime,
+    includeCarrying: boolean,
+  ): SiegeLadder | undefined {
+    const candidates = Array.from(this.ladders.values()).filter(
+      (ladder) => includeCarrying || ladder.status === 'placed',
+    );
+    candidates.sort(
+      (a, b) =>
+        this.gridDistance({ x: runtime.gridX, y: runtime.gridY }, a.base) -
+        this.gridDistance({ x: runtime.gridX, y: runtime.gridY }, b.base),
+    );
+    return candidates[0];
+  }
+
+  private placeLadder(ladder: SiegeLadder, carrier: UnitRuntime): void {
+    ladder.status = 'placed';
+    ladder.carrierId = undefined;
+    carrier.assignedLadderId = undefined;
+    this.clearCarrierLadder(carrier);
+
+    const view = this.createPlacedLadderView(ladder);
+    ladder.view = view;
+    this.layer.add(view);
+
+    this.siegePlan = {
+      mode: 'ladder',
+      wall: ladder.wall,
+      base: ladder.base,
+      inside: ladder.inside,
+      ladderId: ladder.id,
+    };
+    this.assignSiegePaths();
+  }
+
+  private createPlacedLadderView(ladder: SiegeLadder): THREE.Group {
+    const group = new THREE.Group();
+    group.name = ladder.id;
+
+    const baseWorld = this.world.gridToWorld(ladder.base.x, ladder.base.y);
+    const wallWorld = this.world.gridToWorld(ladder.wall.x, ladder.wall.y);
+    const bottom = new THREE.Vector3(
+      baseWorld.x,
+      2.24 + this.world.elevationAt(ladder.base.x, ladder.base.y),
+      baseWorld.z,
+    );
+    const top = new THREE.Vector3(
+      wallWorld.x,
+      ladder.topY,
+      wallWorld.z,
+    );
+
+    const horizontal = new THREE.Vector3(
+      top.x - bottom.x,
+      0,
+      top.z - bottom.z,
+    ).normalize();
+    const perpendicular = new THREE.Vector3(-horizontal.z, 0, horizontal.x)
+      .multiplyScalar(0.27);
+
+    for (const side of [-1, 1]) {
+      this.addLadderBeam(
+        group,
+        bottom.clone().addScaledVector(perpendicular, side),
+        top.clone().addScaledVector(perpendicular, side),
+        this.ladderRailGeometry,
+      );
+    }
+
+    const rungCount = THREE.MathUtils.clamp(
+      Math.round(bottom.distanceTo(top) / 0.72),
+      7,
+      22,
+    );
+    for (let i = 1; i < rungCount; i += 1) {
+      const t = i / rungCount;
+      const center = bottom.clone().lerp(top, t);
+      this.addLadderBeam(
+        group,
+        center.clone().sub(perpendicular),
+        center.clone().add(perpendicular),
+        this.ladderRungGeometry,
+      );
+    }
+
+    return group;
+  }
+
+  private addLadderBeam(
+    group: THREE.Group,
+    start: THREE.Vector3,
+    end: THREE.Vector3,
+    geometry: THREE.BufferGeometry,
+  ): void {
+    const direction = end.clone().sub(start);
+    const length = direction.length();
+    if (length <= 0.001) return;
+
+    const beam = new THREE.Mesh(geometry, this.ladderWoodMaterial);
+    beam.position.copy(start).add(end).multiplyScalar(0.5);
+    beam.scale.y = length;
+    beam.quaternion.setFromUnitVectors(
+      new THREE.Vector3(0, 1, 0),
+      direction.normalize(),
+    );
+    beam.castShadow = true;
+    group.add(beam);
+  }
+
+  private tryBeginLadderClimb(
+    runtime: UnitRuntime,
+    ladder: SiegeLadder,
+  ): boolean {
+    if (ladder.status !== 'placed' || ladder.climberId) return false;
+
+    ladder.climberId = runtime.data.id;
+    runtime.surface = 'ladder';
+    runtime.activeLadderId = ladder.id;
+    runtime.climbProgress = 0;
+    runtime.data.targetId = undefined;
+    runtime.data.state = 'moving';
+    runtime.path = [];
+    runtime.pathIndex = 0;
+    return true;
+  }
+
+  private holdAtLadderQueue(
+    runtime: UnitRuntime,
+    ladder: SiegeLadder,
+    delta: number,
+  ): void {
+    const base = this.world.gridToWorld(ladder.base.x, ladder.base.y);
+    const wall = this.world.gridToWorld(ladder.wall.x, ladder.wall.y);
+    const outward = new THREE.Vector3(
+      base.x - wall.x,
+      0,
+      base.z - wall.z,
+    ).normalize();
+    const side = new THREE.Vector3(-outward.z, 0, outward.x);
+    const slot = Math.abs(this.hashString(runtime.data.id)) % 8;
+    const row = Math.floor(slot / 2) + 1;
+    const lane = slot % 2 === 0 ? -1 : 1;
+    const target = new THREE.Vector3(
+      base.x,
+      2.22 + this.world.elevationAt(ladder.base.x, ladder.base.y),
+      base.z,
+    )
+      .addScaledVector(outward, row * 0.68)
+      .addScaledVector(side, lane * 0.42);
+
+    this.moveTowardPoint(runtime, target, delta, 0.25);
+    runtime.data.state = 'guarding';
+  }
+
+  private updateLadderClimb(runtime: UnitRuntime, delta: number): void {
+    const ladder = runtime.activeLadderId
+      ? this.ladders.get(runtime.activeLadderId)
+      : undefined;
+
+    if (!ladder || ladder.status !== 'placed') {
+      runtime.surface = 'ground';
+      runtime.activeLadderId = undefined;
+      return;
+    }
+
+    const baseWorld = this.world.gridToWorld(ladder.base.x, ladder.base.y);
+    const wallWorld = this.world.gridToWorld(ladder.wall.x, ladder.wall.y);
+    const bottom = new THREE.Vector3(
+      baseWorld.x,
+      2.24 + this.world.elevationAt(ladder.base.x, ladder.base.y),
+      baseWorld.z,
+    );
+    const top = new THREE.Vector3(wallWorld.x, ladder.topY, wallWorld.z);
+    const length = Math.max(1, bottom.distanceTo(top));
+
+    runtime.climbProgress = Math.min(
+      1,
+      runtime.climbProgress + delta * (runtime.stats.moveSpeed * 0.72) / length,
+    );
+    runtime.position.copy(bottom).lerp(top, runtime.climbProgress);
+    runtime.view.rotation.y = Math.atan2(
+      wallWorld.x - baseWorld.x,
+      wallWorld.z - baseWorld.z,
+    );
+    runtime.data.state = 'moving';
+
+    if (runtime.climbProgress < 1) return;
+
+    ladder.climberId = undefined;
+    runtime.surface = 'wall';
+    runtime.gridX = ladder.wall.x;
+    runtime.gridY = ladder.wall.y;
+    runtime.position.copy(top);
+    runtime.activeLadderId = ladder.id;
+    runtime.climbProgress = 0;
+    runtime.wallSeconds = 0;
+    runtime.data.state = 'guarding';
+  }
+
+  private updateWallSurfaceUnit(runtime: UnitRuntime, delta: number): void {
+    runtime.wallSeconds += delta;
+
+    if (runtime.data.faction === 'defender') {
+      runtime.data.state = 'guarding';
+      return;
+    }
+
+    const node = this.wallNodes.get(this.gridKey(runtime.gridX, runtime.gridY));
+    if (node) {
+      const neighbors = this.navigation.connectedWallNeighbors(node, this.wallNodes);
+      if (neighbors.length > 0) {
+        neighbors.sort(
+          (a, b) =>
+            this.gridDistance(a, this.objectiveGrid) -
+            this.gridDistance(b, this.objectiveGrid),
+        );
+        const next = neighbors[0];
+
+        if (
+          this.gridDistance(next, this.objectiveGrid) + 0.1 <
+          this.gridDistance(node, this.objectiveGrid)
+        ) {
+          const world = this.world.gridToWorld(next.x, next.y);
+          const target = new THREE.Vector3(world.x, next.worldY, world.z);
+          if (this.moveTowardWallPoint(runtime, target, delta, 0.28)) {
+            runtime.gridX = next.x;
+            runtime.gridY = next.y;
+            runtime.position.y = next.worldY;
+          }
+          runtime.data.state = 'moving';
+          return;
+        }
+      }
+    }
+
+    if (runtime.wallSeconds >= 2.6) {
+      const inside = this.findInteriorGroundFromWall(runtime.gridX, runtime.gridY);
+      if (inside) {
+        const world = this.world.gridToWorld(inside.x, inside.y);
+        runtime.surface = 'ground';
+        runtime.gridX = inside.x;
+        runtime.gridY = inside.y;
+        runtime.position.set(
+          world.x,
+          2.22 + this.world.elevationAt(inside.x, inside.y),
+          world.z,
+        );
+        runtime.path = this.navigation.findPath(
+          inside,
+          this.capturePointGrid,
+          true,
+        );
+        runtime.pathIndex = Math.min(1, Math.max(0, runtime.path.length - 1));
+        runtime.data.state = 'moving';
+        return;
+      }
+    }
+
+    runtime.data.state = 'guarding';
+  }
+
+  private moveAlongWallToward(
+    runtime: UnitRuntime,
+    targetUnit: UnitRuntime,
+    delta: number,
+  ): void {
+    const node = this.wallNodes.get(this.gridKey(runtime.gridX, runtime.gridY));
+    if (!node) return;
+
+    const targetNode = this.wallNodes.get(
+      this.gridKey(targetUnit.gridX, targetUnit.gridY),
+    );
+    if (!targetNode) return;
+
+    const neighbors = this.navigation.connectedWallNeighbors(node, this.wallNodes);
+    if (neighbors.length === 0) return;
+
+    neighbors.sort(
+      (a, b) =>
+        this.gridDistance(a, targetNode) -
+        this.gridDistance(b, targetNode),
+    );
+    const next = neighbors[0];
+    const world = this.world.gridToWorld(next.x, next.y);
+    const target = new THREE.Vector3(world.x, next.worldY, world.z);
+
+    if (this.moveTowardWallPoint(runtime, target, delta, 0.28)) {
+      runtime.gridX = next.x;
+      runtime.gridY = next.y;
+      runtime.position.y = next.worldY;
+    }
+    runtime.data.state = 'moving';
+  }
+
+  private moveTowardWallPoint(
+    runtime: UnitRuntime,
+    target: THREE.Vector3,
+    delta: number,
+    stopDistance: number,
+  ): boolean {
+    const direction = target.clone().sub(runtime.position);
+    const distance = direction.length();
+    if (distance <= stopDistance) return true;
+
+    direction.normalize();
+    runtime.position.addScaledVector(
+      direction,
+      Math.min(distance - stopDistance, runtime.stats.moveSpeed * delta),
+    );
+    runtime.view.rotation.y = Math.atan2(direction.x, direction.z);
+    runtime.moving = true;
+    return false;
+  }
+
+  private findInteriorGroundFromWall(x: number, y: number): NavPoint | null {
+    const candidates = [
+      { x: x + 1, y },
+      { x: x - 1, y },
+      { x, y: y + 1 },
+      { x, y: y - 1 },
+    ].filter((point) => this.navigation.isGroundWalkable(point.x, point.y));
+
+    if (candidates.length === 0) return null;
+    candidates.sort(
+      (a, b) =>
+        this.gridDistance(a, this.objectiveGrid) -
+        this.gridDistance(b, this.objectiveGrid),
+    );
+
+    const candidate = candidates[0];
+    if (
+      this.gridDistance(candidate, this.objectiveGrid) >=
+      this.gridDistance({ x, y }, this.objectiveGrid)
+    ) {
+      return null;
+    }
+    return candidate;
+  }
+
+  private damageWall(wall: WallBattleState, amount: number): void {
+    if (wall.stage === 'breached') return;
+
+    wall.health = Math.max(0, wall.health - amount);
+    const ratio = wall.health / wall.maxHealth;
+    const nextStage: WallDamageStage =
+      wall.health <= 0
+        ? 'breached'
+        : ratio <= 0.34
+          ? 'heavy'
+          : ratio <= 0.68
+            ? 'damaged'
+            : 'healthy';
+
+    if (nextStage !== wall.stage) {
+      wall.stage = nextStage;
+      this.renderWallDamage(wall);
+    }
+
+    if (nextStage !== 'breached') return;
+
+    this.breachedWalls.add(this.gridKey(wall.x, wall.y));
+    this.wallNodes.delete(this.gridKey(wall.x, wall.y));
+    this.world.setWallBattleVisibility(wall.x, wall.y, false);
+    this.navigation.invalidate();
+    this.reactDefendersToBreach(wall);
+    this.refreshSiegePlan(true);
+  }
+
+  private renderWallDamage(wall: WallBattleState): void {
+    this.clearSiegeVisualGroup(wall.visual);
+
+    if (wall.stage === 'healthy') return;
+
+    const height =
+      this.world.fortificationTopAt(wall.x, wall.y, wall.cell);
+    const crackHeight = Math.min(6.5, Math.max(3.8, height * 0.56));
+
+    if (wall.stage === 'damaged' || wall.stage === 'heavy') {
+      for (let i = 0; i < (wall.stage === 'heavy' ? 4 : 2); i += 1) {
+        const crack = new THREE.Mesh(
+          new THREE.BoxGeometry(
+            0.06,
+            1.2 + i * 0.22,
+            0.12,
+          ),
+          this.damageDarkMaterial,
+        );
+        crack.position.set(
+          -0.45 + i * 0.31,
+          2.55 + crackHeight * 0.48 + (i % 2) * 0.35,
+          -1.18 + (i % 2) * 2.36,
+        );
+        crack.rotation.z = (i % 2 === 0 ? 1 : -1) * (0.35 + i * 0.08);
+        wall.visual.add(crack);
+      }
+    }
+
+    if (wall.stage === 'heavy') {
+      const voidPatch = new THREE.Mesh(
+        new THREE.BoxGeometry(1.35, 1.8, 0.16),
+        this.damageDarkMaterial,
+      );
+      voidPatch.position.set(0.25, 4.15, -1.2);
+      voidPatch.rotation.z = -0.08;
+      wall.visual.add(voidPatch);
+
+      for (let i = 0; i < 5; i += 1) {
+        const chunk = new THREE.Mesh(
+          new THREE.DodecahedronGeometry(0.18 + (i % 3) * 0.08, 0),
+          i % 2 === 0 ? this.rubbleMaterial : this.rubbleLightMaterial,
+        );
+        chunk.position.set(
+          -0.8 + (i % 3) * 0.65,
+          2.34 + Math.floor(i / 3) * 0.15,
+          -1.25 + (i % 2) * 0.42,
+        );
+        chunk.scale.y = 0.7;
+        chunk.castShadow = true;
+        wall.visual.add(chunk);
+      }
+      return;
+    }
+
+    if (wall.stage === 'breached') {
+      for (let i = 0; i < 10; i += 1) {
+        const side = i % 2 === 0 ? -1 : 1;
+        const row = Math.floor(i / 2);
+        const chunk = new THREE.Mesh(
+          new THREE.DodecahedronGeometry(0.24 + (i % 4) * 0.08, 0),
+          i % 3 === 0 ? this.rubbleLightMaterial : this.rubbleMaterial,
+        );
+        chunk.position.set(
+          side * (0.75 + (row % 2) * 0.32),
+          2.34 + (row % 3) * 0.08,
+          -0.95 + row * 0.42,
+        );
+        chunk.scale.set(1.1, 0.62, 0.9);
+        chunk.rotation.y = i * 0.43;
+        chunk.castShadow = true;
+        wall.visual.add(chunk);
+      }
+    }
+  }
+
+  private reactDefendersToBreach(wall: WallBattleState): void {
+    const sides = this.wallSides(wall.x, wall.y);
+    if (!sides) return;
+
+    const breachWorld = this.world.gridToWorld(wall.x, wall.y);
+    const responders = Array.from(this.units.values())
+      .filter(
+        (runtime) =>
+          runtime.data.faction === 'defender' &&
+          runtime.data.unitType === 'swordsman' &&
+          runtime.data.state !== 'dead' &&
+          runtime.surface === 'ground',
+      )
+      .sort(
+        (a, b) =>
+          Math.hypot(
+            a.position.x - breachWorld.x,
+            a.position.z - breachWorld.z,
+          ) -
+          Math.hypot(
+            b.position.x - breachWorld.x,
+            b.position.z - breachWorld.z,
+          ),
+      )
+      .filter(
+        (runtime) =>
+          Math.hypot(
+            runtime.position.x - breachWorld.x,
+            runtime.position.z - breachWorld.z,
+          ) <= this.world.tileSize * 4.4,
+      )
+      .slice(0, 5);
+
+    const insideWorld = this.world.gridToWorld(sides.inside.x, sides.inside.y);
+
+    responders.forEach((runtime, index) => {
+      const lane = (index % 3) - 1;
+      const row = Math.floor(index / 3);
+      runtime.home.set(
+        insideWorld.x + lane * 0.72,
+        2.22 + this.world.elevationAt(sides.inside.x, sides.inside.y),
+        insideWorld.z + row * 0.68,
+      );
+      runtime.path = this.navigation.findPath(
+        { x: runtime.gridX, y: runtime.gridY },
+        sides.inside,
+        true,
+      );
+      runtime.pathIndex = Math.min(1, Math.max(0, runtime.path.length - 1));
+      runtime.data.targetId = undefined;
+      runtime.defenseRadius = Math.max(runtime.defenseRadius, 12);
+    });
+  }
+
+  private gridDistance(a: NavPoint, b: NavPoint): number {
+    return Math.hypot(a.x - b.x, a.y - b.y);
+  }
+
+  private hashString(value: string): number {
+    let hash = 0;
+    for (let i = 0; i < value.length; i += 1) {
+      hash = (hash * 31 + value.charCodeAt(i)) | 0;
+    }
+    return hash;
   }
 
   private applySeparation(
@@ -738,7 +2065,18 @@ export class BattleSystem {
 
     if (runtime.data.faction === 'attacker') {
       const start = { x: runtime.gridX, y: runtime.gridY };
-      const target = this.navigation.findNearestWalkable(this.capturePointGrid, 10) ?? this.capturePointGrid;
+      const siegeTarget =
+        runtime.assignedLadderId
+          ? this.ladders.get(runtime.assignedLadderId)?.base
+          : this.siegePlan?.mode === 'ladder'
+            ? this.nearestLadderFor(runtime, true)?.base ?? this.siegePlan.base
+            : this.siegePlan?.mode === 'breach'
+              ? this.siegePlan.base
+              : undefined;
+      const target =
+        siegeTarget ??
+        this.navigation.findNearestWalkable(this.capturePointGrid, 10) ??
+        this.capturePointGrid;
       const path = this.navigation.findPath(start, target, true);
       if (path.length > 1) {
         runtime.path = path;
@@ -1052,10 +2390,24 @@ export class BattleSystem {
       durationSeconds: Math.round(this.battleSeconds * 10) / 10,
     };
 
+    this.clearSiegeState();
     this.emitStatus();
   }
 
   private killUnit(runtime: UnitRuntime): void {
+    if (runtime.assignedLadderId) {
+      const ladder = this.ladders.get(runtime.assignedLadderId);
+      if (ladder?.status === 'carrying') this.ladders.delete(ladder.id);
+      this.clearCarrierLadder(runtime);
+      runtime.assignedLadderId = undefined;
+      this.siegeDecisionTimer = 0;
+    }
+
+    if (runtime.activeLadderId) {
+      const ladder = this.ladders.get(runtime.activeLadderId);
+      if (ladder?.climberId === runtime.data.id) ladder.climberId = undefined;
+    }
+
     runtime.data.health = 0;
     runtime.data.state = 'dead';
     runtime.data.targetId = undefined;
@@ -1124,6 +2476,10 @@ export class BattleSystem {
     }
 
     return buckets;
+  }
+
+  private gridKey(x: number, y: number): string {
+    return `${x},${y}`;
   }
 
   private bucketKey(position: THREE.Vector3): string {

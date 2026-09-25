@@ -19,6 +19,7 @@ export interface BattleNavigationContext {
   cellAt: (x: number, y: number) => GridCell | undefined;
   fortificationTopAt: (x: number, y: number, cell: GridCell) => number;
   keeps: () => KeepState[];
+  temporaryGroundPassable?: (x: number, y: number) => boolean;
 }
 
 interface SearchNode extends NavPoint {
@@ -53,6 +54,8 @@ export class BattleNavigation {
 
     const terrain = this.context.terrainAt(x, y);
     if (terrain === 'water' || terrain === 'river' || terrain === 'mountain') return false;
+
+    if (this.context.temporaryGroundPassable?.(x, y)) return true;
 
     for (const keep of this.context.keeps()) {
       const rotated = keep.rotation % 2 !== 0;

@@ -194,6 +194,7 @@ export class ThreeGame {
   private readonly battleLayer = new THREE.Group();
   private readonly planMaterials = new Map<string, THREE.MeshBasicMaterial>();
   private readonly environmentMaterials = new Map<string, THREE.MeshStandardMaterial>();
+  private readonly buildObjectsByCell = new Map<string, THREE.Object3D>();
   private readonly battleSystem: BattleSystem;
   private readonly groundHit = new THREE.Mesh(
     new THREE.PlaneGeometry(WORLD, WORLD),
@@ -339,6 +340,7 @@ export class ThreeGame {
         cellAt: (x, y) => this.state.getCell(x, y),
         fortificationTopAt: (_x, _y, cell) => this.fortificationTopLocal(cell),
         keeps: () => this.keepSystem.entries(),
+        setWallBattleVisibility: (x, y, visible) => this.setBattleWallVisibility(x, y, visible),
       },
       (status) => this.updateBattleUI(status),
     );
@@ -796,6 +798,7 @@ export class ThreeGame {
   private redraw(): void {
     this.clearGroup(this.terrainLayer);
     this.clearGroup(this.buildLayer);
+    this.buildObjectsByCell.clear();
     this.clearGroup(this.planLayer);
     this.renderTerrain();
 
@@ -803,7 +806,11 @@ export class ThreeGame {
     const cells = this.state.entries();
 
     for (const cell of cells) {
-      this.buildLayer.add(this.makeBuilding(cell, floodedMoats));
+      const building = this.makeBuilding(cell, floodedMoats);
+      building.userData.cellKey = this.key(cell.x, cell.y);
+      building.userData.cellKind = cell.kind;
+      this.buildObjectsByCell.set(this.key(cell.x, cell.y), building);
+      this.buildLayer.add(building);
     }
 
     for (const keep of this.keepSystem.entries()) {
@@ -872,6 +879,12 @@ export class ThreeGame {
         this.animatedFlags.push(object);
       }
     });
+  }
+
+  private setBattleWallVisibility(x: number, y: number, visible: boolean): void {
+    const object = this.buildObjectsByCell.get(this.key(x, y));
+    if (!object) return;
+    object.visible = visible;
   }
 
   private environmentMaterial(key: string, color: number, roughness = 0.95): THREE.MeshStandardMaterial {
