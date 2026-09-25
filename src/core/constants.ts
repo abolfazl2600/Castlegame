@@ -1,6 +1,6 @@
 export const TILE_SIZE = 40;
-export const WORLD_COLS = 48;
-export const WORLD_ROWS = 48;
+export const WORLD_COLS = 32;
+export const WORLD_ROWS = 32;
 export const WORLD_WIDTH = WORLD_COLS * TILE_SIZE;
 export const WORLD_HEIGHT = WORLD_ROWS * TILE_SIZE;
 
