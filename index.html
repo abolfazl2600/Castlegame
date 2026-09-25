@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#111827" />
+    <title>Castle Role</title>
+  </head>
+  <body>
+    <div id="app">
+      <header class="topbar">
+        <div>
+          <div class="eyebrow">CASTLE ROLE</div>
+          <h1>Foundations</h1>
+        </div>
+        <div class="status-group">
+          <span id="save-status" class="status-pill">Ready</span>
+          <button id="save-button" class="secondary-button" type="button">Save</button>
+          <button id="reset-button" class="danger-button" type="button">Reset</button>
+        </div>
+      </header>
+      <main id="game-shell">
+        <div id="game"></div>
+        <aside id="toolbar" class="toolbar" aria-label="Build tools"></aside>
+        <div class="help-card">
+          <strong>Controls</strong>
+          <span>WASD / arrows: pan</span>
+          <span>Middle/right drag: pan</span>
+          <span>Mouse wheel: zoom</span>
+          <span>Left click/drag: build</span>
+          <span>1 / 2 / 3: tools</span>
+        </div>
+      </main>
+    </div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

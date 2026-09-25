@@ -1,0 +1,102 @@
+:root {
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  color: #f9fafb;
+  background: #0b1220;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+}
+
+* { box-sizing: border-box; }
+html, body, #app { margin: 0; width: 100%; height: 100%; overflow: hidden; }
+body { background: radial-gradient(circle at top, #172033 0%, #0b1220 62%); }
+button { font: inherit; }
+
+#app {
+  display: grid;
+  grid-template-rows: 72px minmax(0, 1fr);
+  padding: 14px;
+  gap: 12px;
+}
+
+.topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 18px;
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 18px;
+  background: rgba(17, 24, 39, 0.9);
+  box-shadow: 0 18px 50px rgba(0,0,0,0.22);
+  backdrop-filter: blur(14px);
+}
+
+.eyebrow { color: #9ca3af; font-size: 10px; font-weight: 800; letter-spacing: .2em; }
+h1 { margin: 2px 0 0; font-size: 20px; line-height: 1; letter-spacing: -0.02em; }
+.status-group { display: flex; gap: 8px; align-items: center; }
+.status-pill { color: #c7d2fe; background: rgba(99,102,241,.13); border: 1px solid rgba(129,140,248,.25); padding: 8px 11px; border-radius: 999px; font-size: 12px; }
+.secondary-button, .danger-button { border: 1px solid rgba(255,255,255,.1); padding: 8px 12px; border-radius: 10px; cursor: pointer; color: #f3f4f6; background: #1f2937; }
+.secondary-button:hover { background: #2b3647; }
+.danger-button { color: #fecaca; background: rgba(127,29,29,.35); border-color: rgba(248,113,113,.18); }
+.danger-button:hover { background: rgba(153,27,27,.48); }
+
+#game-shell {
+  position: relative;
+  min-height: 0;
+  overflow: hidden;
+  border: 1px solid rgba(255,255,255,.08);
+  border-radius: 22px;
+  box-shadow: 0 24px 70px rgba(0,0,0,.28);
+  background: #263c2d;
+}
+#game, #game canvas { width: 100% !important; height: 100% !important; display: block; }
+
+.toolbar {
+  position: absolute;
+  left: 18px;
+  top: 18px;
+  width: 260px;
+  display: grid;
+  gap: 8px;
+  padding: 12px;
+  border-radius: 16px;
+  background: rgba(17,24,39,.92);
+  border: 1px solid rgba(255,255,255,.1);
+  backdrop-filter: blur(14px);
+  box-shadow: 0 14px 36px rgba(0,0,0,.22);
+}
+.toolbar-title { display: flex; align-items: baseline; justify-content: space-between; padding: 2px 4px 6px; }
+.toolbar-title span { font-size: 13px; font-weight: 800; }
+.toolbar-title small { color: #9ca3af; }
+.tool-button { width: 100%; display: grid; grid-template-columns: 36px minmax(0,1fr) auto; align-items: center; gap: 10px; border: 1px solid transparent; border-radius: 12px; padding: 10px; color: #e5e7eb; text-align: left; background: rgba(255,255,255,.035); cursor: pointer; }
+.tool-button:hover { background: rgba(255,255,255,.07); }
+.tool-button.is-selected { border-color: rgba(129,140,248,.48); background: rgba(99,102,241,.2); box-shadow: inset 0 0 0 1px rgba(129,140,248,.12); }
+.tool-icon { display: grid; place-items: center; width: 36px; height: 36px; border-radius: 10px; font-size: 20px; background: rgba(255,255,255,.07); }
+.tool-copy { min-width: 0; display: grid; gap: 2px; }
+.tool-copy strong { font-size: 13px; }
+.tool-copy small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #9ca3af; font-size: 10px; }
+kbd { min-width: 24px; text-align: center; padding: 4px 6px; border-radius: 6px; color: #cbd5e1; background: rgba(0,0,0,.22); border: 1px solid rgba(255,255,255,.08); font-size: 10px; }
+
+.help-card {
+  position: absolute;
+  right: 18px;
+  bottom: 18px;
+  display: grid;
+  gap: 4px;
+  min-width: 170px;
+  padding: 11px 13px;
+  border-radius: 13px;
+  color: #9ca3af;
+  background: rgba(17,24,39,.86);
+  border: 1px solid rgba(255,255,255,.08);
+  backdrop-filter: blur(12px);
+  font-size: 10px;
+  pointer-events: none;
+}
+.help-card strong { color: #f3f4f6; font-size: 11px; margin-bottom: 2px; }
+
+@media (max-width: 760px) {
+  #app { padding: 8px; grid-template-rows: 64px minmax(0,1fr); }
+  .toolbar { width: 220px; left: 10px; top: 10px; }
+  .help-card { display: none; }
+  .status-pill { display: none; }
+}
