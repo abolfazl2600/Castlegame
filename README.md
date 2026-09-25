@@ -6,35 +6,51 @@ Castle Role is a stylized 3D island-fortress builder built with Three.js, TypeSc
 
 ## Current world
 
-- **20 × 20** playable grid — larger than the previous 16 × 16 version, while remaining lightweight
-- Stylized island, water, coast, forests, trees, natural highlands, rocks, and soft real-time lighting
+- **22 × 22** playable grid
+- Stylized island, water, coast, river, forests, trees, natural mountain zones, rocks, and huts
 - Orbit/zoom/pan 3D camera
 - Browser-local autosave, manual Save/Load, and Reset
+- Four ready-made world templates
 
-## Building systems
+## Fortifications
 
-### Fortifications
+- Three wall materials: Wall I, Wall II, Wall III
+- Adjacent wall segments connect visually without gaps
+- Clicking the same wall repeatedly adds more vertical floors and height
+- Gates orient toward nearby wall lines
+- Towers connect into fortification lines
 
-- **Wall I** — low stone wall
-- **Wall II** — taller stone wall
-- **Wall III** — reinforced wall
-- Adjacent wall segments now extend to the tile edge so they visually connect without gaps
-- Gates automatically orient toward connected wall lines
-- Towers connect to neighboring fortifications
+## Defensive engineering
 
-### Settlement
+- A **Moat** tool assigns workers to excavate selected land
+- Three workers walk to queued moat jobs and complete the excavation
+- Moat tiles flood automatically when a connected moat network reaches a river
 
-- Roads automatically connect to adjacent roads and gates
-- Four house types: Cottage, House, Manor, Villa
-- Farm plots with crop rows
+## Settlement
 
-### Terrain & resources
+- Roads connect edge-to-edge automatically
+- Four detailed house designs: Cottage, House, Manor, Villa
+- Houses include doors, windows, chimneys, porches, planters, and extra details
+- Farms provide visible crop plots
 
-- Natural forest areas contain stylized 3D trees
-- Natural mountain areas appear on the island
-- A player **Mountain** tool can create mountains on buildable land
-- Clicking the same player mountain repeatedly upgrades it from level 1 → 2 → 3
-- Mines can be created from player-built mountains or natural mountain terrain
+## Nature & resources
+
+- Player-placeable trees
+- Removable trees, rocks, huts, and player construction
+- Player-placeable mountains that grow each time the same tile is clicked
+- More detailed multi-part mountain geometry with ridges, rocks, vegetation, and snow
+- Mines work on both natural mountain terrain and player-built mountains
+- Player-editable rivers
+- A Land tool fills user-made rivers or water areas back into buildable land
+
+## Templates
+
+- Blank Island
+- River Citadel
+- Mountain Hold
+- Farming Village
+
+Use the **Templates** button in the top bar to load one.
 
 ## Controls
 
@@ -49,16 +65,20 @@ Castle Role is a stylized 3D island-fortress builder built with Three.js, TypeSc
 - **9** — Manor
 - **0** — Villa
 - **F** — Farm
+- **T** — Tree
 - **N** — Mountain
 - **M** — Mine
+- **Q** — Moat
+- **R** — River
+- **L** — Land
 - **X** — Remove
 
 Mouse:
 - Left drag — rotate camera
-- Right drag — pan camera
+- Right drag — pan
 - Mouse wheel — zoom
-- Left click on terrain — build selected item
+- Short left click — build selected item
 
 ## Next useful milestone
 
-Add economy and production: farm output, mine output, workers assigned to buildings, construction costs, and actual military guard posts connected to towers and gates.
+Add an economy and production loop: workers assigned to farms and mines, resource costs for construction, military recruitment, tower guard posts, and upgrade requirements for taller walls.

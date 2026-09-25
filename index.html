@@ -15,6 +15,7 @@
         </div>
         <div class="status-group">
           <span id="save-status" class="status-pill">3D Ready</span>
+          <button id="templates-button" class="secondary-button" type="button">Templates</button>
           <button id="help-button" class="secondary-button" type="button">Help</button>
           <button id="fullscreen-button" class="secondary-button" type="button">Fullscreen</button>
           <button id="load-button" class="secondary-button" type="button">Load</button>
@@ -22,10 +23,12 @@
           <button id="reset-button" class="danger-button" type="button">Reset</button>
         </div>
       </header>
+
       <main id="game-shell">
         <div id="game"></div>
         <aside id="toolbar" class="toolbar" aria-label="Build tools"></aside>
         <div class="scene-badge"><span class="scene-dot"></span> REAL-TIME 3D WORLD</div>
+
         <div id="help-modal" class="modal-backdrop" hidden>
           <section class="help-modal" role="dialog" aria-modal="true" aria-labelledby="help-title">
             <div class="help-modal-header">
@@ -35,19 +38,109 @@
               </div>
               <button id="help-close-button" class="icon-button" type="button" aria-label="Close help">×</button>
             </div>
+
             <div class="help-grid">
-              <div class="help-section"><strong>3D Camera</strong><span>Left drag — Rotate the island</span><span>Right drag — Pan</span><span>Mouse wheel — Zoom</span></div>
-              <div class="help-section"><strong>Fortifications</strong><span>Walls automatically connect when adjacent.</span><span>Three wall models are available.</span><span>Gates and towers connect into wall lines.</span></div>
-              <div class="help-section"><strong>Settlement</strong><span>Roads connect automatically.</span><span>Four home types plus farms are available.</span><span>Farms can be placed on plains.</span></div>
-              <div class="help-section"><strong>Mountains & Mines</strong><span>N — Place a mountain.</span><span>Click the same mountain repeatedly to grow it to level 3.</span><span>M — Convert a built mountain, or a natural mountain tile, into a mine.</span></div>
-              <div class="help-section"><strong>World</strong><span>The playable island is now 20×20 tiles.</span><span>Forested areas contain stylized trees.</span><span>Natural mountains appear in the highlands.</span></div>
-              <div class="help-section"><strong>Shortcuts</strong><span>1–5 fortifications · 6 road · 7–0 homes</span><span>F farm · N mountain · M mine · X remove</span><span>Esc closes this help.</span></div>
-              <div class="help-section"><strong>Save</strong><span>Changes autosave after building.</span><span>Save / Load controls local storage.</span><span>Reset clears player construction.</span></div>
+              <div class="help-section">
+                <strong>3D Camera</strong>
+                <span>Left drag — Rotate the island</span>
+                <span>Right drag — Pan</span>
+                <span>Mouse wheel — Zoom</span>
+                <span>A short click builds; dragging does not.</span>
+              </div>
+
+              <div class="help-section">
+                <strong>Walls</strong>
+                <span>Three wall materials are available.</span>
+                <span>Adjacent walls connect without gaps.</span>
+                <span>Click the same wall repeatedly to add floors and height.</span>
+                <span>Gates and towers connect into fortification lines.</span>
+              </div>
+
+              <div class="help-section">
+                <strong>Moats</strong>
+                <span>Select Moat and click buildable land.</span>
+                <span>Workers automatically walk to the tile and excavate it.</span>
+                <span>Connected moat tiles fill with water when they reach a river.</span>
+              </div>
+
+              <div class="help-section">
+                <strong>Settlement</strong>
+                <span>Roads connect edge-to-edge automatically.</span>
+                <span>Four detailed house designs are available.</span>
+                <span>Farms can be placed on plains.</span>
+              </div>
+
+              <div class="help-section">
+                <strong>Mountains & Mines</strong>
+                <span>N — Place a mountain.</span>
+                <span>Click the same mountain repeatedly to grow it taller and more detailed.</span>
+                <span>M — Build a mine on a natural or player-built mountain.</span>
+              </div>
+
+              <div class="help-section">
+                <strong>Nature Editing</strong>
+                <span>T — Add a tree.</span>
+                <span>R — Carve a river tile.</span>
+                <span>L — Fill a river/water tile back into land.</span>
+                <span>X — Remove trees, rocks, huts, and player construction.</span>
+              </div>
+
+              <div class="help-section">
+                <strong>World Templates</strong>
+                <span>Use Templates in the top bar to start from a prepared layout.</span>
+                <span>Blank Island, River Citadel, Mountain Hold, and Farming Village are included.</span>
+              </div>
+
+              <div class="help-section">
+                <strong>Save</strong>
+                <span>Changes autosave after building.</span>
+                <span>Save / Load uses browser local storage.</span>
+                <span>Reset returns to a natural seeded island.</span>
+              </div>
+            </div>
+          </section>
+        </div>
+
+        <div id="templates-modal" class="modal-backdrop" hidden>
+          <section class="help-modal template-modal" role="dialog" aria-modal="true" aria-labelledby="templates-title">
+            <div class="help-modal-header">
+              <div>
+                <div class="eyebrow">STARTING WORLDS</div>
+                <h2 id="templates-title">Choose a Template</h2>
+              </div>
+              <button id="templates-close-button" class="icon-button" type="button" aria-label="Close templates">×</button>
+            </div>
+
+            <div class="template-grid">
+              <button class="template-card" type="button" data-template="blank">
+                <span class="template-preview template-preview-blank">○</span>
+                <strong>Blank Island</strong>
+                <small>Clean terrain with no seeded props or buildings.</small>
+              </button>
+
+              <button class="template-card" type="button" data-template="river-citadel">
+                <span class="template-preview template-preview-river">≈</span>
+                <strong>River Citadel</strong>
+                <small>A walled stronghold built around a flowing river.</small>
+              </button>
+
+              <button class="template-card" type="button" data-template="mountain-hold">
+                <span class="template-preview template-preview-mountain">▲</span>
+                <strong>Mountain Hold</strong>
+                <small>Heavy walls, tall peaks, and an active mine.</small>
+              </button>
+
+              <button class="template-card" type="button" data-template="farming-village">
+                <span class="template-preview template-preview-farm">✦</span>
+                <strong>Farming Village</strong>
+                <small>Roads, homes, and crop fields ready to expand.</small>
+              </button>
             </div>
           </section>
         </div>
       </main>
     </div>
+
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>

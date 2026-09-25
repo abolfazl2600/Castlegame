@@ -1,5 +1,4 @@
 export type WallKind = 'wall1' | 'wall2' | 'wall3';
-export type MountainKind = 'mountain1' | 'mountain2' | 'mountain3';
 
 export type TileKind =
   | WallKind
@@ -12,7 +11,11 @@ export type TileKind =
   | 'villa'
   | 'farm'
   | 'mine'
-  | MountainKind;
+  | 'mountain'
+  | 'tree'
+  | 'rock'
+  | 'hut'
+  | 'moat';
 
 export type ToolKind =
   | WallKind
@@ -26,16 +29,24 @@ export type ToolKind =
   | 'farm'
   | 'mine'
   | 'mountain'
+  | 'tree'
+  | 'moat'
+  | 'river'
+  | 'land'
   | 'erase';
 
-export type TerrainKind = 'water' | 'shore' | 'plains' | 'mountain' | 'forest';
+export type TerrainKind = 'water' | 'shore' | 'plains' | 'river' | 'mountain' | 'forest';
+export type TerrainOverrideKind = 'plains' | 'river';
 
 export interface GridCell {
   kind: TileKind;
+  level?: number;
 }
 
 export interface SavedGame {
   version: number;
   updatedAt: number;
-  cells: Array<{ x: number; y: number; kind: TileKind }>;
+  cells: Array<{ x: number; y: number; kind: TileKind; level?: number }>;
+  terrain?: Array<{ x: number; y: number; kind: TerrainOverrideKind }>;
+  worldSeeded?: boolean;
 }
