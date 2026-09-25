@@ -28,7 +28,6 @@ export class ThreeGame {
   );
   private selectedTool: ToolKind = 'wall';
   private saveTimer: number | null = null;
-  private lastTime = performance.now();
 
   constructor(root: HTMLElement) {
     this.root = root;
@@ -237,8 +236,7 @@ export class ThreeGame {
     this.camera.aspect=w/h;this.camera.updateProjectionMatrix();this.renderer.setSize(w,h,false);
   }
 
-  private animate(time:number):void {
-    this.lastTime=time;
+  private animate(_time:number):void {
     this.controls.update();
     this.renderer.render(this.scene,this.camera);
     requestAnimationFrame(t=>this.animate(t));
