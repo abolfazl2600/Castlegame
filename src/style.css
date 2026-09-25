@@ -92,6 +92,15 @@ h1 { margin: 3px 0 0; font-size: 22px; line-height: 1; letter-spacing: -.035em; 
 .toolbar-title { display: flex; align-items: baseline; justify-content: space-between; padding: 2px 4px 6px; }
 .toolbar-title span { font-size: 12px; font-weight: 850; }
 .toolbar-title small { color: #a9cfdb; opacity: .78; }
+.tool-section-label {
+  margin: 7px 4px 1px;
+  color: #7fe7ff;
+  font-size: 8px;
+  font-weight: 900;
+  letter-spacing: .16em;
+  text-transform: uppercase;
+  opacity: .82;
+}
 .tool-button {
   width: 100%;
   display: grid;
