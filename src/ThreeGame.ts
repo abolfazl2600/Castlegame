@@ -7546,13 +7546,20 @@ export class ThreeGame {
       noneHtml +
       toolHtml +
       '<div class="builder-settings">' +
-      '<div class="settings-title">Wall Settings</div>' +
+      '<section class="settings-section wall-settings-section' + (WALL_KINDS.includes(this.selectedTool as WallKind) ? ' is-open' : '') + '">' +
+      '<button class="settings-section-header" type="button" aria-expanded="' + (WALL_KINDS.includes(this.selectedTool as WallKind) ? 'true' : 'false') + '">' +
+      '<span class="settings-section-title">Wall Settings</span>' +
+      '<span id="wall-settings-summary" class="settings-section-summary">Medium · Battlement · No Walkway</span>' +
+      '<span class="settings-section-chevron" aria-hidden="true">▶</span>' +
+      '</button>' +
+      '<div class="settings-section-items">' +
       '<label class="settings-row"><span>Thickness</span><select id="wall-thickness">' +
       '<option value="thin">Thin</option><option value="medium" selected>Medium</option><option value="thick">Thick</option>' +
       '</select></label>' +
       '<label class="settings-check"><input id="wall-battlement" type="checkbox" checked /><span>Battlement</span></label>' +
       '<label class="settings-check"><input id="wall-walkway" type="checkbox" /><span>Top Walkway</span></label>' +
       '<div class="settings-actions"><button id="selected-down" type="button">− Height</button><button id="selected-up" type="button">+ Height</button></div>' +
+      '</div>' +
       '<div class="settings-title">Castle Architecture</div>' +
       '<label class="settings-row"><span>Stone Style</span><select id="castle-stone-style">' +
       '<option value="limestone" selected>Limestone</option><option value="darkStone">Dark Stone</option>' +
@@ -7635,23 +7642,39 @@ export class ThreeGame {
     get<HTMLButtonElement>('camera-45-button').onclick = () => this.setCameraView('45');
     get<HTMLButtonElement>('camera-top-button').onclick = () => this.setCameraView('top');
 
+    const wallSettingsSection = toolbar.querySelector<HTMLElement>('.wall-settings-section');
+    const wallSettingsHeader = toolbar.querySelector<HTMLButtonElement>('.settings-section-header');
+    wallSettingsHeader?.addEventListener('click', () => {
+      if (!wallSettingsSection || !wallSettingsHeader) return;
+      const open = wallSettingsSection.classList.toggle('is-open');
+      wallSettingsHeader.setAttribute('aria-expanded', String(open));
+    });
+
     const wallThickness = get<HTMLSelectElement>('wall-thickness');
+    wallThickness.value = this.wallThickness;
     wallThickness.onchange = () => {
       this.wallThickness = wallThickness.value as WallThickness;
       this.applyWallSettingsToSelected();
+      this.syncWallSettingsSummary();
     };
 
     const wallBattlement = get<HTMLInputElement>('wall-battlement');
+    wallBattlement.checked = this.wallBattlement;
     wallBattlement.onchange = () => {
       this.wallBattlement = wallBattlement.checked;
       this.applyWallSettingsToSelected();
+      this.syncWallSettingsSummary();
     };
 
     const wallWalkway = get<HTMLInputElement>('wall-walkway');
+    wallWalkway.checked = this.wallWalkway;
     wallWalkway.onchange = () => {
       this.wallWalkway = wallWalkway.checked;
       this.applyWallSettingsToSelected();
+      this.syncWallSettingsSummary();
     };
+
+    this.syncWallSettingsSummary();
 
     const towerShape = get<HTMLSelectElement>('tower-shape');
     towerShape.onchange = () => {
@@ -7936,6 +7959,15 @@ export class ThreeGame {
         this.selectTool(null);
       }
     });
+  }
+
+  private syncWallSettingsSummary(): void {
+    const summary = document.getElementById('wall-settings-summary');
+    if (!summary) return;
+    const thickness = this.wallThickness.charAt(0).toUpperCase() + this.wallThickness.slice(1);
+    const battlement = this.wallBattlement ? 'Battlement' : 'No Battlement';
+    const walkway = this.wallWalkway ? 'Walkway' : 'No Walkway';
+    summary.textContent = `${thickness} · ${battlement} · ${walkway}`;
   }
 
   private applyWallSettingsToSelected(): void {
