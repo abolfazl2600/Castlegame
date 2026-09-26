@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import type { GameMode } from '../core/GameModeSystem';
 import type { GridCell, KeepState, TerrainKind, TileKind, TowerBridgeState } from '../core/types';
 import { BattleNavigation, type NavPoint, type WallNavNode } from './BattleNavigation';
 import { WallDefenseSystem, type WallWeaponPosition } from '../building/WallDefenseSystem';
