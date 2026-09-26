@@ -1981,6 +1981,52 @@ html[data-high-contrast] .settings-card { border-color:rgba(255,255,255,.42); }
 @media (max-width:560px) { .settings-modal { padding:8px; } .settings-card { max-height:calc(100vh - 16px); border-radius:14px; } .settings-scroll { padding:10px; } .settings-scroll label { grid-template-columns:1fr; gap:6px; } .settings-scroll label:has(input[type="checkbox"]) { grid-template-columns:1fr auto; } }
 
 
+.settings-system-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.settings-system-actions button {
+  min-height: 42px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 9px 11px;
+  border: 1px solid rgba(255,255,255,.1);
+  border-radius: 10px;
+  color: #eefbff;
+  background: rgba(255,255,255,.045);
+  cursor: pointer;
+  text-align: left;
+}
+
+.settings-system-actions button:hover,
+.settings-system-actions button:focus-visible {
+  border-color: rgba(112,220,255,.3);
+  background: rgba(83,199,240,.1);
+}
+
+.settings-system-actions button span {
+  color: rgba(157,238,255,.72);
+  font-size: 16px;
+}
+
+.system-action-bridge[hidden] {
+  display: none !important;
+}
+
+@media (max-width: 560px) {
+  .settings-system-actions {
+    grid-template-columns: 1fr;
+  }
+
+  .settings-system-actions button {
+    min-height: 46px;
+  }
+}
+
 /* Complete game settings */
 .settings-control-reference {
   display: grid;

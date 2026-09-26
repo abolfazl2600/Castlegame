@@ -4,6 +4,7 @@ import type { SettingsData } from './SettingsModel';
 
 export class SettingsUI {
   private readonly panel: HTMLElement;
+  private returnToSettingsAfterAction = false;
 
   constructor(
     private readonly store: SettingsStore,
@@ -11,8 +12,15 @@ export class SettingsUI {
   ) {
     this.panel = this.createPanel();
     document.body.appendChild(this.panel);
-    document.getElementById('settings-button')?.addEventListener('click', () => this.open());
+    const settingsButton = document.getElementById('settings-button');
+    if (settingsButton instanceof HTMLButtonElement) {
+      settingsButton.onclick = (event) => {
+        event.preventDefault();
+        this.open();
+      };
+    }
     this.store.subscribe((settings) => this.render(settings));
+    this.bindSystemActionReturns();
   }
 
   open(): void {
@@ -96,6 +104,17 @@ export class SettingsUI {
           </section>
 
           <section>
+            <h3>System Actions</h3>
+            <p class="settings-section-note">Secondary game actions are grouped here so the main game header stays focused.</p>
+            <div class="settings-system-actions">
+              <button type="button" data-system-action="help">Help <span aria-hidden="true">›</span></button>
+              <button type="button" data-system-action="load">Load <span aria-hidden="true">›</span></button>
+              <button type="button" data-system-action="save">Save <span aria-hidden="true">›</span></button>
+              <button type="button" data-system-action="templates">Templates <span aria-hidden="true">›</span></button>
+            </div>
+          </section>
+
+          <section>
             <h3>Data</h3>
             <p class="settings-section-note">Game saves and settings are stored locally in your browser.</p>
             <button type="button" data-action="open-privacy">Privacy & Legal</button>
@@ -135,6 +154,10 @@ export class SettingsUI {
     panel.querySelector('[data-action="defaults"]')?.addEventListener('click', () => this.store.restoreDefaults());
     panel.querySelector('[data-action="reset-settings"]')?.addEventListener('click', () => {
       if (window.confirm('Reset all game settings to their initial defaults? Your game save will not be deleted.')) this.store.resetSettings();
+    });
+
+    panel.querySelectorAll<HTMLButtonElement>('[data-system-action]').forEach((button) => {
+      button.addEventListener('click', () => this.openSystemAction(button.dataset.systemAction || ''));
     });
 
     panel.querySelectorAll<HTMLInputElement | HTMLSelectElement>('[data-setting]').forEach((input) => {

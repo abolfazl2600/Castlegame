@@ -36,12 +36,8 @@ export class MobileUI {
         <div class="mobile-header-actions" role="toolbar" aria-label="Game actions">
           <button type="button" data-mobile-proxy="game-mode-button" class="mobile-action mobile-mode-action"></button>
           <button type="button" data-mobile-proxy="battle-button" class="mobile-action" aria-label="Battle">⚔️</button>
-          <button type="button" data-mobile-proxy="templates-button" class="mobile-action" aria-label="Templates">▦</button>
-          <button type="button" data-mobile-proxy="help-button" class="mobile-action" aria-label="Help">?</button>
           <button type="button" data-mobile-proxy="settings-button" class="mobile-action" aria-label="Settings">⚙</button>
           <button type="button" data-mobile-proxy="fullscreen-button" class="mobile-action" aria-label="Fullscreen">⛶</button>
-          <button type="button" data-mobile-proxy="load-button" class="mobile-action" aria-label="Load">↥</button>
-          <button type="button" data-mobile-proxy="save-button" class="mobile-action" aria-label="Save">↧</button>
           <button type="button" data-mobile-proxy="reset-button" class="mobile-action mobile-danger" aria-label="Reset">↻</button>
         </div>
       </header>
@@ -52,7 +48,7 @@ export class MobileUI {
         <button type="button" data-mobile-proxy="view-2d-button" class="mobile-dock-button"><span aria-hidden="true">▦</span><small>Plan</small></button>
         <button type="button" data-mobile-proxy="camera-45-button" class="mobile-dock-button"><span aria-hidden="true">◒</span><small>45°</small></button>
         <button type="button" data-mobile-proxy="camera-top-button" class="mobile-dock-button"><span aria-hidden="true">⊙</span><small>Top</small></button>
-        <button type="button" data-mobile-proxy="save-button" class="mobile-dock-button"><span aria-hidden="true">↧</span><small>Save</small></button>
+        <button type="button" data-mobile-proxy="settings-button" class="mobile-dock-button"><span aria-hidden="true">⚙</span><small>Settings</small></button>
       </nav>
 
       <div class="mobile-status" aria-live="polite">
