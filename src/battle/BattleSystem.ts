@@ -46,6 +46,11 @@ interface UnitRuntime {
   moving: boolean;
   deathTime: number;
   defenseRadius: number;
+  defenderBehavior: DefenderBehaviorState;
+  patrolTarget?: NavPoint;
+  patrolIndex: number;
+  patrolCooldown: number;
+  defenseOriginGrid: NavPoint;
   progressCheckTimer: number;
   stuckSeconds: number;
   recoveryTime: number;
@@ -59,6 +64,7 @@ interface UnitRuntime {
 
 type WallDamageStage = 'healthy' | 'damaged' | 'heavy' | 'partial' | 'breached';
 type SiegeMode = 'entrance' | 'breach' | 'ladder';
+type DefenderBehaviorState = 'idle' | 'patrol' | 'detect' | 'chase' | 'attack' | 'return';
 
 interface WallBattleState {
   x: number;
@@ -596,7 +602,9 @@ export class BattleSystem {
       runtime.data.state = 'forming';
     } else {
       runtime.data.state = 'guarding';
+      runtime.defenderBehavior = 'idle';
       runtime.defenseRadius = this.isMeleeUnit(unitType) ? 9.5 : 11.5;
+      runtime.defenseOriginGrid = { x: cell.x, y: cell.y };
     }
 
     this.units.set(runtime.data.id, runtime);
@@ -620,7 +628,9 @@ export class BattleSystem {
     const runtime = this.createRuntime(faction, unitType, position, node.x, node.y, 'wall');
     runtime.home.copy(position);
     runtime.data.state = 'guarding';
-    runtime.defenseRadius = 16;
+    runtime.defenderBehavior = 'idle';
+    runtime.defenseRadius = this.isMeleeUnit(unitType) ? 10.5 : 12.5;
+    runtime.defenseOriginGrid = { x: node.x, y: node.y };
     this.units.set(runtime.data.id, runtime);
     this.layer.add(runtime.view);
   }
@@ -670,6 +680,10 @@ export class BattleSystem {
       moving: false,
       deathTime: 0,
       defenseRadius: 10,
+      defenderBehavior: 'idle',
+      patrolIndex: 0,
+      patrolCooldown: 0,
+      defenseOriginGrid: { x: gridX, y: gridY },
       progressCheckTimer: 0.65,
       stuckSeconds: 0,
       recoveryTime: 0,
@@ -834,11 +848,28 @@ export class BattleSystem {
       return;
     }
 
-    const target = runtime.data.targetId
+    let target = runtime.data.targetId
       ? this.units.get(runtime.data.targetId)
       : undefined;
 
+    if (
+      runtime.data.faction === 'defender' &&
+      target &&
+      target.data.state !== 'dead' &&
+      target.position.distanceTo(runtime.home) > runtime.defenseRadius
+    ) {
+      runtime.data.targetId = undefined;
+      runtime.defenderBehavior = 'return';
+      target = undefined;
+    }
+
     if (target && target.data.state !== 'dead') {
+      if (runtime.data.faction === 'defender') {
+        runtime.defenderBehavior =
+          runtime.position.distanceTo(target.position) <= runtime.stats.attackRange
+            ? 'attack'
+            : 'chase';
+      }
       if (
         this.isMeleeUnit(runtime.data.unitType) &&
         runtime.surface === 'ground' &&
@@ -891,7 +922,7 @@ export class BattleSystem {
           this.followAttackerObjective(runtime, delta);
         }
       } else {
-        this.guardDefenderArea(runtime, delta);
+        this.updateDefenderBehavior(runtime, delta);
       }
     } else if (runtime.surface === 'wall') {
       this.updateWallSurfaceUnit(runtime, delta);
@@ -933,19 +964,224 @@ export class BattleSystem {
     runtime.data.state = runtime.pathIndex <= 1 ? 'forming' : 'moving';
   }
 
-  private guardDefenderArea(runtime: UnitRuntime, delta: number): void {
-    if (runtime.path.length > 0 && runtime.pathIndex < runtime.path.length) {
-      this.followGroundPath(runtime, delta, 'moving');
+  private updateDefenderBehavior(runtime: UnitRuntime, delta: number): void {
+    runtime.patrolCooldown = Math.max(0, runtime.patrolCooldown - delta);
+
+    const distanceHome = runtime.position.distanceTo(runtime.home);
+
+    // A defender never leaves its assigned defensive area just to chase a target.
+    if (distanceHome > runtime.defenseRadius) {
+      runtime.data.targetId = undefined;
+      runtime.defenderBehavior = 'return';
+    }
+
+    if (runtime.defenderBehavior === 'return') {
+      if (runtime.surface === 'ground') {
+        const home = runtime.defenseOriginGrid;
+        if (
+          runtime.path.length === 0 ||
+          runtime.pathIndex >= runtime.path.length ||
+          runtime.path[runtime.path.length - 1]?.x !== home.x ||
+          runtime.path[runtime.path.length - 1]?.y !== home.y
+        ) {
+          runtime.path = this.navigation.findPath(
+            { x: runtime.gridX, y: runtime.gridY },
+            home,
+            true,
+          );
+          runtime.pathIndex = Math.min(1, Math.max(0, runtime.path.length - 1));
+        }
+
+        if (runtime.path.length > 1 && runtime.pathIndex < runtime.path.length) {
+          this.followGroundPath(runtime, delta, 'moving');
+          return;
+        }
+      } else {
+        const node = this.wallNodes.get(this.gridKey(runtime.gridX, runtime.gridY));
+        if (node) {
+          const neighbors = this.navigation
+            .connectedWallNeighbors(node, this.wallNodes)
+            .filter(
+              (candidate) =>
+                this.gridDistance(candidate, runtime.defenseOriginGrid) <
+                this.gridDistance(node, runtime.defenseOriginGrid),
+            )
+            .sort(
+              (a, b) =>
+                this.gridDistance(a, runtime.defenseOriginGrid) -
+                this.gridDistance(b, runtime.defenseOriginGrid),
+            );
+
+          const next = neighbors[0];
+          if (next) {
+            const world = this.world.gridToWorld(next.x, next.y);
+            const destination = new THREE.Vector3(world.x, next.worldY, world.z);
+            if (this.moveTowardWallPoint(runtime, destination, delta, 0.28)) {
+              runtime.gridX = next.x;
+              runtime.gridY = next.y;
+              runtime.position.y = next.worldY;
+            }
+            runtime.data.state = 'moving';
+            return;
+          }
+        }
+      }
+
+      runtime.path = [];
+      runtime.pathIndex = 0;
+      runtime.patrolTarget = undefined;
+      runtime.defenderBehavior = 'idle';
+      runtime.data.state = 'guarding';
       return;
     }
 
-    const distanceHome = runtime.position.distanceTo(runtime.home);
-    if (distanceHome > 0.42) {
-      this.moveTowardPoint(runtime, runtime.home, delta, 0.3);
-      runtime.data.state = 'moving';
-    } else {
+    if (runtime.patrolTarget) {
+      if (runtime.surface === 'ground') {
+        if (runtime.path.length > 1 && runtime.pathIndex < runtime.path.length) {
+          this.followGroundPath(runtime, delta, 'moving');
+          runtime.defenderBehavior = 'patrol';
+          return;
+        }
+
+        const patrolWorld = this.world.gridToWorld(
+          runtime.patrolTarget.x,
+          runtime.patrolTarget.y,
+        );
+        const reached = runtime.position.distanceTo(
+          new THREE.Vector3(
+            patrolWorld.x,
+            runtime.position.y,
+            patrolWorld.z,
+          ),
+        ) <= 0.55;
+
+        if (!reached) {
+          runtime.path = this.navigation.findPath(
+            { x: runtime.gridX, y: runtime.gridY },
+            runtime.patrolTarget,
+            false,
+          );
+          runtime.pathIndex = Math.min(1, Math.max(0, runtime.path.length - 1));
+
+          if (runtime.path.length > 1) {
+            runtime.defenderBehavior = 'patrol';
+            this.followGroundPath(runtime, delta, 'moving');
+            return;
+          }
+        }
+      } else {
+        const node = this.wallNodes.get(this.gridKey(runtime.gridX, runtime.gridY));
+        if (node && (node.x !== runtime.patrolTarget.x || node.y !== runtime.patrolTarget.y)) {
+          const neighbors = this.navigation
+            .connectedWallNeighbors(node, this.wallNodes)
+            .filter(
+              (candidate) =>
+                this.gridDistance(
+                  { x: candidate.x, y: candidate.y },
+                  runtime.defenseOriginGrid,
+                ) <= runtime.defenseRadius,
+            )
+            .sort(
+              (a, b) =>
+                this.gridDistance(a, runtime.patrolTarget!) -
+                this.gridDistance(b, runtime.patrolTarget!),
+            );
+
+          const next = neighbors[0];
+          if (next) {
+            const world = this.world.gridToWorld(next.x, next.y);
+            const destination = new THREE.Vector3(world.x, next.worldY, world.z);
+            if (this.moveTowardWallPoint(runtime, destination, delta, 0.28)) {
+              runtime.gridX = next.x;
+              runtime.gridY = next.y;
+              runtime.position.y = next.worldY;
+            }
+            runtime.defenderBehavior = 'patrol';
+            runtime.data.state = 'moving';
+            return;
+          }
+        }
+      }
+
+      runtime.patrolTarget = undefined;
+      runtime.path = [];
+      runtime.pathIndex = 0;
+      runtime.patrolCooldown = 1.4;
+      runtime.defenderBehavior = 'idle';
       runtime.data.state = 'guarding';
+      return;
     }
+
+    if (runtime.patrolCooldown <= 0) {
+      const target = this.selectDefenderPatrolTarget(runtime);
+      if (target) {
+        runtime.patrolTarget = target;
+        runtime.defenderBehavior = 'patrol';
+        runtime.data.state = 'moving';
+        return;
+      }
+    }
+
+    runtime.defenderBehavior = 'idle';
+    runtime.data.state = 'guarding';
+  }
+
+  private selectDefenderPatrolTarget(runtime: UnitRuntime): NavPoint | null {
+    if (runtime.surface === 'wall') {
+      const node = this.wallNodes.get(this.gridKey(runtime.gridX, runtime.gridY));
+      if (!node) return null;
+
+      const candidates = this.navigation
+        .connectedWallNeighbors(node, this.wallNodes)
+        .filter(
+          (candidate) =>
+            this.gridDistance(
+              { x: candidate.x, y: candidate.y },
+              runtime.defenseOriginGrid,
+            ) <= runtime.defenseRadius,
+        )
+        .sort((a, b) => {
+          const da = this.gridDistance(a, runtime.defenseOriginGrid);
+          const db = this.gridDistance(b, runtime.defenseOriginGrid);
+          if (da !== db) return db - da;
+          return a.x - b.x || a.y - b.y;
+        });
+
+      if (candidates.length === 0) return null;
+      const chosen = candidates[runtime.patrolIndex % candidates.length];
+      runtime.patrolIndex += 1;
+      return { x: chosen.x, y: chosen.y };
+    }
+
+    const offsets = [
+      { x: -2, y: 0 },
+      { x: 0, y: -2 },
+      { x: 2, y: 0 },
+      { x: 0, y: 2 },
+      { x: -2, y: -2 },
+      { x: 2, y: -2 },
+      { x: 2, y: 2 },
+      { x: -2, y: 2 },
+    ];
+
+    for (let attempt = 0; attempt < offsets.length; attempt += 1) {
+      const offset = offsets[(runtime.patrolIndex + attempt) % offsets.length];
+      const candidate = {
+        x: runtime.defenseOriginGrid.x + offset.x,
+        y: runtime.defenseOriginGrid.y + offset.y,
+      };
+      if (!this.navigation.isGroundWalkable(candidate.x, candidate.y)) continue;
+      if (
+        this.gridDistance(candidate, runtime.defenseOriginGrid) >
+        runtime.defenseRadius / Math.max(1, this.world.tileSize)
+      ) {
+        continue;
+      }
+      runtime.patrolIndex += attempt + 1;
+      return candidate;
+    }
+
+    return null;
   }
 
   private followGroundPath(
@@ -1118,6 +1354,46 @@ export class BattleSystem {
       distanceFromHome > runtime.defenseRadius
     ) {
       this.moveTowardPoint(runtime, runtime.home, delta, 0.35);
+      return;
+    }
+
+    // Defenders must always use the validated ground graph while chasing.
+    // This prevents direct movement from cutting through walls or buildings.
+    if (runtime.surface === 'ground' && runtime.data.faction === 'defender') {
+      const targetGrid = this.worldToGrid(target);
+      const goal = this.navigation.isGroundWalkable(targetGrid.x, targetGrid.y)
+        ? targetGrid
+        : this.navigation.findNearestWalkable(targetGrid, 3);
+
+      if (!goal) {
+        runtime.moving = false;
+        return;
+      }
+
+      if (
+        runtime.repathTimer <= 0 ||
+        runtime.path.length === 0 ||
+        runtime.pathIndex >= runtime.path.length
+      ) {
+        const path = this.navigation.findPath(
+          { x: runtime.gridX, y: runtime.gridY },
+          goal,
+          false,
+        );
+        if (path.length > 1) {
+          runtime.path = path;
+          runtime.pathIndex = 1;
+          runtime.repathTimer = 0.45;
+        } else {
+          runtime.repathTimer = 0.2;
+        }
+      }
+
+      if (runtime.path.length > 1 && runtime.pathIndex < runtime.path.length) {
+        this.followGroundPath(runtime, delta, 'moving');
+      } else {
+        runtime.moving = false;
+      }
       return;
     }
 
@@ -2594,10 +2870,20 @@ export class BattleSystem {
             ? this.isRangedUnit(runtime.data.unitType)
               ? 14.5
               : 7.2
-            : runtime.stats.scanRange * 1.35;
+            : runtime.defenseRadius;
         const threat = current.data.targetId === runtime.data.id;
+        const insideDefenseArea =
+          current.position.distanceTo(runtime.home) <= runtime.defenseRadius;
 
-        if (distance <= chaseLimit && (runtime.data.faction !== 'attacker' || threat || this.isDefenderOnAdvance(current, runtime))) {
+        if (
+          distance <= chaseLimit &&
+          (runtime.data.faction !== 'defender' || insideDefenseArea) &&
+          (runtime.data.faction !== 'attacker' || threat || this.isDefenderOnAdvance(current, runtime))
+        ) {
+          if (runtime.data.faction === 'defender') {
+            runtime.defenderBehavior =
+              distance <= runtime.stats.attackRange ? 'attack' : 'chase';
+          }
           continue;
         }
       }
@@ -2610,6 +2896,13 @@ export class BattleSystem {
 
         const distance = runtime.position.distanceTo(candidate.position);
         if (distance > runtime.stats.scanRange) continue;
+
+        if (
+          runtime.data.faction === 'defender' &&
+          candidate.position.distanceTo(runtime.home) > runtime.defenseRadius
+        ) {
+          continue;
+        }
 
         if (
           this.isMeleeUnit(runtime.data.unitType) &&
@@ -2681,6 +2974,9 @@ export class BattleSystem {
       }
 
       runtime.data.targetId = best?.data.id;
+      if (runtime.data.faction === 'defender') {
+        runtime.defenderBehavior = best ? 'detect' : runtime.defenderBehavior;
+      }
     }
   }
 
