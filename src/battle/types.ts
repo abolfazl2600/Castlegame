@@ -6,8 +6,6 @@ export interface BattleUnitStats {
   maxHealth: number;
   attack: number;
   defense: number;
-  attack: number;
-  defense: number;
   damage: number;
   attackRange: number;
   attackCooldown: number;
@@ -21,6 +19,8 @@ export interface BattleUnit {
   unitType: UnitType;
   health: number;
   maxHealth: number;
+  attack: number;
+  defense: number;
   damage: number;
   attackRange: number;
   attackCooldown: number;
