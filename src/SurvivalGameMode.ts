@@ -4,7 +4,6 @@ import type {
   GameModeDefinition,
 } from './core/GameModeFoundation';
 import type { GameModeId } from './core/GameModeFoundation';
-import type { GameState } from './state/GameState';
 import type { BattleSetup, BattleStatus } from './battle/types';
 import { BattleSystem, type BattleStartOptions } from './battle/BattleSystem';
 
