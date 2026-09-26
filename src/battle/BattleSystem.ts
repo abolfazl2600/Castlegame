@@ -3,6 +3,9 @@ import type { GridCell, KeepState, TerrainKind, TileKind, TowerBridgeState } fro
 import { BattleNavigation, type NavPoint, type WallNavNode } from './BattleNavigation';
 import { WallDefenseSystem, type WallWeaponPosition } from '../building/WallDefenseSystem';
 import { FactionRelations } from './FactionRelations';
+import { BattleObjectiveSystem } from './objectives/BattleObjectiveSystem';
+import { DEFAULT_BATTLE_SCENARIO } from './objectives/BattleObjectiveDefinitions';
+import type { BattleScenario, ObjectiveBuildingSnapshot, ObjectivePositionSnapshot } from './objectives/BattleObjectiveTypes';
 import type {
   BattleResult,
   BattleSetup,
@@ -32,6 +35,8 @@ export interface BattleWorldContext {
   gatePassable?: (x: number, y: number) => boolean;
   generatedAccess?: () => Array<{ x: number; y: number; kind: TileKind; rotation: number; targetX: number; targetY: number }>;
   wallWeaponVisuals?: () => THREE.Object3D[];
+  objectiveBuildings?: () => ObjectiveBuildingSnapshot[];
+  objectivePositions?: () => ObjectivePositionSnapshot[];
 }
 
 interface UnitRuntime {
@@ -144,6 +149,7 @@ interface UnitVisualRefs {
 export interface BattleStartOptions {
   readonly attackerSpawnInterval?: number;
   readonly attackerSpawnBatchSize?: number;
+  readonly scenario?: BattleScenario;
 }
 
 export function getUnitCombatStats(unitType: UnitType): BattleUnitStats | undefined {
@@ -287,6 +293,7 @@ export class BattleSystem {
   private attackerSpawnTimer = 0;
   private attackerSpawnBatchSize = 1;
   private battleSpeed = DEFAULT_BATTLE_SPEED;
+  private readonly objectiveSystem = new BattleObjectiveSystem();
 
   constructor(
     private readonly layer: THREE.Group,
@@ -364,6 +371,7 @@ export class BattleSystem {
     this.spawnAttackers(normalized, this.attackerSpawnInterval > 0);
     this.spawnDefenders(normalized);
     this.refreshSiegePlan(true);
+    this.objectiveSystem.start(options.scenario ?? DEFAULT_BATTLE_SCENARIO, this.battleSeconds);
     this.emitStatus();
   }
 
@@ -427,6 +435,7 @@ export class BattleSystem {
     }
 
     this.clearSiegeState();
+    this.objectiveSystem.reset();
 
     this.mode = 'idle';
     this.battleSpeed = DEFAULT_BATTLE_SPEED;
@@ -483,6 +492,7 @@ export class BattleSystem {
     this.animateObjective(timeMs);
 
     if (this.statusTimer <= 0) {
+      this.objectiveSystem.update(this.createObjectiveContext(delta));
       this.statusTimer = 0.22;
       this.emitStatus();
     }
@@ -507,6 +517,7 @@ export class BattleSystem {
       attackersAlive,
       defendersAlive,
       result: this.finalResult,
+      objectives: this.objectiveSystem.getState().runtime,
     };
   }
 
@@ -2897,6 +2908,7 @@ export class BattleSystem {
     this.wallNodes.delete(this.gridKey(wall.x, wall.y));
     this.world.setWallBattleVisibility(wall.x, wall.y, false);
     this.navigation.invalidate();
+    this.objectiveSystem.emit({ type: 'WALL_BREACHED', entityId: this.gridKey(wall.x, wall.y) });
     this.reactDefendersToBreach(wall);
     this.refreshSiegePlan(true);
   }
@@ -3521,26 +3533,36 @@ export class BattleSystem {
 
     const attackersAlive = this.countAlive('attacker');
 
+    if (this.objectiveSystem.hasFailedPrimaryObjective()) {
+      this.finishBattle('defender', 'objective_failed');
+      return;
+    }
+
+    if (this.objectiveSystem.isVictorySatisfied()) {
+      this.finishBattle('attacker', 'objective_completed');
+      return;
+    }
+
     if (
       attackersAlive === 0 &&
       this.attackerStartCount > 0 &&
       this.pendingAttackerSpawns.length === 0
     ) {
-      this.finishBattle('defender');
+      this.finishBattle('defender', 'elimination');
       return;
     }
 
     if (this.captureSeconds >= this.captureRequiredSeconds) {
-      this.finishBattle('attacker');
+      this.finishBattle('attacker', 'capture');
       return;
     }
 
     if (this.attackerStartCount === 0 && this.defenderStartCount > 0) {
-      this.finishBattle('defender');
+      this.finishBattle('defender', 'no_attackers');
     }
   }
 
-  private finishBattle(winner: Faction): void {
+  private finishBattle(winner: Faction, reason: BattleResult['reason'] = 'objective_completed'): void {
     this.mode = 'finished';
     const attackersRemaining = this.countAlive('attacker');
     const defendersRemaining = this.countAlive('defender');
@@ -3552,8 +3574,12 @@ export class BattleSystem {
       attackersKilled: Math.max(0, this.attackerStartCount - attackersRemaining),
       defendersKilled: Math.max(0, this.defenderStartCount - defendersRemaining),
       durationSeconds: Math.round(this.battleSeconds * 10) / 10,
+      reason,
+      completedObjectives: this.objectiveSystem.getState().runtime.filter((objective) => objective.status === 'completed').map((objective) => objective.id),
+      failedObjectives: this.objectiveSystem.getState().runtime.filter((objective) => objective.status === 'failed').map((objective) => objective.id),
     };
 
+    this.objectiveSystem.stop();
     this.clearSiegeState();
     this.emitStatus();
   }
@@ -3575,6 +3601,7 @@ export class BattleSystem {
     runtime.data.health = 0;
     runtime.data.state = 'dead';
     runtime.data.targetId = undefined;
+    this.objectiveSystem.emit({ type: 'UNIT_KILLED', entityId: runtime.data.id, faction: runtime.data.faction });
     runtime.deathTime = 0;
 
     for (const other of this.units.values()) {
@@ -3778,6 +3805,43 @@ export class BattleSystem {
       }
     }
     return count;
+  }
+
+  private createObjectiveContext(deltaSeconds: number) {
+    const units = Array.from(this.units.values()).map((runtime) => ({
+      id: runtime.data.id,
+      faction: runtime.data.faction,
+      unitType: runtime.data.unitType,
+      health: runtime.data.health,
+      maxHealth: runtime.data.maxHealth,
+      state: runtime.data.state,
+      x: runtime.position.x,
+      y: runtime.position.y,
+      z: runtime.position.z,
+    }));
+    const walls = Array.from(this.wallStates.values()).map((wall) => ({
+      id: this.gridKey(wall.x, wall.y),
+      health: wall.health,
+      maxHealth: wall.maxHealth,
+      breached: wall.stage === 'breached',
+      x: wall.x,
+      y: wall.y,
+    }));
+    const buildings = this.world.objectiveBuildings?.() ?? [];
+    const positions = [
+      ...(this.world.objectivePositions?.() ?? []),
+      { id: 'castle-objective', x: this.objectiveWorld.x, y: this.objectiveWorld.y, z: this.objectiveWorld.z, controlledBy: this.captureSeconds >= this.captureRequiredSeconds ? 'attacker' as Faction : undefined },
+    ];
+    return {
+      battleTime: this.battleSeconds,
+      deltaSeconds,
+      units,
+      walls,
+      buildings,
+      positions,
+      captureProgress: THREE.MathUtils.clamp(this.captureSeconds / this.captureRequiredSeconds, 0, 1),
+      battleFinished: this.mode === 'finished',
+    };
   }
 
   private emitStatus(): void {
