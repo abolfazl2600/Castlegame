@@ -948,6 +948,7 @@ export class BattleSystem {
 
       if (
         runtime.data.faction === 'defender' &&
+        this.isMeleeUnit(runtime.data.unitType) &&
         runtime.surface === 'wall' &&
         target.surface === 'ground' &&
         this.tryUseStairTowerToDescend(runtime, target, delta)
