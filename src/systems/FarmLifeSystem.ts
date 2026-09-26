@@ -1,7 +1,6 @@
 import * as THREE from 'three';
 
 const COW_BARN_LEVEL = 99;
-const BARN_TOOL_ID = 'cowBarn';
 
 type GameRuntime = {
   renderer: THREE.WebGLRenderer;
@@ -41,7 +40,6 @@ export class FarmLifeSystem {
   private static installed = false;
   private readonly game: GameRuntime;
   private active = false;
-  private lastUpdate = 0;
 
   constructor(game: unknown) {
     this.game = game as GameRuntime;
@@ -462,13 +460,14 @@ export class FarmLifeSystem {
     }
   }
 
-  private updateFarmers(deltaMs: number): void {
+  private updateFarmers(_deltaMs: number): void {
     const agents = (this.game as unknown as { settlementAgents?: Array<{
       role: string;
       view: THREE.Group;
       phase: string;
       targetGrid: { x: number; y: number };
       anim: number;
+      id?: number;
     }> }).settlementAgents;
     if (!agents) return;
 
