@@ -7137,8 +7137,14 @@ export class ThreeGame {
       '<div class="toolbar-title"><div><span>Build</span><small>Modular engineering</small></div><button id="toolbar-close" class="toolbar-close" type="button" aria-label="Close build panel">×</button></div>' +
       noneHtml +
       toolHtml +
+      '<section class="tool-category" data-category="Walls & Defense">' +
+      '<button class="tool-category-header" type="button" aria-expanded="false">' +
+      '<span>Walls & Defense</span>' +
+      '<span class="tool-category-chevron" aria-hidden="true">▶</span>' +
+      '</button>' +
+      '<div class="tool-category-items">' +
       '<div class="builder-settings">' +
-      '<div class="settings-title">Wall Settings</div>' +
+      '<div class="settings-title">Wall Settings</div> +
       '<label class="settings-row"><span>Thickness</span><select id="wall-thickness">' +
       '<option value="thin">Thin</option><option value="medium" selected>Medium</option><option value="thick">Thick</option>' +
       '</select></label>' +
@@ -7192,7 +7198,9 @@ export class ThreeGame {
       '<div class="settings-actions"><button id="rotate-selected" type="button">↻ Rotate</button><button id="undo-button" type="button">Undo</button></div>' +
       '<div class="settings-actions"><button id="redo-button" type="button">Redo</button><button id="select-clear" type="button">Clear Select</button></div>' +
       '<div class="settings-hint">Walls: drag A→B. Terrain tools also support drag strokes. Ctrl+Z / Ctrl+Y undo and redo.</div>' +
-      '</div>';
+      '</div>' +
+      '</div>' +
+      '</section>';
 
     toolbar.querySelectorAll<HTMLButtonElement>('.tool-category-header').forEach((header) => {
       header.onclick = () => {
