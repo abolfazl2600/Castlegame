@@ -14,6 +14,8 @@ export interface GameModeLifecycle {
   restart(context: GameModeLifecycleContext): void;
   end(context: GameModeLifecycleContext): void;
   cleanup(context: GameModeLifecycleContext): void;
+  /** Optional per-frame lifecycle hook driven by GameSession. */
+  update?(context: GameModeLifecycleContext, deltaMs: number, timeMs: number): void;
 }
 
 export interface GameModeDefinition {
