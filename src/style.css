@@ -1991,3 +1991,53 @@ html[data-high-contrast] .settings-card { border-color:rgba(255,255,255,.42); }
     padding: 9px 11px;
   }
 }
+
+
+/* User-controlled battle speed */
+.battle-speed-control {
+  display: grid;
+  gap: 7px;
+  margin-top: 10px;
+  padding: 10px 11px;
+  border: 1px solid rgba(126,225,255,.12);
+  border-radius: 11px;
+  background: rgba(255,255,255,.025);
+}
+.battle-speed-title {
+  color: #9fd9e6;
+  font-size: 9px;
+  font-weight: 900;
+  letter-spacing: .14em;
+}
+.battle-speed-actions {
+  display: grid;
+  grid-template-columns: 34px minmax(48px, 1fr) 34px 42px;
+  gap: 6px;
+  align-items: center;
+}
+.battle-speed-actions button {
+  min-height: 30px;
+  border: 1px solid rgba(255,255,255,.12);
+  border-radius: 8px;
+  color: #effbff;
+  background: rgba(255,255,255,.055);
+  cursor: pointer;
+  font-weight: 800;
+}
+.battle-speed-actions button:hover:not(:disabled) {
+  background: rgba(91,201,255,.12);
+  border-color: rgba(120,226,255,.3);
+}
+.battle-speed-actions button:disabled {
+  opacity: .4;
+  cursor: default;
+}
+#battle-speed-value {
+  text-align: center;
+  font-size: 15px;
+  color: #dff8ff;
+}
+.battle-speed-control small {
+  color: #8eabb6;
+  font-size: 9px;
+}
