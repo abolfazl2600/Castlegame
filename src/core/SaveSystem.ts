@@ -160,7 +160,12 @@ export class SaveSystem {
       this.host.setStatus('Save not found');
       return false;
     }
-    return this.applyRecord(record);
+    const ok = this.applyRecord(record);
+    if (ok) {
+      this.writeRecord('autosave', 'Auto Save', false);
+      if (typeof window !== 'undefined') window.location.reload();
+    }
+    return ok;
   }
 
   rename(target: SaveTarget, name: string): boolean {
