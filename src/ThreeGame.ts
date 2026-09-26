@@ -6,6 +6,7 @@ import { KeepSystem } from './building/KeepSystem';
 import { WallSystem } from './building/WallSystem';
 import { WallCornerSystem } from './building/WallCornerSystem';
 import { CastleAccessSystem } from './building/CastleAccessSystem';
+import { WallDefenseSystem } from './building/WallDefenseSystem';
 import { GateSystem } from './building/GateSystem';
 import { DestructibleBuildingSystem } from './building/DestructibleBuildingSystem';
 import { CastleDetailGenerator } from './building/CastleDetailGenerator';
@@ -54,7 +55,6 @@ const BUILDING_KINDS: TileKind[] = [
   'wall3',
   'gate',
   'tower',
-  'stairTower',
   'road',
   'dirtRoad',
   'stoneRoad',
@@ -148,7 +148,6 @@ const TOOL_GROUPS: Array<{ label: string; tools: ToolDefinition[] }> = [
       { id: 'wall3', icon: '🛡️', label: 'Reinforced Wall', detail: 'Drag A → B · heavy defense', shortcut: '3' },
       { id: 'gate', icon: '🚪', label: 'Gate', detail: 'Snaps into fortification lines', shortcut: '4' },
       { id: 'tower', icon: '🏰', label: 'Modular Tower', detail: '5 bases · medieval roof modules', shortcut: '5' },
-      { id: 'stairTower', icon: '🗼', label: 'Stair Tower', detail: 'Ground ↕ Wall Walk access', shortcut: 'E' },
       { id: 'towerBridge', icon: '🌉', label: 'Tower Bridge', detail: 'Select two compatible towers', shortcut: 'D' },
       { id: 'keep', icon: '🏯', label: 'Modular Keep', detail: 'Width · depth · floors · roof', shortcut: 'P' },
       { id: 'moat', icon: '💧', label: 'Moat', detail: 'Workers excavate queued tiles', shortcut: 'Q' },
@@ -315,6 +314,8 @@ export class ThreeGame {
     defenderArchers: 15,
     defenderSpearmen: 8,
     defenderCrossbowmen: 6,
+    attackerModernSoldiers: 0,
+    defenderModernSoldiers: 4,
   };
 
   private readonly undoStack: HistorySnapshot[] = [];
@@ -427,6 +428,7 @@ export class ThreeGame {
         buildingDamageAt: (x, y) => this.state.getCell(x, y)?.damage ?? 0,
         setBuildingDamage: (x, y, damageRatio) => this.setBuildingDamage(x, y, damageRatio),
         gatePassable: (x, y) => this.gateSystem.isGatePassable(x, y),
+        generatedAccess: () => this.getGeneratedWallAccess(),
       },
       (status) => this.updateBattleUI(status),
     );
@@ -920,24 +922,7 @@ export class ThreeGame {
       this.buildLayer.add(this.makeTowerBridge(bridge));
     }
 
-    const generatedAccess = this.castleAccessSystem.generate(
-      cells,
-      this.keepSystem.entries(),
-      {
-        size: SIZE,
-        getCell: (x, y) => {
-          const cell = this.state.getCell(x, y);
-          return cell ? { x, y, ...cell } : undefined;
-        },
-        terrainBuildable: (x, y) => {
-          const terrain = this.terrainAt(x, y);
-          return terrain !== 'water' && terrain !== 'river';
-        },
-        isOccupied: (x, y) =>
-          Boolean(this.state.getCell(x, y)) ||
-          Boolean(this.keepSystem.findAtCell(x, y)),
-      },
-    );
+    const generatedAccess = this.getGeneratedWallAccess();
 
     for (const access of generatedAccess) {
       const group = new THREE.Group();
@@ -947,6 +932,16 @@ export class ThreeGame {
         kind: access.kind,
         rotation: access.rotation,
       });
+      this.buildLayer.add(group);
+    }
+
+    for (const weapon of WallDefenseSystem.positions(
+      SIZE,
+      (x, y) => this.state.getCell(x, y),
+    )) {
+      const cell = this.state.getCell(weapon.x, weapon.y);
+      if (!cell) continue;
+      const group = this.makeWallWeaponVisual(weapon.x, weapon.y, weapon.direction, cell);
       this.buildLayer.add(group);
     }
 
@@ -975,6 +970,75 @@ export class ThreeGame {
         this.animatedFlags.push(object);
       }
     });
+  }
+
+  private getGeneratedWallAccess(): ReturnType<CastleAccessSystem['generate']> {
+    const cells = this.state.entries();
+    return this.castleAccessSystem.generate(cells, this.keepSystem.entries(), {
+      size: SIZE,
+      getCell: (x, y) => {
+        const cell = this.state.getCell(x, y);
+        return cell ? { x, y, ...cell } : undefined;
+      },
+      terrainBuildable: (x, y) => {
+        const terrain = this.terrainAt(x, y);
+        return terrain !== 'water' && terrain !== 'river';
+      },
+      isOccupied: (x, y) =>
+        Boolean(this.state.getCell(x, y)) ||
+        Boolean(this.keepSystem.findAtCell(x, y)),
+    });
+  }
+
+  private makeWallWeaponVisual(
+    gx: number,
+    gy: number,
+    direction: WallDirection,
+    cell: GridCell,
+  ): THREE.Group {
+    const group = new THREE.Group();
+    const position = this.gridToWorld(gx, gy);
+    const topY = this.fortificationTopLocal(cell);
+    group.position.set(position.x, this.terrainElevation(gx, gy) + topY - 0.12, position.z);
+    group.rotation.y = WallSystem.worldAngle(direction);
+
+    const mount = new THREE.MeshStandardMaterial({
+      color: 0x30383c,
+      roughness: 0.72,
+      metalness: 0.42,
+    });
+    const barrel = new THREE.MeshStandardMaterial({
+      color: 0x171c1f,
+      roughness: 0.48,
+      metalness: 0.68,
+    });
+    const accent = new THREE.MeshStandardMaterial({
+      color: 0x56656a,
+      roughness: 0.58,
+      metalness: 0.5,
+    });
+
+    this.addBox(group, 0.72, 0.16, 0.72, mount, 0, 0.05, 0);
+    this.addBox(group, 0.18, 0.18, 0.72, accent, 0, 0.2, 0.02);
+
+    const barrelMesh = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.065, 0.085, 1.05, 8),
+      barrel,
+    );
+    barrelMesh.rotation.x = Math.PI / 2;
+    barrelMesh.position.set(0, 0.27, 0.48);
+    barrelMesh.castShadow = true;
+    group.add(barrelMesh);
+
+    const sight = new THREE.Mesh(
+      new THREE.BoxGeometry(0.08, 0.08, 0.24),
+      accent,
+    );
+    sight.position.set(0, 0.39, 0.32);
+    group.add(sight);
+
+    group.userData.wallWeapon = { gx, gy, direction, range: 14 };
+    return group;
   }
 
   private setBattleWallVisibility(x: number, y: number, visible: boolean): void {
@@ -6540,32 +6604,6 @@ export class ThreeGame {
       return;
     }
 
-    if (this.selectedTool === 'stairTower') {
-      if (current) {
-        this.setStatus('Stair Tower needs an empty tile beside a Wall Walk');
-        return;
-      }
-      if (!this.canBuildFortificationOnTerrain(terrain)) {
-        this.setStatus('Stair Tower needs stable ground');
-        return;
-      }
-
-      const snap = this.findStairTowerSnap(gx, gy);
-      if (!snap) {
-        this.setStatus('Place Stair Tower directly beside a wall with Top Walkway enabled');
-        return;
-      }
-
-      this.recordHistory();
-      this.state.setCell(gx, gy, 'stairTower', 1, {
-        rotation: snap.rotation,
-        accessHeight: snap.accessHeight,
-      });
-      this.finishBuild();
-      this.setStatus('Stair Tower connected Ground ↕ Wall Walk');
-      return;
-    }
-
     if (this.selectedTool === 'tower') {
       if (current === 'tower') {
         const nextLevel = event.shiftKey
@@ -7585,7 +7623,6 @@ export class ThreeGame {
         l: 'land',
         p: 'keep',
         d: 'towerBridge',
-        e: 'stairTower',
         i: 'dirtRoad',
         o: 'stoneRoad',
         k: 'mountainRange',
@@ -7979,15 +8016,6 @@ export class ThreeGame {
       this.towerBridges.set(bridge.id, bridge);
     };
 
-    const addTemplateStairTower = (x: number, y: number): void => {
-      const snap = this.findStairTowerSnap(x, y);
-      if (!snap) return;
-      place(x, y, 'stairTower', 1, {
-        rotation: snap.rotation,
-        accessHeight: snap.accessHeight,
-      });
-    };
-
     const placeHarborTemplate = (
       kind: HarborKind,
       shipKind: ShipKind,
@@ -8296,9 +8324,7 @@ export class ThreeGame {
       place(minX, maxY, 'tower', 3, { towerShape: 'octagonal', towerTop: 'openBattlement' });
       place(maxX, maxY, 'tower', 3, { towerShape: 'corner', towerTop: 'pyramidal' });
 
-      placeKeepTemplate(center, center - 1, 4, 4, 5, 'towered', true, 0, true);
-      addTemplateStairTower(minX + 1, center);
-      place(center, center + 3, 'stoneRoad');
+      placeKeepTemplate(center, center - 1, 4, 4, 5, 'towered', true, 0, true);      place(center, center + 3, 'stoneRoad');
       place(center - 2, center + 2, 'manor');
       place(center + 2, center + 2, 'house');
       place(center - 3, center - 3, 'farm');
@@ -8338,9 +8364,7 @@ export class ThreeGame {
       for (let x = center - 7; x <= center + 7; x += 1) {
         if (x === center) continue;
         place(x, center + 7, 'moat');
-      }
-      addTemplateStairTower(center - 5, center);
-      place(center, center + 6, 'stoneRoad');
+      }      place(center, center + 6, 'stoneRoad');
     } else if (template === 'sandstone-oasis') {
       this.stoneStyle = 'sandstone';
       this.towerBridgeKind = 'stone';
@@ -8394,9 +8418,7 @@ export class ThreeGame {
       place(center + 2, center + 2, 'farm');
       place(center + 4, center - 1, 'tree', 2);
       place(center + 5, center - 2, 'rock', 2);
-      for (let y = center + 1; y < center + 5; y += 1) place(center, y, 'dirtRoad');
-      addTemplateStairTower(center - 6, center);
-    } else if (template === 'bridge-stronghold') {
+      for (let y = center + 1; y < center + 5; y += 1) place(center, y, 'dirtRoad');    } else if (template === 'bridge-stronghold') {
       this.stoneStyle = 'limestone';
       prepareArea(center - 11, center - 8, center + 11, center + 8, 0.22);
 
@@ -8426,9 +8448,7 @@ export class ThreeGame {
         thickness: 'medium',
       });
       place(center, center + 6, 'gate');
-      placeKeepTemplate(center, center, 3, 3, 4, 'flatBattlement', true);
-      addTemplateStairTower(center - 8, center);
-      for (let y = center + 2; y < center + 6; y += 1) place(center, y, 'stoneRoad');
+      placeKeepTemplate(center, center, 3, 3, 4, 'flatBattlement', true);      for (let y = center + 2; y < center + 6; y += 1) place(center, y, 'stoneRoad');
     } else if (template === 'siege-academy') {
       this.stoneStyle = 'darkStone';
       prepareArea(center - 12, center - 9, center + 12, center + 9, 0);
@@ -8452,10 +8472,7 @@ export class ThreeGame {
       for (let y = center - 7; y <= center + 7; y += 1) {
         place(center - 9, y, 'moat');
         place(center + 9, y, 'moat');
-      }
-
-      addTemplateStairTower(center - 6, center);
-      place(center + 6, center, 'stoneStairs', 1, { rotation: 3 });
+      }      place(center + 6, center, 'stoneStairs', 1, { rotation: 3 });
       place(center - 5, center + 6, 'woodenStairs', 1, { rotation: 0 });
       place(center + 5, center + 6, 'ramp', 1, { rotation: 0 });
       place(center, center - 6, 'ladder', 1, { rotation: 2 });
@@ -8528,9 +8545,7 @@ export class ThreeGame {
       place(center + 7, center - 6, 'mountain', 4);
       place(center + 6, center - 5, 'mine');
       place(center - 8, center - 6, 'rock', 3);
-      place(center - 7, center + 5, 'tree', 3);
-      addTemplateStairTower(center - 4, center);
-      for (let y = center + 5; y <= center + 8; y += 1) place(center, y, 'stoneRoad');
+      place(center - 7, center + 5, 'tree', 3);      for (let y = center + 5; y <= center + 8; y += 1) place(center, y, 'stoneRoad');
     } else if (template === 'royal-city') {
       this.stoneStyle = 'sandstone';
       prepareArea(center - 11, center - 9, center + 11, center + 9, 0);
@@ -8615,8 +8630,6 @@ export class ThreeGame {
         walkway: true,
         thickness: 'thick',
       });
-      addTemplateStairTower(center - 8, center + 4);
-
       const diagonal = WallSystem.createSnappedPath(
         { x: center + 5, y: center + 4 },
         { x: center + 9, y: center + 8 },
@@ -8664,8 +8677,6 @@ export class ThreeGame {
       place(center + 1, center - 5, 'tower', 3, { towerShape: 'octagonal', towerTop: 'openBattlement' });
       place(center - 7, center + 5, 'tower', 2, { towerShape: 'square', towerTop: 'hipped' });
       placeKeepTemplate(center - 3, center - 1, 3, 3, 4, 'sloped', true);
-      addTemplateStairTower(center - 6, center);
-
       place(center - 5, center + 2, 'house');
       place(center - 1, center + 2, 'cottage');
       place(center - 5, center - 3, 'farm');
@@ -8719,9 +8730,7 @@ export class ThreeGame {
       const t1={x:center-7,y:center-4}, t2={x:center+7,y:center-4};
       place(t1.x,t1.y,'tower',4,{towerShape:'square',towerTop:'pyramidal'});
       place(t2.x,t2.y,'tower',4,{towerShape:'square',towerTop:'pyramidal'});
-      addTemplateBridge(t1,t2,'stone');
-      addTemplateStairTower(center - 8, center);
-      place(center, center + 2, 'armyCamp');
+      addTemplateBridge(t1,t2,'stone');      place(center, center + 2, 'armyCamp');
       for (let y=center+1;y<center+6;y+=1) if(!this.state.getCell(center,y)) place(center,y,'stoneRoad');
     } else if (template === 'border-march') {
       this.stoneStyle = 'frontier';
@@ -8765,9 +8774,7 @@ export class ThreeGame {
       place(center+6,center+5,'tower',3,{towerShape:'watch',towerTop:'timberRoof'});
       placeKeepTemplate(center,center-1,3,3,4,'towered',true);
       place(center-3,center+2,'house');
-      place(center+3,center+2,'farm');
-      addTemplateStairTower(center-5,center);
-    } else if (template === 'cliff-watch') {
+      place(center+3,center+2,'farm');    } else if (template === 'cliff-watch') {
       this.stoneStyle = 'darkStone';
       prepareArea(center - 10, center - 9, center + 10, center + 9, 0);
 
@@ -8785,9 +8792,7 @@ export class ThreeGame {
       place(center+1,center-5,'tower',4,{towerShape:'round',towerTop:'conical'});
       place(center+7,center-5,'tower',4,{towerShape:'watch',towerTop:'watch'});
       place(center+1,center+4,'tower',3,{towerShape:'corner',towerTop:'openBattlement'});
-      placeKeepTemplate(center+4,center-1,2,3,5,'defensivePlatform',true);
-      addTemplateStairTower(center+2,center);
-      place(center-3,center+1,'armyCamp');
+      placeKeepTemplate(center+4,center-1,2,3,5,'defensivePlatform',true);      place(center-3,center+1,'armyCamp');
       for(let y=center-2;y<=center+4;y+=1) if(!this.state.getCell(center,y)) place(center,y,'stoneRoad');
     } else if (template === 'moat-palace') {
       this.stoneStyle = 'sandstone';
@@ -8807,9 +8812,7 @@ export class ThreeGame {
         if(Math.abs(x-center)>1){place(x,center-7,'moat');place(x,center+7,'moat');}
       }
       for(let y=center-6;y<=center+6;y+=1){place(center-8,y,'moat');place(center+8,y,'moat');}
-      for(let y=center-1;y<=center+6;y+=1) if(!this.state.getCell(center,y)) place(center,y,'stoneRoad');
-      addTemplateStairTower(center-5,center);
-    } else if (template === 'merchant-republic') {
+      for(let y=center-1;y<=center+6;y+=1) if(!this.state.getCell(center,y)) place(center,y,'stoneRoad');    } else if (template === 'merchant-republic') {
       this.stoneStyle = 'limestone';
       prepareArea(center-11,center-9,center+11,center+9,0.04);
 
@@ -9060,10 +9063,12 @@ export class ThreeGame {
       ['defenderArchers', 'battle-defender-archers'],
       ['defenderSpearmen', 'battle-defender-spearmen'],
       ['defenderCrossbowmen', 'battle-defender-crossbowmen'],
+      ['defenderModernSoldiers', 'battle-defender-modern-soldiers'],
       ['attackerSwordsmen', 'battle-attacker-swordsmen'],
       ['attackerArchers', 'battle-attacker-archers'],
       ['attackerSpearmen', 'battle-attacker-spearmen'],
       ['attackerCrossbowmen', 'battle-attacker-crossbowmen'],
+      ['attackerModernSoldiers', 'battle-attacker-modern-soldiers'],
     ];
 
     for (const [field, id] of mappings) {
@@ -9088,12 +9093,14 @@ export class ThreeGame {
       this.battleSetup.attackerSwordsmen +
       this.battleSetup.attackerArchers +
       this.battleSetup.attackerSpearmen +
-      this.battleSetup.attackerCrossbowmen;
+      this.battleSetup.attackerCrossbowmen +
+      this.battleSetup.attackerModernSoldiers;
     const defenderTotal =
       this.battleSetup.defenderSwordsmen +
       this.battleSetup.defenderArchers +
       this.battleSetup.defenderSpearmen +
-      this.battleSetup.defenderCrossbowmen;
+      this.battleSetup.defenderCrossbowmen +
+      this.battleSetup.defenderModernSoldiers;
 
     if (attackerTotal <= 0) {
       this.setStatus('Add at least one Attacker before starting the battle');
