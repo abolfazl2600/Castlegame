@@ -1,5 +1,6 @@
 import type { GridCell, KeepState, TerrainKind, TileKind, TowerBridgeState, WallDirection } from '../core/types';
 import { WallSystem } from '../building/WallSystem';
+import { ConnectedWallNetwork } from '../building/ConnectedWallNetwork';
 
 export interface NavPoint {
   x: number;
@@ -43,8 +44,16 @@ const DIRS: NavPoint[] = [
 
 export class BattleNavigation {
   private readonly pathCache = new Map<string, NavPoint[]>();
+  private readonly defensiveNetwork: ConnectedWallNetwork;
 
-  constructor(private readonly context: BattleNavigationContext) {}
+  constructor(private readonly context: BattleNavigationContext) {
+    this.defensiveNetwork = new ConnectedWallNetwork({
+      size: context.size,
+      cellAt: context.cellAt,
+      elevationAt: context.elevationAt,
+      fortificationTopAt: context.fortificationTopAt,
+    });
+  }
 
   invalidate(): void {
     this.pathCache.clear();
@@ -364,64 +373,26 @@ export class BattleNavigation {
   }
 
   wallPlatformNodes(): WallNavNode[] {
-    const nodes: WallNavNode[] = [];
-
-    for (let y = 0; y < this.context.size; y += 1) {
-      for (let x = 0; x < this.context.size; x += 1) {
-        const cell = this.context.cellAt(x, y);
-        if (!cell) continue;
-
-        const usable =
-          (cell.kind === 'wall1' || cell.kind === 'wall2' || cell.kind === 'wall3') &&
-          cell.walkway === true;
-        const tower = cell.kind === 'tower';
-        const stairTower = cell.kind === 'stairTower';
-        const gate = cell.kind === 'gate';
-
-        if (!usable && !tower && !stairTower && !gate) continue;
-
-        nodes.push({
-          x,
-          y,
-          kind: cell.kind,
-          worldY:
-            this.context.elevationAt(x, y) +
-            this.context.fortificationTopAt(x, y, cell) +
-            0.28,
-        });
-      }
-    }
-
-    return nodes;
+    return this.defensiveNetwork.nodes().map((node) => ({
+      x: node.x,
+      y: node.y,
+      kind: node.kind,
+      worldY: node.worldY + 0.28,
+    }));
   }
 
   connectedWallNeighbors(node: WallNavNode, nodes: Map<string, WallNavNode>): WallNavNode[] {
-    const cell = this.context.cellAt(node.x, node.y);
-    const directions: WallDirection[] =
-      cell?.wallLinks && cell.wallLinks.length > 0
-        ? cell.wallLinks
-        : ['N', 'E', 'S', 'W'];
-
     const result: WallNavNode[] = [];
-    for (const direction of directions) {
-      const vector = WallSystem.vector(direction);
-      const neighbor = nodes.get(this.key(node.x + vector.x, node.y + vector.y));
-      if (!neighbor) continue;
-      if (Math.abs(neighbor.worldY - node.worldY) > 3.2) continue;
-      result.push(neighbor);
-    }
 
-    for (const direction of ['N', 'E', 'S', 'W'] as WallDirection[]) {
-      const vector = WallSystem.vector(direction);
-      const neighbor = nodes.get(this.key(node.x + vector.x, node.y + vector.y));
-      if (!neighbor) continue;
-      if (node.kind !== 'stairTower' && neighbor.kind !== 'stairTower') continue;
-      if (Math.abs(neighbor.worldY - node.worldY) > 3.2) continue;
-      if (!result.some((candidate) => candidate.x === neighbor.x && candidate.y === neighbor.y)) {
-        result.push(neighbor);
+    for (const neighbor of this.defensiveNetwork.neighbors(node)) {
+      const mapped = nodes.get(this.key(neighbor.x, neighbor.y));
+      if (!mapped) continue;
+      if (!result.some((candidate) => candidate.x === mapped.x && candidate.y === mapped.y)) {
+        result.push(mapped);
       }
     }
 
+    // Explicit tower bridges remain valid long-range defensive links.
     for (const bridge of this.context.towerBridges?.() ?? []) {
       const isA = bridge.ax === node.x && bridge.ay === node.y;
       const isB = bridge.bx === node.x && bridge.by === node.y;
@@ -434,7 +405,7 @@ export class BattleNavigation {
         ),
       );
       if (!other) continue;
-      if (Math.abs(other.worldY - node.worldY) > 2.2) continue;
+      if (Math.abs(other.worldY - node.worldY) > 3.4) continue;
       if (!result.some((candidate) => candidate.x === other.x && candidate.y === other.y)) {
         result.push(other);
       }
