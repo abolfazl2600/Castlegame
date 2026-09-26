@@ -17,6 +17,7 @@
         <div class="status-group">
           <span id="save-status" class="status-pill">3D Ready</span>
           <button id="battle-button" class="secondary-button battle-button" type="button">Battle</button>
+          <button id="game-mode-button" class="secondary-button mode-button" type="button" aria-label="Current game mode: Medieval Castle">Mode: <span id="game-mode-label">Medieval Castle</span></button>
           <button id="templates-button" class="secondary-button" type="button">Templates</button>
           <button id="help-button" class="secondary-button" type="button">Help</button>
           <button id="fullscreen-button" class="secondary-button" type="button">Fullscreen</button>
@@ -323,6 +324,30 @@
                 <span>3D View restores orbit camera controls.</span>
                 <span>The Build panel can be closed at any time and automatically collapses after choosing a tool on mobile.</span>
               </div>
+            </div>
+          </section>
+        </div>
+
+        <div id="game-mode-modal" class="modal-backdrop" hidden>
+          <section class="help-modal mode-modal" role="dialog" aria-modal="true" aria-labelledby="game-mode-title">
+            <div class="help-modal-header">
+              <div>
+                <div class="eyebrow">CASTLE ROLE · GAME MODE</div>
+                <h2 id="game-mode-title">Choose Your Fortress Era</h2>
+              </div>
+            </div>
+            <p class="template-intro">Choose the architecture and gameplay family before starting a new game. Medieval and Modern/Futuristic content are isolated from each other.</p>
+            <div class="mode-grid">
+              <button class="mode-card" type="button" data-game-mode="medieval">
+                <span class="mode-card-icon">♜</span>
+                <strong>Medieval Castle</strong>
+                <small>Stone walls, medieval towers, gates, settlements, soldiers, and siege systems.</small>
+              </button>
+              <button class="mode-card" type="button" data-game-mode="modern">
+                <span class="mode-card-icon">◈</span>
+                <strong>Modern Fortress</strong>
+                <small>Reinforced futuristic fortress architecture and the modern systems currently implemented.</small>
+              </button>
             </div>
           </section>
         </div>
