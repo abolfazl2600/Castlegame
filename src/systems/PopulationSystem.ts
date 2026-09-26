@@ -18,6 +18,9 @@ const CIVILIAN_VALUES: Partial<Record<TileKind, number>> = {
   manor: 42,
   villa: 36,
   farm: 8,
+  marketStall: 2,
+  smallMarket: 8,
+  marketHall: 18,
   mine: 5,
   smallDock: 4,
   woodenPier: 2,
@@ -45,6 +48,9 @@ export class PopulationSystem {
       else if (cell.kind === 'mine') miners += 5;
       else if (cell.kind === 'smallDock' || cell.kind === 'woodenPier') sailors += 2;
       else if (cell.kind === 'fishingDock') sailors += 5;
+      else if (cell.kind === 'marketStall') merchants += 2;
+      else if (cell.kind === 'smallMarket') merchants += 6;
+      else if (cell.kind === 'marketHall') merchants += 14;
       else if (cell.kind === 'harbor') {
         sailors += 6;
         merchants += 6;
