@@ -67,6 +67,11 @@ interface UnitRuntime {
   climbProgress: number;
   wallSeconds: number;
   accessTransition?: WallAccessTransition;
+  attackProgress: number;
+  attackDuration: number;
+  attackApplied: boolean;
+  hitReaction: number;
+  victoryPhase: number;
 }
 
 type WallDamageStage = 'healthy' | 'damaged' | 'heavy' | 'partial' | 'breached';
@@ -130,6 +135,8 @@ interface UnitVisualRefs {
   body: THREE.Object3D;
   leftLeg: THREE.Object3D;
   rightLeg: THREE.Object3D;
+  leftArm: THREE.Object3D;
+  rightArm: THREE.Object3D;
   weapon: THREE.Object3D;
   shield?: THREE.Object3D;
 }
@@ -193,6 +200,7 @@ export class BattleSystem {
   private readonly headGeometry = this.geometry(new THREE.SphereGeometry(0.2, 7, 6));
   private readonly helmetGeometry = this.geometry(new THREE.ConeGeometry(0.25, 0.3, 7));
   private readonly legGeometry = this.geometry(new THREE.CylinderGeometry(0.07, 0.08, 0.44, 5));
+  private readonly armGeometry = this.geometry(new THREE.CylinderGeometry(0.055, 0.065, 0.38, 5));
   private readonly shieldGeometry = this.geometry(new THREE.CylinderGeometry(0.27, 0.3, 0.08, 10));
   private readonly swordGeometry = this.geometry(new THREE.BoxGeometry(0.07, 0.62, 0.05));
   private readonly spearGeometry = this.geometry(new THREE.CylinderGeometry(0.035, 0.035, 1.45, 6));
@@ -818,6 +826,11 @@ export class BattleSystem {
       climbProgress: 0,
       wallSeconds: 0,
       accessTransition: undefined,
+      attackProgress: 1,
+      attackDuration: Math.max(0.24, Math.min(stats.attackCooldown * 0.46, 0.52)),
+      attackApplied: false,
+      hitReaction: 0,
+      victoryPhase: Math.random() * Math.PI * 2,
     };
   }
 
@@ -847,6 +860,20 @@ export class BattleSystem {
     const rightLeg = new THREE.Mesh(this.legGeometry, dark);
     rightLeg.position.set(0.11, 0.25, 0);
     root.add(rightLeg);
+
+    const leftArm = new THREE.Group();
+    const leftArmMesh = new THREE.Mesh(this.armGeometry, dark);
+    leftArmMesh.position.y = -0.18;
+    leftArm.add(leftArmMesh);
+    leftArm.position.set(-0.27, 1.03, 0);
+    root.add(leftArm);
+
+    const rightArm = new THREE.Group();
+    const rightArmMesh = new THREE.Mesh(this.armGeometry, dark);
+    rightArmMesh.position.y = -0.18;
+    rightArm.add(rightArmMesh);
+    rightArm.position.set(0.27, 1.03, 0);
+    root.add(rightArm);
 
     let weapon: THREE.Object3D;
     let shield: THREE.Object3D | undefined;
@@ -956,7 +983,7 @@ export class BattleSystem {
     factionBand.position.y = 0.98;
     root.add(factionBand);
 
-    const refs: UnitVisualRefs = { body, leftLeg, rightLeg, weapon, shield };
+    const refs: UnitVisualRefs = { body, leftLeg, rightLeg, leftArm, rightArm, weapon, shield };
     root.userData.visualRefs = refs;
     return root;
   }
@@ -985,6 +1012,7 @@ export class BattleSystem {
       runtime.deathTime += delta;
       runtime.view.rotation.z = THREE.MathUtils.lerp(runtime.view.rotation.z, Math.PI / 2, delta * 5);
       runtime.view.position.y = runtime.position.y - Math.min(0.2, runtime.deathTime * 0.08);
+      this.animateUnit(runtime);
       return;
     }
 
@@ -1560,9 +1588,11 @@ export class BattleSystem {
 
     const eased = transition.progress * transition.progress * (3 - 2 * transition.progress);
     runtime.position.copy(transition.start).lerp(transition.end, eased);
-    runtime.view.rotation.y = Math.atan2(
-      transition.end.x - transition.start.x,
-      transition.end.z - transition.start.z,
+    this.rotateUnitToward(
+      runtime,
+      Math.atan2(transition.end.x - transition.start.x, transition.end.z - transition.start.z),
+      delta,
+      8,
     );
     runtime.moving = true;
 
@@ -1741,7 +1771,7 @@ export class BattleSystem {
 
     const step = Math.min(distance - stopDistance, runtime.stats.moveSpeed * delta);
     runtime.position.addScaledVector(planar, Math.max(0, step));
-    runtime.view.rotation.y = Math.atan2(planar.x, planar.z);
+    this.rotateUnitToward(runtime, Math.atan2(planar.x, planar.z), delta, 11);
     runtime.moving = true;
 
     const gx = Math.floor(runtime.position.x / this.world.tileSize + this.world.size / 2);
@@ -2619,9 +2649,11 @@ export class BattleSystem {
       runtime.climbProgress + delta * (runtime.stats.moveSpeed * 0.72) / length,
     );
     runtime.position.copy(bottom).lerp(top, runtime.climbProgress);
-    runtime.view.rotation.y = Math.atan2(
-      wallWorld.x - baseWorld.x,
-      wallWorld.z - baseWorld.z,
+    this.rotateUnitToward(
+      runtime,
+      Math.atan2(wallWorld.x - baseWorld.x, wallWorld.z - baseWorld.z),
+      delta,
+      8,
     );
     runtime.data.state = 'moving';
 
@@ -2748,7 +2780,7 @@ export class BattleSystem {
       direction,
       Math.min(distance - stopDistance, runtime.stats.moveSpeed * delta),
     );
-    runtime.view.rotation.y = Math.atan2(direction.x, direction.z);
+    this.rotateUnitToward(runtime, Math.atan2(direction.x, direction.z), delta, 11);
     runtime.moving = true;
     return false;
   }
@@ -3263,16 +3295,19 @@ export class BattleSystem {
 
   private meleeAttack(attacker: UnitRuntime, target: UnitRuntime): void {
     attacker.attackTimer = attacker.stats.attackCooldown;
-    target.data.health -= attacker.stats.damage;
+    attacker.attackProgress = 0;
+    attacker.attackDuration = Math.max(0.24, Math.min(attacker.stats.attackCooldown * 0.46, 0.52));
+    attacker.attackApplied = false;
 
-    const refs = attacker.view.userData.visualRefs as UnitVisualRefs | undefined;
-    if (refs) refs.weapon.rotation.z -= 0.65;
-
-    if (target.data.health <= 0) this.killUnit(target);
+    // Damage remains on the existing combat cadence; the visual attack begins here.
+    this.applyDamage(target, attacker.stats.damage);
   }
 
   private fireArrow(attacker: UnitRuntime, target: UnitRuntime): void {
     attacker.attackTimer = attacker.stats.attackCooldown;
+    attacker.attackProgress = 0;
+    attacker.attackDuration = Math.max(0.24, Math.min(attacker.stats.attackCooldown * 0.46, 0.52));
+    attacker.attackApplied = true;
 
     const arrow = new THREE.Mesh(this.arrowGeometry, this.woodMaterial);
     arrow.position.copy(attacker.position);
@@ -3341,15 +3376,21 @@ export class BattleSystem {
       }
 
       if (!target || nextTimer > 0) continue;
-      target.data.health -= 18;
+      this.applyDamage(target, 18);
       this.wallWeaponTimers.set(key, 0.95);
 
       const flash = new THREE.Mesh(new THREE.SphereGeometry(0.09, 6, 5), this.objectiveMaterial);
       flash.position.lerpVectors(origin, target.position, 0.18);
       this.layer.add(flash);
       window.setTimeout(() => this.layer.remove(flash), 55);
-      if (target.data.health <= 0) this.killUnit(target);
     }
+  }
+
+  private applyDamage(target: UnitRuntime, amount: number): void {
+    if (target.data.state === 'dead') return;
+    target.data.health = Math.max(0, target.data.health - amount);
+    target.hitReaction = Math.max(target.hitReaction, 0.18);
+    if (target.data.health <= 0) this.killUnit(target);
   }
 
   private updateProjectiles(delta: number): void {
@@ -3370,8 +3411,7 @@ export class BattleSystem {
       const distance = deltaVector.length();
 
       if (distance <= 0.48) {
-        target.data.health -= arrow.damage;
-        if (target.data.health <= 0) this.killUnit(target);
+        this.applyDamage(target, arrow.damage);
         this.layer.remove(arrow.view);
         this.arrows.splice(i, 1);
         continue;
@@ -3507,24 +3547,119 @@ export class BattleSystem {
     const refs = runtime.view.userData.visualRefs as UnitVisualRefs | undefined;
     if (!refs) return;
 
-    if (runtime.data.state === 'dead') return;
+    runtime.hitReaction = Math.max(0, runtime.hitReaction - 1 / 60);
 
-    const speed = runtime.moving ? 9 : 2.4;
-    const swing = Math.sin(runtime.animTime * speed) * (runtime.moving ? 0.5 : 0.05);
-    refs.leftLeg.rotation.x = swing;
-    refs.rightLeg.rotation.x = -swing;
-    refs.body.position.y = 0.69 + Math.abs(Math.sin(runtime.animTime * speed)) * (runtime.moving ? 0.035 : 0.012);
+    if (runtime.data.state === 'dead') {
+      const death = THREE.MathUtils.clamp(runtime.deathTime * 2.6, 0, 1);
+      refs.leftLeg.rotation.x = 0.15 * death;
+      refs.rightLeg.rotation.x = -0.12 * death;
+      refs.leftArm.rotation.z = -0.8 * death;
+      refs.rightArm.rotation.z = 0.8 * death;
+      refs.body.position.y = 0.69 - 0.12 * death;
+      return;
+    }
 
-    if (runtime.data.state !== 'attacking') {
+    const locomotionSpeed = runtime.moving
+      ? (runtime.stats.moveSpeed >= 3 ? 10.5 : 8.5)
+      : 2.2;
+    const stride = Math.sin(runtime.animTime * locomotionSpeed);
+    const walkAmount = runtime.moving ? 0.52 : 0.035;
+
+    refs.leftLeg.rotation.x = stride * walkAmount;
+    refs.rightLeg.rotation.x = -stride * walkAmount;
+    refs.body.position.y =
+      0.69 + Math.abs(stride) * (runtime.moving ? 0.038 : 0.012);
+
+    // Natural arm counter-swing while moving.
+    refs.leftArm.rotation.x = -stride * (runtime.moving ? 0.34 : 0.025);
+    refs.rightArm.rotation.x = stride * (runtime.moving ? 0.34 : 0.025);
+    refs.leftArm.rotation.z = 0;
+    refs.rightArm.rotation.z = 0;
+
+    if (runtime.hitReaction > 0) {
+      const hit = runtime.hitReaction / 0.18;
+      refs.body.rotation.z = Math.sin(runtime.animTime * 32) * 0.045 * hit;
+      refs.leftArm.rotation.x -= 0.28 * hit;
+      refs.rightArm.rotation.x -= 0.18 * hit;
+    } else {
+      refs.body.rotation.z = THREE.MathUtils.lerp(refs.body.rotation.z, 0, 0.18);
+    }
+
+    const defending =
+      runtime.data.state === 'guarding' &&
+      this.isMeleeUnit(runtime.data.unitType) &&
+      runtime.data.faction === 'defender';
+
+    if (defending && refs.shield) {
+      refs.shield.rotation.x = THREE.MathUtils.lerp(refs.shield.rotation.x, -0.28, 0.18);
+      refs.leftArm.rotation.x -= 0.32;
+    } else if (refs.shield) {
+      refs.shield.rotation.x = THREE.MathUtils.lerp(refs.shield.rotation.x, 0, 0.18);
+    }
+
+    if (runtime.data.state === 'attacking') {
+      runtime.attackProgress = Math.min(
+        1,
+        runtime.attackProgress + (1 / 60) / Math.max(0.12, runtime.attackDuration),
+      );
+      const p = runtime.attackProgress;
+      const attackCurve = p < 0.42
+        ? p / 0.42
+        : 1 - (p - 0.42) / 0.58;
+      const windup = THREE.MathUtils.clamp(attackCurve, 0, 1);
+
+      refs.leftArm.rotation.x = -0.55 * windup;
+      refs.rightArm.rotation.x = 0.7 * windup;
+
       if (runtime.data.unitType === 'swordsman') {
-        refs.weapon.rotation.z = -0.34;
+        refs.weapon.rotation.z = -0.34 - 1.35 * windup;
+        if (refs.shield) refs.shield.rotation.x = -0.18 * windup;
       } else if (runtime.data.unitType === 'spearman') {
-        refs.weapon.rotation.z = -0.22;
+        refs.weapon.rotation.z = -0.22 - 0.95 * windup;
+        if (refs.shield) refs.shield.rotation.x = -0.14 * windup;
       } else if (runtime.data.unitType === 'modernSoldier') {
-        refs.weapon.rotation.z = -0.12;
+        refs.weapon.rotation.z = -0.12 - 0.32 * windup;
+        refs.weapon.rotation.x = -0.18 + 0.18 * windup;
+        refs.rightArm.rotation.x = 0.38 * windup;
+      } else if (runtime.data.unitType === 'crossbowman') {
+        refs.weapon.rotation.z = -0.12 + 0.18 * windup;
+        refs.weapon.rotation.x = -0.18 * windup;
+        refs.rightArm.rotation.x = 0.5 * windup;
       } else {
-        refs.weapon.rotation.y = Math.PI / 2;
+        // Archer: draw/release gesture while the existing projectile system owns damage.
+        refs.weapon.rotation.y = Math.PI / 2 + 0.34 * windup;
+        refs.rightArm.rotation.x = 0.52 * windup;
+        refs.leftArm.rotation.x = -0.38 * windup;
       }
+
+      if (p >= 1) {
+        runtime.data.state =
+          runtime.data.targetId && runtime.attackTimer > 0 ? 'guarding' : 'moving';
+        runtime.attackProgress = 1;
+      }
+    } else {
+      if (runtime.data.unitType === 'swordsman') {
+        refs.weapon.rotation.z = THREE.MathUtils.lerp(refs.weapon.rotation.z, -0.34, 0.2);
+      } else if (runtime.data.unitType === 'spearman') {
+        refs.weapon.rotation.z = THREE.MathUtils.lerp(refs.weapon.rotation.z, -0.22, 0.2);
+      } else if (runtime.data.unitType === 'modernSoldier') {
+        refs.weapon.rotation.z = THREE.MathUtils.lerp(refs.weapon.rotation.z, -0.12, 0.2);
+        refs.weapon.rotation.x = THREE.MathUtils.lerp(refs.weapon.rotation.x, -0.18, 0.2);
+      } else {
+        refs.weapon.rotation.y = THREE.MathUtils.lerp(refs.weapon.rotation.y, Math.PI / 2, 0.2);
+        refs.weapon.rotation.x = THREE.MathUtils.lerp(refs.weapon.rotation.x, 0, 0.2);
+      }
+    }
+
+    if (
+      this.mode === 'finished' &&
+      this.finalResult?.winner === runtime.data.faction
+    ) {
+      runtime.victoryPhase += 0.045;
+      const cheer = Math.max(0, Math.sin(runtime.victoryPhase));
+      refs.leftArm.rotation.x -= cheer * 0.65;
+      refs.rightArm.rotation.x -= cheer * 0.65;
+      refs.body.position.y += cheer * 0.045;
     }
   }
 
@@ -3532,7 +3667,21 @@ export class BattleSystem {
     const dx = target.x - runtime.position.x;
     const dz = target.z - runtime.position.z;
     if (Math.abs(dx) + Math.abs(dz) < 0.001) return;
-    runtime.view.rotation.y = Math.atan2(dx, dz);
+    this.rotateUnitToward(runtime, Math.atan2(dx, dz), 1 / 60, 12);
+  }
+
+  private rotateUnitToward(
+    runtime: UnitRuntime,
+    targetAngle: number,
+    delta: number,
+    turnRate: number,
+  ): void {
+    const current = runtime.view.rotation.y;
+    let difference = targetAngle - current;
+    while (difference > Math.PI) difference -= Math.PI * 2;
+    while (difference < -Math.PI) difference += Math.PI * 2;
+    const maxStep = turnRate * delta;
+    runtime.view.rotation.y = current + THREE.MathUtils.clamp(difference, -maxStep, maxStep);
   }
 
   private buildSpatialBuckets(): Map<string, UnitRuntime[]> {
