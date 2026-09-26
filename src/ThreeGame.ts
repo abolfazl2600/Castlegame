@@ -7003,6 +7003,21 @@ export class ThreeGame {
     }
 
     const selectedTile = this.selectedTool as TileKind;
+    if (selectedTile === 'cowBarn') {
+      if (current) {
+        this.setStatus('Cow Barn requires an empty tile');
+        return;
+      }
+      if (terrain !== 'plains') {
+        this.setStatus('Cow Barn requires open plains');
+        return;
+      }
+      this.recordHistory();
+      this.services.state.setCell(gx, gy, 'cowBarn', 99);
+      this.finishBuild();
+      this.setStatus('Cow Barn placed · livestock yard active');
+      return;
+    }
     if (!this.isBuildingAvailable(selectedTile)) {
       this.setStatus('This building is unavailable in ' + getGameModeDefinition(this.gameMode).label);
       return;
@@ -7055,7 +7070,7 @@ export class ThreeGame {
     if (terrain === 'water' || terrain === 'river') return false;
     if (terrain === 'mountain') return tool === 'mine';
     if (terrain === 'forest') return tool === 'tree';
-    if (tool === 'farm' || tool === 'appleOrchard') return terrain === 'plains';
+    if (tool === 'farm' || tool === 'cowBarn' || tool === 'appleOrchard') return terrain === 'plains';
     if (tool === 'windmill') return terrain === 'plains' || terrain === 'shore';
     return terrain === 'plains' || terrain === 'shore';
   }
@@ -7079,7 +7094,7 @@ export class ThreeGame {
       cell.kind === 'manor' ||
       cell.kind === 'villa',
     );
-    const farms = cells.filter((cell) => cell.kind === 'farm' || cell.kind === 'appleOrchard');
+    const farms = cells.filter((cell) => cell.kind === 'farm' || cell.kind === 'appleOrchard' || cell.kind === 'cowBarn');
 
     const maxVisibleAgents = 40;
 
