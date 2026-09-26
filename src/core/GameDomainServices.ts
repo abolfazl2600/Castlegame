@@ -8,6 +8,7 @@ import { CastleDetailGenerator } from '../building/CastleDetailGenerator';
 import { PopulationSystem } from '../systems/PopulationSystem';
 import { WindmillSystem } from '../systems/WindmillSystem';
 import { OrchardSystem } from '../systems/OrchardSystem';
+import { GameSession } from './GameSession';
 
 export interface GameDomainServices {
   readonly state: GameState;
@@ -20,11 +21,14 @@ export interface GameDomainServices {
   readonly windmillSystem: WindmillSystem;
   readonly orchardSystem: OrchardSystem;
   readonly detailGenerator: CastleDetailGenerator;
+  readonly session: GameSession;
 }
 
 export function createGameDomainServices(): GameDomainServices {
+  const state = new GameState();
+
   return {
-    state: new GameState(),
+    state,
     keepSystem: new KeepSystem(),
     wallCornerSystem: new WallCornerSystem(),
     castleAccessSystem: new CastleAccessSystem(),
@@ -34,5 +38,6 @@ export function createGameDomainServices(): GameDomainServices {
     windmillSystem: new WindmillSystem(),
     orchardSystem: new OrchardSystem(),
     detailGenerator: new CastleDetailGenerator(),
+    session: new GameSession(state),
   };
 }
