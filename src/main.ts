@@ -1,4 +1,5 @@
 import { ThreeGame } from './ThreeGame';
+import { PrivacyLegalUI } from './core/PrivacyLegalUI';
 import { MobileUI } from './ui/MobileUI';
 import { AudioManager } from './audio/AudioManager';
 import { bindAudioSettingsUI } from './audio/AudioSettingsUI';
@@ -12,3 +13,4 @@ bindAudioSettingsUI(audioManager);
 
 new ThreeGame(gameRoot);
 new MobileUI();
+new PrivacyLegalUI();
