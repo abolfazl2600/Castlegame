@@ -7645,7 +7645,7 @@ export class ThreeGame {
       '<option value="stone" selected>Stone Bridge</option><option value="wood">Wooden Bridge</option>' +
       '</select></label>' +
       '<div class="settings-hint">Foundations, buttresses and machicolations are generated automatically from height, terrain and structure importance.</div>'
-      '</section>' + +
+      '</section>' +
       '<div class="settings-title">Tower Builder</div>' +
       '<label class="settings-row"><span>Base</span><select id="tower-shape">' +
       '<option value="square">Square Tower</option><option value="round" selected>Round Tower</option>' +
