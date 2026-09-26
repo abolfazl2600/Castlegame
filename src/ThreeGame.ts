@@ -343,6 +343,9 @@ export class ThreeGame {
     defenderCrossbowmen: 6,
     attackerModernSoldiers: 0,
     defenderModernSoldiers: 4,
+    attackerTanks: 2,
+    attackerArmoredVehicles: 3,
+    attackerMissileVehicles: 1,
   };
 
   private readonly undoStack: HistorySnapshot[] = [];
@@ -455,6 +458,7 @@ export class ThreeGame {
         towerBridges: () => Array.from(this.towerBridges.values()).map((bridge) => ({ ...bridge })),
         setWallBattleVisibility: (x, y, visible) => this.setBattleWallVisibility(x, y, visible),
         buildingDamageAt: (x, y) => this.state.getCell(x, y)?.damage ?? 0,
+        buildingMaxHealthAt: (x, y) => this.destructibleBuildingSystem.maxHealth(this.state.getCell(x, y)?.kind ?? 'house', this.state.getCell(x, y)?.level ?? 1),
         setBuildingDamage: (x, y, damageRatio) => this.setBuildingDamage(x, y, damageRatio),
         gatePassable: (x, y) => this.gateSystem.isGatePassable(x, y),
         generatedAccess: () => this.getGeneratedWallAccess(),
@@ -9109,6 +9113,9 @@ export class ThreeGame {
       ['defenderSpearmen', 'battle-defender-spearmen'],
       ['defenderCrossbowmen', 'battle-defender-crossbowmen'],
       ['defenderModernSoldiers', 'battle-defender-modern-soldiers'],
+      ['attackerTanks', 'battle-attacker-tanks'],
+      ['attackerArmoredVehicles', 'battle-attacker-armored-vehicles'],
+      ['attackerMissileVehicles', 'battle-attacker-missile-vehicles'],
       ['attackerSwordsmen', 'battle-attacker-swordsmen'],
       ['attackerArchers', 'battle-attacker-archers'],
       ['attackerSpearmen', 'battle-attacker-spearmen'],
@@ -9139,7 +9146,10 @@ export class ThreeGame {
       this.battleSetup.attackerArchers +
       this.battleSetup.attackerSpearmen +
       this.battleSetup.attackerCrossbowmen +
-      this.battleSetup.attackerModernSoldiers;
+      (this.gameMode === 'Modern' ? this.battleSetup.attackerModernSoldiers : 0) +
+      (this.gameMode === 'Modern'
+        ? this.battleSetup.attackerTanks + this.battleSetup.attackerArmoredVehicles + this.battleSetup.attackerMissileVehicles
+        : 0);
     const defenderTotal =
       this.battleSetup.defenderSwordsmen +
       this.battleSetup.defenderArchers +
@@ -9162,8 +9172,12 @@ export class ThreeGame {
     this.settlementLayer.visible = false;
     document.getElementById('game-shell')?.classList.add('battle-mode');
     this.gateSystem.setAttackState(true);
-    this.battleSystem.start(this.battleSetup);
-    this.setStatus('Battle started · Attackers are advancing on the castle');
+    this.battleSystem.start({ ...this.battleSetup, gameMode: this.gameMode });
+    this.setStatus(
+      this.gameMode === 'Modern'
+        ? 'Modern Siege started · armored attackers are advancing on the fortress'
+        : 'Medieval Siege started · Attackers are advancing on the castle',
+    );
   }
 
   private stopBattleFromUI(): void {
