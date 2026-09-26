@@ -130,11 +130,11 @@ export class SettingsUI {
     });
 
     panel.querySelector('[data-action="reset-save"]')?.addEventListener('click', () => {
-      if (this.confirmDestructive('Delete the local game save? This cannot be undone.')) this.onResetSave();
+      if (window.confirm('Delete the local game save? Your settings will be kept. This cannot be undone.')) this.onResetSave();
     });
     panel.querySelector('[data-action="defaults"]')?.addEventListener('click', () => this.store.restoreDefaults());
     panel.querySelector('[data-action="reset-settings"]')?.addEventListener('click', () => {
-      if (this.confirmDestructive('Reset all game settings to their initial defaults? Your game save will not be deleted.')) this.store.resetSettings();
+      if (window.confirm('Reset all game settings to their initial defaults? Your game save will not be deleted.')) this.store.resetSettings();
     });
 
     panel.querySelectorAll<HTMLInputElement | HTMLSelectElement>('[data-setting]').forEach((input) => {
