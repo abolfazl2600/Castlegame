@@ -51,6 +51,7 @@ export type TileKind =
   | 'villa'
   | 'farm'
   | 'armyCamp'
+  | 'windmill'
   | 'mine'
   | 'mountain'
   | 'tree'
