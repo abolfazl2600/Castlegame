@@ -15,13 +15,17 @@ export class SettingsUI {
     this.panel = this.createPanel();
     document.body.appendChild(this.backdrop);
     document.body.appendChild(this.panel);
-    const settingsButton = document.getElementById('settings-button');
-    if (settingsButton instanceof HTMLButtonElement) {
-      settingsButton.onclick = (event) => {
-        event.preventDefault();
-        this.open();
-      };
-    }
+    // Bind at the document level in capture phase so later UI modules cannot
+    // replace or suppress the Settings button handler.
+    document.addEventListener('click', (event) => {
+      const target = event.target;
+      if (!(target instanceof Element)) return;
+      const settingsButton = target.closest('#settings-button');
+      if (!(settingsButton instanceof HTMLButtonElement)) return;
+      event.preventDefault();
+      event.stopPropagation();
+      this.open();
+    }, true);
     this.store.subscribe((settings) => this.render(settings));
     this.bindSystemActionReturns();
   }
