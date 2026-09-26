@@ -1,4 +1,5 @@
 import type { GridCell, TileKind } from '../core/types';
+import type { GameMode } from '../core/GameMode';
 
 export interface CellEntry extends GridCell {
   x: number;
@@ -6,10 +7,19 @@ export interface CellEntry extends GridCell {
 }
 
 export class GameState {
+  private gameMode: GameMode = 'medieval';
   private readonly cells = new Map<string, GridCell>();
 
   private key(x: number, y: number): string {
     return `${x},${y}`;
+  }
+
+  getGameMode(): GameMode {
+    return this.gameMode;
+  }
+
+  setGameMode(mode: GameMode): void {
+    this.gameMode = mode;
   }
 
   getCell(x: number, y: number): GridCell | undefined {
