@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import type { GridCell, KeepState, TerrainKind, TileKind, TowerBridgeState } from '../core/types';
 import { BattleNavigation, type NavPoint, type WallNavNode } from './BattleNavigation';
-import { WallDefenseSystem, type WallWeaponPosition } from '../building/WallDefenseSystem';
+import { WallWeaponSystem, type WallWeaponTarget } from './WallWeaponSystem';
 import { FactionRelations } from './FactionRelations';
 import type {
   BattleResult,
@@ -38,7 +38,7 @@ export interface BattleWorldContext {
     targetX: number;
     targetY: number;
   }>;
-  wallWeaponVisuals?: () => THREE.Object3D[];
+  isModernMode: () => boolean;
 }
 
 interface UnitRuntime {
@@ -254,8 +254,7 @@ export class BattleSystem {
   private siegePlan: SiegePlan | null = null;
   private siegeDecisionTimer = 0;
   private ladderCounter = 0;
-  private wallWeapons: WallWeaponPosition[] = [];
-  private wallWeaponTimers = new Map<string, number>();
+  private readonly wallWeaponSystem: WallWeaponSystem;
 
   constructor(
     private readonly layer: THREE.Group,
@@ -274,6 +273,20 @@ export class BattleSystem {
       temporaryGroundPassable: (x, y) => this.breachedWalls.has(this.gridKey(x, y)),
       gatePassable: world.gatePassable,
       generatedAccess: world.generatedAccess,
+    });
+
+    this.wallWeaponSystem = new WallWeaponSystem(this.layer, {
+      size: world.size,
+      tileSize: world.tileSize,
+      gridToWorld: world.gridToWorld,
+      elevationAt: world.elevationAt,
+      fortificationTopAt: world.fortificationTopAt,
+      cellAt: world.cellAt,
+      isModernMode: world.isModernMode,
+      isWallOperational: (x, y) => this.isWallOperational(x, y),
+      getTargets: () => this.getWallWeaponTargets(),
+      applyDamage: (targetId, damage) => this.applyWallWeaponDamage(targetId, damage),
+      applyAreaDamage: (origin, radius, damage) => this.applyWallWeaponAreaDamage(origin, radius, damage),
     });
   }
 
@@ -299,7 +312,7 @@ export class BattleSystem {
     this.finalResult = undefined;
     this.siegeDecisionTimer = 0;
     this.initializeWallStates();
-    this.initializeWallWeapons();
+    this.wallWeaponSystem.reset();
 
     const normalized = this.normalizeSetup(setup);
     this.attackerStartCount =
@@ -365,6 +378,7 @@ export class BattleSystem {
     }
 
     this.clearSiegeState();
+    this.wallWeaponSystem.reset();
 
     this.mode = 'idle';
     this.captureSeconds = 0;
@@ -404,7 +418,7 @@ export class BattleSystem {
       this.updateUnit(runtime, delta, buckets);
     }
 
-    this.updateWallWeapons(delta);
+    this.wallWeaponSystem.update(delta);
     this.updateProjectiles(delta);
     this.updateCapture(delta);
     this.cleanupDead(delta);
@@ -439,6 +453,7 @@ export class BattleSystem {
 
   dispose(): void {
     this.reset(false);
+    this.wallWeaponSystem.dispose();
     for (const geometry of this.sharedGeometries) geometry.dispose();
     for (const material of this.sharedMaterials) material.dispose();
   }
@@ -1784,6 +1799,7 @@ export class BattleSystem {
   }
 
   private clearSiegeState(): void {
+    this.wallWeaponSystem.reset();
     for (const wall of this.wallStates.values()) {
       this.world.setWallBattleVisibility(wall.x, wall.y, true);
       this.layer.remove(wall.visual);
@@ -3264,75 +3280,36 @@ export class BattleSystem {
     if (refs) refs.weapon.rotation.y += 0.22;
   }
 
-  private initializeWallWeapons(): void {
-    this.wallWeapons = WallDefenseSystem.positions(
-      this.world.size,
-      (x, y) => this.world.cellAt(x, y),
-    );
-    this.wallWeaponTimers.clear();
-    for (const weapon of this.wallWeapons) {
-      this.wallWeaponTimers.set(this.gridKey(weapon.x, weapon.y), 0.25);
-    }
+  private isWallOperational(x: number, y: number): boolean {
+    const wall = this.wallStates.get(this.gridKey(x, y));
+    if (!wall || wall.stage === 'breached') return false;
+    return wall.health / Math.max(1, wall.maxHealth) > 0.22;
   }
 
-  private updateWallWeapons(delta: number): void {
-    if (this.wallWeapons.length === 0) return;
+  private getWallWeaponTargets(): WallWeaponTarget[] {
+    return Array.from(this.units.values()).map((runtime) => ({
+      id: runtime.data.id,
+      faction: runtime.data.faction,
+      position: runtime.position.clone(),
+      kind: 'ground',
+      alive: runtime.data.state !== 'dead',
+    }));
+  }
 
-    for (const weapon of this.wallWeapons) {
-      const key = this.gridKey(weapon.x, weapon.y);
-      const nextTimer = Math.max(0, (this.wallWeaponTimers.get(key) ?? 0) - delta);
-      this.wallWeaponTimers.set(key, nextTimer);
+  private applyWallWeaponDamage(targetId: string, damage: number): void {
+    const target = this.units.get(targetId);
+    if (!target || target.data.state === 'dead' || target.data.faction === 'defender') return;
+    target.data.health -= Math.max(0, damage);
+    if (target.data.health <= 0) this.killUnit(target);
+  }
 
-      const damage = this.world.buildingDamageAt?.(weapon.x, weapon.y) ?? 0;
-      if (damage >= 0.96) continue;
-
-      const base = this.world.gridToWorld(weapon.x, weapon.y);
-      const topY =
-        this.world.elevationAt(weapon.x, weapon.y) +
-        this.world.fortificationTopAt(weapon.x, weapon.y, this.world.cellAt(weapon.x, weapon.y)!);
-      const origin = new THREE.Vector3(base.x, topY + 0.3, base.z);
-
-      let target: UnitRuntime | undefined;
-      let bestDistance = Number.POSITIVE_INFINITY;
-      for (const candidate of this.units.values()) {
-        if (candidate.data.faction !== 'attacker' || candidate.data.state === 'dead') continue;
-        const distance = Math.hypot(
-          candidate.position.x - origin.x,
-          candidate.position.z - origin.z,
-        );
-        if (distance > weapon.range * this.world.tileSize) continue;
-        if (distance < bestDistance) {
-          bestDistance = distance;
-          target = candidate;
-        }
-      }
-
-      const visual = this.world.wallWeaponVisuals?.().find((object) => {
-        const data = object.userData.wallWeapon as { gx?: number; gy?: number } | undefined;
-        return data?.gx === weapon.x && data?.gy === weapon.y;
-      });
-      if (visual && target) {
-        visual.rotation.y = Math.atan2(
-          target.position.x - visual.position.x,
-          target.position.z - visual.position.z,
-        );
-      }
-
-      if (!target || nextTimer > 0) continue;
-
-      target.data.health -= 18;
-      this.wallWeaponTimers.set(key, 0.95);
-
-      const flash = new THREE.Mesh(
-        new THREE.SphereGeometry(0.09, 6, 5),
-        this.objectiveMaterial,
-      );
-      const flashPosition = target.position.clone();
-      flash.position.lerpVectors(origin, flashPosition, 0.18);
-      this.layer.add(flash);
-      window.setTimeout(() => this.layer.remove(flash), 55);
-
-      if (target.data.health <= 0) this.killUnit(target);
+  private applyWallWeaponAreaDamage(origin: THREE.Vector3, radius: number, damage: number): void {
+    for (const target of this.units.values()) {
+      if (target.data.state === 'dead' || target.data.faction === 'defender') continue;
+      const distance = target.position.distanceTo(origin);
+      if (distance > radius) continue;
+      const falloff = 1 - distance / Math.max(radius, 0.001);
+      this.applyWallWeaponDamage(target.data.id, damage * (0.35 + falloff * 0.65));
     }
   }
 
