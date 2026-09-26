@@ -156,6 +156,14 @@ export class BattleObjectiveSystem {
       .filter((entry): entry is RuntimeEntry => Boolean(entry));
   }
 
+  getObjectiveState(): BattleObjectiveSnapshot {
+    return this.getState();
+  }
+
+  activateDynamicObjectiveDefinition(definition: BattleObjectiveDefinition, battleTime?: number): void {
+    this.activateDynamicObjective(definition, battleTime);
+  }
+
   getState(): BattleObjectiveSnapshot {
     return {
       definitions: this.getEntries().map((entry) => entry.definition),
