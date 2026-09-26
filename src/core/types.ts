@@ -1,6 +1,7 @@
 export type WallKind = 'wall1' | 'wall2' | 'wall3';
 export type RoadKind = 'road' | 'dirtRoad' | 'stoneRoad';
 export type HarborKind = 'smallDock' | 'woodenPier' | 'harbor' | 'fishingDock';
+export type MarketBuildingKind = 'marketStall' | 'smallMarket' | 'marketHall';
 export type ShipKind = 'fishingBoat' | 'tradingBoat' | 'transportShip';
 export type WallThickness = 'thin' | 'medium' | 'thick';
 export type WallDirection = 'N' | 'NE' | 'E' | 'SE' | 'S' | 'SW' | 'W' | 'NW';
@@ -51,6 +52,7 @@ export type TileKind =
   | 'villa'
   | 'farm'
   | 'armyCamp'
+  | MarketBuildingKind
   | 'mine'
   | 'mountain'
   | 'tree'
