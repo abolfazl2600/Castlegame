@@ -7647,6 +7647,17 @@ export class ThreeGame {
     get<HTMLButtonElement>('battle-start').onclick = () => this.startBattleFromUI();
     get<HTMLButtonElement>('battle-stop').onclick = () => this.stopBattleFromUI();
     get<HTMLButtonElement>('battle-reset').onclick = () => this.resetBattleFromUI();
+
+    get<HTMLButtonElement>('battle-speed-down').onclick = () => {
+      this.battleSystem.decreaseBattleSpeed();
+    };
+    get<HTMLButtonElement>('battle-speed-up').onclick = () => {
+      this.battleSystem.increaseBattleSpeed();
+    };
+    get<HTMLButtonElement>('battle-speed-reset').onclick = () => {
+      this.battleSystem.resetBattleSpeed();
+    };
+
     this.syncBattleSetupUI();
     this.updateBattleUI(this.battleSystem.status());
 
@@ -9329,6 +9340,10 @@ export class ThreeGame {
     const result = document.getElementById('battle-result');
     const startButton = document.getElementById('battle-start') as HTMLButtonElement | null;
     const stopButton = document.getElementById('battle-stop') as HTMLButtonElement | null;
+    const battleSpeedLabel = document.getElementById('battle-speed-value');
+    const battleSpeedDown = document.getElementById('battle-speed-down') as HTMLButtonElement | null;
+    const battleSpeedUp = document.getElementById('battle-speed-up') as HTMLButtonElement | null;
+    const battleSpeedReset = document.getElementById('battle-speed-reset') as HTMLButtonElement | null;
 
     if (mode) {
       mode.textContent =
@@ -9364,6 +9379,12 @@ export class ThreeGame {
     if (stopButton) {
       stopButton.disabled = status.mode !== 'running';
     }
+
+    if (battleSpeedLabel) battleSpeedLabel.textContent = `${status.battleSpeed}×`;
+    const speedControlsEnabled = status.mode === 'running' || status.mode === 'paused';
+    if (battleSpeedDown) battleSpeedDown.disabled = !speedControlsEnabled;
+    if (battleSpeedUp) battleSpeedUp.disabled = !speedControlsEnabled;
+    if (battleSpeedReset) battleSpeedReset.disabled = !speedControlsEnabled || status.battleSpeed === 1;
 
     if (panel && status.mode !== 'idle') panel.removeAttribute('hidden');
 
