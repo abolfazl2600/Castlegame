@@ -85,7 +85,7 @@ export class GameSession {
     };
   }
 
-  async initialize(): Promise<GameSessionResult> {
+  initialize(): Promise<GameSessionResult> {
     const context = this.context();
     if (!context || !this.lifecycle) return { ok: false, reason: 'no-mode' };
     if (this.status !== 'idle' && this.status !== 'ended') {
@@ -94,7 +94,7 @@ export class GameSession {
 
     this.status = 'initializing';
     try {
-      await this.lifecycle.initialize(context);
+      this.lifecycle.initialize(context);
       this.status = 'idle';
       return { ok: true };
     } catch {
@@ -103,13 +103,13 @@ export class GameSession {
     }
   }
 
-  async start(): Promise<GameSessionResult> {
+  start(): Promise<GameSessionResult> {
     const context = this.context();
     if (!context || !this.lifecycle) return { ok: false, reason: 'no-mode' };
     if (this.status !== 'idle') return { ok: false, reason: 'invalid-state' };
 
     try {
-      await this.lifecycle.start(context);
+      this.lifecycle.start(context);
       this.status = 'running';
       return { ok: true };
     } catch {
@@ -118,13 +118,13 @@ export class GameSession {
     }
   }
 
-  async pause(): Promise<GameSessionResult> {
+  pause(): Promise<GameSessionResult> {
     const context = this.context();
     if (!context || !this.lifecycle) return { ok: false, reason: 'no-mode' };
     if (this.status !== 'running') return { ok: false, reason: 'invalid-state' };
 
     try {
-      await this.lifecycle.pause(context);
+      this.lifecycle.pause(context);
       this.status = 'paused';
       return { ok: true };
     } catch {
@@ -132,13 +132,13 @@ export class GameSession {
     }
   }
 
-  async resume(): Promise<GameSessionResult> {
+  resume(): Promise<GameSessionResult> {
     const context = this.context();
     if (!context || !this.lifecycle) return { ok: false, reason: 'no-mode' };
     if (this.status !== 'paused') return { ok: false, reason: 'invalid-state' };
 
     try {
-      await this.lifecycle.resume(context);
+      this.lifecycle.resume(context);
       this.status = 'running';
       return { ok: true };
     } catch {
@@ -146,7 +146,7 @@ export class GameSession {
     }
   }
 
-  async restart(): Promise<GameSessionResult> {
+  restart(): Promise<GameSessionResult> {
     const context = this.context();
     if (!context || !this.lifecycle) return { ok: false, reason: 'no-mode' };
     if (this.status !== 'running' && this.status !== 'paused') {
@@ -154,7 +154,7 @@ export class GameSession {
     }
 
     try {
-      await this.lifecycle.restart(context);
+      this.lifecycle.restart(context);
       this.status = 'running';
       return { ok: true };
     } catch {
@@ -163,7 +163,7 @@ export class GameSession {
     }
   }
 
-  async end(): Promise<GameSessionResult> {
+  end(): Promise<GameSessionResult> {
     const context = this.context();
     if (!context || !this.lifecycle) return { ok: false, reason: 'no-mode' };
     if (this.status !== 'running' && this.status !== 'paused') {
@@ -171,7 +171,7 @@ export class GameSession {
     }
 
     try {
-      await this.lifecycle.end(context);
+      this.lifecycle.end(context);
       this.status = 'ended';
       return { ok: true };
     } catch {
@@ -180,12 +180,12 @@ export class GameSession {
     }
   }
 
-  async cleanup(): Promise<GameSessionResult> {
+  cleanup(): Promise<GameSessionResult> {
     const context = this.context();
     if (!context || !this.lifecycle) return { ok: false, reason: 'no-mode' };
 
     try {
-      await this.lifecycle.cleanup(context);
+      this.lifecycle.cleanup(context);
       this.status = 'ended';
       return { ok: true };
     } catch {
