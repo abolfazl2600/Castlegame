@@ -5,7 +5,6 @@ import { SaveSystem } from './core/SaveSystem';
 import type { GameState } from './state/GameState';
 import { SAVE_KEY, SAVE_VERSION, TILE_SIZE, WORLD_COLS } from './core/constants';
 import { WallSystem } from './building/WallSystem';
-import { WallDefenseSystem } from './building/WallDefenseSystem';
 import { KeepRenderer } from './rendering/KeepRenderer';
 import { MedievalMaterials } from './rendering/MedievalMaterials';
 import { BattleSystem, getUnitCombatStats } from './battle/BattleSystem';
@@ -1274,7 +1273,7 @@ export class ThreeGame {
       this.buildLayer.add(group);
     }
 
-    for (const weapon of WallDefenseSystem.positions(
+    for (const weapon of BattleSystem.wallWeaponPositions(
       SIZE,
       (x, y) => this.services.state.getCell(x, y),
     )) {
