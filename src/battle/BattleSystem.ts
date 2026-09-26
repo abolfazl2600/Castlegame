@@ -134,6 +134,11 @@ interface UnitVisualRefs {
   shield?: THREE.Object3D;
 }
 
+export interface BattleStartOptions {
+  readonly attackerSpawnInterval?: number;
+  readonly attackerSpawnBatchSize?: number;
+}
+
 const UNIT_STATS: Record<CoreUnitType, BattleUnitStats> = {
   swordsman: {
     maxHealth: 110,
@@ -249,6 +254,12 @@ export class BattleSystem {
   private ladderCounter = 0;
   private wallWeapons: WallWeaponPosition[] = [];
   private wallWeaponTimers = new Map<string, number>();
+  private pendingAttackerSpawns: Array<{ unitType: CoreUnitType; index: number }> = [];
+  private attackerSpawnCells: NavPoint[] = [];
+  private attackerSpawnCursor = 0;
+  private attackerSpawnInterval = 0;
+  private attackerSpawnTimer = 0;
+  private attackerSpawnBatchSize = 1;
 
   constructor(
     private readonly layer: THREE.Group,
@@ -282,7 +293,7 @@ export class BattleSystem {
     return this.mode === 'running' || this.mode === 'paused';
   }
 
-  start(setup: BattleSetup): void {
+  start(setup: BattleSetup, options: BattleStartOptions = {}): void {
     this.reset(false);
     this.navigation.invalidate();
     this.clearSiegeState();
@@ -320,7 +331,9 @@ export class BattleSystem {
     );
     this.createObjectiveMarker();
 
-    this.spawnAttackers(normalized);
+    this.attackerSpawnInterval = Math.max(0, Number.isFinite(options.attackerSpawnInterval ?? 0) ? options.attackerSpawnInterval ?? 0 : 0);
+    this.attackerSpawnBatchSize = Math.max(1, Math.floor(options.attackerSpawnBatchSize ?? 1));
+    this.spawnAttackers(normalized, this.attackerSpawnInterval > 0);
     this.spawnDefenders(normalized);
     this.refreshSiegePlan(true);
     this.emitStatus();
@@ -365,6 +378,12 @@ export class BattleSystem {
     this.attackerStartCount = 0;
     this.defenderStartCount = 0;
     this.finalResult = undefined;
+    this.pendingAttackerSpawns = [];
+    this.attackerSpawnCells = [];
+    this.attackerSpawnCursor = 0;
+    this.attackerSpawnInterval = 0;
+    this.attackerSpawnTimer = 0;
+    this.attackerSpawnBatchSize = 1;
 
     if (emit) this.emitStatus();
   }
@@ -379,6 +398,7 @@ export class BattleSystem {
     this.battleSeconds += delta;
     this.globalDecisionTimer -= delta;
     this.statusTimer -= delta;
+    this.updatePendingAttackerSpawns(delta);
     this.siegeDecisionTimer -= delta;
 
     if (this.globalDecisionTimer <= 0) {
@@ -454,40 +474,67 @@ export class BattleSystem {
     };
   }
 
-  private spawnAttackers(setup: BattleSetup): void {
+  private spawnAttackers(setup: BattleSetup, staged: boolean): void {
     const total =
       setup.attackerSwordsmen +
       setup.attackerArchers +
       setup.attackerSpearmen +
       setup.attackerCrossbowmen +
       setup.attackerModernSoldiers;
-    const spawnCells = this.navigation.attackerSpawnCells(
+    this.attackerSpawnCells = this.navigation.attackerSpawnCells(
       this.objectiveGrid,
       Math.max(1, total),
     );
-    let cursor = 0;
+    this.attackerSpawnCursor = 0;
 
-    const spawnType = (unitType: CoreUnitType, count: number, indexOffset: number): void => {
+    const pending: Array<{ unitType: CoreUnitType; index: number }> = [];
+    const queueType = (unitType: CoreUnitType, count: number, indexOffset: number): void => {
       for (let i = 0; i < count; i += 1) {
-        const cell =
-          spawnCells[cursor % spawnCells.length] ??
-          { x: 1, y: this.world.size - 2 };
-        this.spawnGroundUnit(
-          'attacker',
-          unitType,
-          cell,
-          cursor + indexOffset,
-          true,
-        );
-        cursor += 1;
+        pending.push({ unitType, index: i + indexOffset });
       }
     };
 
-    spawnType('swordsman', setup.attackerSwordsmen, 0);
-    spawnType('spearman', setup.attackerSpearmen, 5);
-    spawnType('archer', setup.attackerArchers, 11);
-    spawnType('crossbowman', setup.attackerCrossbowmen, 17);
-    spawnType('modernSoldier', setup.attackerModernSoldiers, 23);
+    queueType('swordsman', setup.attackerSwordsmen, 0);
+    queueType('spearman', setup.attackerSpearmen, 5);
+    queueType('archer', setup.attackerArchers, 11);
+    queueType('crossbowman', setup.attackerCrossbowmen, 17);
+    queueType('modernSoldier', setup.attackerModernSoldiers, 23);
+
+    if (!staged) {
+      this.pendingAttackerSpawns = [];
+      for (const entry of pending) this.spawnPendingAttacker(entry);
+      return;
+    }
+
+    this.pendingAttackerSpawns = pending;
+    this.attackerSpawnTimer = 0;
+    this.spawnPendingAttackerBatch();
+  }
+
+  private updatePendingAttackerSpawns(delta: number): void {
+    if (this.mode !== 'running' || this.pendingAttackerSpawns.length === 0) return;
+
+    this.attackerSpawnTimer -= delta;
+    if (this.attackerSpawnTimer > 0) return;
+
+    this.spawnPendingAttackerBatch();
+    this.attackerSpawnTimer = this.attackerSpawnInterval;
+  }
+
+  private spawnPendingAttackerBatch(): void {
+    const batch = Math.min(this.attackerSpawnBatchSize, this.pendingAttackerSpawns.length);
+    for (let i = 0; i < batch; i += 1) {
+      const entry = this.pendingAttackerSpawns.shift();
+      if (entry) this.spawnPendingAttacker(entry);
+    }
+  }
+
+  private spawnPendingAttacker(entry: { unitType: CoreUnitType; index: number }): void {
+    const cell =
+      this.attackerSpawnCells[this.attackerSpawnCursor % Math.max(1, this.attackerSpawnCells.length)] ??
+      { x: 1, y: this.world.size - 2 };
+    this.attackerSpawnCursor += 1;
+    this.spawnGroundUnit('attacker', entry.unitType, cell, entry.index, true);
   }
 
   private spawnDefenders(setup: BattleSetup): void {
@@ -3374,7 +3421,11 @@ export class BattleSystem {
 
     const attackersAlive = this.countAlive('attacker');
 
-    if (attackersAlive === 0 && this.attackerStartCount > 0) {
+    if (
+      attackersAlive === 0 &&
+      this.attackerStartCount > 0 &&
+      this.pendingAttackerSpawns.length === 0
+    ) {
       this.finishBattle('defender');
       return;
     }
