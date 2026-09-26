@@ -278,7 +278,7 @@ export class ThreeGame {
   private readonly oceanWaterMaterial: THREE.MeshStandardMaterial;
   private readonly shallowWaterMaterial: THREE.MeshStandardMaterial;
 
-  private selectedTool: ToolKind | null = null;
+  private selectedTool: ToolKind | null = 'wall1';
   private selectedCell: GridPoint | null = null;
   private viewMode: ViewMode = 'world3d';
   private toolbarOpen = window.innerWidth > 760;
@@ -446,6 +446,8 @@ export class ThreeGame {
     this.createWorkers();
     this.redraw();
     this.bindUI();
+    // Keep the construction tool initialized during world creation/redraw, then enter the neutral mode only after UI binding.
+    this.selectTool(null);
     this.setToolbarOpen(this.toolbarOpen);
     this.setViewMode(hadSave ? 'world3d' : 'plan2d');
     if (!hadSave) {
