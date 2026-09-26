@@ -14,6 +14,7 @@ import type { BattleSetup, BattleStatus } from './battle/types';
 import { PopulationSystem } from './systems/PopulationSystem';
 import { MaritimeSystem } from './systems/MaritimeSystem';
 import { WindmillSystem } from './systems/WindmillSystem';
+import { OrchardSystem } from './systems/OrchardSystem';
 import type {
   AccessKind,
   GridCell,
@@ -68,6 +69,7 @@ const BUILDING_KINDS: TileKind[] = [
   'manor',
   'villa',
   'farm',
+  'appleOrchard',
   'armyCamp',
   'marketStall',
   'smallMarket',
@@ -166,6 +168,7 @@ const TOOL_GROUPS: Array<{ label: string; tools: ToolDefinition[] }> = [
       { id: 'manor', icon: '🏯', label: 'Manor Court', detail: 'Main hall + service houses', shortcut: '9' },
       { id: 'villa', icon: '🏘️', label: 'Villa Quarter', detail: '3 detailed homes + courtyard', shortcut: '0' },
       { id: 'farm', icon: '🌾', label: 'Farm', detail: 'Cultivated crop field', shortcut: 'F' },
+      { id: 'appleOrchard', icon: '🍎', label: 'Apple Orchard', detail: 'Procedural apple trees · orchard plot', shortcut: 'Y' },
       { id: 'windmill', icon: '⚙️', label: 'Medieval Windmill', detail: 'Four-sail working mill · continuous rotation', shortcut: 'W' },
     ],
   },
@@ -225,6 +228,7 @@ export class ThreeGame {
   private readonly castleAccessSystem = new CastleAccessSystem();
   private readonly populationSystem = new PopulationSystem();
   private readonly windmillSystem = new WindmillSystem();
+  private readonly orchardSystem = new OrchardSystem();
   private readonly maritimeSystem = new MaritimeSystem({
     size: SIZE,
     terrainAt: (x, y) => this.terrainAt(x, y),
@@ -1200,6 +1204,7 @@ export class ThreeGame {
       manor: 0xc97888,
       villa: 0x70b4ac,
       farm: 0xc2ad54,
+      appleOrchard: 0x9c6d3e,
       armyCamp: 0x8f6b4d,
       mine: 0x665f59,
       mountain: 0x71675f,
@@ -1288,7 +1293,7 @@ export class ThreeGame {
       const size =
         cell.kind === 'road' ? 2.0 :
         cell.kind === 'tree' || cell.kind === 'rock' ? 1.25 :
-        cell.kind === 'farm' || cell.kind === 'armyCamp' ? 3.5 :
+        cell.kind === 'farm' || cell.kind === 'appleOrchard' || cell.kind === 'armyCamp' ? 3.5 :
         cell.kind === 'moat' ? 3.65 :
         2.7;
 
@@ -2077,6 +2082,7 @@ export class ThreeGame {
     else if (cell.kind === 'tower') this.makeTower(group, cell.x, cell.y, cell);
     else if (cell.kind === 'stairTower') this.makeStairTower(group, cell.x, cell.y, cell);
     else if (cell.kind === 'farm') this.makeFarm(group);
+    else if (cell.kind === 'appleOrchard') this.orchardSystem.create(group, cell.level ?? 1, cell.x * 97 + cell.y * 53);
     else if (cell.kind === 'armyCamp') this.makeArmyCamp(group);
     else if (cell.kind === 'windmill') this.windmillSystem.create(group);
     else if (cell.kind === 'mine') this.makeMine(group);
@@ -6601,6 +6607,31 @@ export class ThreeGame {
       return;
     }
 
+    if (this.selectedTool === 'appleOrchard') {
+      if (current === 'appleOrchard') {
+        const nextSize = event.shiftKey
+          ? Math.max(1, (cell?.level ?? 1) - 1)
+          : Math.min(3, (cell?.level ?? 1) + 1);
+        if (nextSize === (cell?.level ?? 1)) {
+          this.setStatus(event.shiftKey ? 'Apple Orchard is already at minimum size' : 'Apple Orchard is already at maximum size');
+          return;
+        }
+        this.recordHistory();
+        this.state.setCell(gx, gy, 'appleOrchard', nextSize);
+        this.finishBuild();
+        this.setStatus(`Apple Orchard size: ${nextSize}`);
+        return;
+      }
+      if (!current && terrain === 'plains') {
+        this.recordHistory();
+        const size = 1 + ((gx * 7 + gy * 11) % 3);
+        this.state.setCell(gx, gy, 'appleOrchard', size);
+        this.finishBuild();
+        this.setStatus(`Apple Orchard placed · size ${size}`);
+      }
+      return;
+    }
+
     if (this.selectedTool === 'tree') {
       if (!current && (terrain === 'plains' || terrain === 'shore' || terrain === 'forest')) {
         this.recordHistory();
@@ -6692,7 +6723,7 @@ export class ThreeGame {
     if (terrain === 'water' || terrain === 'river') return false;
     if (terrain === 'mountain') return tool === 'mine';
     if (terrain === 'forest') return tool === 'tree';
-    if (tool === 'farm') return terrain === 'plains';
+    if (tool === 'farm' || tool === 'appleOrchard') return terrain === 'plains';
     if (tool === 'windmill') return terrain === 'plains' || terrain === 'shore';
     return terrain === 'plains' || terrain === 'shore';
   }
@@ -6715,7 +6746,7 @@ export class ThreeGame {
       cell.kind === 'manor' ||
       cell.kind === 'villa',
     );
-    const farms = cells.filter((cell) => cell.kind === 'farm');
+    const farms = cells.filter((cell) => cell.kind === 'farm' || cell.kind === 'appleOrchard');
 
     const maxVisibleAgents = 40;
 
@@ -7618,6 +7649,7 @@ export class ThreeGame {
         '0': 'villa',
         f: 'farm',
         w: 'windmill',
+        y: 'appleOrchard',
         a: 'armyCamp',
         t: 'tree',
         n: 'mountain',
