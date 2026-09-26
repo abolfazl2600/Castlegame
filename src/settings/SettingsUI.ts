@@ -50,6 +50,28 @@ export class SettingsUI {
     panel.id = 'settings-modal';
     panel.className = 'settings-modal';
     panel.hidden = true;
+
+    // Keep the settings overlay independent from the page/game layout.
+    // This is intentionally enforced on the element so stale/partial CSS bundles
+    // cannot place the modal in normal document flow below the game.
+    Object.assign(panel.style, {
+      position: 'fixed',
+      inset: '0',
+      width: '100vw',
+      height: '100vh',
+      minWidth: '0',
+      minHeight: '0',
+      margin: '0',
+      padding: '16px',
+      boxSizing: 'border-box',
+      display: 'grid',
+      placeItems: 'center',
+      zIndex: '9999',
+      overflow: 'hidden',
+      visibility: 'visible',
+      opacity: '1',
+      transform: 'none',
+    });
     panel.innerHTML = `
       <div class="settings-card" role="dialog" aria-modal="true" aria-labelledby="settings-title">
         <header class="settings-header">
