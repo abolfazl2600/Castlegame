@@ -7,6 +7,7 @@ import { WallSystem } from './building/WallSystem';
 import { WallCornerSystem } from './building/WallCornerSystem';
 import { CastleAccessSystem } from './building/CastleAccessSystem';
 import { GateSystem } from './building/GateSystem';
+import { DestructibleBuildingSystem } from './building/DestructibleBuildingSystem';
 import { CastleDetailGenerator } from './building/CastleDetailGenerator';
 import { KeepRenderer } from './rendering/KeepRenderer';
 import { MedievalMaterials } from './rendering/MedievalMaterials';
@@ -227,6 +228,7 @@ export class ThreeGame {
   private readonly wallCornerSystem = new WallCornerSystem();
   private readonly castleAccessSystem = new CastleAccessSystem();
   private readonly gateSystem = new GateSystem();
+  private readonly destructibleBuildingSystem = new DestructibleBuildingSystem();
   private readonly populationSystem = new PopulationSystem();
   private readonly windmillSystem = new WindmillSystem();
   private readonly orchardSystem = new OrchardSystem();
@@ -415,6 +417,8 @@ export class ThreeGame {
         keeps: () => this.keepSystem.entries(),
         towerBridges: () => Array.from(this.towerBridges.values()).map((bridge) => ({ ...bridge })),
         setWallBattleVisibility: (x, y, visible) => this.setBattleWallVisibility(x, y, visible),
+        buildingDamageAt: (x, y) => this.state.getCell(x, y)?.damage ?? 0,
+        setBuildingDamage: (x, y, damageRatio) => this.setBuildingDamage(x, y, damageRatio),
         gatePassable: (x, y) => this.gateSystem.isGatePassable(x, y),
       },
       (status) => this.updateBattleUI(status),
@@ -2180,6 +2184,7 @@ export class ThreeGame {
       group.rotation.y = (cell.rotation ?? 0) * Math.PI / 2;
     }
 
+    this.destructibleBuildingSystem.renderDamage(group, cell);
     return group;
   }
 
@@ -2203,6 +2208,15 @@ export class ThreeGame {
 
   private kindAt(x: number, y: number): TileKind | undefined {
     return this.state.getCell(x, y)?.kind;
+  }
+
+  private setBuildingDamage(x: number, y: number, damageRatio: number): void {
+    const cell = this.state.getCell(x, y);
+    if (!cell || !this.destructibleBuildingSystem.isDestructible(cell.kind)) return;
+
+    const nextDamage = this.destructibleBuildingSystem.setDamageRatio(cell, damageRatio);
+    if (Math.abs((cell.damage ?? 0) - nextDamage) < 0.0001) return;
+    this.state.updateCell(x, y, { damage: nextDamage });
   }
 
   private isWallFamily(kind: TileKind | undefined): boolean {
@@ -7272,6 +7286,7 @@ export class ThreeGame {
           wallLinks?: WallDirection[];
           shipKind?: ShipKind;
           accessHeight?: number;
+          damage?: number;
         }>;
         keeps?: KeepState[];
         stoneStyle?: StoneStyle;
@@ -7304,6 +7319,7 @@ export class ThreeGame {
           wallLinks: cell.wallLinks,
           shipKind: cell.shipKind,
           accessHeight: cell.accessHeight,
+          damage: THREE.MathUtils.clamp(cell.damage ?? 0, 0, 1),
         });
       }
 
@@ -9304,6 +9320,10 @@ export class ThreeGame {
   }
 
   private updateBattleUI(status: BattleStatus): void {
+    if (status.mode === 'finished') {
+      this.redraw();
+      this.save(false);
+    }
     const panel = document.getElementById('battle-panel');
     const mode = document.getElementById('battle-mode-status');
     const attackerAlive = document.getElementById('battle-attacker-alive');
