@@ -2111,25 +2111,3 @@ html[data-high-contrast] .settings-card { border-color:rgba(255,255,255,.42); }
   color: #8eabb6;
   font-size: 9px;
 }
-
-/* Final UI/UX consolidation */
-#scene-badge,.scene-badge{display:none!important}
-.settings-header-note{margin:4px 0 0;color:rgba(232,246,251,.48);font-size:10px}
-.settings-header button{min-width:44px;min-height:44px}
-.settings-modal{padding:max(10px,env(safe-area-inset-top)) max(10px,env(safe-area-inset-right)) max(10px,env(safe-area-inset-bottom)) max(10px,env(safe-area-inset-left))}
-.settings-card{width:min(640px,100%);max-height:min(820px,calc(100dvh - 20px));border-radius:20px}
-.settings-header{position:relative;padding:18px 20px}
-.settings-scroll{scroll-behavior:smooth;overscroll-behavior:contain}
-.settings-scroll section{scroll-margin-top:10px}
-.settings-scroll section h3{font-size:11px}
-.settings-scroll label{min-height:42px}
-.settings-scroll input[type=checkbox]{width:22px;height:22px}
-.settings-scroll select{min-height:42px}
-.settings-scroll input[type=range]{min-height:34px;accent-color:#c49a5a}
-.settings-scroll button[data-action]{min-height:44px}
-@media(max-width:760px){
-  .settings-modal{padding:0}
-  .settings-card{width:100%;height:100%;max-height:none;border-radius:0;border-left:0;border-right:0}
-  .settings-header{padding:calc(12px + env(safe-area-inset-top)) 14px 12px}
-  .settings-scroll{padding:10px 12px calc(18px + env(safe-area-inset-bottom))}
-}

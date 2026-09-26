@@ -42,14 +42,10 @@ export class SettingsUI {
     panel.innerHTML = `
       <div class="settings-card" role="dialog" aria-modal="true" aria-labelledby="settings-title">
         <header class="settings-header">
-          <div>
-            <span class="settings-eyebrow">CASTLEGAME</span>
-            <h2 id="settings-title">Settings</h2>
-            <p class="settings-header-note">Configure your game experience</p>
-          </div>
-          <button id="settings-close" type="button" aria-label="Back to previous screen">×</button>
+          <div><span class="settings-eyebrow">SYSTEM</span><h2 id="settings-title">Game Settings</h2></div>
+          <button id="settings-close" type="button" aria-label="Close settings">×</button>
         </header>
-        <div class="settings-scroll" tabindex="0">
+        <div class="settings-scroll">
           <section>
             <h3>General</h3>
             <label>Language<select data-setting="language"><option value="system">System language</option><option value="en">English</option></select></label>

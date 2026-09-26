@@ -63,7 +63,6 @@ export class GameFlowController {
     root.innerHTML = `
       <div class="core-flow-backdrop"></div><button class="core-flow-pause-button" data-flow-action="pause" type="button" aria-label="Pause battle">Ⅱ</button>
       <main class="core-flow-card" role="dialog" aria-modal="true" aria-labelledby="core-flow-title">
-        <div class="core-flow-brand-mark" aria-hidden="true"><span>♜</span></div>
         <div class="core-flow-eyebrow">CASTLEGAME</div>
         <h1 id="core-flow-title">Castle Command</h1>
         <p class="core-flow-subtitle" data-flow-subtitle>Defend the castle. Complete the objective.</p>
