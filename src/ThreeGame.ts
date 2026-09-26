@@ -402,6 +402,7 @@ export class ThreeGame {
 
     this.scene.background = new THREE.Color(0x718c91);
     this.scene.fog = new THREE.Fog(0x718c91, 112, 235);
+    applySceneGraphicsSettings(this.scene, initialSettings);
     this.camera.position.set(68, 80, 76);
 
     this.controls = new OrbitControls(this.camera, this.renderer.domElement);
