@@ -6,7 +6,6 @@ import { KeepSystem } from './building/KeepSystem';
 import { WallSystem } from './building/WallSystem';
 import { WallCornerSystem } from './building/WallCornerSystem';
 import { CastleAccessSystem } from './building/CastleAccessSystem';
-import { WallDefenseSystem } from './building/WallDefenseSystem';
 import { GateSystem } from './building/GateSystem';
 import { DestructibleBuildingSystem } from './building/DestructibleBuildingSystem';
 import { CastleDetailGenerator } from './building/CastleDetailGenerator';
@@ -86,6 +85,7 @@ const BUILDING_KINDS: TileKind[] = [
 ];
 
 type ViewMode = 'plan2d' | 'world3d';
+type GameMode = 'medieval' | 'modern';
 
 interface GridPoint {
   x: number;
@@ -280,6 +280,7 @@ export class ThreeGame {
   private selectedTool: ToolKind | null = 'wall1';
   private selectedCell: GridPoint | null = null;
   private viewMode: ViewMode = 'world3d';
+  private gameMode: GameMode = localStorage.getItem('castle-game-mode') === 'modern' ? 'modern' : 'medieval';
   private toolbarOpen = window.innerWidth > 760;
   private readonly saved3DCameraPosition = new THREE.Vector3(68, 80, 76);
   private readonly saved3DTarget = new THREE.Vector3(0, 0, 0);
@@ -425,6 +426,7 @@ export class ThreeGame {
         keeps: () => this.keepSystem.entries(),
         towerBridges: () => Array.from(this.towerBridges.values()).map((bridge) => ({ ...bridge })),
         setWallBattleVisibility: (x, y, visible) => this.setBattleWallVisibility(x, y, visible),
+        isModernMode: () => this.gameMode === 'modern',
         buildingDamageAt: (x, y) => this.state.getCell(x, y)?.damage ?? 0,
         setBuildingDamage: (x, y, damageRatio) => this.setBuildingDamage(x, y, damageRatio),
         gatePassable: (x, y) => this.gateSystem.isGatePassable(x, y),
@@ -451,6 +453,7 @@ export class ThreeGame {
     this.bindUI();
     // Keep the construction tool initialized during world creation/redraw, then enter the neutral mode only after UI binding.
     this.selectTool(null);
+    this.setupGameModeControl();
     this.setToolbarOpen(this.toolbarOpen);
     this.setViewMode(hadSave ? 'world3d' : 'plan2d');
     if (!hadSave) {
@@ -462,6 +465,57 @@ export class ThreeGame {
 
     window.addEventListener('resize', () => this.resize());
     requestAnimationFrame((time) => this.animate(time));
+  }
+
+  private setupGameModeControl(): void {
+    const existing = document.getElementById('castle-game-mode-control');
+    if (existing) return;
+
+    const control = document.createElement('div');
+    control.id = 'castle-game-mode-control';
+    control.style.position = 'absolute';
+    control.style.top = '12px';
+    control.style.right = '12px';
+    control.style.zIndex = '60';
+    control.style.padding = '8px 10px';
+    control.style.borderRadius = '8px';
+    control.style.background = 'rgba(12,18,22,0.88)';
+    control.style.border = '1px solid rgba(120,220,240,0.28)';
+    control.style.color = '#d9f7ff';
+    control.style.font = '12px/1.2 system-ui, sans-serif';
+    control.style.backdropFilter = 'blur(8px)';
+
+    const label = document.createElement('label');
+    label.textContent = 'Architecture ';
+    label.style.marginRight = '6px';
+
+    const select = document.createElement('select');
+    select.id = 'castle-game-mode';
+    select.style.background = '#172126';
+    select.style.color = '#e8fbff';
+    select.style.border = '1px solid #3f6972';
+    select.style.borderRadius = '5px';
+    select.style.padding = '3px 6px';
+
+    for (const [value, text] of [['medieval', 'Medieval'], ['modern', 'Modern / Futuristic']] as const) {
+      const option = document.createElement('option');
+      option.value = value;
+      option.textContent = text;
+      select.appendChild(option);
+    }
+
+    select.value = this.gameMode;
+    select.addEventListener('change', () => {
+      const nextMode = select.value === 'modern' ? 'modern' : 'medieval';
+      if (nextMode === this.gameMode) return;
+      this.gameMode = nextMode;
+      localStorage.setItem('castle-game-mode', this.gameMode);
+      if (this.battleSystem.isActive()) this.battleSystem.reset();
+      this.setStatus(`Game mode: ${this.gameMode === 'modern' ? 'Modern / Futuristic' : 'Medieval'}`);
+    });
+
+    control.append(label, select);
+    this.root.appendChild(control);
   }
 
   private key(x: number, y: number): string {
@@ -936,16 +990,6 @@ export class ThreeGame {
       this.buildLayer.add(group);
     }
 
-    for (const weapon of WallDefenseSystem.positions(
-      SIZE,
-      (x, y) => this.state.getCell(x, y),
-    )) {
-      const cell = this.state.getCell(weapon.x, weapon.y);
-      if (!cell) continue;
-      const group = this.makeWallWeaponVisual(weapon.x, weapon.y, weapon.direction, cell);
-      this.buildLayer.add(group);
-    }
-
     for (const task of this.moatTasks.values()) {
       const pending = new THREE.Group();
       const position = this.gridToWorld(task.x, task.y);
@@ -989,65 +1033,6 @@ export class ThreeGame {
         Boolean(this.state.getCell(x, y)) ||
         Boolean(this.keepSystem.findAtCell(x, y)),
     });
-  }
-
-  private getWallWeaponVisuals(): THREE.Object3D[] {
-    const result: THREE.Object3D[] = [];
-    this.buildLayer.traverse((object) => {
-      if (object.userData.wallWeapon) result.push(object);
-    });
-    return result;
-  }
-
-  private makeWallWeaponVisual(
-    gx: number,
-    gy: number,
-    direction: WallDirection,
-    cell: GridCell,
-  ): THREE.Group {
-    const group = new THREE.Group();
-    const position = this.gridToWorld(gx, gy);
-    const topY = this.fortificationTopLocal(cell);
-    group.position.set(position.x, this.terrainElevation(gx, gy) + topY - 0.12, position.z);
-    group.rotation.y = WallSystem.worldAngle(direction);
-
-    const mount = new THREE.MeshStandardMaterial({
-      color: 0x30383c,
-      roughness: 0.72,
-      metalness: 0.42,
-    });
-    const barrel = new THREE.MeshStandardMaterial({
-      color: 0x171c1f,
-      roughness: 0.48,
-      metalness: 0.68,
-    });
-    const accent = new THREE.MeshStandardMaterial({
-      color: 0x56656a,
-      roughness: 0.58,
-      metalness: 0.5,
-    });
-
-    this.addBox(group, 0.72, 0.16, 0.72, mount, 0, 0.05, 0);
-    this.addBox(group, 0.18, 0.18, 0.72, accent, 0, 0.2, 0.02);
-
-    const barrelMesh = new THREE.Mesh(
-      new THREE.CylinderGeometry(0.065, 0.085, 1.05, 8),
-      barrel,
-    );
-    barrelMesh.rotation.x = Math.PI / 2;
-    barrelMesh.position.set(0, 0.27, 0.48);
-    barrelMesh.castShadow = true;
-    group.add(barrelMesh);
-
-    const sight = new THREE.Mesh(
-      new THREE.BoxGeometry(0.08, 0.08, 0.24),
-      accent,
-    );
-    sight.position.set(0, 0.39, 0.32);
-    group.add(sight);
-
-    group.userData.wallWeapon = { gx, gy, direction, range: 14 };
-    return group;
   }
 
   private setBattleWallVisibility(x: number, y: number, visible: boolean): void {
