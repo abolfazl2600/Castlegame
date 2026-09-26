@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import type { GridCell, KeepState, TerrainKind, TileKind, TowerBridgeState } from '../core/types';
 import { BattleNavigation, type NavPoint, type WallNavNode } from './BattleNavigation';
+import { WallDefenseSystem, type WallWeaponPosition } from '../building/WallDefenseSystem';
 import { FactionRelations } from './FactionRelations';
 import type {
   BattleResult,
@@ -12,7 +13,7 @@ import type {
   UnitType,
 } from './types';
 
-type CoreUnitType = 'swordsman' | 'archer' | 'spearman' | 'crossbowman';
+type CoreUnitType = 'swordsman' | 'archer' | 'spearman' | 'crossbowman' | 'modernSoldier';
 
 export interface BattleWorldContext {
   size: number;
@@ -29,6 +30,15 @@ export interface BattleWorldContext {
   buildingDamageAt?: (x: number, y: number) => number;
   setBuildingDamage?: (x: number, y: number, damageRatio: number) => void;
   gatePassable?: (x: number, y: number) => boolean;
+  generatedAccess?: () => Array<{
+    x: number;
+    y: number;
+    kind: TileKind;
+    rotation: number;
+    targetX: number;
+    targetY: number;
+  }>;
+  wallWeaponVisuals?: () => THREE.Object3D[];
 }
 
 interface UnitRuntime {
@@ -164,6 +174,14 @@ const UNIT_STATS: Record<CoreUnitType, BattleUnitStats> = {
     moveSpeed: 2.3,
     scanRange: 13.2,
   },
+  modernSoldier: {
+    maxHealth: 96,
+    damage: 22,
+    attackRange: 15.5,
+    attackCooldown: 0.72,
+    moveSpeed: 3.0,
+    scanRange: 17,
+  },
 };
 
 export class BattleSystem {
@@ -186,6 +204,10 @@ export class BattleSystem {
   private readonly crossbowBowGeometry = this.geometry(new THREE.BoxGeometry(0.08, 0.06, 0.62));
   private readonly quiverGeometry = this.geometry(new THREE.CylinderGeometry(0.08, 0.1, 0.48, 6));
   private readonly arrowGeometry = this.geometry(new THREE.CylinderGeometry(0.022, 0.022, 0.68, 5));
+  private readonly rifleGeometry = this.geometry(new THREE.BoxGeometry(0.08, 0.08, 0.9));
+  private readonly rifleStockGeometry = this.geometry(new THREE.BoxGeometry(0.13, 0.11, 0.32));
+  private readonly tacticalMaterial = this.material(new THREE.MeshStandardMaterial({ color: 0x334039, roughness: 0.9 }));
+  private readonly rifleMaterial = this.material(new THREE.MeshStandardMaterial({ color: 0x1d2322, roughness: 0.46, metalness: 0.52 }));
   private readonly skinMaterial = this.material(new THREE.MeshStandardMaterial({ color: 0xd8aa82, roughness: 0.94 }));
   private readonly metalMaterial = this.material(new THREE.MeshStandardMaterial({ color: 0x757b7d, roughness: 0.64, metalness: 0.34 }));
   private readonly swordMaterial = this.material(new THREE.MeshStandardMaterial({ color: 0xb7bec1, roughness: 0.48, metalness: 0.54 }));
@@ -232,6 +254,8 @@ export class BattleSystem {
   private siegePlan: SiegePlan | null = null;
   private siegeDecisionTimer = 0;
   private ladderCounter = 0;
+  private wallWeapons: WallWeaponPosition[] = [];
+  private wallWeaponTimers = new Map<string, number>();
 
   constructor(
     private readonly layer: THREE.Group,
@@ -249,6 +273,7 @@ export class BattleSystem {
       towerBridges: world.towerBridges,
       temporaryGroundPassable: (x, y) => this.breachedWalls.has(this.gridKey(x, y)),
       gatePassable: world.gatePassable,
+      generatedAccess: world.generatedAccess,
     });
   }
 
@@ -274,18 +299,21 @@ export class BattleSystem {
     this.finalResult = undefined;
     this.siegeDecisionTimer = 0;
     this.initializeWallStates();
+    this.initializeWallWeapons();
 
     const normalized = this.normalizeSetup(setup);
     this.attackerStartCount =
       normalized.attackerSwordsmen +
       normalized.attackerArchers +
       normalized.attackerSpearmen +
-      normalized.attackerCrossbowmen;
+      normalized.attackerCrossbowmen +
+      normalized.attackerModernSoldiers;
     this.defenderStartCount =
       normalized.defenderSwordsmen +
       normalized.defenderArchers +
       normalized.defenderSpearmen +
-      normalized.defenderCrossbowmen;
+      normalized.defenderCrossbowmen +
+      normalized.defenderModernSoldiers;
 
     this.objectiveGrid = this.navigation.castleObjective();
     this.capturePointGrid =
@@ -322,6 +350,8 @@ export class BattleSystem {
       this.layer.remove(runtime.view);
     }
     this.units.clear();
+    this.wallWeapons = [];
+    this.wallWeaponTimers.clear();
 
     for (const arrow of this.arrows) {
       this.layer.remove(arrow.view);
@@ -374,6 +404,7 @@ export class BattleSystem {
       this.updateUnit(runtime, delta, buckets);
     }
 
+    this.updateWallWeapons(delta);
     this.updateProjectiles(delta);
     this.updateCapture(delta);
     this.cleanupDead(delta);
@@ -421,10 +452,12 @@ export class BattleSystem {
       attackerArchers: clamp(setup.attackerArchers),
       attackerSpearmen: clamp(setup.attackerSpearmen),
       attackerCrossbowmen: clamp(setup.attackerCrossbowmen),
+      attackerModernSoldiers: clamp(setup.attackerModernSoldiers),
       defenderSwordsmen: clamp(setup.defenderSwordsmen),
       defenderArchers: clamp(setup.defenderArchers),
       defenderSpearmen: clamp(setup.defenderSpearmen),
       defenderCrossbowmen: clamp(setup.defenderCrossbowmen),
+      defenderModernSoldiers: clamp(setup.defenderModernSoldiers),
     };
   }
 
@@ -433,7 +466,8 @@ export class BattleSystem {
       setup.attackerSwordsmen +
       setup.attackerArchers +
       setup.attackerSpearmen +
-      setup.attackerCrossbowmen;
+      setup.attackerCrossbowmen +
+      setup.attackerModernSoldiers;
     const spawnCells = this.navigation.attackerSpawnCells(
       this.objectiveGrid,
       Math.max(1, total),
@@ -460,6 +494,7 @@ export class BattleSystem {
     spawnType('spearman', setup.attackerSpearmen, 5);
     spawnType('archer', setup.attackerArchers, 11);
     spawnType('crossbowman', setup.attackerCrossbowmen, 17);
+    spawnType('modernSoldier', setup.attackerModernSoldiers, 23);
   }
 
   private spawnDefenders(setup: BattleSetup): void {
@@ -467,6 +502,7 @@ export class BattleSystem {
     const usedWallNodes = new Set<string>();
 
     const rangedOrder: Array<{ type: CoreUnitType; count: number }> = [
+      { type: 'modernSoldier', count: setup.defenderModernSoldiers },
       { type: 'crossbowman', count: setup.defenderCrossbowmen },
       { type: 'archer', count: setup.defenderArchers },
     ];
@@ -563,6 +599,7 @@ export class BattleSystem {
     );
     const remainingArchers = remainingRanged.get('archer') ?? 0;
     const remainingCrossbowmen = remainingRanged.get('crossbowman') ?? 0;
+    const remainingModernSoldiers = remainingRanged.get('modernSoldier') ?? 0;
     const groundCount =
       remainingSwordsmen +
       remainingSpearmen +
@@ -597,6 +634,7 @@ export class BattleSystem {
     spawnGroundType('spearman', remainingSpearmen, 7);
     spawnGroundType('archer', remainingArchers, 13);
     spawnGroundType('crossbowman', remainingCrossbowmen, 19);
+    spawnGroundType('modernSoldier', remainingModernSoldiers, 25);
   }
 
   private findArmyCamp(): NavPoint | null {
@@ -802,6 +840,34 @@ export class BattleSystem {
       shield.scale.set(0.9, 0.9, 0.9);
       shield.position.set(-0.31, 0.76, 0.02);
       root.add(shield);
+    } else if (unitType === 'modernSoldier') {
+      const rifle = new THREE.Group();
+      const stock = new THREE.Mesh(this.rifleStockGeometry, this.tacticalMaterial);
+      stock.position.z = -0.25;
+      rifle.add(stock);
+      const barrel = new THREE.Mesh(this.rifleGeometry, this.rifleMaterial);
+      barrel.position.z = 0.28;
+      rifle.add(barrel);
+      rifle.position.set(0.28, 0.83, 0.05);
+      rifle.rotation.x = -0.18;
+      rifle.rotation.z = -0.12;
+      weapon = rifle;
+      root.add(weapon);
+
+      const plate = new THREE.Mesh(
+        new THREE.BoxGeometry(0.5, 0.48, 0.22),
+        this.tacticalMaterial,
+      );
+      plate.position.set(0, 0.78, -0.02);
+      root.add(plate);
+
+      helmet.scale.set(1.08, 0.92, 1.08);
+      const pouch = new THREE.Mesh(
+        new THREE.BoxGeometry(0.16, 0.16, 0.12),
+        this.rifleMaterial,
+      );
+      pouch.position.set(-0.28, 0.68, 0.05);
+      root.add(pouch);
     } else if (unitType === 'crossbowman') {
       const crossbow = new THREE.Group();
       const stock = new THREE.Mesh(this.crossbowStockGeometry, this.woodMaterial);
@@ -863,7 +929,7 @@ export class BattleSystem {
   }
 
   private isRangedUnit(unitType: UnitType): boolean {
-    return unitType === 'archer' || unitType === 'crossbowman';
+    return unitType === 'archer' || unitType === 'crossbowman' || unitType === 'modernSoldier';
   }
 
   private isMeleeUnit(unitType: UnitType): boolean {
@@ -3198,6 +3264,78 @@ export class BattleSystem {
     if (refs) refs.weapon.rotation.y += 0.22;
   }
 
+  private initializeWallWeapons(): void {
+    this.wallWeapons = WallDefenseSystem.positions(
+      this.world.size,
+      (x, y) => this.world.cellAt(x, y),
+    );
+    this.wallWeaponTimers.clear();
+    for (const weapon of this.wallWeapons) {
+      this.wallWeaponTimers.set(this.gridKey(weapon.x, weapon.y), 0.25);
+    }
+  }
+
+  private updateWallWeapons(delta: number): void {
+    if (this.wallWeapons.length === 0) return;
+
+    for (const weapon of this.wallWeapons) {
+      const key = this.gridKey(weapon.x, weapon.y);
+      const nextTimer = Math.max(0, (this.wallWeaponTimers.get(key) ?? 0) - delta);
+      this.wallWeaponTimers.set(key, nextTimer);
+
+      const damage = this.world.buildingDamageAt?.(weapon.x, weapon.y) ?? 0;
+      if (damage >= 0.96) continue;
+
+      const base = this.world.gridToWorld(weapon.x, weapon.y);
+      const topY =
+        this.world.elevationAt(weapon.x, weapon.y) +
+        this.world.fortificationTopAt(weapon.x, weapon.y, this.world.cellAt(weapon.x, weapon.y)!);
+      const origin = new THREE.Vector3(base.x, topY + 0.3, base.z);
+
+      let target: UnitRuntime | undefined;
+      let bestDistance = Number.POSITIVE_INFINITY;
+      for (const candidate of this.units.values()) {
+        if (candidate.data.faction !== 'attacker' || candidate.data.state === 'dead') continue;
+        const distance = Math.hypot(
+          candidate.position.x - origin.x,
+          candidate.position.z - origin.z,
+        );
+        if (distance > weapon.range * this.world.tileSize) continue;
+        if (distance < bestDistance) {
+          bestDistance = distance;
+          target = candidate;
+        }
+      }
+
+      const visual = this.world.wallWeaponVisuals?.().find((object) => {
+        const data = object.userData.wallWeapon as { gx?: number; gy?: number } | undefined;
+        return data?.gx === weapon.x && data?.gy === weapon.y;
+      });
+      if (visual && target) {
+        visual.rotation.y = Math.atan2(
+          target.position.x - visual.position.x,
+          target.position.z - visual.position.z,
+        );
+      }
+
+      if (!target || nextTimer > 0) continue;
+
+      target.data.health -= 18;
+      this.wallWeaponTimers.set(key, 0.95);
+
+      const flash = new THREE.Mesh(
+        new THREE.SphereGeometry(0.09, 6, 5),
+        this.objectiveMaterial,
+      );
+      const flashPosition = target.position.clone();
+      flash.position.lerpVectors(origin, flashPosition, 0.18);
+      this.layer.add(flash);
+      window.setTimeout(() => this.layer.remove(flash), 55);
+
+      if (target.data.health <= 0) this.killUnit(target);
+    }
+  }
+
   private updateProjectiles(delta: number): void {
     for (let i = this.arrows.length - 1; i >= 0; i -= 1) {
       const arrow = this.arrows[i];
@@ -3362,6 +3500,8 @@ export class BattleSystem {
         refs.weapon.rotation.z = -0.34;
       } else if (runtime.data.unitType === 'spearman') {
         refs.weapon.rotation.z = -0.22;
+      } else if (runtime.data.unitType === 'modernSoldier') {
+        refs.weapon.rotation.z = -0.12;
       } else {
         refs.weapon.rotation.y = Math.PI / 2;
       }
