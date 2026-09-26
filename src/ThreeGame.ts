@@ -1172,7 +1172,6 @@ export class ThreeGame {
       wall3: 0x9ba4a7,
       gate: 0x9e7041,
       tower: 0xb7ab91,
-      stairTower: 0xa89d8a,
       road: 0x9a7658,
       dirtRoad: 0x8a6142,
       stoneRoad: 0xa9a195,
@@ -1241,20 +1240,14 @@ export class ThreeGame {
         continue;
       }
 
-      if (cell.kind === 'tower' || cell.kind === 'stairTower') {
-        const radius =
-          cell.kind === 'stairTower'
-            ? 1.35
-            :
-          (cell.towerShape ?? 'round') === 'watch' ? 1.7 : 2.08;
+      if (cell.kind === 'tower') {
+        const radius = (cell.towerShape ?? 'round') === 'watch' ? 1.7 : 2.08;
         const tower = new THREE.Mesh(
           new THREE.CircleGeometry(
             radius,
-            cell.kind === 'stairTower'
-              ? 10
-              : (cell.towerShape ?? 'round') === 'octagonal'
-                ? 8
-                : 20,
+            (cell.towerShape ?? 'round') === 'octagonal'
+              ? 8
+              : 20,
           ),
           this.planMaterial(color),
         );
@@ -2061,7 +2054,6 @@ export class ThreeGame {
       this.makeWall(group, cell.kind as WallKind, cell.x, cell.y, cell);
     } else if (cell.kind === 'gate') this.makeGate(group, cell.x, cell.y);
     else if (cell.kind === 'tower') this.makeTower(group, cell.x, cell.y, cell);
-    else if (cell.kind === 'stairTower') this.makeStairTower(group, cell.x, cell.y, cell);
     else if (cell.kind === 'farm') this.makeFarm(group);
     else if (cell.kind === 'marketStall' || cell.kind === 'smallMarket' || cell.kind === 'marketHall') {
       this.makeMarketBuilding(group, cell.kind as MarketBuildingKind);
@@ -3601,138 +3593,6 @@ export class ThreeGame {
     return group;
   }
 
-  private findStairTowerSnap(
-    gx: number,
-    gy: number,
-  ): { rotation: number; accessHeight: number; wall: GridPoint } | null {
-    const candidates = [
-      { dx: 0, dy: -1 },
-      { dx: 1, dy: 0 },
-      { dx: 0, dy: 1 },
-      { dx: -1, dy: 0 },
-    ];
-
-    for (const candidate of candidates) {
-      const wx = gx + candidate.dx;
-      const wy = gy + candidate.dy;
-      const wall = this.state.getCell(wx, wy);
-      if (!wall || !WALL_KINDS.includes(wall.kind as WallKind)) continue;
-      if (wall.walkway !== true) continue;
-
-      const targetWorldTop =
-        this.terrainElevation(wx, wy) +
-        this.fortificationTopLocal(wall);
-      const localAccessHeight =
-        targetWorldTop - this.terrainElevation(gx, gy);
-
-      if (localAccessHeight < 5.2 || localAccessHeight > 18) continue;
-
-      return {
-        rotation: this.accessRotationForNeighbor(candidate.dx, candidate.dy),
-        accessHeight: localAccessHeight,
-        wall: { x: wx, y: wy },
-      };
-    }
-
-    return null;
-  }
-
-  private makeStairTower(
-    group: THREE.Group,
-    gx: number,
-    gy: number,
-    cell: GridCell,
-  ): THREE.Group {
-    const topY = Math.max(7.2, cell.accessHeight ?? 8.1);
-    const bodyBase = 2.58;
-    const bodyHeight = Math.max(4.6, topY - bodyBase);
-    const width = 2.35;
-    const ownElevation = this.terrainElevation(gx, gy);
-    const neighborElevations = [
-      this.terrainElevation(gx + 1, gy),
-      this.terrainElevation(gx - 1, gy),
-      this.terrainElevation(gx, gy + 1),
-      this.terrainElevation(gx, gy - 1),
-    ];
-    const localLow = Math.min(ownElevation, ...neighborElevations);
-    const foundationDrop = THREE.MathUtils.clamp(ownElevation - localLow, 0, 2.8);
-    const foundationHeight = 0.72 + foundationDrop;
-
-    const stone = this.medievalMaterials.castleStone(this.stoneStyle, 'body', gx, gy);
-    const accent = this.medievalMaterials.castleStone(this.stoneStyle, 'alt', gx, gy);
-    const foundation = this.medievalMaterials.castleStone(this.stoneStyle, 'foundation', gx, gy);
-    const walkway = this.medievalMaterials.castleStone(this.stoneStyle, 'walkway', gx, gy);
-    const shadow = this.medievalMaterials.arrowVoid;
-    const wood = this.medievalMaterials.timberDark;
-
-    this.addBox(
-      group,
-      width + 0.6,
-      foundationHeight,
-      width + 0.6,
-      foundation,
-      0,
-      2.22 - foundationHeight / 2 + 0.22,
-      0,
-    );
-    this.addBox(group, width + 0.28, 0.28, width + 0.28, accent, 0, 2.62, 0);
-    this.addBox(group, width, bodyHeight, width, stone, 0, bodyBase + bodyHeight / 2, 0);
-
-    this.addBox(group, 0.88, 1.62, 0.12, shadow, 0, 3.28, -width / 2 - 0.035);
-    this.addBox(group, 0.72, 1.48, 0.16, wood, 0, 3.24, -width / 2 - 0.1);
-
-    const slitCount = Math.max(2, Math.floor(bodyHeight / 2.2));
-    for (let i = 0; i < slitCount; i += 1) {
-      const y = 4.35 + i * 1.75;
-      if (y > topY - 1) break;
-      const side = i % 2 === 0 ? -1 : 1;
-      this.addBox(
-        group,
-        0.1,
-        0.72,
-        0.16,
-        shadow,
-        side * (width / 2 + 0.035),
-        y,
-        i % 3 === 0 ? -0.38 : 0.35,
-      );
-
-      const stairStep = this.addBox(
-        group,
-        0.92,
-        0.13,
-        0.42,
-        accent,
-        side * 0.36,
-        y - 0.38,
-        0,
-      );
-      stairStep.rotation.y = i % 2 === 0 ? 0.18 : -0.18;
-    }
-
-    this.addBox(group, width + 0.25, 0.3, width + 0.25, walkway, 0, topY - 0.12, 0);
-    const edge = width / 2 - 0.08;
-    this.addTowerCrenellatedEdge(group, width - 0.18, 0, -edge, topY + 0.02, 0, stone);
-    this.addTowerCrenellatedEdge(group, width - 0.18, 0, edge, topY + 0.02, Math.PI, stone);
-
-    const cap = new THREE.Mesh(
-      new THREE.ConeGeometry(width * 0.72, 1.25, 4),
-      this.medievalMaterials.roofTile,
-    );
-    cap.rotation.y = Math.PI / 4;
-    cap.position.y = topY + 1.28;
-    cap.castShadow = true;
-    group.add(cap);
-
-    group.userData.castleAccess = {
-      groundConnected: true,
-      wallWalkConnected: true,
-      topY,
-    };
-
-    return group;
-  }
-
   private bridgePairKey(
     a: GridPoint,
     b: GridPoint,
@@ -4444,10 +4304,6 @@ export class ThreeGame {
     if (cell.kind === 'tower') {
       const base = (cell.towerShape ?? 'round') === 'watch' ? 6.4 : 7.4;
       return 2.58 + base + Math.max(0, (cell.level ?? 1) - 1) * 2.15;
-    }
-
-    if (cell.kind === 'stairTower') {
-      return THREE.MathUtils.clamp(cell.accessHeight ?? 8.1, 7.2, 20);
     }
 
     if (cell.kind === 'gate') return 7.85;
