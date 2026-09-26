@@ -67,6 +67,7 @@ const BUILDING_KINDS: TileKind[] = [
   'manor',
   'villa',
   'farm',
+  'cowBarn',
   'appleOrchard',
   'armyCamp',
   'market',
@@ -171,6 +172,7 @@ const TOOL_GROUPS: Array<{ label: string; tools: ToolDefinition[] }> = [
     label: 'Agriculture',
     tools: [
       { id: 'farm', icon: '🌾', label: 'Farm', detail: 'Cultivated crop field', shortcut: 'F' },
+      { id: 'cowBarn', icon: '🐄', label: 'Cow Barn', detail: 'Medieval cattle barn · fenced livestock yard', shortcut: '-' },
       { id: 'appleOrchard', icon: '🍎', label: 'Apple Orchard', detail: 'Procedural apple trees · orchard plot', shortcut: 'Y' },
       { id: 'windmill', icon: '⚙️', label: 'Medieval Windmill', detail: 'Four-sail working mill · continuous rotation', shortcut: 'W' },
     ],
