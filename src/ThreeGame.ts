@@ -458,7 +458,14 @@ export class ThreeGame {
         towerBridges: () => Array.from(this.towerBridges.values()).map((bridge) => ({ ...bridge })),
         setWallBattleVisibility: (x, y, visible) => this.setBattleWallVisibility(x, y, visible),
         buildingDamageAt: (x, y) => this.state.getCell(x, y)?.damage ?? 0,
-        buildingMaxHealthAt: (x, y) => this.destructibleBuildingSystem.maxHealth(this.state.getCell(x, y)?.kind ?? 'house', this.state.getCell(x, y)?.level ?? 1),
+        buildingMaxHealthAt: (x, y) => {
+          const cell = this.state.getCell(x, y);
+          if (cell && this.isModernTowerKind(cell.kind)) {
+            const config = this.modernDefenseTowerSystem.getConfig(cell.kind);
+            return config.health * (1 + Math.max(0, (cell.level ?? 1) - 1) * 0.15);
+          }
+          return this.destructibleBuildingSystem.maxHealth(cell?.kind ?? 'house', cell?.level ?? 1);
+        },
         setBuildingDamage: (x, y, damageRatio) => this.setBuildingDamage(x, y, damageRatio),
         gatePassable: (x, y) => this.gateSystem.isGatePassable(x, y),
         generatedAccess: () => this.getGeneratedWallAccess(),
