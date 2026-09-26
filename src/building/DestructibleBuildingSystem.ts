@@ -74,11 +74,11 @@ export class DestructibleBuildingSystem {
     return next;
   }
 
-  setDamageRatio(cell: GridCell, ratio: number): number {
+  setDamageRatio(ratio: number): number {
     return THREE.MathUtils.clamp(Number.isFinite(ratio) ? ratio : 0, 0, 1);
   }
 
-  renderDamage(group: THREE.Group, cell: GridCell): void {
+  renderDamage(group: THREE.Group, cell: GridCell, x = 0, y = 0): void {
     const info = this.getInfo(cell);
     if (info.stage === 'healthy' || !this.isDestructible(cell.kind)) return;
 
@@ -97,7 +97,7 @@ export class DestructibleBuildingSystem {
       flatShading: true,
     });
 
-    const seed = Math.abs(cell.x * 92821 + cell.y * 68917 + cell.kind.length * 131);
+    const seed = Math.abs(x * 92821 + y * 68917 + cell.kind.length * 131);
     const upper = meshes
       .map((mesh, index) => ({ mesh, index, score: mesh.position.y + index * 0.013 }))
       .sort((a, b) => b.score - a.score);
