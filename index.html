@@ -112,7 +112,16 @@
                   <button type="button" data-battle-field="defenderCrossbowmen" data-delta="1">+</button>
                 </div>
               </div>
-            </section>
+               <div class="battle-unit-row">
+                <span>Modern Soldier <small>modern rifle ranged defense</small></span>
+                <div class="battle-stepper">
+                  <button type="button" data-battle-field="defenderModernSoldiers" data-delta="-1">−</button>
+                  <input id="battle-defender-modern-soldiers" data-battle-input="defenderModernSoldiers" type="number" min="0" max="120" step="1" value="4" inputmode="numeric" />
+                  <button type="button" data-battle-field="defenderModernSoldiers" data-delta="1">+</button>
+                </div>
+              </div>
+
+           </section>
 
             <section class="battle-faction battle-attackers">
               <div class="battle-faction-title">
@@ -155,7 +164,16 @@
                   <button type="button" data-battle-field="attackerCrossbowmen" data-delta="1">+</button>
                 </div>
               </div>
-            </section>
+               <div class="battle-unit-row">
+                <span>Modern Soldier <small>modern rifle assault</small></span>
+                <div class="battle-stepper">
+                  <button type="button" data-battle-field="attackerModernSoldiers" data-delta="-1">−</button>
+                  <input id="battle-attacker-modern-soldiers" data-battle-input="attackerModernSoldiers" type="number" min="0" max="120" step="1" value="0" inputmode="numeric" />
+                  <button type="button" data-battle-field="attackerModernSoldiers" data-delta="1">+</button>
+                </div>
+              </div>
+
+           </section>
           </div>
 
           <div class="battle-capture">
