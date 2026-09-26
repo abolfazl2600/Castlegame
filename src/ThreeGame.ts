@@ -7295,7 +7295,7 @@ export class ThreeGame {
       };
     });
 
-    get<HTMLButtonElement>('[data-build-none]').onclick = () => this.selectTool(null);
+    document.querySelector<HTMLButtonElement>('[data-build-none]')?.addEventListener('click', () => this.selectTool(null));
 
     toolbar.querySelectorAll<HTMLButtonElement>('[data-tool]').forEach((button) => {
       button.onclick = () => {
