@@ -146,6 +146,9 @@ export interface BattleStartOptions {
   readonly attackerSpawnBatchSize?: number;
 }
 
+const BATTLE_SPEED_LEVELS = [0.5, 1, 1.5, 2, 3] as const;
+const DEFAULT_BATTLE_SPEED = 1;
+
 const UNIT_STATS: Record<CoreUnitType, BattleUnitStats> = {
   swordsman: {
     maxHealth: 110,
@@ -268,6 +271,7 @@ export class BattleSystem {
   private attackerSpawnInterval = 0;
   private attackerSpawnTimer = 0;
   private attackerSpawnBatchSize = 1;
+  private battleSpeed = DEFAULT_BATTLE_SPEED;
 
   constructor(
     private readonly layer: THREE.Group,
@@ -306,6 +310,7 @@ export class BattleSystem {
     this.navigation.invalidate();
     this.clearSiegeState();
     this.mode = 'running';
+    this.battleSpeed = DEFAULT_BATTLE_SPEED;
     this.captureSeconds = 0;
     this.battleSeconds = 0;
     this.finalResult = undefined;
@@ -359,6 +364,34 @@ export class BattleSystem {
     this.emitStatus();
   }
 
+  getBattleSpeed(): number {
+    return this.battleSpeed;
+  }
+
+  setBattleSpeed(speed: number): void {
+    const nearest = BATTLE_SPEED_LEVELS.reduce((best, candidate) =>
+      Math.abs(candidate - speed) < Math.abs(best - speed) ? candidate : best,
+    DEFAULT_BATTLE_SPEED);
+
+    if (this.battleSpeed === nearest) return;
+    this.battleSpeed = nearest;
+    this.emitStatus();
+  }
+
+  increaseBattleSpeed(): void {
+    const index = BATTLE_SPEED_LEVELS.indexOf(this.battleSpeed as (typeof BATTLE_SPEED_LEVELS)[number]);
+    this.setBattleSpeed(BATTLE_SPEED_LEVELS[Math.min(BATTLE_SPEED_LEVELS.length - 1, index + 1)]);
+  }
+
+  decreaseBattleSpeed(): void {
+    const index = BATTLE_SPEED_LEVELS.indexOf(this.battleSpeed as (typeof BATTLE_SPEED_LEVELS)[number]);
+    this.setBattleSpeed(BATTLE_SPEED_LEVELS[Math.max(0, index - 1)]);
+  }
+
+  resetBattleSpeed(): void {
+    this.setBattleSpeed(DEFAULT_BATTLE_SPEED);
+  }
+
   reset(emit = true): void {
     for (const runtime of this.units.values()) {
       this.layer.remove(runtime.view);
@@ -381,6 +414,7 @@ export class BattleSystem {
     this.clearSiegeState();
 
     this.mode = 'idle';
+    this.battleSpeed = DEFAULT_BATTLE_SPEED;
     this.captureSeconds = 0;
     this.battleSeconds = 0;
     this.attackerStartCount = 0;
@@ -402,7 +436,9 @@ export class BattleSystem {
       return;
     }
 
-    const delta = Math.min(0.05, deltaMs / 1000);
+    // Battle speed scales the battle simulation clock only. The render loop,
+    // menus, camera, and other non-battle systems continue using real time.
+    const delta = Math.min(0.05, deltaMs / 1000) * this.battleSpeed;
     this.battleSeconds += delta;
     this.globalDecisionTimer -= delta;
     this.statusTimer -= delta;
@@ -445,6 +481,7 @@ export class BattleSystem {
 
     return {
       mode: this.mode,
+      battleSpeed: this.battleSpeed,
       captureProgress: THREE.MathUtils.clamp(
         this.captureSeconds / this.captureRequiredSeconds,
         0,
