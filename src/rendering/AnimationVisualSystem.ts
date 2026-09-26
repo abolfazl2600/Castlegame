@@ -41,7 +41,6 @@ const QUALITY_LIMITS: Record<VisualQuality, number> = {
 
 export class AnimationVisualSystem {
   private readonly layer: THREE.Group;
-  private readonly camera?: THREE.Camera;
   private readonly effects: EffectInstance[] = [];
   private readonly units = new Map<string, UnitVisualState>();
   private readonly burstGeometry = new THREE.IcosahedronGeometry(0.11, 0);
@@ -52,9 +51,8 @@ export class AnimationVisualSystem {
   private elapsed = 0;
   private resultBanner: HTMLDivElement | null = null;
 
-  constructor(layer: THREE.Group, camera?: THREE.Camera) {
+  constructor(layer: THREE.Group) {
     this.layer = layer;
-    this.camera = camera;
   }
 
   setConfig(config: Partial<AnimationVisualConfig>): void {
