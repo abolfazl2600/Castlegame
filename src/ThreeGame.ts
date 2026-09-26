@@ -13,6 +13,7 @@ import { BattleSystem } from './battle/BattleSystem';
 import type { BattleSetup, BattleStatus } from './battle/types';
 import { PopulationSystem } from './systems/PopulationSystem';
 import { MaritimeSystem } from './systems/MaritimeSystem';
+import { WindmillSystem } from './systems/WindmillSystem';
 import type {
   AccessKind,
   GridCell,
@@ -64,6 +65,7 @@ const BUILDING_KINDS: TileKind[] = [
   'villa',
   'farm',
   'armyCamp',
+  'windmill',
   'mine',
   'mountain',
   'tree',
@@ -156,6 +158,7 @@ const TOOL_GROUPS: Array<{ label: string; tools: ToolDefinition[] }> = [
       { id: 'manor', icon: '🏯', label: 'Manor Court', detail: 'Main hall + service houses', shortcut: '9' },
       { id: 'villa', icon: '🏘️', label: 'Villa Quarter', detail: '3 detailed homes + courtyard', shortcut: '0' },
       { id: 'farm', icon: '🌾', label: 'Farm', detail: 'Cultivated crop field', shortcut: 'F' },
+      { id: 'windmill', icon: '⚙️', label: 'Medieval Windmill', detail: 'Four-sail working mill · continuous rotation', shortcut: 'W' },
     ],
   },
   {
@@ -205,6 +208,7 @@ export class ThreeGame {
   private readonly wallCornerSystem = new WallCornerSystem();
   private readonly castleAccessSystem = new CastleAccessSystem();
   private readonly populationSystem = new PopulationSystem();
+  private readonly windmillSystem = new WindmillSystem();
   private readonly maritimeSystem = new MaritimeSystem({
     size: SIZE,
     terrainAt: (x, y) => this.terrainAt(x, y),
@@ -844,6 +848,7 @@ export class ThreeGame {
   private redraw(): void {
     this.clearGroup(this.terrainLayer);
     this.clearGroup(this.buildLayer);
+    this.windmillSystem.clear();
     this.buildObjectsByCell.clear();
     this.clearGroup(this.planLayer);
     this.renderTerrain();
@@ -1946,6 +1951,7 @@ export class ThreeGame {
     else if (cell.kind === 'stairTower') this.makeStairTower(group, cell.x, cell.y, cell);
     else if (cell.kind === 'farm') this.makeFarm(group);
     else if (cell.kind === 'armyCamp') this.makeArmyCamp(group);
+    else if (cell.kind === 'windmill') this.windmillSystem.create(group);
     else if (cell.kind === 'mine') this.makeMine(group);
     else if (cell.kind === 'mountain') this.makeMountain(group, cell.level ?? 1, cell.x, cell.y);
     else if (cell.kind === 'tree') this.makeTree(group, cell.level ?? 1);
@@ -6394,6 +6400,7 @@ export class ThreeGame {
     if (terrain === 'mountain') return tool === 'mine';
     if (terrain === 'forest') return tool === 'tree';
     if (tool === 'farm') return terrain === 'plains';
+    if (tool === 'windmill') return terrain === 'plains' || terrain === 'shore';
     return terrain === 'plains' || terrain === 'shore';
   }
 
@@ -7302,6 +7309,7 @@ export class ThreeGame {
         '9': 'manor',
         '0': 'villa',
         f: 'farm',
+        w: 'windmill',
         a: 'armyCamp',
         t: 'tree',
         n: 'mountain',
@@ -8974,6 +8982,7 @@ export class ThreeGame {
       this.updateSettlementAgents(deltaMs);
     }
     this.battleSystem.update(deltaMs, time);
+    this.windmillSystem.update(deltaMs / 1000);
     this.updateLongPress(time);
     this.riverTexture.offset.y -= deltaMs * 0.00032;
     this.riverTexture.offset.x += deltaMs * 0.000035;
