@@ -262,7 +262,8 @@ kbd { min-width: 23px; text-align: center; padding: 3px 5px; border-radius: 6px;
     right: 9px;
   }
   .view-mode-button { min-height: 40px; padding: 8px 10px; }
-  .scene-badge { top: 58px; right: 9px; font-size: 8px; }
+  .camera-view-controls { top: 57px; right: 9px; }
+  .scene-badge { top: 102px; right: 9px; font-size: 8px; }
   .status-group { gap: 4px; }
   .secondary-button, .danger-button { padding: 6px 8px; }
   .help-grid { grid-template-columns: 1fr; }
@@ -276,6 +277,7 @@ kbd { min-width: 23px; text-align: center; padding: 3px 5px; border-radius: 6px;
   .status-group button:nth-of-type(n+3) { display: none; }
   .view-mode-switch { max-width: calc(100% - 108px); }
   .view-mode-button { padding-inline: 9px; font-size: 9px; }
+  .camera-view-button { padding: 7px 8px; font-size: 8px; }
   .scene-badge { display: none; }
 }
 
@@ -312,10 +314,44 @@ kbd { min-width: 23px; text-align: center; padding: 3px 5px; border-radius: 6px;
   box-shadow: 0 4px 12px rgba(92,214,227,.22);
 }
 
+.camera-view-controls {
+  position: absolute;
+  right: 16px;
+  top: 62px;
+  z-index: 7;
+  display: inline-flex;
+  gap: 4px;
+  padding: 4px;
+  border: 1px solid rgba(126,225,255,.18);
+  border-radius: 13px;
+  background: rgba(5,23,36,.78);
+  backdrop-filter: blur(14px);
+  box-shadow: 0 12px 32px rgba(0,0,0,.24);
+}
+
+.camera-view-button {
+  border: 0;
+  border-radius: 9px;
+  padding: 7px 9px;
+  color: rgba(226,246,252,.72);
+  background: transparent;
+  cursor: pointer;
+  font-size: 9px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.camera-view-button:hover,
+.camera-view-button:focus-visible {
+  color: #071b2a;
+  background: #9be7ee;
+}
+
+
 .scene-badge {
   position: absolute;
   right: 16px;
-  top: 64px;
+  top: 106px;
   z-index: 5;
   display: flex;
   align-items: center;
