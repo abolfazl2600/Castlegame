@@ -1513,6 +1513,38 @@ kbd {
 }
 
 
+.audio-settings-modal {
+  width: min(420px, calc(100vw - 28px));
+  padding: 22px;
+  border: 1px solid rgba(255,255,255,.13);
+  border-radius: 18px;
+  background: linear-gradient(180deg, rgba(19,35,50,.98), rgba(9,23,36,.98));
+  box-shadow: 0 24px 70px rgba(0,0,0,.45);
+}
+.audio-settings-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 18px;
+}
+.audio-settings-header h2 { margin: 4px 0 0; }
+.audio-slider-row {
+  display: grid;
+  gap: 8px;
+  margin: 16px 0;
+  color: #dcecf5;
+  font-size: 13px;
+  font-weight: 700;
+}
+.audio-slider-row span { display: flex; justify-content: space-between; gap: 12px; }
+.audio-slider-row output { color: #7fe7ff; font-variant-numeric: tabular-nums; }
+.audio-slider-row input { width: 100%; accent-color: #7fe7ff; }
+.audio-mute-button { width: 100%; margin-top: 8px; }
+.audio-settings-note {
+  margin: 14px 0 0;
+  color: #8fa8b7;
+  font-size: 11px;
+  line-height: 1.5;
 /* Privacy and legal settings */
 .privacy-modal {
   width: min(680px, calc(100vw - 28px));
