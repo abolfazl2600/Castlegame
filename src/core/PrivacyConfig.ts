@@ -1,3 +1,5 @@
+import { APPLICATION_METADATA } from '../app/applicationMetadata';
+
 export type ExternalLinkKey = 'privacyPolicy' | 'termsOfService' | 'support' | 'developerWebsite';
 
 export type CollectionIntegrationStatus = 'not-integrated' | 'integrated';
@@ -22,18 +24,18 @@ export interface PrivacyLegalConfig {
 }
 
 export const PRIVACY_LEGAL_CONFIG: PrivacyLegalConfig = {
-  // Supply production URLs here when the final documents and support endpoint are ready.
-  // Keep all external destinations in this module; application UI should not hardcode them.
+  // Store-facing legal and support destinations are supplied by the centralized application metadata.
+  // Application UI should consume this module rather than embedding external destinations.
   links: {
-    privacyPolicy: '',
-    termsOfService: '',
-    support: '',
+    privacyPolicy: APPLICATION_METADATA.privacyUrl,
+    termsOfService: APPLICATION_METADATA.termsUrl,
+    support: APPLICATION_METADATA.supportUrl,
     developerWebsite: '',
   },
   developer: {
-    name: '',
+    name: APPLICATION_METADATA.developerName,
     websiteUrl: '',
-    contactUrl: '',
+    contactUrl: APPLICATION_METADATA.supportUrl,
   },
   dataCollection: [
     {
