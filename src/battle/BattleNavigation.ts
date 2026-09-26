@@ -21,6 +21,7 @@ export interface BattleNavigationContext {
   keeps: () => KeepState[];
   towerBridges?: () => TowerBridgeState[];
   temporaryGroundPassable?: (x: number, y: number) => boolean;
+  gatePassable?: (x: number, y: number) => boolean;
 }
 
 interface SearchNode extends NavPoint {
@@ -56,6 +57,11 @@ export class BattleNavigation {
     const terrain = this.context.terrainAt(x, y);
     if (terrain === 'water' || terrain === 'river' || terrain === 'mountain') return false;
 
+    const kind = this.context.kindAt(x, y);
+    if (kind === 'gate' && this.context.gatePassable && !this.context.gatePassable(x, y)) {
+      return false;
+    }
+
     if (this.context.temporaryGroundPassable?.(x, y)) return true;
 
     for (const keep of this.context.keeps()) {
@@ -74,7 +80,6 @@ export class BattleNavigation {
       }
     }
 
-    const kind = this.context.kindAt(x, y);
     if (!kind) return true;
 
     if (
@@ -305,6 +310,31 @@ export class BattleNavigation {
     for (let i = 0; i < count; i += 1) {
       result.push({ ...(nearby[i % nearby.length] ?? anchor) });
     }
+    return result;
+  }
+
+  gateGuardCells(): NavPoint[] {
+    const result: NavPoint[] = [];
+
+    for (let y = 0; y < this.context.size; y += 1) {
+      for (let x = 0; x < this.context.size; x += 1) {
+        if (this.context.kindAt(x, y) !== 'gate') continue;
+
+        const candidates: NavPoint[] = [
+          { x: x - 1, y },
+          { x: x + 1, y },
+          { x, y: y - 1 },
+          { x, y: y + 1 },
+        ].filter((point) => this.isGroundWalkable(point.x, point.y));
+
+        for (const candidate of candidates.slice(0, 2)) {
+          if (!result.some((item) => item.x === candidate.x && item.y === candidate.y)) {
+            result.push(candidate);
+          }
+        }
+      }
+    }
+
     return result;
   }
 

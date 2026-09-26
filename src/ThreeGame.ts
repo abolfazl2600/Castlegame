@@ -6,6 +6,7 @@ import { KeepSystem } from './building/KeepSystem';
 import { WallSystem } from './building/WallSystem';
 import { WallCornerSystem } from './building/WallCornerSystem';
 import { CastleAccessSystem } from './building/CastleAccessSystem';
+import { GateSystem } from './building/GateSystem';
 import { CastleDetailGenerator } from './building/CastleDetailGenerator';
 import { KeepRenderer } from './rendering/KeepRenderer';
 import { MedievalMaterials } from './rendering/MedievalMaterials';
@@ -15,7 +16,6 @@ import { PopulationSystem } from './systems/PopulationSystem';
 import { MaritimeSystem } from './systems/MaritimeSystem';
 import { WindmillSystem } from './systems/WindmillSystem';
 import { OrchardSystem } from './systems/OrchardSystem';
-import { FuturisticCastleRenderer } from './rendering/FuturisticCastleRenderer';
 import type {
   AccessKind,
   GridCell,
@@ -85,7 +85,6 @@ const BUILDING_KINDS: TileKind[] = [
   'woodenStairs',
   'ramp',
   'ladder',
-  'futuristicCastle',
 ];
 
 type ViewMode = 'plan2d' | 'world3d';
@@ -185,7 +184,6 @@ const TOOL_GROUPS: Array<{ label: string; tools: ToolDefinition[] }> = [
     label: 'Military',
     tools: [
       { id: 'armyCamp', icon: '⛺', label: 'Army Camp', detail: 'Large command tent · defender rally point', shortcut: 'A' },
-      { id: 'futuristicCastle', icon: '◈', label: 'Futuristic Castle', detail: 'Year 3000 fortress · armored walls · automated gun turrets', shortcut: '-' },
     ],
   },
   {
@@ -228,10 +226,10 @@ export class ThreeGame {
   private readonly keepSystem = new KeepSystem();
   private readonly wallCornerSystem = new WallCornerSystem();
   private readonly castleAccessSystem = new CastleAccessSystem();
+  private readonly gateSystem = new GateSystem(() => this.battleSystem?.isRunning());
   private readonly populationSystem = new PopulationSystem();
   private readonly windmillSystem = new WindmillSystem();
   private readonly orchardSystem = new OrchardSystem();
-  private readonly futuristicCastleRenderer = new FuturisticCastleRenderer();
   private readonly maritimeSystem = new MaritimeSystem({
     size: SIZE,
     terrainAt: (x, y) => this.terrainAt(x, y),
@@ -417,6 +415,7 @@ export class ThreeGame {
         keeps: () => this.keepSystem.entries(),
         towerBridges: () => Array.from(this.towerBridges.values()).map((bridge) => ({ ...bridge })),
         setWallBattleVisibility: (x, y, visible) => this.setBattleWallVisibility(x, y, visible),
+        gatePassable: (x, y) => this.gateSystem.isGatePassable(x, y),
       },
       (status) => this.updateBattleUI(status),
     );
@@ -1053,6 +1052,7 @@ export class ThreeGame {
   private redraw(): void {
     this.clearGroup(this.terrainLayer);
     this.clearGroup(this.buildLayer);
+    this.gateSystem.clear();
     this.renderTerritory();
     this.windmillSystem.clear();
     this.buildObjectsByCell.clear();
@@ -1282,7 +1282,6 @@ export class ThreeGame {
       farm: 0xc2ad54,
       appleOrchard: 0x9c6d3e,
       armyCamp: 0x8f6b4d,
-      futuristicCastle: 0x4b8792,
       mine: 0x665f59,
       mountain: 0x71675f,
       tree: 0x356c43,
@@ -1371,7 +1370,6 @@ export class ThreeGame {
         cell.kind === 'road' ? 2.0 :
         cell.kind === 'tree' || cell.kind === 'rock' ? 1.25 :
         cell.kind === 'farm' || cell.kind === 'appleOrchard' || cell.kind === 'armyCamp' ? 3.5 :
-        cell.kind === 'futuristicCastle' ? 31.5 :
         cell.kind === 'moat' ? 3.65 :
         2.7;
 
@@ -2165,7 +2163,6 @@ export class ThreeGame {
     }
     else if (cell.kind === 'appleOrchard') this.orchardSystem.create(group, cell.level ?? 1, cell.x * 97 + cell.y * 53);
     else if (cell.kind === 'armyCamp') this.makeArmyCamp(group);
-    else if (cell.kind === 'futuristicCastle') group.add(this.futuristicCastleRenderer.render(cell.x * 97 + cell.y * 53));
     else if (cell.kind === 'windmill') this.windmillSystem.create(group);
     else if (cell.kind === 'mine') this.makeMine(group);
     else if (cell.kind === 'mountain') this.makeMountain(group, cell.level ?? 1, cell.x, cell.y);
@@ -3458,19 +3455,21 @@ export class ThreeGame {
     const vertical = verticalNeighbors > horizontalNeighbors;
 
     const core = new THREE.Group();
+    const door = new THREE.Group();
     this.addBox(core, 3.75, 0.8, 2.55, foundation, 0, 2.15, 0);
     this.addBox(core, 0.92, 5.25, 2.38, wallMaterial, -1.42, 5.2, 0);
     this.addBox(core, 0.92, 5.25, 2.38, wallMaterial, 1.42, 5.2, 0);
     this.addBox(core, 3.75, 1.0, 2.42, wallMaterial, 0, 7.25, 0);
 
-    this.addBox(core, 1.95, 3.35, 0.2, shadow, 0, 4.18, -1.22);
-    this.addBox(core, 1.78, 3.2, 0.24, woodMaterial, 0, 4.16, -1.34);
+    this.addBox(door, 1.95, 3.35, 0.2, shadow, 0, 4.18, -1.22);
+    this.addBox(door, 1.78, 3.2, 0.24, woodMaterial, 0, 4.16, -1.34);
     for (const x of [-0.58, 0.58]) {
-      this.addBox(core, 0.14, 3.05, 0.34, darkWood, x, 4.16, -1.39);
+      this.addBox(door, 0.14, 3.05, 0.34, darkWood, x, 4.16, -1.39);
     }
     for (const y of [3.25, 4.15, 5.05]) {
-      this.addBox(core, 1.8, 0.12, 0.34, darkWood, 0, y, -1.39);
+      this.addBox(door, 1.8, 0.12, 0.34, darkWood, 0, y, -1.39);
     }
+    core.add(door);
 
     this.addBox(core, 3.95, 0.28, 2.62, this.medievalMaterials.castleStone(this.stoneStyle, 'walkway', gx, gy), 0, 7.72, 0);
     this.addTowerCrenellatedEdge(core, 3.55, 0, -1.0, 7.78, 0, wallMaterial);
@@ -3478,6 +3477,7 @@ export class ThreeGame {
 
     if (vertical) core.rotation.y = Math.PI / 2;
     group.add(core);
+    this.gateSystem.registerGate(gx, gy, group, door, vertical);
 
     const specs = [
       { dx: -1, dy: 0, axis: 'x' as const, sign: -1 },
@@ -8196,11 +8196,7 @@ export class ThreeGame {
 
     if (template !== 'empty-land') this.seedNaturalProps();
 
-    if (template === 'futuristic-castle') {
-      this.stoneStyle = 'darkStone';
-      prepareArea(center - 10, center - 10, center + 10, center + 10, 0.05);
-      place(center, center, 'futuristicCastle');
-    } else if (template === 'empty-land') {
+    if (template === 'empty-land') {
       for (let y = 0; y < SIZE; y += 1) {
         for (let x = 0; x < SIZE; x += 1) {
           if (this.baseTerrainAt(x, y) !== 'water') {
@@ -9288,6 +9284,7 @@ export class ThreeGame {
     this.workerLayer.visible = false;
     this.settlementLayer.visible = false;
     document.getElementById('game-shell')?.classList.add('battle-mode');
+    this.gateSystem.setAttackState(true);
     this.battleSystem.start(this.battleSetup);
     this.setStatus('Battle started · Attackers are advancing on the castle');
   }
@@ -9298,6 +9295,7 @@ export class ThreeGame {
   }
 
   private resetBattleFromUI(): void {
+    this.gateSystem.setAttackState(false);
     this.battleSystem.reset();
     document.getElementById('game-shell')?.classList.remove('battle-mode');
     this.workerLayer.visible = this.viewMode === 'world3d';

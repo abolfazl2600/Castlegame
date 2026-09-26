@@ -26,6 +26,7 @@ export interface BattleWorldContext {
   keeps: () => KeepState[];
   towerBridges: () => TowerBridgeState[];
   setWallBattleVisibility: (x: number, y: number, visible: boolean) => void;
+  gatePassable?: (x: number, y: number) => boolean;
 }
 
 interface UnitRuntime {
@@ -245,6 +246,7 @@ export class BattleSystem {
       keeps: world.keeps,
       towerBridges: world.towerBridges,
       temporaryGroundPassable: (x, y) => this.breachedWalls.has(this.gridKey(x, y)),
+      gatePassable: world.gatePassable,
     });
   }
 
@@ -254,6 +256,10 @@ export class BattleSystem {
 
   isRunning(): boolean {
     return this.mode === 'running';
+  }
+
+  isUnderAttack(): boolean {
+    return this.mode === 'running' || this.mode === 'paused';
   }
 
   start(setup: BattleSetup): void {
@@ -492,7 +498,29 @@ export class BattleSystem {
       remainingRanged.set(entry.type, Math.max(0, entry.count - placed));
     }
 
-    const meleeTotal = setup.defenderSwordsmen + setup.defenderSpearmen;
+    const gateGuardCells = this.navigation.gateGuardCells();
+    const gateGuardCount = Math.min(
+      setup.defenderSwordsmen + setup.defenderSpearmen,
+      gateGuardCells.length,
+    );
+    let gateGuardPlaced = 0;
+    let gateGuardSwordPlaced = 0;
+    let gateGuardSpearPlaced = 0;
+
+    for (let i = 0; i < gateGuardCount; i += 1) {
+      const useSpear =
+        gateGuardSpearPlaced < setup.defenderSpearmen &&
+        (gateGuardSwordPlaced >= setup.defenderSwordsmen || i % 2 === 1);
+      const type: CoreUnitType = useSpear ? 'spearman' : 'swordsman';
+      this.spawnGroundUnit('defender', type, gateGuardCells[i], 100 + i, false);
+      gateGuardPlaced += 1;
+      if (type === 'spearman') gateGuardSpearPlaced += 1;
+      else gateGuardSwordPlaced += 1;
+    }
+
+    const meleeTotal =
+      Math.max(0, setup.defenderSwordsmen - gateGuardSwordPlaced) +
+      Math.max(0, setup.defenderSpearmen - gateGuardSpearPlaced);
     const wallMeleeCount = Math.min(
       Math.floor(meleeTotal * 0.3),
       Math.max(0, wallNodes.length - usedWallNodes.size),
@@ -523,8 +551,14 @@ export class BattleSystem {
       else wallSwordPlaced += 1;
     }
 
-    const remainingSwordsmen = Math.max(0, setup.defenderSwordsmen - wallSwordPlaced);
-    const remainingSpearmen = Math.max(0, setup.defenderSpearmen - wallSpearPlaced);
+    const remainingSwordsmen = Math.max(
+      0,
+      setup.defenderSwordsmen - gateGuardSwordPlaced - wallSwordPlaced,
+    );
+    const remainingSpearmen = Math.max(
+      0,
+      setup.defenderSpearmen - gateGuardSpearPlaced - wallSpearPlaced,
+    );
     const remainingArchers = remainingRanged.get('archer') ?? 0;
     const remainingCrossbowmen = remainingRanged.get('crossbowman') ?? 0;
     const groundCount =
