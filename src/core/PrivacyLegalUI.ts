@@ -1,4 +1,5 @@
 import { APPLICATION_METADATA } from '../app/applicationMetadata';
+import { SAVE_VERSION } from './constants';
 
 const SAVE_STORAGE_KEY = 'castle-role-save-v1';
 const SETTINGS_STORAGE_KEY = 'castle-role.settings.v2';
@@ -135,7 +136,7 @@ export class PrivacyLegalUI {
 
           <h5>Third-party dependencies</h5>
           <ul>
-            <li><strong>three 0.180.0</strong> — runtime dependency listed in <code>package.json</code>. Three.js is distributed under the MIT License by its upstream project.</li>
+            <li><strong>three ^0.180.0</strong> — runtime dependency listed in <code>package.json</code>. Three.js is distributed under the MIT License by its upstream project.</li>
             <li><strong>TypeScript</strong> and <strong>Vite</strong> — development/build dependencies listed in <code>package.json</code>; they are not runtime game services.</li>
           </ul>
 
@@ -150,7 +151,7 @@ export class PrivacyLegalUI {
           <div class="privacy-about-grid">
             <div><span>Game</span><strong>Castle Role</strong></div>
             <div><span>Version</span><strong>0.2.0</strong></div>
-            <div><span>Save format</span><strong>v10</strong></div>
+            <div><span>Save format</span><strong>v\${SAVE_VERSION}</strong></div>
             <div><span>Technology</span><strong>Three.js · TypeScript · Vite</strong></div>
           </div>
           <p>Castle Role is a browser-based 3D stronghold builder with editable terrain, settlement, castle architecture, and battle systems.</p>
