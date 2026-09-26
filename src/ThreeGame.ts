@@ -19,7 +19,6 @@ import type {
   GridCell,
   HarborKind,
   KeepRoofStyle,
-  MarketBuildingKind,
   RoadKind,
   ShipKind,
   StoneStyle,
@@ -65,9 +64,7 @@ const BUILDING_KINDS: TileKind[] = [
   'farm',
   'appleOrchard',
   'armyCamp',
-  'marketStall',
-  'smallMarket',
-  'marketHall',
+  'market',
   'windmill',
   'mine',
   'mountain',
@@ -163,9 +160,7 @@ const TOOL_GROUPS: Array<{ label: string; tools: ToolDefinition[] }> = [
   {
     label: 'Economy',
     tools: [
-      { id: 'marketStall', icon: '🪵', label: 'Market Stall', detail: 'Timber stall · counter · crates & goods', shortcut: '-' },
-      { id: 'smallMarket', icon: '🏪', label: 'Small Market', detail: 'Covered market · multiple vendor stands', shortcut: '-' },
-      { id: 'marketHall', icon: '🏛️', label: 'Market Hall', detail: 'Large trading hall · stalls & storage', shortcut: '-' },
+      { id: 'market', icon: '🏪', label: 'Market', detail: 'Large medieval marketplace · tents · stalls · shops', shortcut: '-' },
     ],
   },
   {
@@ -2150,6 +2145,7 @@ export class ThreeGame {
     }
     else if (cell.kind === 'appleOrchard') this.services.orchardSystem.create(group, cell.level ?? 1, cell.x * 97 + cell.y * 53);
     else if (cell.kind === 'armyCamp') this.makeArmyCamp(group);
+    else if (cell.kind === 'market') this.makeMarketBuilding(group, cell.x, cell.y);
     else if (cell.kind === 'futuristicCastle') group.add(this.futuristicCastleRenderer.render(cell.x * 97 + cell.y * 53));
     else if (cell.kind === 'windmill') this.services.windmillSystem.create(group);
     else if (cell.kind === 'mine') this.makeMine(group);
@@ -4647,26 +4643,63 @@ export class ThreeGame {
     return group;
   }
 
-  private makeMarketBuilding(group: THREE.Group, kind: MarketBuildingKind): THREE.Group {
+  private makeMarketBuilding(group: THREE.Group, gx: number, gy: number): THREE.Group {
     const timber = this.environmentMaterial('market-timber', 0x65452f, 0.98);
     const timberLight = this.environmentMaterial('market-timber-light', 0x8a623d, 0.96);
     const woodDark = this.environmentMaterial('market-wood-dark', 0x473022, 1);
     const plaster = this.environmentMaterial('market-plaster', 0xc7ad82, 0.98);
     const stone = this.environmentMaterial('market-stone', 0x8d8272, 1);
     const roof = this.environmentMaterial('market-roof', 0x5a4032, 0.98);
-    const roofLight = this.environmentMaterial('market-roof-light', 0x72503a, 0.98);
-    const cloth = this.environmentMaterial('market-cloth', 0xb45f3e, 0.92);
+    const clothMaterials = [
+      this.environmentMaterial('market-cloth-red', 0xb45f3e, 0.92),
+      this.environmentMaterial('market-cloth-teal', 0x587d75, 0.92),
+      this.environmentMaterial('market-cloth-blue', 0x6b6f92, 0.92),
+      this.environmentMaterial('market-cloth-gold', 0x9a7541, 0.92),
+    ];
     const crate = this.environmentMaterial('market-crate', 0x9a6b3d, 1);
-    const goods = this.environmentMaterial('market-goods', 0x7c9b5a, 0.95);
+    const goodsMaterials = [
+      this.environmentMaterial('market-goods-green', 0x7c9b5a, 0.95),
+      this.environmentMaterial('market-goods-red', 0x9b5b4a, 0.95),
+      this.environmentMaterial('market-goods-blue', 0x667f9b, 0.95),
+      this.environmentMaterial('market-goods-gold', 0xb08a4d, 0.95),
+    ];
     const metal = this.environmentMaterial('market-metal', 0x6f675c, 0.7);
+    const ground = this.environmentMaterial('market-ground', 0x9b875f, 1);
 
-    const addBarrel = (x: number, z: number, scale = 1): void => {
-      const barrel = new THREE.Mesh(new THREE.CylinderGeometry(0.25 * scale, 0.28 * scale, 0.58 * scale, 10), woodDark);
-      barrel.position.set(x, 2.55 + 0.29 * scale, z);
+    const hash = (value: number): number => {
+      const n = Math.sin(value * 12.9898 + gx * 78.233 + gy * 37.719) * 43758.5453;
+      return n - Math.floor(n);
+    };
+
+    const addBox = (
+      width: number,
+      height: number,
+      depth: number,
+      material: THREE.Material,
+      x: number,
+      y: number,
+      z: number,
+      rotationY = 0,
+    ): THREE.Mesh => {
+      const mesh = new THREE.Mesh(new THREE.BoxGeometry(width, height, depth), material);
+      mesh.position.set(x, y, z);
+      mesh.rotation.y = rotationY;
+      mesh.castShadow = true;
+      mesh.receiveShadow = true;
+      group.add(mesh);
+      return mesh;
+    };
+
+    const addBarrel = (x: number, z: number, scale: number): void => {
+      const barrel = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.22 * scale, 0.25 * scale, 0.56 * scale, 8),
+        woodDark,
+      );
+      barrel.position.set(x, 2.55 + 0.28 * scale, z);
       barrel.castShadow = true;
       group.add(barrel);
-      for (const y of [2.4, 2.7]) {
-        const band = new THREE.Mesh(new THREE.TorusGeometry(0.255 * scale, 0.025 * scale, 6, 10), metal);
+      for (const y of [2.39, 2.67]) {
+        const band = new THREE.Mesh(new THREE.TorusGeometry(0.23 * scale, 0.022 * scale, 5, 8), metal);
         band.position.set(x, y + 0.04 * scale, z);
         band.rotation.x = Math.PI / 2;
         band.castShadow = true;
@@ -4674,108 +4707,142 @@ export class ThreeGame {
       }
     };
 
-    const addCrate = (x: number, z: number, width = 0.55, height = 0.48): void => {
-      this.addBox(group, width, height, 0.58, crate, x, 2.42 + height / 2, z);
-      this.addBox(group, width + 0.02, 0.045, 0.08, woodDark, x, 2.46 + height, z - 0.22);
-      this.addBox(group, 0.055, height + 0.04, 0.055, woodDark, x - width / 2 + 0.06, 2.42 + height / 2, z);
-      this.addBox(group, 0.055, height + 0.04, 0.055, woodDark, x + width / 2 - 0.06, 2.42 + height / 2, z);
+    const addCrate = (x: number, z: number, scale: number): void => {
+      const size = 0.42 + scale * 0.16;
+      addBox(size, size, size, crate, x, 2.45 + size / 2, z);
+      addBox(size + 0.03, 0.045, 0.07, woodDark, x, 2.48 + size, z - size * 0.34);
     };
 
-    const addVendorTable = (x: number, z: number, width: number, clothColor = cloth): void => {
-      this.addBox(group, width, 0.12, 0.68, timber, x, 2.86, z);
-      for (const legX of [-width / 2 + 0.12, width / 2 - 0.12]) {
-        this.addBox(group, 0.09, 0.58, 0.09, timber, x + legX, 2.57, z - 0.22);
-        this.addBox(group, 0.09, 0.58, 0.09, timber, x + legX, 2.57, z + 0.22);
-      }
-      this.addBox(group, width + 0.04, 0.08, 0.74, clothColor, x, 2.94, z);
-      for (const offset of [-0.22, 0.04, 0.3]) {
-        const goodsMesh = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.11, 0.16, 8), goods);
-        goodsMesh.position.set(x + offset, 3.08, z);
-        goodsMesh.castShadow = true;
-        group.add(goodsMesh);
-      }
+    const addGoods = (x: number, z: number, variant: number): void => {
+      const material = goodsMaterials[variant % goodsMaterials.length];
+      const goods = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.11, 0.16, 7), material);
+      goods.position.set(x, 3.04, z);
+      goods.castShadow = true;
+      group.add(goods);
     };
 
-    if (kind === 'marketStall') {
-      this.addBox(group, 3.45, 0.06, 3.45, this.environmentMaterial('market-ground', 0x9b875f, 1), 0, 2.2, 0);
-      for (const x of [-1.35, 1.35]) {
-        for (const z of [-1.15, 1.15]) this.addBox(group, 0.14, 2.15, 0.14, timber, x, 3.28, z);
+    const addStall = (x: number, z: number, width: number, rotation: number, variant: number): void => {
+      const cloth = clothMaterials[variant % clothMaterials.length];
+      const postX = Math.max(0.38, width / 2 - 0.1);
+      const postZ = 0.34;
+      for (const px of [-postX, postX]) {
+        for (const pz of [-postZ, postZ]) addBox(0.09, 2.0, 0.09, timber, x + px, 3.25, z + pz, rotation);
       }
-      const canopy = new THREE.Mesh(new THREE.ConeGeometry(2.0, 0.72, 4), roofLight);
-      canopy.position.set(0, 5.05, 0);
-      canopy.rotation.y = Math.PI / 4;
-      canopy.scale.set(1.0, 1, 0.78);
+      addBox(width, 0.12, 0.72, timberLight, x, 2.9, z, rotation);
+      const canopy = new THREE.Mesh(new THREE.ConeGeometry(width * 0.72, 0.58 + variant * 0.05, 4), cloth);
+      canopy.position.set(x, 4.78 + variant * 0.05, z);
+      canopy.rotation.y = Math.PI / 4 + rotation;
+      canopy.scale.z = 0.74;
       canopy.castShadow = true;
       group.add(canopy);
-      this.addBox(group, 2.85, 0.16, 0.78, timberLight, 0, 3.02, -0.78);
-      addVendorTable(0, -0.82, 2.65);
-      addCrate(-1.12, 0.72, 0.58, 0.55);
-      addCrate(1.12, 0.72, 0.5, 0.44);
-      addBarrel(-1.18, -0.05, 0.9);
-      addBarrel(1.18, -0.05, 0.9);
-      this.addBox(group, 0.72, 0.42, 0.08, cloth, 0, 4.02, -0.79);
-      return group;
-    }
-
-    if (kind === 'smallMarket') {
-      this.addBox(group, 3.62, 0.08, 3.62, stone, 0, 2.22, 0);
-      this.addBox(group, 3.22, 1.75, 2.78, plaster, 0, 3.18, 0.08);
-      for (const x of [-1.62, 1.62]) {
-        this.addBox(group, 0.16, 2.15, 0.16, timber, x, 3.38, 0.08);
-        this.addBox(group, 0.16, 2.15, 0.16, timber, x, 3.38, -1.25);
+      for (let i = 0; i < 3; i += 1) {
+        addGoods(x - width * 0.28 + i * width * 0.28, z - 0.03, variant + i);
       }
-      for (const x of [-0.82, 0, 0.82]) this.addBox(group, 0.12, 2.05, 0.12, timberLight, x, 3.34, -1.3);
-      for (const x of [-1.45, 0, 1.45]) this.addBox(group, 0.12, 2.05, 0.12, timberLight, x, 3.34, 1.38);
-      const roofMesh = new THREE.Mesh(new THREE.ConeGeometry(2.45, 1.25, 4), roof);
-      roofMesh.position.set(0, 5.18, 0);
-      roofMesh.rotation.y = Math.PI / 4;
-      roofMesh.scale.set(1.0, 1, 0.78);
+      if (variant % 2 === 0) addCrate(x - width * 0.46, z + 0.68, 0.8);
+      else addBarrel(x + width * 0.46, z + 0.7, 0.78);
+      addBox(0.52, 0.12, 0.08, cloth, x, 4.0, z - 0.39, rotation);
+    };
+
+    const addSmallShop = (x: number, z: number, rotation: number, variant: number): void => {
+      const wall = variant % 2 === 0 ? plaster : timberLight;
+      addBox(2.15, 1.55, 1.7, wall, x, 3.15, z, rotation);
+      addBox(2.28, 0.14, 1.82, timber, x, 4.0, z, rotation);
+      const roofMesh = new THREE.Mesh(new THREE.ConeGeometry(1.5, 0.85, 4), roof);
+      roofMesh.position.set(x, 4.62, z);
+      roofMesh.rotation.y = Math.PI / 4 + rotation;
+      roofMesh.scale.z = 0.72;
       roofMesh.castShadow = true;
       group.add(roofMesh);
-      this.addBox(group, 3.55, 0.18, 0.22, timber, 0, 4.08, -1.47);
-      this.addBox(group, 3.25, 0.1, 0.72, cloth, 0, 3.95, -1.54);
-      addVendorTable(-0.85, -0.72, 1.25);
-      addVendorTable(0.85, -0.72, 1.25, this.environmentMaterial('market-cloth-alt', 0x587d75, 0.92));
-      addCrate(-1.22, 0.88, 0.62, 0.52);
-      addCrate(1.2, 0.88, 0.55, 0.64);
-      addBarrel(-1.35, -0.1);
-      addBarrel(1.35, -0.1);
-      this.addBox(group, 0.72, 0.55, 0.08, timber, 0, 3.75, -1.59);
-      this.addBox(group, 0.56, 0.08, 0.46, goods, 0, 3.88, -1.62);
-      return group;
-    }
+      addBox(1.25, 0.72, 0.08, clothMaterials[(variant + 1) % clothMaterials.length], x, 3.28, z - 0.9, rotation);
+      addCrate(x - 0.72, z + 0.82, 0.85);
+      addBarrel(x + 0.72, z + 0.82, 0.9);
+    };
 
-    this.addBox(group, 3.72, 0.14, 3.72, stone, 0, 2.3, 0);
-    this.addBox(group, 3.28, 2.0, 3.08, plaster, 0, 3.32, 0.08);
-    for (const x of [-1.63, -0.82, 0.82, 1.63]) {
-      this.addBox(group, 0.16, 2.45, 0.16, timber, x, 3.54, -1.47);
-      this.addBox(group, 0.16, 2.45, 0.16, timber, x, 3.54, 1.5);
-    }
-    for (const z of [-1.48, 1.5]) this.addBox(group, 3.3, 0.16, 0.16, timber, 0, 4.72, z);
-    const hallRoof = new THREE.Mesh(new THREE.ConeGeometry(2.62, 1.42, 4), roof);
-    hallRoof.position.set(0, 5.45, 0);
+    const addTent = (x: number, z: number, scale: number, rotation: number, variant: number): void => {
+      const cloth = clothMaterials[variant % clothMaterials.length];
+      const tent = new THREE.Mesh(new THREE.ConeGeometry(1.0 * scale, 1.75 * scale, 4), cloth);
+      tent.position.set(x, 3.25 + 0.2 * scale, z);
+      tent.rotation.y = Math.PI / 4 + rotation;
+      tent.scale.z = 0.72;
+      tent.castShadow = true;
+      group.add(tent);
+      addCrate(x - 0.55 * scale, z + 0.65 * scale, 0.7 + variant * 0.08);
+      if (variant % 2 === 0) addBarrel(x + 0.58 * scale, z + 0.62 * scale, 0.72);
+      addBox(0.7 * scale, 0.1, 0.08, cloth, x, 3.72 + 0.18 * scale, z - 0.55 * scale, rotation);
+    };
+
+    // One logical building occupies a 3x3 tile footprint and contains the entire marketplace.
+    addBox(TILE * 2.82, 0.08, TILE * 2.82, ground, 0, 2.2, 0);
+    addBox(TILE * 2.62, 0.12, TILE * 2.62, stone, 0, 2.28, 0);
+
+    // Outer covered market structures make the footprint read as a single commercial district.
+    addSmallShop(-3.55, -3.15, -0.08, Math.floor(hash(1) * 4));
+    addSmallShop(3.55, -3.15, 0.06, Math.floor(hash(2) * 4));
+    addSmallShop(-3.55, 3.15, 0.04, Math.floor(hash(3) * 4));
+    addSmallShop(3.55, 3.15, -0.06, Math.floor(hash(4) * 4));
+
+    const stallLayout = [
+      [-3.1, -0.55], [-1.05, -0.65], [1.05, -0.65], [3.1, -0.55],
+      [-3.05, 1.85], [-1.0, 1.9], [1.0, 1.9], [3.05, 1.85],
+      [-2.9, -2.55], [2.9, -2.55], [-2.9, 3.0], [2.9, 3.0],
+    ];
+    stallLayout.forEach(([x, z], index) => {
+      const variant = Math.floor(hash(20 + index) * clothMaterials.length);
+      const rotation = (Math.floor(hash(40 + index) * 4) * Math.PI) / 2;
+      const width = 1.45 + hash(60 + index) * 0.45;
+      addStall(x, z, width, rotation, variant);
+    });
+
+    const tentLayout = [
+      [-1.9, -3.05], [0, -3.15], [1.9, -3.05],
+      [-2.0, 3.0], [0, 3.2], [2.0, 3.0],
+    ];
+    tentLayout.forEach(([x, z], index) => {
+      const variant = Math.floor(hash(80 + index) * 4);
+      addTent(x, z, 0.72 + hash(90 + index) * 0.18, hash(100 + index) * Math.PI, variant);
+    });
+
+    // Central trading house and open pedestrian court.
+    addBox(3.5, 0.18, 3.0, stone, 0, 2.38, 0);
+    addBox(3.05, 1.55, 2.45, plaster, 0, 3.18, 0.08);
+    for (const x of [-1.42, 1.42]) addBox(0.16, 2.0, 0.16, timber, x, 3.35, 0.08);
+    const hallRoof = new THREE.Mesh(new THREE.ConeGeometry(2.1, 1.15, 4), roof);
+    hallRoof.position.set(0, 4.72, 0.08);
     hallRoof.rotation.y = Math.PI / 4;
-    hallRoof.scale.set(1.0, 1, 0.82);
+    hallRoof.scale.z = 0.76;
     hallRoof.castShadow = true;
     group.add(hallRoof);
-    this.addBox(group, 3.15, 0.16, 0.24, timber, 0, 4.02, -1.62);
-    this.addBox(group, 2.95, 0.1, 0.78, cloth, 0, 3.88, -1.68);
-    addVendorTable(-0.95, -0.75, 1.28);
-    addVendorTable(0.95, -0.75, 1.28, this.environmentMaterial('market-cloth-alt2', 0x6b6f92, 0.92));
-    addVendorTable(0, 0.62, 1.9, this.environmentMaterial('market-cloth-gold', 0x9a7541, 0.92));
-    addCrate(-1.25, 1.1, 0.65, 0.58);
-    addCrate(1.24, 1.08, 0.6, 0.72);
-    addBarrel(-1.38, -0.02, 1.05);
-    addBarrel(1.38, -0.02, 1.05);
-    addCrate(0, 1.35, 0.5, 0.42);
-    this.addBox(group, 0.9, 0.6, 0.1, timber, 0, 3.62, -1.76);
-    this.addBox(group, 0.7, 0.08, 0.52, goods, 0, 3.76, -1.81);
-    for (const x of [-1.35, 1.35]) {
-      const lantern = new THREE.Mesh(new THREE.SphereGeometry(0.12, 8, 6), metal);
-      lantern.position.set(x, 4.25, -1.7);
-      lantern.castShadow = true;
-      group.add(lantern);
+    addBox(2.5, 0.12, 0.08, clothMaterials[0], 0, 3.55, -1.24);
+    addGoods(-0.6, -1.32, 0);
+    addGoods(0, -1.32, 1);
+    addGoods(0.6, -1.32, 2);
+
+    // Storage clusters and signs add visual density without per-frame logic.
+    for (let i = 0; i < 8; i += 1) {
+      const x = -4.9 + (i % 4) * 3.25 + hash(120 + i) * 0.35;
+      const z = i < 4 ? 4.8 + hash(140 + i) * 0.3 : -4.8 - hash(160 + i) * 0.3;
+      addCrate(x, z, 0.72 + hash(180 + i) * 0.5);
     }
+
+    for (const [x, z, phase] of [[-5.25, 0, 0], [5.25, 0, 1], [0, -5.35, 2], [0, 5.35, 3]]) {
+      const sign = new THREE.Group();
+      sign.position.set(x, 3.55, z);
+      sign.rotation.y = phase * 0.2;
+      const post = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.08, 1.55, 6), timber);
+      post.position.y = -0.7;
+      sign.add(post);
+      const board = new THREE.Mesh(new THREE.BoxGeometry(0.95, 0.52, 0.09), timberLight);
+      board.position.y = 0.05;
+      board.castShadow = true;
+      sign.add(board);
+      group.add(sign);
+    }
+
+    // Short walkways deliberately remain visible between vendor clusters.
+    const pathMaterial = this.environmentMaterial('market-walkway', 0x6f5944, 1);
+    for (const z of [-1.45, 4.25]) addBox(10.0, 0.045, 0.48, pathMaterial, 0, 2.38, z);
+    for (const x of [-4.25, 4.25]) addBox(0.48, 0.045, 10.0, pathMaterial, x, 2.39, 0);
+
     return group;
   }
 
@@ -6762,6 +6829,18 @@ export class ThreeGame {
     const selectedFortification = selectedTile === 'gate';
     const currentFortification = current ? this.isWallFamily(current) : false;
 
+    if (selectedTile === 'market') {
+      if (current || keepAtPoint) return;
+      if (!this.canBuildMarketAt(gx, gy)) {
+        this.setStatus('Market needs a clear 3×3 land area');
+        return;
+      }
+      this.recordHistory();
+      this.services.state.setCell(gx, gy, 'market', 1);
+      this.finishBuild();
+      return;
+    }
+
     if (current) {
       if (selectedFortification && currentFortification) {
         this.recordHistory();
@@ -6775,6 +6854,19 @@ export class ThreeGame {
     this.recordHistory();
     this.services.state.setCell(gx, gy, selectedTile, 1);
     this.finishBuild();
+  }
+
+  private canBuildMarketAt(gx: number, gy: number): boolean {
+    const radius = 1;
+    for (let y = gy - radius; y <= gy + radius; y += 1) {
+      for (let x = gx - radius; x <= gx + radius; x += 1) {
+        if (x < 0 || y < 0 || x >= SIZE || y >= SIZE) return false;
+        if (this.services.state.getCell(x, y) || this.services.keepSystem.findAtCell(x, y)) return false;
+        const terrain = this.terrainAt(x, y);
+        if (terrain === 'water' || terrain === 'river' || terrain === 'mountain' || terrain === 'forest') return false;
+      }
+    }
+    return true;
   }
 
   private canBuildOnTerrain(tool: ToolKind, terrain: TerrainKind): boolean {
@@ -7199,6 +7291,7 @@ export class ThreeGame {
   }
 
   private migrateKind(kind: string, level: number): { kind: TileKind; level: number } | null {
+    if (kind === 'marketStall' || kind === 'smallMarket' || kind === 'marketHall') return { kind: 'market', level: 1 };
     if (kind === 'wall') return { kind: 'wall1', level };
     if (kind === 'mountain1') return { kind: 'mountain', level: 1 };
     if (kind === 'mountain2') return { kind: 'mountain', level: 2 };
