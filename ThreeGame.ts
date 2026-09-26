@@ -595,31 +595,42 @@ export class ThreeGame {
     const settings = toolbar.querySelector<HTMLElement>('.builder-settings');
     if (!settings) return;
 
-    const toolHtml = modeConfig.toolGroups.map((group) => {
-      const buttons = group.toolIds
-        .map((toolId) => toolDefinitions.get(toolId))
-        .filter((tool): tool is ToolDefinition => Boolean(tool))
-        .map(
-          (tool) =>
-            '<button class="tool-button' +
-            (tool.id === this.selectedTool ? ' is-selected' : '') +
-            '" data-tool="' + tool.id + '">' +
-            '<span class="tool-icon">' + tool.icon + '</span>' +
-            '<span class="tool-copy"><strong>' + tool.label + '</strong><small>' + tool.detail + '</small></span>' +
-            '<kbd>' + tool.shortcut + '</kbd></button>',
-        )
-        .join('');
+    const toolHtml = modeConfig.toolGroups
+      .map((group) => {
+        const buttons = group.toolIds
+          .map((toolId) => toolDefinitions.get(toolId))
+          .filter((tool): tool is ToolDefinition => Boolean(tool))
+          .map(
+            (tool) =>
+              '<button class="tool-button' +
+              (tool.id === this.selectedTool ? ' is-selected' : '') +
+              '" data-tool="' + tool.id + '">' +
+              '<span class="tool-icon">' + tool.icon + '</span>' +
+              '<span class="tool-copy"><strong>' + tool.label + '</strong><small>' + tool.detail + '</small></span>' +
+              '<kbd>' + tool.shortcut + '</kbd></button>',
+          )
+          .join('');
 
-      return (
-        '<section class="tool-category" data-category="' + group.label + '">' +
-        '<button class="tool-category-header" type="button" aria-expanded="false">' +
-        '<span>' + group.label + '</span>' +
-        '<span class="tool-category-chevron" aria-hidden="true">▶</span>' +
-        '</button>' +
-        '<div class="tool-category-items">' + buttons + '</div>' +
-        '</section>'
-      );
-    }).join('');
+        return buttons ? { label: group.label, buttons } : null;
+      })
+      .filter((group): group is { label: string; buttons: string } => Boolean(group))
+      .map((group, index) => {
+        const isDefaultOpen = index === 0;
+        return (
+          '<section class="tool-category' +
+          (isDefaultOpen ? ' is-open' : '') +
+          '" data-category="' + group.label + '">' +
+          '<button class="tool-category-header" type="button" aria-expanded="' +
+          (isDefaultOpen ? 'true' : 'false') +
+          '">' +
+          '<span>' + group.label + '</span>' +
+          '<span class="tool-category-chevron" aria-hidden="true">▶</span>' +
+          '</button>' +
+          '<div class="tool-category-items">' + group.buttons + '</div>' +
+          '</section>'
+        );
+      })
+      .join('');
 
     settings.insertAdjacentHTML('beforebegin', toolHtml);
     settings.hidden = this.gameMode === 'modern';
@@ -7568,52 +7579,60 @@ export class ThreeGame {
 
     const modeConfig = getGameModeDefinition(this.gameMode);
     const toolDefinitions = new Map(TOOL_GROUPS.flatMap((group) => group.tools.map((tool) => [tool.id, tool] as const)));
-    const toolHtml = modeConfig.toolGroups.map((group, index) => {
-      const isDefaultOpen = index === 0;
-      const buttons = group.toolIds
-        .map((toolId) => toolDefinitions.get(toolId))
-        .filter((tool): tool is ToolDefinition => Boolean(tool))
-        .map(
-          (tool) =>
-            '<button class="tool-button' +
-            (tool.id === this.selectedTool ? ' is-selected' : '') +
-            '" data-tool="' +
-            tool.id +
-            '">' +
-            '<span class="tool-icon">' +
-            tool.icon +
-            '</span>' +
-            '<span class="tool-copy"><strong>' +
-            tool.label +
-            '</strong><small>' +
-            tool.detail +
-            '</small></span>' +
-            '<kbd>' +
-            tool.shortcut +
-            '</kbd></button>',
-        )
-        .join('');
+    const toolHtml = modeConfig.toolGroups
+      .map((group) => {
+        const buttons = group.toolIds
+          .map((toolId) => toolDefinitions.get(toolId))
+          .filter((tool): tool is ToolDefinition => Boolean(tool))
+          .map(
+            (tool) =>
+              '<button class="tool-button' +
+              (tool.id === this.selectedTool ? ' is-selected' : '') +
+              '" data-tool="' +
+              tool.id +
+              '">' +
+              '<span class="tool-icon">' +
+              tool.icon +
+              '</span>' +
+              '<span class="tool-copy"><strong>' +
+              tool.label +
+              '</strong><small>' +
+              tool.detail +
+              '</small></span>' +
+              '<kbd>' +
+              tool.shortcut +
+              '</kbd></button>',
+          )
+          .join('');
 
-      return (
-        '<section class="tool-category' +
-        (isDefaultOpen ? ' is-open' : '') +
-        '" data-category="' +
-        group.label +
-        '">' +
-        '<button class="tool-category-header" type="button" aria-expanded="' +
-        (isDefaultOpen ? 'true' : 'false') +
-        '">' +
-        '<span>' +
-        group.label +
-        '</span>' +
-        '<span class="tool-category-chevron" aria-hidden="true">▶</span>' +
-        '</button>' +
-        '<div class="tool-category-items">' +
-        buttons +
-        '</div>' +
-        '</section>'
-      );
-    }).join('');
+        return buttons
+          ? { label: group.label, buttons }
+          : null;
+      })
+      .filter((group): group is { label: string; buttons: string } => Boolean(group))
+      .map((group, index) => {
+        const isDefaultOpen = index === 0;
+        return (
+          '<section class="tool-category' +
+          (isDefaultOpen ? ' is-open' : '') +
+          '" data-category="' +
+          group.label +
+          '">' +
+          '<button class="tool-category-header" type="button" aria-expanded="' +
+          (isDefaultOpen ? 'true' : 'false') +
+          '">' +
+          '<span>' +
+          group.label +
+          '</span>' +
+          '<span class="tool-category-chevron" aria-hidden="true">▶</span>' +
+          '</button>' +
+          '<div class="tool-category-items">' +
+          group.buttons +
+          '</div>' +
+          '</section>'
+        );
+      })
+      .join('');
 
     toolbar.innerHTML =
       '<div class="toolbar-title"><div><span>Build</span><small>Modular engineering</small></div><button id="toolbar-close" class="toolbar-close" type="button" aria-label="Close build panel">×</button></div>' +
