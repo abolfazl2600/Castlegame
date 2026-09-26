@@ -595,42 +595,31 @@ export class ThreeGame {
     const settings = toolbar.querySelector<HTMLElement>('.builder-settings');
     if (!settings) return;
 
-    const toolHtml = modeConfig.toolGroups
-      .map((group) => {
-        const buttons = group.toolIds
-          .map((toolId) => toolDefinitions.get(toolId))
-          .filter((tool): tool is ToolDefinition => Boolean(tool))
-          .map(
-            (tool) =>
-              '<button class="tool-button' +
-              (tool.id === this.selectedTool ? ' is-selected' : '') +
-              '" data-tool="' + tool.id + '">' +
-              '<span class="tool-icon">' + tool.icon + '</span>' +
-              '<span class="tool-copy"><strong>' + tool.label + '</strong><small>' + tool.detail + '</small></span>' +
-              '<kbd>' + tool.shortcut + '</kbd></button>',
-          )
-          .join('');
+    const toolHtml = modeConfig.toolGroups.map((group) => {
+      const buttons = group.toolIds
+        .map((toolId) => toolDefinitions.get(toolId))
+        .filter((tool): tool is ToolDefinition => Boolean(tool))
+        .map(
+          (tool) =>
+            '<button class="tool-button' +
+            (tool.id === this.selectedTool ? ' is-selected' : '') +
+            '" data-tool="' + tool.id + '">' +
+            '<span class="tool-icon">' + tool.icon + '</span>' +
+            '<span class="tool-copy"><strong>' + tool.label + '</strong><small>' + tool.detail + '</small></span>' +
+            '<kbd>' + tool.shortcut + '</kbd></button>',
+        )
+        .join('');
 
-        return buttons ? { label: group.label, buttons } : null;
-      })
-      .filter((group): group is { label: string; buttons: string } => Boolean(group))
-      .map((group, index) => {
-        const isDefaultOpen = index === 0;
-        return (
-          '<section class="tool-category' +
-          (isDefaultOpen ? ' is-open' : '') +
-          '" data-category="' + group.label + '">' +
-          '<button class="tool-category-header" type="button" aria-expanded="' +
-          (isDefaultOpen ? 'true' : 'false') +
-          '">' +
-          '<span>' + group.label + '</span>' +
-          '<span class="tool-category-chevron" aria-hidden="true">▶</span>' +
-          '</button>' +
-          '<div class="tool-category-items">' + group.buttons + '</div>' +
-          '</section>'
-        );
-      })
-      .join('');
+      return (
+        '<section class="tool-category" data-category="' + group.label + '">' +
+        '<button class="tool-category-header" type="button" aria-expanded="false">' +
+        '<span>' + group.label + '</span>' +
+        '<span class="tool-category-chevron" aria-hidden="true">▶</span>' +
+        '</button>' +
+        '<div class="tool-category-items">' + buttons + '</div>' +
+        '</section>'
+      );
+    }).join('');
 
     settings.insertAdjacentHTML('beforebegin', toolHtml);
     settings.hidden = this.gameMode === 'modern';
@@ -7579,73 +7568,65 @@ export class ThreeGame {
 
     const modeConfig = getGameModeDefinition(this.gameMode);
     const toolDefinitions = new Map(TOOL_GROUPS.flatMap((group) => group.tools.map((tool) => [tool.id, tool] as const)));
-    const toolHtml = modeConfig.toolGroups
-      .map((group) => {
-        const buttons = group.toolIds
-          .map((toolId) => toolDefinitions.get(toolId))
-          .filter((tool): tool is ToolDefinition => Boolean(tool))
-          .map(
-            (tool) =>
-              '<button class="tool-button' +
-              (tool.id === this.selectedTool ? ' is-selected' : '') +
-              '" data-tool="' +
-              tool.id +
-              '">' +
-              '<span class="tool-icon">' +
-              tool.icon +
-              '</span>' +
-              '<span class="tool-copy"><strong>' +
-              tool.label +
-              '</strong><small>' +
-              tool.detail +
-              '</small></span>' +
-              '<kbd>' +
-              tool.shortcut +
-              '</kbd></button>',
-          )
-          .join('');
+    const toolHtml = modeConfig.toolGroups.map((group, index) => {
+      const isDefaultOpen = index === 0;
+      const buttons = group.toolIds
+        .map((toolId) => toolDefinitions.get(toolId))
+        .filter((tool): tool is ToolDefinition => Boolean(tool))
+        .map(
+          (tool) =>
+            '<button class="tool-button' +
+            (tool.id === this.selectedTool ? ' is-selected' : '') +
+            '" data-tool="' +
+            tool.id +
+            '">' +
+            '<span class="tool-icon">' +
+            tool.icon +
+            '</span>' +
+            '<span class="tool-copy"><strong>' +
+            tool.label +
+            '</strong><small>' +
+            tool.detail +
+            '</small></span>' +
+            '<kbd>' +
+            tool.shortcut +
+            '</kbd></button>',
+        )
+        .join('');
 
-        return buttons
-          ? { label: group.label, buttons }
-          : null;
-      })
-      .filter((group): group is { label: string; buttons: string } => Boolean(group))
-      .map((group, index) => {
-        const isDefaultOpen = index === 0;
-        return (
-          '<section class="tool-category' +
-          (isDefaultOpen ? ' is-open' : '') +
-          '" data-category="' +
-          group.label +
-          '">' +
-          '<button class="tool-category-header" type="button" aria-expanded="' +
-          (isDefaultOpen ? 'true' : 'false') +
-          '">' +
-          '<span>' +
-          group.label +
-          '</span>' +
-          '<span class="tool-category-chevron" aria-hidden="true">▶</span>' +
-          '</button>' +
-          '<div class="tool-category-items">' +
-          group.buttons +
-          '</div>' +
-          '</section>'
-        );
-      })
-      .join('');
+      return (
+        '<section class="tool-category' +
+        (isDefaultOpen ? ' is-open' : '') +
+        '" data-category="' +
+        group.label +
+        '">' +
+        '<button class="tool-category-header" type="button" aria-expanded="' +
+        (isDefaultOpen ? 'true' : 'false') +
+        '">' +
+        '<span>' +
+        group.label +
+        '</span>' +
+        '<span class="tool-category-chevron" aria-hidden="true">▶</span>' +
+        '</button>' +
+        '<div class="tool-category-items">' +
+        buttons +
+        '</div>' +
+        '</section>'
+      );
+    }).join('');
 
     toolbar.innerHTML =
       '<div class="toolbar-title"><div><span>Build</span><small>Modular engineering</small></div><button id="toolbar-close" class="toolbar-close" type="button" aria-label="Close build panel">×</button></div>' +
       noneHtml +
       toolHtml +
       '<div class="builder-settings">' +
-      '<section class="settings-section build-settings-section">' +
-      '<button class="settings-section-header" type="button" aria-expanded="false">' +
-      '<span class="settings-section-title">Build Settings</span>' +
-      '<span id="build-settings-summary" class="settings-section-summary">Wall, castle, tower, keep, terrain & selection</span>' +
+      '<section class="settings-section wall-settings-section' + (WALL_KINDS.includes(this.selectedTool as WallKind) ? ' is-open' : '') + '">' +
+      '<button class="settings-section-header" type="button" aria-expanded="' + (WALL_KINDS.includes(this.selectedTool as WallKind) ? 'true' : 'false') + '">' +
+      '<span class="settings-section-title">Wall Settings</span>' +
+      '<span id="wall-settings-summary" class="settings-section-summary">Medium · Battlement · No Walkway</span>' +
       '<span class="settings-section-chevron" aria-hidden="true">▶</span>' +
       '</button>' +
-      '<div class="settings-section-items"><section class="settings-section wall-settings-section"><div class="settings-section-subtitle">Wall Settings</div>' +
+      '<div class="settings-section-items">' +
       '<label class="settings-row"><span>Thickness</span><select id="wall-thickness">' +
       '<option value="thin">Thin</option><option value="medium" selected>Medium</option><option value="thick">Thick</option>' +
       '</select></label>' +
@@ -7661,8 +7642,7 @@ export class ThreeGame {
       '<label class="settings-row"><span>Tower Bridge</span><select id="tower-bridge-kind">' +
       '<option value="stone" selected>Stone Bridge</option><option value="wood">Wooden Bridge</option>' +
       '</select></label>' +
-      '<div class="settings-hint">Foundations, buttresses and machicolations are generated automatically from height, terrain and structure importance.</div>'
-      '</section>' +
+      '<div class="settings-hint">Foundations, buttresses and machicolations are generated automatically from height, terrain and structure importance.</div>' +
       '<div class="settings-title">Tower Builder</div>' +
       '<label class="settings-row"><span>Base</span><select id="tower-shape">' +
       '<option value="square">Square Tower</option><option value="round" selected>Round Tower</option>' +
@@ -7701,8 +7681,7 @@ export class ThreeGame {
       '<div class="settings-actions"><button id="rotate-selected" type="button">↻ Rotate</button><button id="undo-button" type="button">Undo</button></div>' +
       '<div class="settings-actions"><button id="redo-button" type="button">Redo</button><button id="select-clear" type="button">Clear Select</button></div>' +
       '<div class="settings-hint">Walls: drag A→B. Terrain tools also support drag strokes. Ctrl+Z / Ctrl+Y undo and redo.</div>' +
-      '</div>' +
-      '</section>';
+      '</div>';
 
     const builderSettings = toolbar.querySelector<HTMLElement>('.builder-settings');
     if (builderSettings) builderSettings.hidden = this.gameMode === 'modern';
@@ -7737,12 +7716,12 @@ export class ThreeGame {
     get<HTMLButtonElement>('camera-45-button').onclick = () => this.setCameraView('45');
     get<HTMLButtonElement>('camera-top-button').onclick = () => this.setCameraView('top');
 
-    const buildSettingsSection = toolbar.querySelector<HTMLElement>('.build-settings-section');
-    const buildSettingsHeader = buildSettingsSection?.querySelector<HTMLButtonElement>('.settings-section-header');
-    buildSettingsHeader?.addEventListener('click', () => {
-      if (!buildSettingsSection || !buildSettingsHeader) return;
-      const open = buildSettingsSection.classList.toggle('is-open');
-      buildSettingsHeader.setAttribute('aria-expanded', String(open));
+    const wallSettingsSection = toolbar.querySelector<HTMLElement>('.wall-settings-section');
+    const wallSettingsHeader = toolbar.querySelector<HTMLButtonElement>('.settings-section-header');
+    wallSettingsHeader?.addEventListener('click', () => {
+      if (!wallSettingsSection || !wallSettingsHeader) return;
+      const open = wallSettingsSection.classList.toggle('is-open');
+      wallSettingsHeader.setAttribute('aria-expanded', String(open));
     });
 
     const wallThickness = get<HTMLSelectElement>('wall-thickness');
