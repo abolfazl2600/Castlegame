@@ -19,6 +19,7 @@ import type {
   GridCell,
   HarborKind,
   KeepRoofStyle,
+  MarketBuildingKind,
   RoadKind,
   ShipKind,
   StoneStyle,
@@ -65,6 +66,9 @@ const BUILDING_KINDS: TileKind[] = [
   'villa',
   'farm',
   'armyCamp',
+  'marketStall',
+  'smallMarket',
+  'marketHall',
   'windmill',
   'mine',
   'mountain',
@@ -159,6 +163,14 @@ const TOOL_GROUPS: Array<{ label: string; tools: ToolDefinition[] }> = [
       { id: 'villa', icon: '🏘️', label: 'Villa Quarter', detail: '3 detailed homes + courtyard', shortcut: '0' },
       { id: 'farm', icon: '🌾', label: 'Farm', detail: 'Cultivated crop field', shortcut: 'F' },
       { id: 'windmill', icon: '⚙️', label: 'Medieval Windmill', detail: 'Four-sail working mill · continuous rotation', shortcut: 'W' },
+    ],
+  },
+  {
+    label: 'Market & Commerce',
+    tools: [
+      { id: 'marketStall', icon: '🪵', label: 'Market Stall', detail: 'Timber stall · counter · crates & goods', shortcut: '-' },
+      { id: 'smallMarket', icon: '🏪', label: 'Small Market', detail: 'Covered market · multiple vendor stands', shortcut: '-' },
+      { id: 'marketHall', icon: '🏛️', label: 'Market Hall', detail: 'Large trading hall · stalls & storage', shortcut: '-' },
     ],
   },
   {
@@ -4431,6 +4443,138 @@ export class ThreeGame {
       rail.rotation.x = -Math.atan2(rise, run);
     }
 
+    return group;
+  }
+
+  private makeMarketBuilding(group: THREE.Group, kind: MarketBuildingKind): THREE.Group {
+    const timber = this.environmentMaterial('market-timber', 0x65452f, 0.98);
+    const timberLight = this.environmentMaterial('market-timber-light', 0x8a623d, 0.96);
+    const woodDark = this.environmentMaterial('market-wood-dark', 0x473022, 1);
+    const plaster = this.environmentMaterial('market-plaster', 0xc7ad82, 0.98);
+    const stone = this.environmentMaterial('market-stone', 0x8d8272, 1);
+    const roof = this.environmentMaterial('market-roof', 0x5a4032, 0.98);
+    const roofLight = this.environmentMaterial('market-roof-light', 0x72503a, 0.98);
+    const cloth = this.environmentMaterial('market-cloth', 0xb45f3e, 0.92);
+    const crate = this.environmentMaterial('market-crate', 0x9a6b3d, 1);
+    const goods = this.environmentMaterial('market-goods', 0x7c9b5a, 0.95);
+    const metal = this.environmentMaterial('market-metal', 0x6f675c, 0.7);
+
+    const addBarrel = (x: number, z: number, scale = 1): void => {
+      const barrel = new THREE.Mesh(new THREE.CylinderGeometry(0.25 * scale, 0.28 * scale, 0.58 * scale, 10), woodDark);
+      barrel.position.set(x, 2.55 + 0.29 * scale, z);
+      barrel.castShadow = true;
+      group.add(barrel);
+      for (const y of [2.4, 2.7]) {
+        const band = new THREE.Mesh(new THREE.TorusGeometry(0.255 * scale, 0.025 * scale, 6, 10), metal);
+        band.position.set(x, y + 0.04 * scale, z);
+        band.rotation.x = Math.PI / 2;
+        band.castShadow = true;
+        group.add(band);
+      }
+    };
+
+    const addCrate = (x: number, z: number, width = 0.55, height = 0.48): void => {
+      this.addBox(group, width, height, 0.58, crate, x, 2.42 + height / 2, z);
+      this.addBox(group, width + 0.02, 0.045, 0.08, woodDark, x, 2.46 + height, z - 0.22);
+      this.addBox(group, 0.055, height + 0.04, 0.055, woodDark, x - width / 2 + 0.06, 2.42 + height / 2, z);
+      this.addBox(group, 0.055, height + 0.04, 0.055, woodDark, x + width / 2 - 0.06, 2.42 + height / 2, z);
+    };
+
+    const addVendorTable = (x: number, z: number, width: number, clothColor = cloth): void => {
+      this.addBox(group, width, 0.12, 0.68, timber, x, 2.86, z);
+      for (const legX of [-width / 2 + 0.12, width / 2 - 0.12]) {
+        this.addBox(group, 0.09, 0.58, 0.09, timber, x + legX, 2.57, z - 0.22);
+        this.addBox(group, 0.09, 0.58, 0.09, timber, x + legX, 2.57, z + 0.22);
+      }
+      this.addBox(group, width + 0.04, 0.08, 0.74, clothColor, x, 2.94, z);
+      for (const offset of [-0.22, 0.04, 0.3]) {
+        const goodsMesh = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.11, 0.16, 8), goods);
+        goodsMesh.position.set(x + offset, 3.08, z);
+        goodsMesh.castShadow = true;
+        group.add(goodsMesh);
+      }
+    };
+
+    if (kind === 'marketStall') {
+      this.addBox(group, 3.45, 0.06, 3.45, this.environmentMaterial('market-ground', 0x9b875f, 1), 0, 2.2, 0);
+      for (const x of [-1.35, 1.35]) {
+        for (const z of [-1.15, 1.15]) this.addBox(group, 0.14, 2.15, 0.14, timber, x, 3.28, z);
+      }
+      const canopy = new THREE.Mesh(new THREE.ConeGeometry(2.0, 0.72, 4), roofLight);
+      canopy.position.set(0, 5.05, 0);
+      canopy.rotation.y = Math.PI / 4;
+      canopy.scale.set(1.0, 1, 0.78);
+      canopy.castShadow = true;
+      group.add(canopy);
+      this.addBox(group, 2.85, 0.16, 0.78, timberLight, 0, 3.02, -0.78);
+      addVendorTable(0, -0.82, 2.65);
+      addCrate(-1.12, 0.72, 0.58, 0.55);
+      addCrate(1.12, 0.72, 0.5, 0.44);
+      addBarrel(-1.18, -0.05, 0.9);
+      addBarrel(1.18, -0.05, 0.9);
+      this.addBox(group, 0.72, 0.42, 0.08, cloth, 0, 4.02, -0.79);
+      return group;
+    }
+
+    if (kind === 'smallMarket') {
+      this.addBox(group, 3.62, 0.08, 3.62, stone, 0, 2.22, 0);
+      this.addBox(group, 3.22, 1.75, 2.78, plaster, 0, 3.18, 0.08);
+      for (const x of [-1.62, 1.62]) {
+        this.addBox(group, 0.16, 2.15, 0.16, timber, x, 3.38, 0.08);
+        this.addBox(group, 0.16, 2.15, 0.16, timber, x, 3.38, -1.25);
+      }
+      for (const x of [-0.82, 0, 0.82]) this.addBox(group, 0.12, 2.05, 0.12, timberLight, x, 3.34, -1.3);
+      for (const x of [-1.45, 0, 1.45]) this.addBox(group, 0.12, 2.05, 0.12, timberLight, x, 3.34, 1.38);
+      const roofMesh = new THREE.Mesh(new THREE.ConeGeometry(2.45, 1.25, 4), roof);
+      roofMesh.position.set(0, 5.18, 0);
+      roofMesh.rotation.y = Math.PI / 4;
+      roofMesh.scale.set(1.0, 1, 0.78);
+      roofMesh.castShadow = true;
+      group.add(roofMesh);
+      this.addBox(group, 3.55, 0.18, 0.22, timber, 0, 4.08, -1.47);
+      this.addBox(group, 3.25, 0.1, 0.72, cloth, 0, 3.95, -1.54);
+      addVendorTable(-0.85, -0.72, 1.25);
+      addVendorTable(0.85, -0.72, 1.25, this.environmentMaterial('market-cloth-alt', 0x587d75, 0.92));
+      addCrate(-1.22, 0.88, 0.62, 0.52);
+      addCrate(1.2, 0.88, 0.55, 0.64);
+      addBarrel(-1.35, -0.1);
+      addBarrel(1.35, -0.1);
+      this.addBox(group, 0.72, 0.55, 0.08, timber, 0, 3.75, -1.59);
+      this.addBox(group, 0.56, 0.08, 0.46, goods, 0, 3.88, -1.62);
+      return group;
+    }
+
+    this.addBox(group, 3.72, 0.14, 3.72, stone, 0, 2.3, 0);
+    this.addBox(group, 3.28, 2.0, 3.08, plaster, 0, 3.32, 0.08);
+    for (const x of [-1.63, -0.82, 0.82, 1.63]) {
+      this.addBox(group, 0.16, 2.45, 0.16, timber, x, 3.54, -1.47);
+      this.addBox(group, 0.16, 2.45, 0.16, timber, x, 3.54, 1.5);
+    }
+    for (const z of [-1.48, 1.5]) this.addBox(group, 3.3, 0.16, 0.16, timber, 0, 4.72, z);
+    const hallRoof = new THREE.Mesh(new THREE.ConeGeometry(2.62, 1.42, 4), roof);
+    hallRoof.position.set(0, 5.45, 0);
+    hallRoof.rotation.y = Math.PI / 4;
+    hallRoof.scale.set(1.0, 1, 0.82);
+    hallRoof.castShadow = true;
+    group.add(hallRoof);
+    this.addBox(group, 3.15, 0.16, 0.24, timber, 0, 4.02, -1.62);
+    this.addBox(group, 2.95, 0.1, 0.78, cloth, 0, 3.88, -1.68);
+    addVendorTable(-0.95, -0.75, 1.28);
+    addVendorTable(0.95, -0.75, 1.28, this.environmentMaterial('market-cloth-alt2', 0x6b6f92, 0.92));
+    addVendorTable(0, 0.62, 1.9, this.environmentMaterial('market-cloth-gold', 0x9a7541, 0.92));
+    addCrate(-1.25, 1.1, 0.65, 0.58);
+    addCrate(1.24, 1.08, 0.6, 0.72);
+    addBarrel(-1.38, -0.02, 1.05);
+    addBarrel(1.38, -0.02, 1.05);
+    addCrate(0, 1.35, 0.5, 0.42);
+    this.addBox(group, 0.9, 0.6, 0.1, timber, 0, 3.62, -1.76);
+    this.addBox(group, 0.7, 0.08, 0.52, goods, 0, 3.76, -1.81);
+    for (const x of [-1.35, 1.35]) {
+      const lantern = new THREE.Mesh(new THREE.SphereGeometry(0.12, 8, 6), metal);
+      lantern.position.set(x, 4.25, -1.7);
+      lantern.castShadow = true;
+      group.add(lantern);
+    }
     return group;
   }
 
