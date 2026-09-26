@@ -63,6 +63,7 @@ h1 { margin: 3px 0 0; font-size: 22px; line-height: 1; letter-spacing: -.035em; 
 #game-shell {
   position: relative;
   min-height: 0;
+  height: 100%;
   overflow: hidden;
   border: 1px solid rgba(139,214,255,.16);
   border-radius: 22px;
