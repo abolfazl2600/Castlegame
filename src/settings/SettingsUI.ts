@@ -35,10 +35,6 @@ export class SettingsUI {
     this.panel.setAttribute('aria-hidden', 'true');
   }
 
-  close(): void {
-    this.panel.hidden = true;
-  }
-
   appendSection(section: HTMLElement): void {
     const scroll = this.panel.querySelector<HTMLElement>('.settings-scroll');
     scroll?.appendChild(section);
