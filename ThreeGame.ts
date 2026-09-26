@@ -141,6 +141,12 @@ interface HistorySnapshot {
 
 const TOOL_GROUPS: Array<{ label: string; tools: ToolDefinition[] }> = [
   {
+    label: 'Modern Fortress',
+    tools: [
+      { id: 'futuristicCastle', icon: '🏢', label: 'Futuristic Fortress', detail: 'Place the existing modern fortress structure', shortcut: 'M' },
+    ],
+  },
+  {
     label: 'Castle & Defense',
     tools: [
       { id: 'wall1', icon: '🪨', label: 'Stone Wall', detail: 'Drag A → B · stack floors', shortcut: '1' },
