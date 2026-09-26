@@ -24,7 +24,7 @@ export function applySceneGraphicsSettings(scene: Scene, settings: SettingsData)
         ? 205
         : 280;
 
-  if (scene.fog) scene.fog.far = detailFar;
+  if (scene.fog && 'far' in scene.fog) scene.fog.far = detailFar;
   scene.traverse((object) => {
     object.userData.settingsEnvironment = true;
   });
