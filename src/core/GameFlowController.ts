@@ -1,7 +1,6 @@
-import type { BattleStatus } from './battle/types';
-import { SaveSystem } from './core/SaveSystem';
-import { SAVE_KEY } from './core/constants';
-import type { ThreeGame } from './ThreeGame';
+import type { BattleStatus } from '../battle/types';
+import { SAVE_KEY } from './constants';
+import type { ThreeGame } from '../ThreeGame';
 
 type CoreState = 'MAIN_MENU' | 'BATTLE' | 'PAUSED' | 'VICTORY' | 'DEFEAT' | 'SETTINGS';
 
