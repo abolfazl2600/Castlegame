@@ -1,34 +1,33 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-import { GameState } from './state/GameState';
+import { createGameDomainServices } from './core/GameDomainServices';
+import { SaveSystem } from './core/SaveSystem';
+import type { GameState } from './state/GameState';
 import { SAVE_KEY, SAVE_VERSION, TILE_SIZE, WORLD_COLS } from './core/constants';
-import { KeepSystem } from './building/KeepSystem';
 import { WallSystem } from './building/WallSystem';
-import { WallCornerSystem } from './building/WallCornerSystem';
-import { CastleAccessSystem } from './building/CastleAccessSystem';
-import { GateSystem } from './building/GateSystem';
-import { CastleDetailGenerator } from './building/CastleDetailGenerator';
 import { KeepRenderer } from './rendering/KeepRenderer';
 import { MedievalMaterials } from './rendering/MedievalMaterials';
 import { BattleSystem } from './battle/BattleSystem';
 import type { BattleSetup, BattleStatus } from './battle/types';
-import { PopulationSystem } from './systems/PopulationSystem';
 import { MaritimeSystem } from './systems/MaritimeSystem';
-import { WindmillSystem } from './systems/WindmillSystem';
-import { OrchardSystem } from './systems/OrchardSystem';
+import type { GameMode } from './core/GameMode';
+import { getGameModeDefinition, isBuildingAvailable, isGameMode, isToolAvailable } from './core/GameMode';
+import type { SettingsStore } from './settings/SettingsStore';
+import { applyGraphicsSettings, applyInputSettings } from './settings/SettingsSubsystems';
+import { FuturisticCastleRenderer } from './rendering/FuturisticCastleRenderer';
+import { AudioManager } from './audio/AudioManager';
+import { audioEvents } from './audio/AudioEventBus';
 import type {
   AccessKind,
   GridCell,
   HarborKind,
   KeepRoofStyle,
-  MarketBuildingKind,
   RoadKind,
   ShipKind,
   StoneStyle,
   TowerBridgeKind,
   TowerBridgeState,
   KeepState,
-  SavedGame,
   TerrainKind,
   TerrainOverrideKind,
   TerrainToolKind,
@@ -44,9 +43,6 @@ import type {
 const SIZE = WORLD_COLS;
 const TILE = TILE_SIZE;
 const WORLD = SIZE * TILE;
-const TERRITORY_ZONE_SIZE = 12;
-const TERRITORY_MAX_STAGE = 2;
-
 const WALL_KINDS: WallKind[] = ['wall1', 'wall2', 'wall3'];
 const ROAD_KINDS: RoadKind[] = ['road', 'dirtRoad', 'stoneRoad'];
 const HARBOR_KINDS: HarborKind[] = ['smallDock', 'woodenPier', 'harbor', 'fishingDock'];
@@ -71,9 +67,7 @@ const BUILDING_KINDS: TileKind[] = [
   'farm',
   'appleOrchard',
   'armyCamp',
-  'marketStall',
-  'smallMarket',
-  'marketHall',
+  'market',
   'windmill',
   'mine',
   'mountain',
@@ -85,6 +79,7 @@ const BUILDING_KINDS: TileKind[] = [
   'woodenStairs',
   'ramp',
   'ladder',
+  'futuristicCastle',
 ];
 
 type ViewMode = 'plan2d' | 'world3d';
@@ -139,12 +134,11 @@ interface HistorySnapshot {
   elevations: Array<[string, number]>;
   stoneStyle: StoneStyle;
   towerBridges: TowerBridgeState[];
-  territoryStage: number;
 }
 
 const TOOL_GROUPS: Array<{ label: string; tools: ToolDefinition[] }> = [
   {
-    label: 'Advanced Walls',
+    label: 'Castle & Defense',
     tools: [
       { id: 'wall1', icon: '🪨', label: 'Stone Wall', detail: 'Drag A → B · stack floors', shortcut: '1' },
       { id: 'wall2', icon: '🪵', label: 'Wooden Wall', detail: 'Drag A → B · timber defense', shortcut: '2' },
@@ -158,26 +152,57 @@ const TOOL_GROUPS: Array<{ label: string; tools: ToolDefinition[] }> = [
     ],
   },
   {
-    label: 'Settlement',
+    label: 'Residential',
     tools: [
-      { id: 'road', icon: '🛣️', label: 'Road', detail: 'Drag A → B · standard road', shortcut: '6' },
-      { id: 'dirtRoad', icon: '🟫', label: 'Dirt Road', detail: 'Drag A → B · village track', shortcut: 'I' },
-      { id: 'stoneRoad', icon: '◼️', label: 'Stone Road', detail: 'Drag A → B · paved route', shortcut: 'O' },
       { id: 'cottage', icon: '🏠', label: 'Cottage Cluster', detail: '3 small cottages + village props', shortcut: '7' },
       { id: 'house', icon: '🏡', label: 'House Cluster', detail: '4 connected village homes', shortcut: '8' },
       { id: 'manor', icon: '🏯', label: 'Manor Court', detail: 'Main hall + service houses', shortcut: '9' },
       { id: 'villa', icon: '🏘️', label: 'Villa Quarter', detail: '3 detailed homes + courtyard', shortcut: '0' },
+    ],
+  },
+  {
+    label: 'Economy',
+    tools: [
+      { id: 'market', icon: '🏪', label: 'Market', detail: 'Large medieval marketplace · tents · stalls · shops', shortcut: '-' },
+    ],
+  },
+  {
+    label: 'Agriculture',
+    tools: [
       { id: 'farm', icon: '🌾', label: 'Farm', detail: 'Cultivated crop field', shortcut: 'F' },
       { id: 'appleOrchard', icon: '🍎', label: 'Apple Orchard', detail: 'Procedural apple trees · orchard plot', shortcut: 'Y' },
       { id: 'windmill', icon: '⚙️', label: 'Medieval Windmill', detail: 'Four-sail working mill · continuous rotation', shortcut: 'W' },
     ],
   },
   {
-    label: 'Market & Commerce',
+    label: 'Roads & Access',
     tools: [
-      { id: 'marketStall', icon: '🪵', label: 'Market Stall', detail: 'Timber stall · counter · crates & goods', shortcut: '-' },
-      { id: 'smallMarket', icon: '🏪', label: 'Small Market', detail: 'Covered market · multiple vendor stands', shortcut: '-' },
-      { id: 'marketHall', icon: '🏛️', label: 'Market Hall', detail: 'Large trading hall · stalls & storage', shortcut: '-' },
+      { id: 'road', icon: '🛣️', label: 'Road', detail: 'Drag A → B · standard road', shortcut: '6' },
+      { id: 'dirtRoad', icon: '🟫', label: 'Dirt Road', detail: 'Drag A → B · village track', shortcut: 'I' },
+      { id: 'stoneRoad', icon: '◼️', label: 'Stone Road', detail: 'Drag A → B · paved route', shortcut: 'O' },
+    ],
+  },
+  {
+    label: 'Terrain',
+    tools: [
+      { id: 'mountain', icon: '⛰️', label: 'Mountain', detail: 'Repeated clicks grow natural peaks', shortcut: 'N' },
+      { id: 'mountainRange', icon: '🏔️', label: 'Mountain Range', detail: 'Drag A → B · ridge + foothills', shortcut: 'K' },
+      { id: 'river', icon: '🌊', label: 'River', detail: 'Carve connected flowing water', shortcut: 'R' },
+      { id: 'land', icon: '🌱', label: 'Land', detail: 'Fill water into buildable land', shortcut: 'L' },
+      { id: 'raise', icon: '⬆️', label: 'Raise', detail: 'Raise terrain with brush', shortcut: 'U' },
+      { id: 'lower', icon: '⬇️', label: 'Lower', detail: 'Lower terrain with brush', shortcut: 'J' },
+      { id: 'flatten', icon: '▰', label: 'Flatten', detail: 'Level terrain to brush center', shortcut: 'B' },
+      { id: 'smooth', icon: '〰️', label: 'Smooth', detail: 'Blend nearby terrain heights', shortcut: 'V' },
+      { id: 'dig', icon: '⛏️', label: 'Dig', detail: 'Excavate deep ground', shortcut: 'G' },
+      { id: 'hill', icon: '⛰️', label: 'Create Hill', detail: 'Build a rounded hill', shortcut: 'H' },
+      { id: 'cliff', icon: '🗻', label: 'Create Cliff', detail: 'Create a sharp raised plateau', shortcut: 'C' },
+    ],
+  },
+  {
+    label: 'Environment',
+    tools: [
+      { id: 'tree', icon: '🌲', label: 'Tree', detail: 'Plant a detailed tree', shortcut: 'T' },
+      { id: 'erase', icon: '⌫', label: 'Remove', detail: 'Trees, rocks, huts & builds', shortcut: 'X' },
     ],
   },
   {
@@ -195,25 +220,6 @@ const TOOL_GROUPS: Array<{ label: string; tools: ToolDefinition[] }> = [
       { id: 'fishingDock', icon: '🎣', label: 'Fishing Dock', detail: 'Coast only · fishing gear', shortcut: '-' },
     ],
   },
-  {
-    label: 'Nature & Resources',
-    tools: [
-      { id: 'tree', icon: '🌲', label: 'Tree', detail: 'Plant a detailed tree', shortcut: 'T' },
-      { id: 'mountain', icon: '⛰️', label: 'Mountain', detail: 'Repeated clicks grow natural peaks', shortcut: 'N' },
-      { id: 'mountainRange', icon: '🏔️', label: 'Mountain Range', detail: 'Drag A → B · ridge + foothills', shortcut: 'K' },
-      { id: 'mine', icon: '⛏️', label: 'Mine', detail: 'Natural or built mountain', shortcut: 'M' },
-      { id: 'river', icon: '🌊', label: 'River', detail: 'Carve connected flowing water', shortcut: 'R' },
-      { id: 'land', icon: '🌱', label: 'Land', detail: 'Fill water into buildable land', shortcut: 'L' },
-      { id: 'raise', icon: '⬆️', label: 'Raise', detail: 'Raise terrain with brush', shortcut: 'U' },
-      { id: 'lower', icon: '⬇️', label: 'Lower', detail: 'Lower terrain with brush', shortcut: 'J' },
-      { id: 'flatten', icon: '▰', label: 'Flatten', detail: 'Level terrain to brush center', shortcut: 'B' },
-      { id: 'smooth', icon: '〰️', label: 'Smooth', detail: 'Blend nearby terrain heights', shortcut: 'V' },
-      { id: 'dig', icon: '⛏️', label: 'Dig', detail: 'Excavate deep ground', shortcut: 'G' },
-      { id: 'hill', icon: '⛰️', label: 'Create Hill', detail: 'Build a rounded hill', shortcut: 'H' },
-      { id: 'cliff', icon: '🗻', label: 'Create Cliff', detail: 'Create a sharp raised plateau', shortcut: 'C' },
-      { id: 'erase', icon: '⌫', label: 'Remove', detail: 'Trees, rocks, huts & builds', shortcut: 'X' },
-    ],
-  },
 ];
 
 export class ThreeGame {
@@ -222,21 +228,18 @@ export class ThreeGame {
   private readonly camera = new THREE.PerspectiveCamera(48, 1, 0.1, 700);
   private readonly renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
   private readonly controls: OrbitControls;
-  private readonly state = new GameState();
-  private readonly keepSystem = new KeepSystem();
-  private readonly wallCornerSystem = new WallCornerSystem();
-  private readonly castleAccessSystem = new CastleAccessSystem();
-  private readonly gateSystem = new GateSystem();
-  private readonly populationSystem = new PopulationSystem();
-  private readonly windmillSystem = new WindmillSystem();
-  private readonly orchardSystem = new OrchardSystem();
+  private readonly settingsStore: SettingsStore;
+  private readonly audioManager: AudioManager;
+  /** Domain state and gameplay services are composed here, away from rendering/UI concerns. */
+  private readonly services = createGameDomainServices();
   private readonly maritimeSystem = new MaritimeSystem({
     size: SIZE,
     terrainAt: (x, y) => this.terrainAt(x, y),
   });
-  private readonly detailGenerator = new CastleDetailGenerator();
-  private readonly medievalMaterials = new MedievalMaterials();
-  private readonly keepRenderer = new KeepRenderer(this.detailGenerator, this.medievalMaterials);
+    private readonly medievalMaterials = new MedievalMaterials();
+  private readonly keepRenderer = new KeepRenderer(this.services.detailGenerator, this.medievalMaterials);
+  private readonly futuristicCastleRenderer = new FuturisticCastleRenderer();
+  private saveSystem!: SaveSystem;
   private readonly terrainOverrides = new Map<string, TerrainOverrideKind>();
   private readonly elevationOverrides = new Map<string, number>();
   private readonly raycaster = new THREE.Raycaster();
@@ -244,7 +247,6 @@ export class ThreeGame {
   private readonly terrainLayer = new THREE.Group();
   private readonly buildLayer = new THREE.Group();
   private readonly planLayer = new THREE.Group();
-  private readonly territoryLayer = new THREE.Group();
   private readonly wallPreviewLayer = new THREE.Group();
   private readonly workerLayer = new THREE.Group();
   private readonly settlementLayer = new THREE.Group();
@@ -267,8 +269,7 @@ export class ThreeGame {
   private readonly oceanWaterMaterial: THREE.MeshStandardMaterial;
   private readonly shallowWaterMaterial: THREE.MeshStandardMaterial;
 
-  private selectedTool: ToolKind = 'wall1';
-  private territoryStage = 0;
+  private selectedTool: ToolKind | null = 'wall1';
   private selectedCell: GridPoint | null = null;
   private viewMode: ViewMode = 'world3d';
   private toolbarOpen = window.innerWidth > 760;
@@ -333,9 +334,30 @@ export class ThreeGame {
   private lastFrameTime = 0;
   private cameraTransitionFrame: number | null = null;
 
-  constructor(root: HTMLElement) {
+  constructor(root: HTMLElement, settingsStore: SettingsStore) {
     const hadSave = localStorage.getItem(SAVE_KEY) !== null;
     this.root = root;
+    this.settingsStore = settingsStore;
+    this.audioManager = new AudioManager();
+    this.saveSystem = new SaveSystem({
+      state: this.services.state,
+      keepSystem: this.services.keepSystem,
+      terrainOverrides: this.terrainOverrides,
+      elevationOverrides: this.elevationOverrides,
+      towerBridges: this.towerBridges,
+      getGameMode: () => this.gameMode,
+      getStoneStyle: () => this.stoneStyle,
+      getWorldSeeded: () => this.worldSeeded,
+      setWorldSeeded: (value) => { this.worldSeeded = value; },
+      setLoadedSaveVersion: (value) => { this.loadedSaveVersion = value; },
+      setStoneStyle: (value) => { this.stoneStyle = value; },
+      migrateKind: (kind, level) => this.migrateKind(kind, level),
+      isBuildingAvailable: (kind) => this.isBuildingAvailable(kind as TileKind),
+      key: (x, y) => this.key(x, y),
+      updateGameModeUI: () => this.updateGameModeUI(),
+      syncTemplateAvailability: () => this.syncTemplateAvailability(),
+      setStatus: (message) => this.setStatus(message),
+    });
     this.riverTexture = this.createRiverTexture();
     this.oceanTexture = this.createOceanTexture();
     this.riverWaterMaterial = new THREE.MeshStandardMaterial({
@@ -368,7 +390,7 @@ export class ThreeGame {
       emissive: 0x123b43,
       emissiveIntensity: 0.08,
     });
-    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.6));
+    applyGraphicsSettings(this.renderer, this.settingsStore.get());
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
     this.renderer.toneMappingExposure = 1.08;
@@ -387,6 +409,19 @@ export class ThreeGame {
     this.controls.maxDistance = 150;
     this.controls.maxPolarAngle = Math.PI / 2;
     this.controls.target.set(0, 0, 0);
+    applyInputSettings(this.controls, this.settingsStore.get());
+    this.settingsStore.subscribe((settings) => {
+      applyGraphicsSettings(this.renderer, settings);
+      this.renderer.toneMappingExposure = settings.graphics.effectsEnabled ? 1.08 : 1;
+      applyInputSettings(this.controls, settings);
+      this.audioManager.setMasterVolume(settings.audio.masterVolume);
+      this.audioManager.setMusicVolume(settings.audio.musicVolume);
+      this.audioManager.setSfxVolume(settings.audio.sfxVolume);
+      this.audioManager.setMuted(settings.audio.muted);
+      document.documentElement.style.setProperty('--castle-ui-scale', String(settings.interface.uiScale));
+      document.documentElement.toggleAttribute('data-reduced-motion', settings.interface.reducedMotion);
+      document.documentElement.toggleAttribute('data-high-contrast', settings.interface.highContrast);
+    });
 
     this.addLights();
     this.createWorld();
@@ -394,7 +429,6 @@ export class ThreeGame {
     this.scene.add(this.terrainLayer);
     this.scene.add(this.buildLayer);
     this.scene.add(this.planLayer);
-    this.scene.add(this.territoryLayer);
     this.scene.add(this.wallPreviewLayer);
     this.scene.add(this.workerLayer);
     this.scene.add(this.settlementLayer);
@@ -410,12 +444,14 @@ export class ThreeGame {
         terrainAt: (x, y) => this.terrainAt(x, y),
         elevationAt: (x, y) => this.terrainElevation(x, y),
         kindAt: (x, y) => this.kindAt(x, y),
-        cellAt: (x, y) => this.state.getCell(x, y),
+        cellAt: (x, y) => this.services.state.getCell(x, y),
         fortificationTopAt: (_x, _y, cell) => this.fortificationTopLocal(cell),
-        keeps: () => this.keepSystem.entries(),
+        keeps: () => this.services.keepSystem.entries(),
         towerBridges: () => Array.from(this.towerBridges.values()).map((bridge) => ({ ...bridge })),
         setWallBattleVisibility: (x, y, visible) => this.setBattleWallVisibility(x, y, visible),
-        gatePassable: (x, y) => this.gateSystem.isGatePassable(x, y),
+        buildingDamageAt: (x, y) => this.services.state.getCell(x, y)?.damage ?? 0,
+        setBuildingDamage: (x, y, damageRatio) => this.setBuildingDamage(x, y, damageRatio),
+        gatePassable: (x, y) => this.services.gateSystem.isGatePassable(x, y),
       },
       (status) => this.updateBattleUI(status),
     );
@@ -432,14 +468,19 @@ export class ThreeGame {
       this.save(false);
     }
 
-    this.createWorkers();
+    if (this.gameMode === 'medieval') this.createWorkers();
     this.redraw();
     this.bindUI();
+    // Keep the construction tool initialized during world creation/redraw, then enter the neutral mode only after UI binding.
+    this.selectTool(null);
     this.setToolbarOpen(this.toolbarOpen);
     this.setViewMode(hadSave ? 'world3d' : 'plan2d');
+    this.updateGameModeUI();
+    this.syncTemplateAvailability();
+    audioEvents.emit({ action: 'set_mode', mode: this.gameMode });
     if (!hadSave) {
-      const templates = document.getElementById('templates-modal');
-      if (templates) templates.hidden = false;
+      const modeModal = document.getElementById('game-mode-modal');
+      if (modeModal) modeModal.hidden = false;
     }
     this.bindPointerInput();
     this.resize();
@@ -462,6 +503,148 @@ export class ThreeGame {
 
   private isHarborTool(tool: ToolKind): tool is HarborKind {
     return HARBOR_KINDS.includes(tool as HarborKind);
+  }
+
+  private get gameMode(): GameMode {
+    return this.services.state.getGameMode();
+  }
+
+  private isToolAvailable(tool: ToolKind): boolean {
+    return isToolAvailable(this.gameMode, tool);
+  }
+
+  private isBuildingAvailable(kind: TileKind): boolean {
+    return isBuildingAvailable(this.gameMode, kind);
+  }
+
+  private updateGameModeUI(): void {
+    const label = document.getElementById('game-mode-label');
+    const button = document.getElementById('game-mode-button');
+    const config = getGameModeDefinition(this.gameMode);
+    if (label) label.textContent = config.label;
+    if (button) button.setAttribute('aria-label', 'Current game mode: ' + config.label);
+    const battleButton = document.getElementById('battle-button');
+    if (battleButton) battleButton.hidden = this.gameMode === 'modern';
+  }
+
+  private syncTemplateAvailability(): void {
+    document.querySelectorAll<HTMLButtonElement>('[data-template]').forEach((button) => {
+      const template = button.dataset.template;
+      button.hidden = this.gameMode === 'modern'
+        ? template !== 'futuristic-castle'
+        : template === 'futuristic-castle';
+    });
+  }
+
+  private refreshBuildPanelForMode(): void {
+    const toolbar = document.getElementById('toolbar');
+    if (!toolbar) return;
+
+    toolbar.querySelectorAll<HTMLElement>('.tool-category').forEach((category) => category.remove());
+
+    const modeConfig = getGameModeDefinition(this.gameMode);
+    const toolDefinitions = new Map(
+      TOOL_GROUPS.flatMap((group) => group.tools.map((tool) => [tool.id, tool] as const)),
+    );
+    const noneButton = toolbar.querySelector<HTMLElement>('[data-build-none]');
+    const settings = toolbar.querySelector<HTMLElement>('.builder-settings');
+    if (!settings) return;
+
+    const toolHtml = modeConfig.toolGroups.map((group) => {
+      const buttons = group.toolIds
+        .map((toolId) => toolDefinitions.get(toolId))
+        .filter((tool): tool is ToolDefinition => Boolean(tool))
+        .map(
+          (tool) =>
+            '<button class="tool-button' +
+            (tool.id === this.selectedTool ? ' is-selected' : '') +
+            '" data-tool="' + tool.id + '">' +
+            '<span class="tool-icon">' + tool.icon + '</span>' +
+            '<span class="tool-copy"><strong>' + tool.label + '</strong><small>' + tool.detail + '</small></span>' +
+            '<kbd>' + tool.shortcut + '</kbd></button>',
+        )
+        .join('');
+
+      return (
+        '<section class="tool-category" data-category="' + group.label + '">' +
+        '<button class="tool-category-header" type="button" aria-expanded="false">' +
+        '<span>' + group.label + '</span>' +
+        '<span class="tool-category-chevron" aria-hidden="true">▶</span>' +
+        '</button>' +
+        '<div class="tool-category-items">' + buttons + '</div>' +
+        '</section>'
+      );
+    }).join('');
+
+    settings.insertAdjacentHTML('beforebegin', toolHtml);
+    settings.hidden = this.gameMode === 'modern';
+
+    toolbar.querySelectorAll<HTMLButtonElement>('.tool-category-header').forEach((header) => {
+      header.onclick = () => {
+        const category = header.closest<HTMLElement>('.tool-category');
+        if (!category) return;
+        const open = category.classList.toggle('is-open');
+        header.setAttribute('aria-expanded', String(open));
+      };
+    });
+
+    toolbar.querySelectorAll<HTMLButtonElement>('[data-tool]').forEach((button) => {
+      button.onclick = () => {
+        toolbar.querySelectorAll<HTMLButtonElement>('[data-tool]').forEach((item) => {
+          item.classList.toggle('is-selected', item === button);
+        });
+        this.selectTool(button.dataset.tool as ToolKind);
+        if (window.matchMedia('(max-width: 760px)').matches) this.setToolbarOpen(false);
+      };
+    });
+
+    noneButton?.classList.toggle('is-selected', this.selectedTool === null);
+    noneButton?.setAttribute('aria-pressed', String(this.selectedTool === null));
+  }
+
+  private openGameModeSelector(): void {
+    const modal = document.getElementById('game-mode-modal');
+    if (modal) modal.hidden = false;
+  }
+
+  private startNewGameWithMode(mode: GameMode): void {
+    this.services.state.setGameMode(mode);
+    audioEvents.emit({ action: 'set_mode', mode });
+    this.services.state.clear();
+    this.services.keepSystem.clear();
+    this.towerBridges.clear();
+    this.nextTowerBridgeId = 1;
+    this.towerBridgeStart = null;
+    this.towerBridgeHover = null;
+    this.clearGroup(this.wallPreviewLayer);
+    this.selectedCell = null;
+    this.selectedKeepId = null;
+    this.terrainOverrides.clear();
+    this.elevationOverrides.clear();
+    this.moatTasks.clear();
+    this.clearGroup(this.workerLayer);
+    this.clearGroup(this.settlementLayer);
+    this.workers.length = 0;
+    this.settlementAgents.length = 0;
+    this.nextSettlementAgentId = 1;
+    this.battleSystem.stop();
+    this.undoStack.length = 0;
+    this.redoStack.length = 0;
+    this.worldSeeded = false;
+    this.seedNaturalProps();
+    this.worldSeeded = true;
+    this.selectedTool = null;
+    this.updateGameModeUI();
+    this.syncTemplateAvailability();
+    this.refreshBuildPanelForMode();
+    this.redraw();
+    this.save(false);
+    const modeModal = document.getElementById('game-mode-modal');
+    if (modeModal) modeModal.hidden = true;
+    const templates = document.getElementById('templates-modal');
+    if (templates) templates.hidden = false;
+    this.selectTool(null);
+    this.setStatus('Mode selected: ' + getGameModeDefinition(mode).label);
   }
 
   private createRiverTexture(): THREE.CanvasTexture {
@@ -762,189 +945,10 @@ export class ThreeGame {
     };
   }
 
-  private territoryZones(): Array<{ minX: number; maxX: number; minY: number; maxY: number }> {
-    const offset = Math.floor((SIZE - TERRITORY_ZONE_SIZE) / 2);
-    const zones: Array<{ minX: number; maxX: number; minY: number; maxY: number }> = [
-      {
-        minX: offset,
-        maxX: offset + TERRITORY_ZONE_SIZE - 1,
-        minY: offset,
-        maxY: offset + TERRITORY_ZONE_SIZE - 1,
-      },
-    ];
-
-    if (this.territoryStage >= 1) {
-      zones.push({
-        minX: 0,
-        maxX: TERRITORY_ZONE_SIZE - 1,
-        minY: offset,
-        maxY: offset + TERRITORY_ZONE_SIZE - 1,
-      });
-    }
-
-    if (this.territoryStage >= 2) {
-      zones.push({
-        minX: SIZE - TERRITORY_ZONE_SIZE,
-        maxX: SIZE - 1,
-        minY: offset,
-        maxY: offset + TERRITORY_ZONE_SIZE - 1,
-      });
-    }
-
-    return zones;
-  }
-
-  private territoryOwnerAt(x: number, y: number): 'player' | 'enemy' {
-    if (this.territoryZones().some((zone) =>
-      x >= zone.minX && x <= zone.maxX && y >= zone.minY && y <= zone.maxY
-    )) {
-      return 'player';
-    }
-    return 'enemy';
-  }
-
-  private isWithinTerritory(x: number, y: number): boolean {
-    if (x < 0 || y < 0 || x >= SIZE || y >= SIZE) return false;
-    return this.territoryOwnerAt(x, y) === 'player';
-  }
-
-  private isPathWithinTerritory(path: GridPoint[]): boolean {
-    return path.every((point) => this.isWithinTerritory(point.x, point.y));
-  }
-
-  private updateTerritoryUI(): void {
-    const label = document.getElementById('territory-stage');
-    const button = document.getElementById('expand-territory') as HTMLButtonElement | null;
-    const maxed = this.territoryStage >= TERRITORY_MAX_STAGE;
-    const zones = this.territoryZones();
-
-    if (label) {
-      label.textContent = maxed
-        ? `Fully Expanded · ${zones.length}/3 controlled zones`
-        : `Controlled zones: ${zones.length}/3 · each zone ${TERRITORY_ZONE_SIZE}×${TERRITORY_ZONE_SIZE}`;
-    }
-
-    if (button) {
-      button.disabled = maxed;
-      button.textContent = maxed ? 'Territory Fully Expanded' : 'Expand Territory';
-    }
-  }
-
-  private expandTerritory(): void {
-    if (this.territoryStage >= TERRITORY_MAX_STAGE) {
-      this.setStatus('Territory is already fully expanded');
-      return;
-    }
-
-    this.recordHistory();
-    this.territoryStage += 1;
-    this.redraw();
-    this.scheduleSave();
-    this.setStatus(`Territory expanded · ${this.territoryZones().length}/3 controlled zones`);
-  }
-
-  private renderTerritory(): void {
-    this.clearGroup(this.territoryLayer);
-
-    const y = this.viewMode === 'plan2d' ? 10.62 : 2.31;
-    const mapCenter = this.gridToWorld((SIZE - 1) / 2, (SIZE - 1) / 2);
-    const mapSpan = SIZE * TILE;
-
-    const enemyFill = new THREE.MeshBasicMaterial({
-      color: 0xb85b5b,
-      transparent: true,
-      opacity: this.viewMode === 'plan2d' ? 0.07 : 0.022,
-      depthTest: false,
-      depthWrite: false,
-      side: THREE.DoubleSide,
-    });
-    const enemyArea = new THREE.Mesh(new THREE.PlaneGeometry(mapSpan, mapSpan), enemyFill);
-    enemyArea.rotation.x = -Math.PI / 2;
-    enemyArea.position.set(mapCenter.x, y, mapCenter.z);
-    enemyArea.renderOrder = 56;
-    enemyArea.userData.territoryOwner = 'enemy';
-    this.territoryLayer.add(enemyArea);
-
-    const enemyBorderMaterial = new THREE.LineBasicMaterial({
-      color: 0xd06b6b,
-      transparent: true,
-      opacity: 0.55,
-      depthTest: false,
-      depthWrite: false,
-    });
-    const mapHalf = mapSpan / 2;
-    const mapBorderPoints = [
-      new THREE.Vector3(mapCenter.x - mapHalf, y + 0.01, mapCenter.z - mapHalf),
-      new THREE.Vector3(mapCenter.x + mapHalf, y + 0.01, mapCenter.z - mapHalf),
-      new THREE.Vector3(mapCenter.x + mapHalf, y + 0.01, mapCenter.z + mapHalf),
-      new THREE.Vector3(mapCenter.x - mapHalf, y + 0.01, mapCenter.z + mapHalf),
-    ];
-    const enemyBorder = new THREE.LineLoop(
-      new THREE.BufferGeometry().setFromPoints(mapBorderPoints),
-      enemyBorderMaterial,
-    );
-    enemyBorder.renderOrder = 57;
-    enemyBorder.userData.territoryOwner = 'enemy';
-    this.territoryLayer.add(enemyBorder);
-
-    const playerFill = new THREE.MeshBasicMaterial({
-      color: 0x62d7a4,
-      transparent: true,
-      opacity: this.viewMode === 'plan2d' ? 0.11 : 0.045,
-      depthTest: false,
-      depthWrite: false,
-      side: THREE.DoubleSide,
-    });
-    const playerBorderMaterial = new THREE.LineBasicMaterial({
-      color: 0x78e5b6,
-      transparent: true,
-      opacity: 0.95,
-      depthTest: false,
-      depthWrite: false,
-    });
-
-    for (const zone of this.territoryZones()) {
-      const width = zone.maxX - zone.minX + 1;
-      const height = zone.maxY - zone.minY + 1;
-      const center = this.gridToWorld(
-        (zone.minX + zone.maxX) / 2,
-        (zone.minY + zone.maxY) / 2,
-      );
-      const spanX = width * TILE;
-      const spanZ = height * TILE;
-
-      const area = new THREE.Mesh(new THREE.PlaneGeometry(spanX, spanZ), playerFill);
-      area.rotation.x = -Math.PI / 2;
-      area.position.set(center.x, y + 0.025, center.z);
-      area.renderOrder = 58;
-      area.userData.territoryOwner = 'player';
-      this.territoryLayer.add(area);
-
-      const halfX = spanX / 2;
-      const halfZ = spanZ / 2;
-      const points = [
-        new THREE.Vector3(center.x - halfX, y + 0.05, center.z - halfZ),
-        new THREE.Vector3(center.x + halfX, y + 0.05, center.z - halfZ),
-        new THREE.Vector3(center.x + halfX, y + 0.05, center.z + halfZ),
-        new THREE.Vector3(center.x - halfX, y + 0.05, center.z + halfZ),
-      ];
-      const border = new THREE.LineLoop(
-        new THREE.BufferGeometry().setFromPoints(points),
-        playerBorderMaterial,
-      );
-      border.renderOrder = 59;
-      border.userData.territoryOwner = 'player';
-      this.territoryLayer.add(border);
-    }
-
-    this.updateTerritoryUI();
-  }
-
-
   private seedNaturalProps(): void {
     for (let y = 0; y < SIZE; y += 1) {
       for (let x = 0; x < SIZE; x += 1) {
-        if (this.state.getCell(x, y)) continue;
+        if (this.services.state.getCell(x, y)) continue;
 
         const terrain = this.baseTerrainAt(x, y);
         const h1 = Math.abs((x * 92821 + y * 68917 + x * y * 137) % 997);
@@ -953,31 +957,31 @@ export class ThreeGame {
         if (terrain === 'forest') {
           const clearing = ((x - 5) * (x - 5) + (y - 12) * (y - 12)) < 7;
           if (!clearing && h1 % 5 !== 0) {
-            this.state.setCell(x, y, 'tree', 1 + (h2 % 3));
+            this.services.state.setCell(x, y, 'tree', 1 + (h2 % 3));
           } else if (h2 % 9 === 0) {
-            this.state.setCell(x, y, 'rock', 1);
+            this.services.state.setCell(x, y, 'rock', 1);
           }
           continue;
         }
 
         if (terrain === 'shore') {
-          if (h2 % 8 === 0) this.state.setCell(x, y, 'rock', 1 + (h1 % 2));
-          else if (h2 % 11 === 0) this.state.setCell(x, y, 'tree', 1);
+          if (h2 % 8 === 0) this.services.state.setCell(x, y, 'rock', 1 + (h1 % 2));
+          else if (h2 % 11 === 0) this.services.state.setCell(x, y, 'tree', 1);
           continue;
         }
 
         if (terrain === 'mountain') {
-          if (h2 % 4 === 0) this.state.setCell(x, y, 'rock', 1 + (h1 % 3));
+          if (h2 % 4 === 0) this.services.state.setCell(x, y, 'rock', 1 + (h1 % 3));
           continue;
         }
 
         if (terrain === 'plains') {
-          if (h1 % 31 === 5 && x > 3 && y > 3) {
-            this.state.setCell(x, y, 'hut', 1);
+          if (this.gameMode === 'medieval' && h1 % 31 === 5 && x > 3 && y > 3) {
+            this.services.state.setCell(x, y, 'hut', 1);
           } else if (h1 % 23 === 7 && h2 % 3 !== 0) {
-            this.state.setCell(x, y, 'tree', 1 + (h2 % 2));
+            this.services.state.setCell(x, y, 'tree', 1 + (h2 % 2));
           } else if (h1 % 41 === 3) {
-            this.state.setCell(x, y, 'rock', 1);
+            this.services.state.setCell(x, y, 'rock', 1);
           }
         }
       }
@@ -1052,15 +1056,14 @@ export class ThreeGame {
   private redraw(): void {
     this.clearGroup(this.terrainLayer);
     this.clearGroup(this.buildLayer);
-    this.gateSystem.clear();
-    this.renderTerritory();
-    this.windmillSystem.clear();
+    this.services.gateSystem.clear();
+    this.services.windmillSystem.clear();
     this.buildObjectsByCell.clear();
     this.clearGroup(this.planLayer);
     this.renderTerrain();
 
     const floodedMoats = this.computeFloodedMoats();
-    const cells = this.state.entries();
+    const cells = this.services.state.entries();
 
     for (const cell of cells) {
       const building = this.makeBuilding(cell, floodedMoats);
@@ -1070,7 +1073,7 @@ export class ThreeGame {
       this.buildLayer.add(building);
     }
 
-    for (const keep of this.keepSystem.entries()) {
+    for (const keep of this.services.keepSystem.entries()) {
       this.buildLayer.add(
         this.keepRenderer.render(keep, {
           tileSize: TILE,
@@ -1087,13 +1090,13 @@ export class ThreeGame {
       this.buildLayer.add(this.makeTowerBridge(bridge));
     }
 
-    const generatedAccess = this.castleAccessSystem.generate(
+    const generatedAccess = this.services.castleAccessSystem.generate(
       cells,
-      this.keepSystem.entries(),
+      this.services.keepSystem.entries(),
       {
         size: SIZE,
         getCell: (x, y) => {
-          const cell = this.state.getCell(x, y);
+          const cell = this.services.state.getCell(x, y);
           return cell ? { x, y, ...cell } : undefined;
         },
         terrainBuildable: (x, y) => {
@@ -1101,13 +1104,12 @@ export class ThreeGame {
           return terrain !== 'water' && terrain !== 'river';
         },
         isOccupied: (x, y) =>
-          Boolean(this.state.getCell(x, y)) ||
-          Boolean(this.keepSystem.findAtCell(x, y)),
+          Boolean(this.services.state.getCell(x, y)) ||
+          Boolean(this.services.keepSystem.findAtCell(x, y)),
       },
     );
 
     for (const access of generatedAccess) {
-      if (!this.isWithinTerritory(access.x, access.y)) continue;
       const group = new THREE.Group();
       const position = this.gridToWorld(access.x, access.y);
       group.position.set(position.x, this.terrainElevation(access.x, access.y), position.z);
@@ -1386,7 +1388,7 @@ export class ThreeGame {
       );
     }
 
-    for (const keep of this.keepSystem.entries()) {
+    for (const keep of this.services.keepSystem.entries()) {
       const rotated = keep.rotation % 2 !== 0;
       const widthCells = rotated ? keep.depth : keep.width;
       const depthCells = rotated ? keep.width : keep.depth;
@@ -1618,7 +1620,7 @@ export class ThreeGame {
           this.renderElevationPatch(group, elevation);
         }
 
-        const occupying = this.state.getCell(x, y)?.kind;
+        const occupying = this.services.state.getCell(x, y)?.kind;
         const hidesMountain =
           occupying !== undefined &&
           (this.isWallFamily(occupying) || occupying === 'mine' || occupying === 'tower' || occupying === 'gate');
@@ -2158,12 +2160,11 @@ export class ThreeGame {
     else if (cell.kind === 'tower') this.makeTower(group, cell.x, cell.y, cell);
     else if (cell.kind === 'stairTower') this.makeStairTower(group, cell.x, cell.y, cell);
     else if (cell.kind === 'farm') this.makeFarm(group);
-    else if (cell.kind === 'marketStall' || cell.kind === 'smallMarket' || cell.kind === 'marketHall') {
-      this.makeMarketBuilding(group, cell.kind as MarketBuildingKind);
-    }
-    else if (cell.kind === 'appleOrchard') this.orchardSystem.create(group, cell.level ?? 1, cell.x * 97 + cell.y * 53);
+    else if (cell.kind === 'appleOrchard') this.services.orchardSystem.create(group, cell.level ?? 1, cell.x * 97 + cell.y * 53);
     else if (cell.kind === 'armyCamp') this.makeArmyCamp(group);
-    else if (cell.kind === 'windmill') this.windmillSystem.create(group);
+    else if (cell.kind === 'market') this.makeMarketBuilding(group, cell.x, cell.y);
+    else if (cell.kind === 'futuristicCastle') group.add(this.futuristicCastleRenderer.render(cell.x * 97 + cell.y * 53));
+    else if (cell.kind === 'windmill') this.services.windmillSystem.create(group);
     else if (cell.kind === 'mine') this.makeMine(group);
     else if (cell.kind === 'mountain') this.makeMountain(group, cell.level ?? 1, cell.x, cell.y);
     else if (cell.kind === 'tree') this.makeTree(group, cell.level ?? 1);
@@ -2180,6 +2181,7 @@ export class ThreeGame {
       group.rotation.y = (cell.rotation ?? 0) * Math.PI / 2;
     }
 
+    this.services.destructibleBuildingSystem.renderDamage(group, cell, cell.x, cell.y);
     return group;
   }
 
@@ -2202,7 +2204,16 @@ export class ThreeGame {
   }
 
   private kindAt(x: number, y: number): TileKind | undefined {
-    return this.state.getCell(x, y)?.kind;
+    return this.services.state.getCell(x, y)?.kind;
+  }
+
+  private setBuildingDamage(x: number, y: number, damageRatio: number): void {
+    const cell = this.services.state.getCell(x, y);
+    if (!cell || !this.services.destructibleBuildingSystem.isDestructible(cell.kind)) return;
+
+    const nextDamage = this.services.destructibleBuildingSystem.setDamageRatio(damageRatio);
+    if (Math.abs((cell.damage ?? 0) - nextDamage) < 0.0001) return;
+    this.services.state.updateCell(x, y, { damage: nextDamage });
   }
 
   private isWallFamily(kind: TileKind | undefined): boolean {
@@ -2570,7 +2581,7 @@ export class ThreeGame {
     let junctionThickness = thickness;
     for (const direction of links) {
       const vector = WallSystem.vector(direction);
-      const neighbor = this.state.getCell(gx + vector.x, gy + vector.y);
+      const neighbor = this.services.state.getCell(gx + vector.x, gy + vector.y);
       if (neighbor && WALL_KINDS.includes(neighbor.kind as WallKind)) {
         junctionThickness = Math.max(
           junctionThickness,
@@ -2670,7 +2681,7 @@ export class ThreeGame {
     } else {
       for (const direction of links) {
         const vector = WallSystem.vector(direction);
-        const neighbor = this.state.getCell(gx + vector.x, gy + vector.y);
+        const neighbor = this.services.state.getCell(gx + vector.x, gy + vector.y);
         if (!neighbor || !this.isWallFamily(neighbor.kind)) continue;
 
         const elevationDelta =
@@ -2699,7 +2710,7 @@ export class ThreeGame {
       }
     }
 
-    const corner = this.wallCornerSystem.analyze(cell, links, gx, gy);
+    const corner = this.services.wallCornerSystem.analyze(cell, links, gx, gy);
     if (corner) {
       this.addAutomaticCorner(
         group,
@@ -2756,7 +2767,7 @@ export class ThreeGame {
     }
 
     const shouldFlag = links.some((direction) =>
-      this.detailGenerator.wallPlan(
+      this.services.detailGenerator.wallPlan(
         gx,
         gy,
         level,
@@ -2881,7 +2892,7 @@ export class ThreeGame {
       }
     }
 
-    const detailPlan = this.detailGenerator.wallPlan(
+    const detailPlan = this.services.detailGenerator.wallPlan(
       gx,
       gy,
       level,
@@ -3477,7 +3488,7 @@ export class ThreeGame {
 
     if (vertical) core.rotation.y = Math.PI / 2;
     group.add(core);
-    this.gateSystem.registerGate(gx, gy, group, door, vertical);
+    this.services.gateSystem.registerGate(gx, gy, group, door, vertical);
 
     const specs = [
       { dx: -1, dy: 0, axis: 'x' as const, sign: -1 },
@@ -3700,7 +3711,7 @@ export class ThreeGame {
     for (const candidate of candidates) {
       const wx = gx + candidate.dx;
       const wy = gy + candidate.dy;
-      const wall = this.state.getCell(wx, wy);
+      const wall = this.services.state.getCell(wx, wy);
       if (!wall || !WALL_KINDS.includes(wall.kind as WallKind)) continue;
       if (wall.walkway !== true) continue;
 
@@ -3845,8 +3856,8 @@ export class ThreeGame {
     a: GridPoint,
     b: GridPoint,
   ): { valid: boolean; reason?: string } {
-    const cellA = this.state.getCell(a.x, a.y);
-    const cellB = this.state.getCell(b.x, b.y);
+    const cellA = this.services.state.getCell(a.x, a.y);
+    const cellB = this.services.state.getCell(b.x, b.y);
     if (cellA?.kind !== 'tower' || cellB?.kind !== 'tower') {
       return { valid: false, reason: 'Tower Bridge requires two main towers' };
     }
@@ -3880,11 +3891,11 @@ export class ThreeGame {
     for (let i = 1; i < steps; i += 1) {
       const x = Math.round(a.x + (dx * i) / steps);
       const y = Math.round(a.y + (dy * i) / steps);
-      if (this.keepSystem.findAtCell(x, y)) {
+      if (this.services.keepSystem.findAtCell(x, y)) {
         return { valid: false, reason: 'Bridge path crosses the Keep' };
       }
 
-      const cell = this.state.getCell(x, y);
+      const cell = this.services.state.getCell(x, y);
       if (
         cell &&
         cell.kind !== 'road' &&
@@ -3900,7 +3911,7 @@ export class ThreeGame {
   }
 
   private handleTowerBridgeClick(point: GridPoint): void {
-    const cell = this.state.getCell(point.x, point.y);
+    const cell = this.services.state.getCell(point.x, point.y);
     if (cell?.kind !== 'tower') {
       this.setStatus('Tower Bridge: select a main tower platform');
       return;
@@ -3969,8 +3980,8 @@ export class ThreeGame {
   ): void {
     this.clearGroup(this.wallPreviewLayer);
     const validation = this.validateTowerBridge(a, b);
-    const cellA = this.state.getCell(a.x, a.y);
-    const cellB = this.state.getCell(b.x, b.y);
+    const cellA = this.services.state.getCell(a.x, a.y);
+    const cellB = this.services.state.getCell(b.x, b.y);
     if (cellA?.kind !== 'tower' || cellB?.kind !== 'tower') return;
 
     const aw = this.gridToWorld(a.x, a.y);
@@ -4030,8 +4041,8 @@ export class ThreeGame {
 
   private makeTowerBridge(bridge: TowerBridgeState): THREE.Group {
     const group = new THREE.Group();
-    const aCell = this.state.getCell(bridge.ax, bridge.ay);
-    const bCell = this.state.getCell(bridge.bx, bridge.by);
+    const aCell = this.services.state.getCell(bridge.ax, bridge.ay);
+    const bCell = this.services.state.getCell(bridge.bx, bridge.by);
     if (aCell?.kind !== 'tower' || bCell?.kind !== 'tower') return group;
 
     const aw = this.gridToWorld(bridge.ax, bridge.ay);
@@ -4563,7 +4574,7 @@ export class ThreeGame {
     ];
 
     for (const candidate of candidates) {
-      const neighbor = this.state.getCell(gx + candidate.dx, gy + candidate.dy);
+      const neighbor = this.services.state.getCell(gx + candidate.dx, gy + candidate.dy);
       if (!neighbor || !this.isWallFamily(neighbor.kind)) continue;
 
       const targetWorldTop =
@@ -4582,7 +4593,7 @@ export class ThreeGame {
 
   private accessRiseForRotation(gx: number, gy: number, rotation: number): number {
     const direction = this.accessDirection(rotation);
-    const neighbor = this.state.getCell(gx + direction.dx, gy + direction.dy);
+    const neighbor = this.services.state.getCell(gx + direction.dx, gy + direction.dy);
 
     if (neighbor && this.isWallFamily(neighbor.kind)) {
       const targetWorldTop =
@@ -4649,26 +4660,63 @@ export class ThreeGame {
     return group;
   }
 
-  private makeMarketBuilding(group: THREE.Group, kind: MarketBuildingKind): THREE.Group {
+  private makeMarketBuilding(group: THREE.Group, gx: number, gy: number): THREE.Group {
     const timber = this.environmentMaterial('market-timber', 0x65452f, 0.98);
     const timberLight = this.environmentMaterial('market-timber-light', 0x8a623d, 0.96);
     const woodDark = this.environmentMaterial('market-wood-dark', 0x473022, 1);
     const plaster = this.environmentMaterial('market-plaster', 0xc7ad82, 0.98);
     const stone = this.environmentMaterial('market-stone', 0x8d8272, 1);
     const roof = this.environmentMaterial('market-roof', 0x5a4032, 0.98);
-    const roofLight = this.environmentMaterial('market-roof-light', 0x72503a, 0.98);
-    const cloth = this.environmentMaterial('market-cloth', 0xb45f3e, 0.92);
+    const clothMaterials = [
+      this.environmentMaterial('market-cloth-red', 0xb45f3e, 0.92),
+      this.environmentMaterial('market-cloth-teal', 0x587d75, 0.92),
+      this.environmentMaterial('market-cloth-blue', 0x6b6f92, 0.92),
+      this.environmentMaterial('market-cloth-gold', 0x9a7541, 0.92),
+    ];
     const crate = this.environmentMaterial('market-crate', 0x9a6b3d, 1);
-    const goods = this.environmentMaterial('market-goods', 0x7c9b5a, 0.95);
+    const goodsMaterials = [
+      this.environmentMaterial('market-goods-green', 0x7c9b5a, 0.95),
+      this.environmentMaterial('market-goods-red', 0x9b5b4a, 0.95),
+      this.environmentMaterial('market-goods-blue', 0x667f9b, 0.95),
+      this.environmentMaterial('market-goods-gold', 0xb08a4d, 0.95),
+    ];
     const metal = this.environmentMaterial('market-metal', 0x6f675c, 0.7);
+    const ground = this.environmentMaterial('market-ground', 0x9b875f, 1);
 
-    const addBarrel = (x: number, z: number, scale = 1): void => {
-      const barrel = new THREE.Mesh(new THREE.CylinderGeometry(0.25 * scale, 0.28 * scale, 0.58 * scale, 10), woodDark);
-      barrel.position.set(x, 2.55 + 0.29 * scale, z);
+    const hash = (value: number): number => {
+      const n = Math.sin(value * 12.9898 + gx * 78.233 + gy * 37.719) * 43758.5453;
+      return n - Math.floor(n);
+    };
+
+    const addBox = (
+      width: number,
+      height: number,
+      depth: number,
+      material: THREE.Material,
+      x: number,
+      y: number,
+      z: number,
+      rotationY = 0,
+    ): THREE.Mesh => {
+      const mesh = new THREE.Mesh(new THREE.BoxGeometry(width, height, depth), material);
+      mesh.position.set(x, y, z);
+      mesh.rotation.y = rotationY;
+      mesh.castShadow = true;
+      mesh.receiveShadow = true;
+      group.add(mesh);
+      return mesh;
+    };
+
+    const addBarrel = (x: number, z: number, scale: number): void => {
+      const barrel = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.22 * scale, 0.25 * scale, 0.56 * scale, 8),
+        woodDark,
+      );
+      barrel.position.set(x, 2.55 + 0.28 * scale, z);
       barrel.castShadow = true;
       group.add(barrel);
-      for (const y of [2.4, 2.7]) {
-        const band = new THREE.Mesh(new THREE.TorusGeometry(0.255 * scale, 0.025 * scale, 6, 10), metal);
+      for (const y of [2.39, 2.67]) {
+        const band = new THREE.Mesh(new THREE.TorusGeometry(0.23 * scale, 0.022 * scale, 5, 8), metal);
         band.position.set(x, y + 0.04 * scale, z);
         band.rotation.x = Math.PI / 2;
         band.castShadow = true;
@@ -4676,108 +4724,142 @@ export class ThreeGame {
       }
     };
 
-    const addCrate = (x: number, z: number, width = 0.55, height = 0.48): void => {
-      this.addBox(group, width, height, 0.58, crate, x, 2.42 + height / 2, z);
-      this.addBox(group, width + 0.02, 0.045, 0.08, woodDark, x, 2.46 + height, z - 0.22);
-      this.addBox(group, 0.055, height + 0.04, 0.055, woodDark, x - width / 2 + 0.06, 2.42 + height / 2, z);
-      this.addBox(group, 0.055, height + 0.04, 0.055, woodDark, x + width / 2 - 0.06, 2.42 + height / 2, z);
+    const addCrate = (x: number, z: number, scale: number): void => {
+      const size = 0.42 + scale * 0.16;
+      addBox(size, size, size, crate, x, 2.45 + size / 2, z);
+      addBox(size + 0.03, 0.045, 0.07, woodDark, x, 2.48 + size, z - size * 0.34);
     };
 
-    const addVendorTable = (x: number, z: number, width: number, clothColor = cloth): void => {
-      this.addBox(group, width, 0.12, 0.68, timber, x, 2.86, z);
-      for (const legX of [-width / 2 + 0.12, width / 2 - 0.12]) {
-        this.addBox(group, 0.09, 0.58, 0.09, timber, x + legX, 2.57, z - 0.22);
-        this.addBox(group, 0.09, 0.58, 0.09, timber, x + legX, 2.57, z + 0.22);
-      }
-      this.addBox(group, width + 0.04, 0.08, 0.74, clothColor, x, 2.94, z);
-      for (const offset of [-0.22, 0.04, 0.3]) {
-        const goodsMesh = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.11, 0.16, 8), goods);
-        goodsMesh.position.set(x + offset, 3.08, z);
-        goodsMesh.castShadow = true;
-        group.add(goodsMesh);
-      }
+    const addGoods = (x: number, z: number, variant: number): void => {
+      const material = goodsMaterials[variant % goodsMaterials.length];
+      const goods = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.11, 0.16, 7), material);
+      goods.position.set(x, 3.04, z);
+      goods.castShadow = true;
+      group.add(goods);
     };
 
-    if (kind === 'marketStall') {
-      this.addBox(group, 3.45, 0.06, 3.45, this.environmentMaterial('market-ground', 0x9b875f, 1), 0, 2.2, 0);
-      for (const x of [-1.35, 1.35]) {
-        for (const z of [-1.15, 1.15]) this.addBox(group, 0.14, 2.15, 0.14, timber, x, 3.28, z);
+    const addStall = (x: number, z: number, width: number, rotation: number, variant: number): void => {
+      const cloth = clothMaterials[variant % clothMaterials.length];
+      const postX = Math.max(0.38, width / 2 - 0.1);
+      const postZ = 0.34;
+      for (const px of [-postX, postX]) {
+        for (const pz of [-postZ, postZ]) addBox(0.09, 2.0, 0.09, timber, x + px, 3.25, z + pz, rotation);
       }
-      const canopy = new THREE.Mesh(new THREE.ConeGeometry(2.0, 0.72, 4), roofLight);
-      canopy.position.set(0, 5.05, 0);
-      canopy.rotation.y = Math.PI / 4;
-      canopy.scale.set(1.0, 1, 0.78);
+      addBox(width, 0.12, 0.72, timberLight, x, 2.9, z, rotation);
+      const canopy = new THREE.Mesh(new THREE.ConeGeometry(width * 0.72, 0.58 + variant * 0.05, 4), cloth);
+      canopy.position.set(x, 4.78 + variant * 0.05, z);
+      canopy.rotation.y = Math.PI / 4 + rotation;
+      canopy.scale.z = 0.74;
       canopy.castShadow = true;
       group.add(canopy);
-      this.addBox(group, 2.85, 0.16, 0.78, timberLight, 0, 3.02, -0.78);
-      addVendorTable(0, -0.82, 2.65);
-      addCrate(-1.12, 0.72, 0.58, 0.55);
-      addCrate(1.12, 0.72, 0.5, 0.44);
-      addBarrel(-1.18, -0.05, 0.9);
-      addBarrel(1.18, -0.05, 0.9);
-      this.addBox(group, 0.72, 0.42, 0.08, cloth, 0, 4.02, -0.79);
-      return group;
-    }
-
-    if (kind === 'smallMarket') {
-      this.addBox(group, 3.62, 0.08, 3.62, stone, 0, 2.22, 0);
-      this.addBox(group, 3.22, 1.75, 2.78, plaster, 0, 3.18, 0.08);
-      for (const x of [-1.62, 1.62]) {
-        this.addBox(group, 0.16, 2.15, 0.16, timber, x, 3.38, 0.08);
-        this.addBox(group, 0.16, 2.15, 0.16, timber, x, 3.38, -1.25);
+      for (let i = 0; i < 3; i += 1) {
+        addGoods(x - width * 0.28 + i * width * 0.28, z - 0.03, variant + i);
       }
-      for (const x of [-0.82, 0, 0.82]) this.addBox(group, 0.12, 2.05, 0.12, timberLight, x, 3.34, -1.3);
-      for (const x of [-1.45, 0, 1.45]) this.addBox(group, 0.12, 2.05, 0.12, timberLight, x, 3.34, 1.38);
-      const roofMesh = new THREE.Mesh(new THREE.ConeGeometry(2.45, 1.25, 4), roof);
-      roofMesh.position.set(0, 5.18, 0);
-      roofMesh.rotation.y = Math.PI / 4;
-      roofMesh.scale.set(1.0, 1, 0.78);
+      if (variant % 2 === 0) addCrate(x - width * 0.46, z + 0.68, 0.8);
+      else addBarrel(x + width * 0.46, z + 0.7, 0.78);
+      addBox(0.52, 0.12, 0.08, cloth, x, 4.0, z - 0.39, rotation);
+    };
+
+    const addSmallShop = (x: number, z: number, rotation: number, variant: number): void => {
+      const wall = variant % 2 === 0 ? plaster : timberLight;
+      addBox(2.15, 1.55, 1.7, wall, x, 3.15, z, rotation);
+      addBox(2.28, 0.14, 1.82, timber, x, 4.0, z, rotation);
+      const roofMesh = new THREE.Mesh(new THREE.ConeGeometry(1.5, 0.85, 4), roof);
+      roofMesh.position.set(x, 4.62, z);
+      roofMesh.rotation.y = Math.PI / 4 + rotation;
+      roofMesh.scale.z = 0.72;
       roofMesh.castShadow = true;
       group.add(roofMesh);
-      this.addBox(group, 3.55, 0.18, 0.22, timber, 0, 4.08, -1.47);
-      this.addBox(group, 3.25, 0.1, 0.72, cloth, 0, 3.95, -1.54);
-      addVendorTable(-0.85, -0.72, 1.25);
-      addVendorTable(0.85, -0.72, 1.25, this.environmentMaterial('market-cloth-alt', 0x587d75, 0.92));
-      addCrate(-1.22, 0.88, 0.62, 0.52);
-      addCrate(1.2, 0.88, 0.55, 0.64);
-      addBarrel(-1.35, -0.1);
-      addBarrel(1.35, -0.1);
-      this.addBox(group, 0.72, 0.55, 0.08, timber, 0, 3.75, -1.59);
-      this.addBox(group, 0.56, 0.08, 0.46, goods, 0, 3.88, -1.62);
-      return group;
-    }
+      addBox(1.25, 0.72, 0.08, clothMaterials[(variant + 1) % clothMaterials.length], x, 3.28, z - 0.9, rotation);
+      addCrate(x - 0.72, z + 0.82, 0.85);
+      addBarrel(x + 0.72, z + 0.82, 0.9);
+    };
 
-    this.addBox(group, 3.72, 0.14, 3.72, stone, 0, 2.3, 0);
-    this.addBox(group, 3.28, 2.0, 3.08, plaster, 0, 3.32, 0.08);
-    for (const x of [-1.63, -0.82, 0.82, 1.63]) {
-      this.addBox(group, 0.16, 2.45, 0.16, timber, x, 3.54, -1.47);
-      this.addBox(group, 0.16, 2.45, 0.16, timber, x, 3.54, 1.5);
-    }
-    for (const z of [-1.48, 1.5]) this.addBox(group, 3.3, 0.16, 0.16, timber, 0, 4.72, z);
-    const hallRoof = new THREE.Mesh(new THREE.ConeGeometry(2.62, 1.42, 4), roof);
-    hallRoof.position.set(0, 5.45, 0);
+    const addTent = (x: number, z: number, scale: number, rotation: number, variant: number): void => {
+      const cloth = clothMaterials[variant % clothMaterials.length];
+      const tent = new THREE.Mesh(new THREE.ConeGeometry(1.0 * scale, 1.75 * scale, 4), cloth);
+      tent.position.set(x, 3.25 + 0.2 * scale, z);
+      tent.rotation.y = Math.PI / 4 + rotation;
+      tent.scale.z = 0.72;
+      tent.castShadow = true;
+      group.add(tent);
+      addCrate(x - 0.55 * scale, z + 0.65 * scale, 0.7 + variant * 0.08);
+      if (variant % 2 === 0) addBarrel(x + 0.58 * scale, z + 0.62 * scale, 0.72);
+      addBox(0.7 * scale, 0.1, 0.08, cloth, x, 3.72 + 0.18 * scale, z - 0.55 * scale, rotation);
+    };
+
+    // One logical building occupies a 3x3 tile footprint and contains the entire marketplace.
+    addBox(TILE * 2.82, 0.08, TILE * 2.82, ground, 0, 2.2, 0);
+    addBox(TILE * 2.62, 0.12, TILE * 2.62, stone, 0, 2.28, 0);
+
+    // Outer covered market structures make the footprint read as a single commercial district.
+    addSmallShop(-3.55, -3.15, -0.08, Math.floor(hash(1) * 4));
+    addSmallShop(3.55, -3.15, 0.06, Math.floor(hash(2) * 4));
+    addSmallShop(-3.55, 3.15, 0.04, Math.floor(hash(3) * 4));
+    addSmallShop(3.55, 3.15, -0.06, Math.floor(hash(4) * 4));
+
+    const stallLayout = [
+      [-3.1, -0.55], [-1.05, -0.65], [1.05, -0.65], [3.1, -0.55],
+      [-3.05, 1.85], [-1.0, 1.9], [1.0, 1.9], [3.05, 1.85],
+      [-2.9, -2.55], [2.9, -2.55], [-2.9, 3.0], [2.9, 3.0],
+    ];
+    stallLayout.forEach(([x, z], index) => {
+      const variant = Math.floor(hash(20 + index) * clothMaterials.length);
+      const rotation = (Math.floor(hash(40 + index) * 4) * Math.PI) / 2;
+      const width = 1.45 + hash(60 + index) * 0.45;
+      addStall(x, z, width, rotation, variant);
+    });
+
+    const tentLayout = [
+      [-1.9, -3.05], [0, -3.15], [1.9, -3.05],
+      [-2.0, 3.0], [0, 3.2], [2.0, 3.0],
+    ];
+    tentLayout.forEach(([x, z], index) => {
+      const variant = Math.floor(hash(80 + index) * 4);
+      addTent(x, z, 0.72 + hash(90 + index) * 0.18, hash(100 + index) * Math.PI, variant);
+    });
+
+    // Central trading house and open pedestrian court.
+    addBox(3.5, 0.18, 3.0, stone, 0, 2.38, 0);
+    addBox(3.05, 1.55, 2.45, plaster, 0, 3.18, 0.08);
+    for (const x of [-1.42, 1.42]) addBox(0.16, 2.0, 0.16, timber, x, 3.35, 0.08);
+    const hallRoof = new THREE.Mesh(new THREE.ConeGeometry(2.1, 1.15, 4), roof);
+    hallRoof.position.set(0, 4.72, 0.08);
     hallRoof.rotation.y = Math.PI / 4;
-    hallRoof.scale.set(1.0, 1, 0.82);
+    hallRoof.scale.z = 0.76;
     hallRoof.castShadow = true;
     group.add(hallRoof);
-    this.addBox(group, 3.15, 0.16, 0.24, timber, 0, 4.02, -1.62);
-    this.addBox(group, 2.95, 0.1, 0.78, cloth, 0, 3.88, -1.68);
-    addVendorTable(-0.95, -0.75, 1.28);
-    addVendorTable(0.95, -0.75, 1.28, this.environmentMaterial('market-cloth-alt2', 0x6b6f92, 0.92));
-    addVendorTable(0, 0.62, 1.9, this.environmentMaterial('market-cloth-gold', 0x9a7541, 0.92));
-    addCrate(-1.25, 1.1, 0.65, 0.58);
-    addCrate(1.24, 1.08, 0.6, 0.72);
-    addBarrel(-1.38, -0.02, 1.05);
-    addBarrel(1.38, -0.02, 1.05);
-    addCrate(0, 1.35, 0.5, 0.42);
-    this.addBox(group, 0.9, 0.6, 0.1, timber, 0, 3.62, -1.76);
-    this.addBox(group, 0.7, 0.08, 0.52, goods, 0, 3.76, -1.81);
-    for (const x of [-1.35, 1.35]) {
-      const lantern = new THREE.Mesh(new THREE.SphereGeometry(0.12, 8, 6), metal);
-      lantern.position.set(x, 4.25, -1.7);
-      lantern.castShadow = true;
-      group.add(lantern);
+    addBox(2.5, 0.12, 0.08, clothMaterials[0], 0, 3.55, -1.24);
+    addGoods(-0.6, -1.32, 0);
+    addGoods(0, -1.32, 1);
+    addGoods(0.6, -1.32, 2);
+
+    // Storage clusters and signs add visual density without per-frame logic.
+    for (let i = 0; i < 8; i += 1) {
+      const x = -4.9 + (i % 4) * 3.25 + hash(120 + i) * 0.35;
+      const z = i < 4 ? 4.8 + hash(140 + i) * 0.3 : -4.8 - hash(160 + i) * 0.3;
+      addCrate(x, z, 0.72 + hash(180 + i) * 0.5);
     }
+
+    for (const [x, z, phase] of [[-5.25, 0, 0], [5.25, 0, 1], [0, -5.35, 2], [0, 5.35, 3]]) {
+      const sign = new THREE.Group();
+      sign.position.set(x, 3.55, z);
+      sign.rotation.y = phase * 0.2;
+      const post = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.08, 1.55, 6), timber);
+      post.position.y = -0.7;
+      sign.add(post);
+      const board = new THREE.Mesh(new THREE.BoxGeometry(0.95, 0.52, 0.09), timberLight);
+      board.position.y = 0.05;
+      board.castShadow = true;
+      sign.add(board);
+      group.add(sign);
+    }
+
+    // Short walkways deliberately remain visible between vendor clusters.
+    const pathMaterial = this.environmentMaterial('market-walkway', 0x6f5944, 1);
+    for (const z of [-1.45, 4.25]) addBox(10.0, 0.045, 0.48, pathMaterial, 0, 2.38, z);
+    for (const x of [-4.25, 4.25]) addBox(0.48, 0.045, 10.0, pathMaterial, x, 2.39, 0);
+
     return group;
   }
 
@@ -5312,7 +5394,7 @@ export class ThreeGame {
     const flooded = new Set<string>();
     const queue: GridPoint[] = [];
 
-    for (const cell of this.state.entries()) {
+    for (const cell of this.services.state.entries()) {
       if (cell.kind !== 'moat') continue;
 
       const neighbors = [
@@ -5353,16 +5435,15 @@ export class ThreeGame {
 
   private captureSnapshot(): HistorySnapshot {
     return {
-      cells: this.state.entries().map((cell) => ({
+      cells: this.services.state.entries().map((cell) => ({
         ...cell,
         wallLinks: cell.wallLinks ? [...cell.wallLinks] : undefined,
       })),
-      keeps: this.keepSystem.entries(),
+      keeps: this.services.keepSystem.entries(),
       terrain: Array.from(this.terrainOverrides.entries()),
       elevations: Array.from(this.elevationOverrides.entries()),
       stoneStyle: this.stoneStyle,
       towerBridges: Array.from(this.towerBridges.values()).map((bridge) => ({ ...bridge })),
-      territoryStage: this.territoryStage,
     };
   }
 
@@ -5377,10 +5458,9 @@ export class ThreeGame {
   }
 
   private restoreSnapshot(snapshot: HistorySnapshot): void {
-    this.state.replace(snapshot.cells);
-    this.keepSystem.replace(snapshot.keeps ?? []);
+    this.services.state.replace(snapshot.cells);
+    this.services.keepSystem.replace(snapshot.keeps ?? []);
     this.stoneStyle = snapshot.stoneStyle ?? 'limestone';
-    this.territoryStage = THREE.MathUtils.clamp(Math.floor(snapshot.territoryStage ?? 0), 0, TERRITORY_MAX_STAGE);
     this.towerBridges.clear();
     for (const bridge of snapshot.towerBridges ?? []) {
       this.towerBridges.set(bridge.id, { ...bridge });
@@ -5469,13 +5549,8 @@ export class ThreeGame {
 
   private applyTerrainBrush(center: GridPoint): void {
     const tool = this.selectedTool;
-    if (!this.isTerrainTool(tool)) return;
-    if (!this.isWithinTerritory(center.x, center.y)) {
-      this.setStatus('Enemy Territory · expand your territory before modifying terrain');
-      return;
-    }
-
-    const points = this.brushPoints(center).filter((point) => this.isWithinTerritory(point.x, point.y));
+    if (tool === null || !this.isTerrainTool(tool)) return;
+    const points = this.brushPoints(center);
     const centerElevation = this.terrainElevation(center.x, center.y);
     const oldValues = new Map<string, number>();
 
@@ -5524,7 +5599,7 @@ export class ThreeGame {
 
   private moveSelected(dx: number, dy: number): void {
     if (this.selectedKeepId !== null) {
-      const keep = this.keepSystem.get(this.selectedKeepId);
+      const keep = this.services.keepSystem.get(this.selectedKeepId);
       if (!keep) return;
 
       const draft = {
@@ -5545,7 +5620,7 @@ export class ThreeGame {
       }
 
       this.recordHistory();
-      const updated = this.keepSystem.update(keep.id, { x: draft.x, y: draft.y });
+      const updated = this.services.keepSystem.update(keep.id, { x: draft.x, y: draft.y });
       if (updated) {
         this.selectKeep(updated);
         this.redraw();
@@ -5560,7 +5635,7 @@ export class ThreeGame {
       return;
     }
 
-    const source = this.state.getCell(this.selectedCell.x, this.selectedCell.y);
+    const source = this.services.state.getCell(this.selectedCell.x, this.selectedCell.y);
     if (!source) {
       this.setStatus('Selected tile has no structure');
       return;
@@ -5568,13 +5643,8 @@ export class ThreeGame {
 
     const nx = this.selectedCell.x + dx;
     const ny = this.selectedCell.y + dy;
-    if (nx < 0 || ny < 0 || nx >= SIZE || ny >= SIZE || this.state.getCell(nx, ny)) {
+    if (nx < 0 || ny < 0 || nx >= SIZE || ny >= SIZE || this.services.state.getCell(nx, ny)) {
       this.setStatus('Cannot move there');
-      return;
-    }
-
-    if (!this.isWithinTerritory(nx, ny)) {
-      this.setStatus('Cannot move a structure outside your territory');
       return;
     }
 
@@ -5591,8 +5661,8 @@ export class ThreeGame {
     if (source.kind === 'tower') this.removeTowerBridgesAt(sourceX, sourceY);
 
     const { kind, level, ...options } = source;
-    this.state.removeCell(sourceX, sourceY);
-    this.state.setCell(nx, ny, kind, level ?? 1, options);
+    this.services.state.removeCell(sourceX, sourceY);
+    this.services.state.setCell(nx, ny, kind, level ?? 1, options);
     this.selectedCell = { x: nx, y: ny };
 
     this.redraw();
@@ -5611,14 +5681,14 @@ export class ThreeGame {
       return;
     }
 
-    const cell = this.state.getCell(this.selectedCell.x, this.selectedCell.y);
+    const cell = this.services.state.getCell(this.selectedCell.x, this.selectedCell.y);
     if (!cell) {
       this.setStatus('Selected tile has no structure');
       return;
     }
 
     this.recordHistory();
-    this.state.updateCell(this.selectedCell.x, this.selectedCell.y, {
+    this.services.state.updateCell(this.selectedCell.x, this.selectedCell.y, {
       rotation: ((cell.rotation ?? 0) + 1) % 4,
     });
     this.redraw();
@@ -5636,9 +5706,9 @@ export class ThreeGame {
         if (this.battleSystem.isActive()) return;
 
         const cell = this.pickGridCell(event);
-        if (cell && this.selectedTool !== 'towerBridge') this.beginLongPress(event, cell);
+        if (cell && this.selectedTool !== null && this.selectedTool !== 'towerBridge') this.beginLongPress(event, cell);
 
-        if (this.isWallTool(this.selectedTool)) {
+        if (this.selectedTool !== null && this.isWallTool(this.selectedTool)) {
           if (!cell) return;
           this.wallDragStart = cell;
           this.wallDragEnd = cell;
@@ -5651,7 +5721,7 @@ export class ThreeGame {
           return;
         }
 
-        if (this.isRoadTool(this.selectedTool)) {
+        if (this.selectedTool !== null && this.isRoadTool(this.selectedTool)) {
           if (!cell) return;
           this.roadDragStart = cell;
           this.roadDragEnd = cell;
@@ -5677,7 +5747,7 @@ export class ThreeGame {
           return;
         }
 
-        if (this.isTerrainTool(this.selectedTool)) {
+        if (this.selectedTool !== null && this.isTerrainTool(this.selectedTool)) {
           if (!cell) return;
 
           this.terrainStrokeActive = true;
@@ -5736,7 +5806,7 @@ export class ThreeGame {
             (cell.x !== this.towerBridgeHover?.x || cell.y !== this.towerBridgeHover?.y)
           ) {
             this.towerBridgeHover = cell;
-            if (this.state.getCell(cell.x, cell.y)?.kind === 'tower') {
+            if (this.services.state.getCell(cell.x, cell.y)?.kind === 'tower') {
               this.renderTowerBridgePreview(this.towerBridgeStart, cell);
             } else {
               this.clearGroup(this.wallPreviewLayer);
@@ -5903,8 +5973,8 @@ export class ThreeGame {
 
   private beginLongPress(event: PointerEvent, cell: GridPoint): void {
     const removable =
-      Boolean(this.state.getCell(cell.x, cell.y)) ||
-      Boolean(this.keepSystem.findAtCell(cell.x, cell.y));
+      Boolean(this.services.state.getCell(cell.x, cell.y)) ||
+      Boolean(this.services.keepSystem.findAtCell(cell.x, cell.y));
 
     if (!removable) {
       this.cancelLongPress();
@@ -5977,19 +6047,19 @@ export class ThreeGame {
   }
 
   private performLongPressRemoval(point: GridPoint): void {
-    const keep = this.keepSystem.findAtCell(point.x, point.y);
-    const cell = this.state.getCell(point.x, point.y);
+    const keep = this.services.keepSystem.findAtCell(point.x, point.y);
+    const cell = this.services.state.getCell(point.x, point.y);
     if (!keep && !cell) return;
 
     this.recordHistory();
 
     if (keep) {
-      this.keepSystem.remove(keep.id);
+      this.services.keepSystem.remove(keep.id);
       if (this.selectedKeepId === keep.id) this.selectedKeepId = null;
       this.setStatus('Long-press removal · Keep removed · Undo available');
     } else if (cell) {
       if (cell.kind === 'tower') this.removeTowerBridgesAt(point.x, point.y);
-      this.state.removeCell(point.x, point.y);
+      this.services.state.removeCell(point.x, point.y);
       this.setStatus('Long-press removal · object removed · Undo available');
     }
 
@@ -6091,24 +6161,19 @@ export class ThreeGame {
   private buildRoadDrag(start: GridPoint, end: GridPoint): void {
     const roadKind = this.selectedTool as RoadKind;
     const path = this.roadPath(start, end);
-    if (!this.isPathWithinTerritory(path)) {
-      this.clearGroup(this.wallPreviewLayer);
-      this.setStatus('Road path leaves your territory · expand Territory first');
-      return;
-    }
     const before = this.captureSnapshot();
     let changed = 0;
 
     for (const point of path) {
       const terrain = this.terrainAt(point.x, point.y);
-      const current = this.state.getCell(point.x, point.y);
+      const current = this.services.state.getCell(point.x, point.y);
 
       if (current && !this.isRoadFamily(current.kind)) continue;
       if (terrain === 'water' || terrain === 'mountain') {
         continue;
       }
 
-      this.state.setCell(point.x, point.y, roadKind, 1);
+      this.services.state.setCell(point.x, point.y, roadKind, 1);
       changed += 1;
     }
 
@@ -6134,16 +6199,15 @@ export class ThreeGame {
         const x = gx + ox;
         const y = gy + oy;
         if (x < 1 || y < 1 || x >= SIZE - 1 || y >= SIZE - 1) continue;
-        if (!this.isWithinTerritory(x, y)) continue;
 
         const distance = Math.hypot(ox, oy);
         if (distance > radius) continue;
 
         const terrain = this.terrainAt(x, y);
         if (terrain === 'water' || terrain === 'river') continue;
-        if (this.keepSystem.findAtCell(x, y)) continue;
+        if (this.services.keepSystem.findAtCell(x, y)) continue;
 
-        const existing = this.state.getCell(x, y);
+        const existing = this.services.state.getCell(x, y);
         if (
           existing &&
           existing.kind !== 'mountain' &&
@@ -6168,7 +6232,7 @@ export class ThreeGame {
           existing?.kind === 'tree' &&
           (target > 1.75 || distance < 0.95)
         ) {
-          this.state.removeCell(x, y);
+          this.services.state.removeCell(x, y);
         }
       }
     }
@@ -6250,12 +6314,6 @@ export class ThreeGame {
   }
 
   private buildMountainRange(start: GridPoint, end: GridPoint): void {
-    if (!this.isWithinTerritory(start.x, start.y) || !this.isWithinTerritory(end.x, end.y)) {
-      this.clearGroup(this.wallPreviewLayer);
-      this.setStatus('Mountain Range must start and end inside your territory');
-      return;
-    }
-
     const before = this.captureSnapshot();
     const changed = this.applyMountainRange(start, end, true);
 
@@ -6297,16 +6355,15 @@ export class ThreeGame {
           const x = ridge.x + ox;
           const y = ridge.y + oy;
           if (x < 1 || y < 1 || x >= SIZE - 1 || y >= SIZE - 1) continue;
-          if (!this.isWithinTerritory(x, y)) continue;
-
+  
           const distance = Math.hypot(ox, oy);
           if (distance > influenceRadius) continue;
 
           const terrain = this.terrainAt(x, y);
           if (terrain === 'water' || terrain === 'river') continue;
-          if (this.keepSystem.findAtCell(x, y)) continue;
+          if (this.services.keepSystem.findAtCell(x, y)) continue;
 
-          const cell = this.state.getCell(x, y);
+          const cell = this.services.state.getCell(x, y);
           const natural =
             !cell ||
             cell.kind === 'tree' ||
@@ -6337,34 +6394,34 @@ export class ThreeGame {
           }
 
           if (distance <= 0.72) {
-            if (cell && cell.kind !== 'mountain') this.state.removeCell(x, y);
+            if (cell && cell.kind !== 'mountain') this.services.state.removeCell(x, y);
             const level = THREE.MathUtils.clamp(
               2 + Math.round(peakPulse + (ridgeHash % 3)),
               2,
               6,
             );
-            this.state.setCell(x, y, 'mountain', level);
+            this.services.state.setCell(x, y, 'mountain', level);
             changed = true;
           } else if (distance <= 1.55) {
             if (cell && cell.kind !== 'mountain' && replaceNaturalProps) {
-              this.state.removeCell(x, y);
+              this.services.state.removeCell(x, y);
             }
             const detailHash = Math.abs((x * 41 + y * 71 + i * 23) % 13);
-            if (!this.state.getCell(x, y) && detailHash === 2) {
-              this.state.setCell(x, y, 'rock', 1 + (ridgeHash % 2));
+            if (!this.services.state.getCell(x, y) && detailHash === 2) {
+              this.services.state.setCell(x, y, 'rock', 1 + (ridgeHash % 2));
             } else if (
-              !this.state.getCell(x, y) &&
+              !this.services.state.getCell(x, y) &&
               targetElevation < 1.55 &&
               (detailHash === 5 || detailHash === 9)
             ) {
-              this.state.setCell(x, y, 'tree', 1 + (detailHash % 2));
+              this.services.state.setCell(x, y, 'tree', 1 + (detailHash % 2));
             }
           } else if (
-            !this.state.getCell(x, y) &&
+            !this.services.state.getCell(x, y) &&
             targetElevation < 1.1 &&
             (ridgeHash + x + y) % 17 === 0
           ) {
-            this.state.setCell(x, y, 'tree', 1);
+            this.services.state.setCell(x, y, 'tree', 1);
           }
         }
       }
@@ -6443,17 +6500,17 @@ export class ThreeGame {
         next.y - current.y,
       );
       const opposite = WallSystem.opposite(direction);
-      const currentCell = this.state.getCell(current.x, current.y);
-      const nextCell = this.state.getCell(next.x, next.y);
+      const currentCell = this.services.state.getCell(current.x, current.y);
+      const nextCell = this.services.state.getCell(next.x, next.y);
 
       if (currentCell && this.isWallFamily(currentCell.kind)) {
-        this.state.updateCell(current.x, current.y, {
+        this.services.state.updateCell(current.x, current.y, {
           wallLinks: WallSystem.addLink(currentCell, direction),
         });
       }
 
       if (nextCell && this.isWallFamily(nextCell.kind)) {
-        this.state.updateCell(next.x, next.y, {
+        this.services.state.updateCell(next.x, next.y, {
           wallLinks: WallSystem.addLink(nextCell, opposite),
         });
       }
@@ -6463,25 +6520,20 @@ export class ThreeGame {
   private buildWallDrag(start: GridPoint, end: GridPoint, decrease: boolean): void {
     const wallKind = this.selectedTool as WallKind;
     const path = this.wallPath(start, end);
-    if (!this.isPathWithinTerritory(path)) {
-      this.clearGroup(this.wallPreviewLayer);
-      this.setStatus('Wall path leaves your territory · expand Territory first');
-      return;
-    }
     const single = path.length === 1;
     const before = this.captureSnapshot();
     let changed = false;
 
     for (const point of path) {
       const terrain = this.terrainAt(point.x, point.y);
-      const cell = this.state.getCell(point.x, point.y);
+      const cell = this.services.state.getCell(point.x, point.y);
 
       if (single && cell?.kind === wallKind) {
         const nextLevel = decrease
           ? Math.max(1, (cell.level ?? 1) - 1)
           : (cell.level ?? 1) + 1;
 
-        this.state.updateCell(point.x, point.y, {
+        this.services.state.updateCell(point.x, point.y, {
           level: nextLevel,
           thickness: this.wallThickness,
           battlement: this.wallBattlement,
@@ -6499,7 +6551,7 @@ export class ThreeGame {
       if (cell && !WALL_KINDS.includes(cell.kind as WallKind)) continue;
       if (!cell && !this.canBuildFortificationOnTerrain(terrain)) continue;
 
-      this.state.setCell(point.x, point.y, wallKind, cell?.level ?? 1, {
+      this.services.state.setCell(point.x, point.y, wallKind, cell?.level ?? 1, {
         thickness: this.wallThickness,
         battlement: this.wallBattlement,
         walkway: this.wallWalkway,
@@ -6537,28 +6589,26 @@ export class ThreeGame {
     const gy = point.y;
     this.selectedCell = point;
 
-    if (this.territoryOwnerAt(gx, gy) === 'enemy' && this.selectedTool === 'erase') {
-      this.setStatus('Enemy Territory · enemy structures cannot be modified');
-      return;
-    }
-
-    const cell = this.state.getCell(gx, gy);
+    const cell = this.services.state.getCell(gx, gy);
     const current = cell?.kind;
     const terrain = this.terrainAt(gx, gy);
     const overrideKey = this.key(gx, gy);
-    const keepAtPoint = this.keepSystem.findAtCell(gx, gy);
+    const keepAtPoint = this.services.keepSystem.findAtCell(gx, gy);
 
-    const territoryRestricted = this.selectedTool !== 'erase';
-
-    if (territoryRestricted && !this.isWithinTerritory(gx, gy)) {
-      this.setStatus('Outside your territory · expand Territory to build here');
+    if (this.selectedTool === null) {
+      if (keepAtPoint) {
+        this.selectKeep(keepAtPoint);
+      } else {
+        this.selectedKeepId = null;
+        this.setStatus(current ? `Selected: ${current}` : 'No Build Tool Selected');
+      }
       return;
     }
 
     if (this.selectedTool === 'erase') {
       if (keepAtPoint) {
         this.recordHistory();
-        this.keepSystem.remove(keepAtPoint.id);
+        this.services.keepSystem.remove(keepAtPoint.id);
         if (this.selectedKeepId === keepAtPoint.id) this.selectedKeepId = null;
         this.finishBuild();
         this.setStatus('Keep removed');
@@ -6567,7 +6617,7 @@ export class ThreeGame {
       if (current) {
         this.recordHistory();
         if (current === 'tower') this.removeTowerBridgesAt(gx, gy);
-        this.state.removeCell(gx, gy);
+        this.services.state.removeCell(gx, gy);
         this.finishBuild();
         return;
       }
@@ -6598,10 +6648,6 @@ export class ThreeGame {
     this.selectedKeepId = null;
 
     if (this.selectedTool === 'river' || this.selectedTool === 'land') {
-      if (!this.isWithinTerritory(gx, gy)) {
-        this.setStatus('Enemy Territory · expand your territory before modifying this land');
-        return;
-      }
       if (this.moatTasks.has(overrideKey)) return;
 
       if (this.selectedTool === 'river') {
@@ -6616,7 +6662,7 @@ export class ThreeGame {
         }
 
         this.recordHistory();
-        if (removableNatural) this.state.removeCell(gx, gy);
+        if (removableNatural) this.services.state.removeCell(gx, gy);
         this.terrainOverrides.set(overrideKey, 'river');
         this.finishBuild();
         this.setStatus('River water created · no source connection required');
@@ -6647,7 +6693,7 @@ export class ThreeGame {
       }
 
       this.recordHistory();
-      this.state.setCell(gx, gy, this.selectedTool, 1, {
+      this.services.state.setCell(gx, gy, this.selectedTool, 1, {
         rotation: direction.rotation,
         shipKind: this.maritimeSystem.defaultShip(this.selectedTool) ?? undefined,
       });
@@ -6669,7 +6715,7 @@ export class ThreeGame {
       if (current === 'mountain') {
         this.recordHistory();
         const nextLevel = (cell?.level ?? 1) + 1;
-        this.state.setLevel(gx, gy, nextLevel);
+        this.services.state.setLevel(gx, gy, nextLevel);
         this.shapeMountainFootprint(gx, gy, nextLevel);
         this.finishBuild();
         return;
@@ -6677,7 +6723,7 @@ export class ThreeGame {
 
       if (!current && (terrain === 'plains' || terrain === 'shore' || terrain === 'forest')) {
         this.recordHistory();
-        this.state.setCell(gx, gy, 'mountain', 1);
+        this.services.state.setCell(gx, gy, 'mountain', 1);
         this.shapeMountainFootprint(gx, gy, 1);
         this.finishBuild();
       }
@@ -6687,14 +6733,14 @@ export class ThreeGame {
     if (this.selectedTool === 'mine') {
       if (current === 'mountain') {
         this.recordHistory();
-        this.state.setCell(gx, gy, 'mine', 1);
+        this.services.state.setCell(gx, gy, 'mine', 1);
         this.finishBuild();
         return;
       }
 
       if (!current && terrain === 'mountain') {
         this.recordHistory();
-        this.state.setCell(gx, gy, 'mine', 1);
+        this.services.state.setCell(gx, gy, 'mine', 1);
         this.finishBuild();
       }
       return;
@@ -6710,7 +6756,7 @@ export class ThreeGame {
           return;
         }
         this.recordHistory();
-        this.state.setCell(gx, gy, 'appleOrchard', nextSize);
+        this.services.state.setCell(gx, gy, 'appleOrchard', nextSize);
         this.finishBuild();
         this.setStatus(`Apple Orchard size: ${nextSize}`);
         return;
@@ -6718,7 +6764,7 @@ export class ThreeGame {
       if (!current && terrain === 'plains') {
         this.recordHistory();
         const size = 1 + ((gx * 7 + gy * 11) % 3);
-        this.state.setCell(gx, gy, 'appleOrchard', size);
+        this.services.state.setCell(gx, gy, 'appleOrchard', size);
         this.finishBuild();
         this.setStatus(`Apple Orchard placed · size ${size}`);
       }
@@ -6728,7 +6774,7 @@ export class ThreeGame {
     if (this.selectedTool === 'tree') {
       if (!current && (terrain === 'plains' || terrain === 'shore' || terrain === 'forest')) {
         this.recordHistory();
-        this.state.setCell(gx, gy, 'tree', 1 + ((gx + gy) % 3));
+        this.services.state.setCell(gx, gy, 'tree', 1 + ((gx + gy) % 3));
         this.finishBuild();
       }
       return;
@@ -6751,7 +6797,7 @@ export class ThreeGame {
       }
 
       this.recordHistory();
-      this.state.setCell(gx, gy, 'stairTower', 1, {
+      this.services.state.setCell(gx, gy, 'stairTower', 1, {
         rotation: snap.rotation,
         accessHeight: snap.accessHeight,
       });
@@ -6769,7 +6815,7 @@ export class ThreeGame {
         this.recordHistory();
         const compatibleTop = this.compatibleTowerTop(this.towerShape, this.towerTop);
         this.towerTop = compatibleTop;
-        this.state.updateCell(gx, gy, {
+        this.services.state.updateCell(gx, gy, {
           level: nextLevel,
           towerShape: this.towerShape,
           towerTop: compatibleTop,
@@ -6784,7 +6830,7 @@ export class ThreeGame {
       this.recordHistory();
       const compatibleTop = this.compatibleTowerTop(this.towerShape, this.towerTop);
       this.towerTop = compatibleTop;
-      this.state.setCell(gx, gy, 'tower', cell?.level ?? 1, {
+      this.services.state.setCell(gx, gy, 'tower', cell?.level ?? 1, {
         towerShape: this.towerShape,
         towerTop: compatibleTop,
       });
@@ -6793,13 +6839,29 @@ export class ThreeGame {
     }
 
     const selectedTile = this.selectedTool as TileKind;
+    if (!this.isBuildingAvailable(selectedTile)) {
+      this.setStatus('This building is unavailable in ' + getGameModeDefinition(this.gameMode).label);
+      return;
+    }
     const selectedFortification = selectedTile === 'gate';
     const currentFortification = current ? this.isWallFamily(current) : false;
+
+    if (selectedTile === 'market') {
+      if (current || keepAtPoint) return;
+      if (!this.canBuildMarketAt(gx, gy)) {
+        this.setStatus('Market needs a clear 3×3 land area');
+        return;
+      }
+      this.recordHistory();
+      this.services.state.setCell(gx, gy, 'market', 1);
+      this.finishBuild();
+      return;
+    }
 
     if (current) {
       if (selectedFortification && currentFortification) {
         this.recordHistory();
-        this.state.setCell(gx, gy, selectedTile, cell?.level ?? 1);
+        this.services.state.setCell(gx, gy, selectedTile, cell?.level ?? 1);
         this.finishBuild();
       }
       return;
@@ -6807,8 +6869,21 @@ export class ThreeGame {
 
     if (!this.canBuildOnTerrain(this.selectedTool, terrain)) return;
     this.recordHistory();
-    this.state.setCell(gx, gy, selectedTile, 1);
+    this.services.state.setCell(gx, gy, selectedTile, 1);
     this.finishBuild();
+  }
+
+  private canBuildMarketAt(gx: number, gy: number): boolean {
+    const radius = 1;
+    for (let y = gy - radius; y <= gy + radius; y += 1) {
+      for (let x = gx - radius; x <= gx + radius; x += 1) {
+        if (x < 0 || y < 0 || x >= SIZE || y >= SIZE) return false;
+        if (this.services.state.getCell(x, y) || this.services.keepSystem.findAtCell(x, y)) return false;
+        const terrain = this.terrainAt(x, y);
+        if (terrain === 'water' || terrain === 'river' || terrain === 'mountain' || terrain === 'forest') return false;
+      }
+    }
+    return true;
   }
 
   private canBuildOnTerrain(tool: ToolKind, terrain: TerrainKind): boolean {
@@ -6822,6 +6897,7 @@ export class ThreeGame {
   }
 
   private finishBuild(): void {
+    audioEvents.emit({ action: 'play_sfx', assetId: 'building.place' });
     this.redraw();
     this.scheduleSave();
   }
@@ -7042,7 +7118,7 @@ export class ThreeGame {
   }
 
   private chooseCitizenDestination(agent: SettlementAgent): GridPoint {
-    const candidates = this.state.entries()
+    const candidates = this.services.state.entries()
       .filter((cell) =>
         ROAD_KINDS.includes(cell.kind as RoadKind) ||
         cell.kind === 'cottage' ||
@@ -7146,7 +7222,7 @@ export class ThreeGame {
       battleStatus.mode === 'finished'
         ? battleStatus.defendersAlive
         : configuredMilitary;
-    const groups = this.populationSystem.calculate(this.state.entries(), military);
+    const groups = this.services.populationSystem.calculate(this.services.state.entries(), military);
 
     const population = document.getElementById('city-population');
     const army = document.getElementById('military-population');
@@ -7184,7 +7260,7 @@ export class ThreeGame {
 
       if (task.progressMs >= 1800) {
         this.recordHistory();
-        this.state.setCell(task.x, task.y, 'moat', 1);
+        this.services.state.setCell(task.x, task.y, 'moat', 1);
         this.moatTasks.delete(worker.taskKey);
         worker.taskKey = undefined;
         this.redraw();
@@ -7223,144 +7299,16 @@ export class ThreeGame {
     }, 450);
   }
 
-  private save(updateStatus = true): void {
-    const terrain = Array.from(this.terrainOverrides.entries()).map(([key, kind]) => {
-      const [x, y] = key.split(',').map(Number);
-      return { x, y, kind };
-    });
-
-    const elevations = Array.from(this.elevationOverrides.entries()).map(([key, value]) => {
-      const [x, y] = key.split(',').map(Number);
-      return { x, y, value };
-    });
-
-    const data: SavedGame = {
-      version: SAVE_VERSION,
-      updatedAt: Date.now(),
-      cells: this.state.entries(),
-      keeps: this.keepSystem.entries(),
-      stoneStyle: this.stoneStyle,
-      towerBridges: Array.from(this.towerBridges.values()).map((bridge) => ({ ...bridge })),
-      terrain,
-      elevations,
-      worldSeeded: this.worldSeeded,
-      territoryStage: this.territoryStage,
-    };
-
-    localStorage.setItem(SAVE_KEY, JSON.stringify(data));
-    if (updateStatus) this.setStatus('Saved');
+    private save(updateStatus = true): void {
+    this.saveSystem.save(updateStatus);
   }
 
-  private load(): void {
-    const raw = localStorage.getItem(SAVE_KEY);
-    if (!raw) return;
-
-    try {
-      const data = JSON.parse(raw) as {
-        version?: number;
-        cells?: Array<{
-          x: number;
-          y: number;
-          kind: string;
-          level?: number;
-          thickness?: WallThickness;
-          battlement?: boolean;
-          walkway?: boolean;
-          towerShape?: TowerShape;
-          towerTop?: TowerTop;
-          rotation?: number;
-          wallLinks?: WallDirection[];
-          shipKind?: ShipKind;
-          accessHeight?: number;
-        }>;
-        keeps?: KeepState[];
-        stoneStyle?: StoneStyle;
-        towerBridges?: TowerBridgeState[];
-        terrain?: Array<{ x: number; y: number; kind: TerrainOverrideKind }>;
-        elevations?: Array<{ x: number; y: number; value: number }>;
-        worldSeeded?: boolean;
-        territoryStage?: number;
-      };
-
-      const cells: Array<ReturnType<GameState['entries']>[number]> = [];
-
-      for (const cell of data.cells ?? []) {
-        if (cell.x < 0 || cell.y < 0 || cell.x >= SIZE || cell.y >= SIZE) continue;
-
-        const migration = this.migrateKind(cell.kind, cell.level ?? 1);
-        if (!migration) continue;
-
-        cells.push({
-          x: cell.x,
-          y: cell.y,
-          kind: migration.kind,
-          level: migration.level,
-          thickness: cell.thickness,
-          battlement: cell.battlement,
-          walkway: cell.walkway,
-          towerShape: cell.towerShape,
-          towerTop: cell.towerTop,
-          rotation: cell.rotation,
-          wallLinks: cell.wallLinks,
-          shipKind: cell.shipKind,
-          accessHeight: cell.accessHeight,
-        });
-      }
-
-      this.state.replace(cells);
-      this.keepSystem.replace(data.keeps ?? []);
-      this.stoneStyle =
-        data.stoneStyle === 'darkStone' ||
-        data.stoneStyle === 'sandstone' ||
-        data.stoneStyle === 'frontier'
-          ? data.stoneStyle
-          : 'limestone';
-      this.towerBridges.clear();
-      for (const bridge of data.towerBridges ?? []) {
-        if (
-          !Number.isInteger(bridge.id) ||
-          !Number.isInteger(bridge.ax) ||
-          !Number.isInteger(bridge.ay) ||
-          !Number.isInteger(bridge.bx) ||
-          !Number.isInteger(bridge.by)
-        ) continue;
-        if (bridge.kind !== 'stone' && bridge.kind !== 'wood') continue;
-        this.towerBridges.set(bridge.id, { ...bridge });
-      }
-      this.nextTowerBridgeId =
-        Math.max(0, ...Array.from(this.towerBridges.keys())) + 1;
-      this.terrainOverrides.clear();
-      this.elevationOverrides.clear();
-
-      for (const terrainCell of data.terrain ?? []) {
-        if (terrainCell.x < 0 || terrainCell.y < 0 || terrainCell.x >= SIZE || terrainCell.y >= SIZE) continue;
-        if (terrainCell.kind !== 'plains' && terrainCell.kind !== 'river') continue;
-        this.terrainOverrides.set(this.key(terrainCell.x, terrainCell.y), terrainCell.kind);
-      }
-
-      for (const elevationCell of data.elevations ?? []) {
-        if (elevationCell.x < 0 || elevationCell.y < 0 || elevationCell.x >= SIZE || elevationCell.y >= SIZE) continue;
-        if (!Number.isFinite(elevationCell.value)) continue;
-        this.elevationOverrides.set(
-          this.key(elevationCell.x, elevationCell.y),
-          THREE.MathUtils.clamp(elevationCell.value, -6, 6),
-        );
-      }
-
-      this.worldSeeded = Boolean(data.worldSeeded);
-      this.territoryStage = THREE.MathUtils.clamp(
-        Math.floor(data.territoryStage ?? 0),
-        0,
-        TERRITORY_MAX_STAGE,
-      );
-      this.loadedSaveVersion = Math.max(0, Math.floor(data.version ?? 0));
-      this.setStatus('Loaded');
-    } catch {
-      this.setStatus('Could not load save');
-    }
+    private load(): void {
+    this.saveSystem.load();
   }
 
   private migrateKind(kind: string, level: number): { kind: TileKind; level: number } | null {
+    if (kind === 'marketStall' || kind === 'smallMarket' || kind === 'marketHall') return { kind: 'market', level: 1 };
     if (kind === 'wall') return { kind: 'wall1', level };
     if (kind === 'mountain1') return { kind: 'mountain', level: 1 };
     if (kind === 'mountain2') return { kind: 'mountain', level: 2 };
@@ -7373,12 +7321,23 @@ export class ThreeGame {
     const get = <T extends HTMLElement>(id: string): T => document.getElementById(id) as T;
     const toolbar = get<HTMLElement>('toolbar');
 
-    const toolHtml = TOOL_GROUPS.map((group) => {
-      const buttons = group.tools
+    const noneHtml =
+      '<button class="tool-button tool-button-none is-selected" data-build-none="true" type="button" aria-pressed="true">' +
+      '<span class="tool-icon">✕</span>' +
+      '<span class="tool-copy"><strong>None</strong><small>No build tool · free camera / inspect</small></span>' +
+      '<kbd>Esc</kbd></button>';
+
+    const modeConfig = getGameModeDefinition(this.gameMode);
+    const toolDefinitions = new Map(TOOL_GROUPS.flatMap((group) => group.tools.map((tool) => [tool.id, tool] as const)));
+    const toolHtml = modeConfig.toolGroups.map((group, index) => {
+      const isDefaultOpen = index === 0;
+      const buttons = group.toolIds
+        .map((toolId) => toolDefinitions.get(toolId))
+        .filter((tool): tool is ToolDefinition => Boolean(tool))
         .map(
           (tool) =>
             '<button class="tool-button' +
-            (tool.id === 'wall1' ? ' is-selected' : '') +
+            (tool.id === this.selectedTool ? ' is-selected' : '') +
             '" data-tool="' +
             tool.id +
             '">' +
@@ -7396,17 +7355,30 @@ export class ThreeGame {
         )
         .join('');
 
-      return '<div class="tool-section-label">' + group.label + '</div>' + buttons;
+      return (
+        '<section class="tool-category' +
+        (isDefaultOpen ? ' is-open' : '') +
+        '" data-category="' +
+        group.label +
+        '">' +
+        '<button class="tool-category-header" type="button" aria-expanded="' +
+        (isDefaultOpen ? 'true' : 'false') +
+        '">' +
+        '<span>' +
+        group.label +
+        '</span>' +
+        '<span class="tool-category-chevron" aria-hidden="true">▶</span>' +
+        '</button>' +
+        '<div class="tool-category-items">' +
+        buttons +
+        '</div>' +
+        '</section>'
+      );
     }).join('');
 
     toolbar.innerHTML =
       '<div class="toolbar-title"><div><span>Build</span><small>Modular engineering</small></div><button id="toolbar-close" class="toolbar-close" type="button" aria-label="Close build panel">×</button></div>' +
-      '<div class="builder-settings">' +
-      '<div class="settings-title">Territory</div>' +
-      '<div class="settings-actions"><button id="expand-territory" type="button">Expand Territory</button></div>' +
-      '<div id="territory-stage" class="settings-hint">Controlled zones: 1/3</div>' +
-      '<div class="settings-hint">🟢 Your Territory · 🔴 Enemy Territory</div>' +
-      '</div>' +
+      noneHtml +
       toolHtml +
       '<div class="builder-settings">' +
       '<div class="settings-title">Wall Settings</div>' +
@@ -7465,8 +7437,25 @@ export class ThreeGame {
       '<div class="settings-hint">Walls: drag A→B. Terrain tools also support drag strokes. Ctrl+Z / Ctrl+Y undo and redo.</div>' +
       '</div>';
 
+    const builderSettings = toolbar.querySelector<HTMLElement>('.builder-settings');
+    if (builderSettings) builderSettings.hidden = this.gameMode === 'modern';
+
+    toolbar.querySelectorAll<HTMLButtonElement>('.tool-category-header').forEach((header) => {
+      header.onclick = () => {
+        const category = header.closest<HTMLElement>('.tool-category');
+        if (!category) return;
+        const open = category.classList.toggle('is-open');
+        header.setAttribute('aria-expanded', String(open));
+      };
+    });
+
+    document.querySelector<HTMLButtonElement>('[data-build-none]')?.addEventListener('click', () => this.selectTool(null));
+
     toolbar.querySelectorAll<HTMLButtonElement>('[data-tool]').forEach((button) => {
       button.onclick = () => {
+        toolbar.querySelectorAll<HTMLButtonElement>('[data-tool]').forEach((item) => {
+          item.classList.toggle('is-selected', item === button);
+        });
         this.selectTool(button.dataset.tool as ToolKind);
         if (window.matchMedia('(max-width: 760px)').matches) {
           this.setToolbarOpen(false);
@@ -7476,8 +7465,6 @@ export class ThreeGame {
 
     get<HTMLButtonElement>('toolbar-close').onclick = () => this.setToolbarOpen(false);
     get<HTMLButtonElement>('toolbar-open').onclick = () => this.setToolbarOpen(true);
-    get<HTMLButtonElement>('expand-territory').onclick = () => this.expandTerritory();
-    this.updateTerritoryUI();
     get<HTMLButtonElement>('view-2d-button').onclick = () => this.setViewMode('plan2d');
     get<HTMLButtonElement>('view-3d-button').onclick = () => this.setViewMode('world3d');
     get<HTMLButtonElement>('camera-45-button').onclick = () => this.setCameraView('45');
@@ -7640,8 +7627,18 @@ export class ThreeGame {
       help.hidden = true;
     };
     get<HTMLButtonElement>('templates-button').onclick = () => {
+      this.syncTemplateAvailability();
       templates.hidden = false;
     };
+    get<HTMLButtonElement>('game-mode-button').onclick = () => {
+      if (confirm('Start a new game and choose a game mode? Current changes will be replaced.')) this.openGameModeSelector();
+    };
+    document.querySelectorAll<HTMLButtonElement>('[data-game-mode]').forEach((button) => {
+      button.onclick = () => {
+        const requested = button.dataset.gameMode;
+        if (isGameMode(requested)) this.startNewGameWithMode(requested);
+      };
+    });
     get<HTMLButtonElement>('templates-close-button').onclick = () => {
       templates.hidden = true;
     };
@@ -7674,25 +7671,8 @@ export class ThreeGame {
       this.redraw();
     };
     get<HTMLButtonElement>('reset-button').onclick = () => {
-      if (confirm('Reset the entire island?')) {
-        this.recordHistory();
-        this.state.clear();
-        this.keepSystem.clear();
-        this.towerBridges.clear();
-        this.nextTowerBridgeId = 1;
-        this.towerBridgeStart = null;
-        this.towerBridgeHover = null;
-        this.clearGroup(this.wallPreviewLayer);
-        this.selectedKeepId = null;
-        this.terrainOverrides.clear();
-        this.elevationOverrides.clear();
-        this.moatTasks.clear();
-        this.territoryStage = 0;
-        this.worldSeeded = false;
-        this.seedNaturalProps();
-        this.worldSeeded = true;
-        this.redraw();
-        this.save();
+      if (confirm('Reset the entire island and choose a game mode?')) {
+        this.openGameModeSelector();
       }
     };
     get<HTMLButtonElement>('fullscreen-button').onclick = async () => {
@@ -7775,20 +7755,18 @@ export class ThreeGame {
       if (event.key === 'Escape') {
         help.hidden = true;
         templates.hidden = true;
-        this.towerBridgeStart = null;
-        this.towerBridgeHover = null;
-        this.clearGroup(this.wallPreviewLayer);
+        this.selectTool(null);
       }
     });
   }
 
   private applyWallSettingsToSelected(): void {
     if (!this.selectedCell) return;
-    const cell = this.state.getCell(this.selectedCell.x, this.selectedCell.y);
+    const cell = this.services.state.getCell(this.selectedCell.x, this.selectedCell.y);
     if (!cell || !WALL_KINDS.includes(cell.kind as WallKind)) return;
 
     this.recordHistory();
-    this.state.updateCell(this.selectedCell.x, this.selectedCell.y, {
+    this.services.state.updateCell(this.selectedCell.x, this.selectedCell.y, {
       thickness: this.wallThickness,
       battlement: this.wallBattlement,
       walkway: this.wallWalkway,
@@ -7813,7 +7791,7 @@ export class ThreeGame {
 
   private applyTowerSettingsToSelected(): void {
     if (!this.selectedCell) return;
-    const cell = this.state.getCell(this.selectedCell.x, this.selectedCell.y);
+    const cell = this.services.state.getCell(this.selectedCell.x, this.selectedCell.y);
     if (!cell || cell.kind !== 'tower') return;
 
     const compatibleTop = this.compatibleTowerTop(this.towerShape, this.towerTop);
@@ -7822,7 +7800,7 @@ export class ThreeGame {
     if (topSelect) topSelect.value = compatibleTop;
 
     this.recordHistory();
-    this.state.updateCell(this.selectedCell.x, this.selectedCell.y, {
+    this.services.state.updateCell(this.selectedCell.x, this.selectedCell.y, {
       towerShape: this.towerShape,
       towerTop: compatibleTop,
     });
@@ -7863,24 +7841,19 @@ export class ThreeGame {
     draft: Omit<KeepState, 'id' | 'seed'>,
     ignoreKeepId?: number,
   ): { valid: boolean; reason?: string } {
-    const footprint = this.keepSystem.footprint(draft);
-    if (!footprint.every((cell) => this.isWithinTerritory(cell.x, cell.y))) {
-      return { valid: false, reason: 'Keep foundation extends outside your territory. Expand Territory first.' };
-    }
-
-    return this.keepSystem.validate(
+    return this.services.keepSystem.validate(
       draft,
       SIZE,
       (x, y) => this.terrainAt(x, y),
       (x, y) => this.terrainElevation(x, y),
-      (x, y) => Boolean(this.state.getCell(x, y)),
+      (x, y) => Boolean(this.services.state.getCell(x, y)),
       ignoreKeepId,
     );
   }
 
   private applyKeepSettingsToSelected(): void {
     if (this.selectedKeepId === null) return;
-    const keep = this.keepSystem.get(this.selectedKeepId);
+    const keep = this.services.keepSystem.get(this.selectedKeepId);
     if (!keep) return;
 
     const draft = {
@@ -7903,7 +7876,7 @@ export class ThreeGame {
     }
 
     this.recordHistory();
-    const updated = this.keepSystem.update(keep.id, draft);
+    const updated = this.services.keepSystem.update(keep.id, draft);
     if (updated) {
       this.selectKeep(updated);
       this.redraw();
@@ -7920,12 +7893,12 @@ export class ThreeGame {
       return;
     }
 
-    const keep = this.keepSystem.get(this.selectedKeepId);
+    const keep = this.services.keepSystem.get(this.selectedKeepId);
     if (!keep) return;
 
     this.keepFloors = Math.max(1, keep.floors + delta);
     this.recordHistory();
-    const updated = this.keepSystem.update(keep.id, { floors: this.keepFloors });
+    const updated = this.services.keepSystem.update(keep.id, { floors: this.keepFloors });
     if (updated) {
       this.selectKeep(updated);
       this.redraw();
@@ -7941,7 +7914,7 @@ export class ThreeGame {
       return;
     }
 
-    const keep = this.keepSystem.get(this.selectedKeepId);
+    const keep = this.services.keepSystem.get(this.selectedKeepId);
     if (!keep) return;
 
     const nextRotation = (keep.rotation + 1) % 4;
@@ -7963,7 +7936,7 @@ export class ThreeGame {
     }
 
     this.recordHistory();
-    const updated = this.keepSystem.update(keep.id, { rotation: nextRotation });
+    const updated = this.services.keepSystem.update(keep.id, { rotation: nextRotation });
     if (updated) {
       this.selectKeep(updated);
       this.redraw();
@@ -7978,7 +7951,7 @@ export class ThreeGame {
     }
 
     this.recordHistory();
-    this.keepSystem.remove(this.selectedKeepId);
+    this.services.keepSystem.remove(this.selectedKeepId);
     this.selectedKeepId = null;
     this.redraw();
     this.scheduleSave();
@@ -7986,7 +7959,7 @@ export class ThreeGame {
   }
 
   private placeKeep(gx: number, gy: number): void {
-    const existing = this.keepSystem.findAtCell(gx, gy);
+    const existing = this.services.keepSystem.findAtCell(gx, gy);
     if (existing) {
       this.selectKeep(existing);
       return;
@@ -8011,7 +7984,7 @@ export class ThreeGame {
     }
 
     this.recordHistory();
-    const keep = this.keepSystem.add(draft);
+    const keep = this.services.keepSystem.add(draft);
     this.selectKeep(keep);
     this.redraw();
     this.scheduleSave();
@@ -8029,14 +8002,14 @@ export class ThreeGame {
       return;
     }
 
-    const cell = this.state.getCell(this.selectedCell.x, this.selectedCell.y);
+    const cell = this.services.state.getCell(this.selectedCell.x, this.selectedCell.y);
     if (!cell || (!WALL_KINDS.includes(cell.kind as WallKind) && cell.kind !== 'tower')) {
       this.setStatus('Selected tile is not a wall or tower');
       return;
     }
 
     this.recordHistory();
-    this.state.setLevel(
+    this.services.state.setLevel(
       this.selectedCell.x,
       this.selectedCell.y,
       Math.max(1, (cell.level ?? 1) + delta),
@@ -8047,9 +8020,17 @@ export class ThreeGame {
   }
 
   private applyTemplate(template: string): void {
+    if (template === 'futuristic-castle' && this.gameMode !== 'modern') {
+      this.setStatus('Futuristic Castle is only available in Modern Mode');
+      return;
+    }
+    if (template !== 'futuristic-castle' && this.gameMode === 'modern') {
+      this.setStatus('Medieval templates are unavailable in Modern Mode');
+      return;
+    }
     this.recordHistory();
-    this.state.clear();
-    this.keepSystem.clear();
+    this.services.state.clear();
+    this.services.keepSystem.clear();
     this.towerBridges.clear();
     this.nextTowerBridgeId = 1;
     this.towerBridgeStart = null;
@@ -8069,7 +8050,7 @@ export class ThreeGame {
       level = 1,
       options: Partial<GridCell> = {},
     ): void => {
-      this.state.setCell(x, y, kind, level, options);
+      this.services.state.setCell(x, y, kind, level, options);
     };
 
     const placeKeepTemplate = (
@@ -8095,11 +8076,11 @@ export class ThreeGame {
         battlements,
       };
 
-      for (const footprintCell of this.keepSystem.footprint(draft)) {
-        this.state.removeCell(footprintCell.x, footprintCell.y);
+      for (const footprintCell of this.services.keepSystem.footprint(draft)) {
+        this.services.state.removeCell(footprintCell.x, footprintCell.y);
       }
 
-      this.keepSystem.add(draft);
+      this.services.keepSystem.add(draft);
     };
 
     const prepareArea = (
@@ -8111,7 +8092,7 @@ export class ThreeGame {
     ): void => {
       for (let y = Math.max(0, minY); y <= Math.min(SIZE - 1, maxY); y += 1) {
         for (let x = Math.max(0, minX); x <= Math.min(SIZE - 1, maxX); x += 1) {
-          this.state.removeCell(x, y);
+          this.services.state.removeCell(x, y);
           this.terrainOverrides.set(this.key(x, y), 'plains');
           this.setAbsoluteElevation(x, y, elevation);
         }
@@ -8172,7 +8153,7 @@ export class ThreeGame {
       const candidates: Array<{ point: GridPoint; rotation: number; score: number }> = [];
       for (let y = 1; y < SIZE - 1; y += 1) {
         for (let x = 1; x < SIZE - 1; x += 1) {
-          if (this.state.getCell(x, y) || this.keepSystem.findAtCell(x, y)) continue;
+          if (this.services.state.getCell(x, y) || this.services.keepSystem.findAtCell(x, y)) continue;
           const coast = this.maritimeSystem.canPlace(kind, x, y);
           if (!coast) continue;
           candidates.push({
@@ -8186,7 +8167,7 @@ export class ThreeGame {
       const choice = candidates[0];
       if (!choice) return null;
 
-      this.state.removeCell(choice.point.x, choice.point.y);
+      this.services.state.removeCell(choice.point.x, choice.point.y);
       place(choice.point.x, choice.point.y, kind, 1, {
         rotation: choice.rotation,
         shipKind,
@@ -8196,7 +8177,11 @@ export class ThreeGame {
 
     if (template !== 'empty-land') this.seedNaturalProps();
 
-    if (template === 'empty-land') {
+    if (template === 'futuristic-castle') {
+      this.stoneStyle = 'darkStone';
+      prepareArea(center - 10, center - 10, center + 10, center + 10, 0.05);
+      place(center, center, 'futuristicCastle');
+    } else if (template === 'empty-land') {
       for (let y = 0; y < SIZE; y += 1) {
         for (let x = 0; x < SIZE; x += 1) {
           if (this.baseTerrainAt(x, y) !== 'water') {
@@ -8302,7 +8287,7 @@ export class ThreeGame {
 
       for (let y = 4; y < SIZE - 3; y += 1) {
         for (let x = center - 3; x <= center + 3; x += 1) {
-          const existing = this.state.getCell(x, y);
+          const existing = this.services.state.getCell(x, y);
           if (
             existing &&
             (existing.kind === 'tree' ||
@@ -8310,7 +8295,7 @@ export class ThreeGame {
               existing.kind === 'hut' ||
               existing.kind === 'mountain')
           ) {
-            this.state.removeCell(x, y);
+            this.services.state.removeCell(x, y);
           }
           this.terrainOverrides.set(this.key(x, y), 'plains');
           this.setAbsoluteElevation(x, y, 0.12 + Math.sin((x + y) * 0.4) * 0.08);
@@ -8319,14 +8304,14 @@ export class ThreeGame {
 
       for (let y = 3; y < SIZE - 2; y += 1) {
         const x = center + Math.round(Math.sin(y * 0.52) * 0.7);
-        this.state.removeCell(x, y);
+        this.services.state.removeCell(x, y);
         this.terrainOverrides.set(this.key(x, y), 'river');
         this.setAbsoluteElevation(x, y, Math.max(0, 0.55 - y * 0.018));
       }
 
       for (let y = 5; y < SIZE - 4; y += 2) {
         for (const x of [center - 5, center + 5]) {
-          if (!this.state.getCell(x, y) && this.terrainAt(x, y) !== 'river') {
+          if (!this.services.state.getCell(x, y) && this.terrainAt(x, y) !== 'river') {
             place(x, y, 'tree', 1 + ((x + y) % 3));
           }
         }
@@ -8335,14 +8320,14 @@ export class ThreeGame {
       for (let y = center - 5; y <= center + 5; y += 1) {
         for (let x = center - 4; x <= center + 4; x += 1) {
           if (x < 0 || y < 0 || x >= SIZE || y >= SIZE) continue;
-          const existing = this.state.getCell(x, y);
+          const existing = this.services.state.getCell(x, y);
           if (
             existing &&
             (existing.kind === 'tree' ||
               existing.kind === 'rock' ||
               existing.kind === 'hut')
           ) {
-            this.state.removeCell(x, y);
+            this.services.state.removeCell(x, y);
           }
           if (this.baseTerrainAt(x, y) !== 'water') {
             this.terrainOverrides.set(this.key(x, y), 'plains');
@@ -8354,14 +8339,14 @@ export class ThreeGame {
       for (let y = 3; y < SIZE - 3; y += 1) {
         for (let x = center + 5; x < SIZE; x += 1) {
           if (this.baseTerrainAt(x, y) !== 'shore') continue;
-          const existing = this.state.getCell(x, y);
+          const existing = this.services.state.getCell(x, y);
           if (
             existing &&
             (existing.kind === 'tree' ||
               existing.kind === 'rock' ||
               existing.kind === 'hut')
           ) {
-            this.state.removeCell(x, y);
+            this.services.state.removeCell(x, y);
           }
           this.elevationOverrides.delete(this.key(x, y));
         }
@@ -8369,7 +8354,7 @@ export class ThreeGame {
 
       for (let y = 4; y <= center + 3; y += 2) {
         for (let x = 3; x <= center - 4; x += 2) {
-          if (!this.state.getCell(x, y) && this.terrainAt(x, y) !== 'water') {
+          if (!this.services.state.getCell(x, y) && this.terrainAt(x, y) !== 'water') {
             if ((x + y) % 3 !== 0) place(x, y, 'tree', 1 + ((x * 3 + y) % 3));
           }
         }
@@ -8407,7 +8392,7 @@ export class ThreeGame {
           2 +
           Math.round(Math.sin(y * 0.58 + 0.7) * 1.1 - t * 2.1);
 
-        this.state.removeCell(x, y);
+        this.services.state.removeCell(x, y);
         this.terrainOverrides.set(this.key(x, y), 'river');
         this.setAbsoluteElevation(
           x,
@@ -8416,7 +8401,7 @@ export class ThreeGame {
         );
 
         if (x + 1 < SIZE && y < center + 1 && y % 3 === 0) {
-          this.state.removeCell(x + 1, y);
+          this.services.state.removeCell(x + 1, y);
           this.terrainOverrides.set(this.key(x + 1, y), 'river');
           this.setAbsoluteElevation(x + 1, y, Math.max(0, 2.3 * (1 - t)));
         }
@@ -8424,7 +8409,7 @@ export class ThreeGame {
 
       for (let y = center + 2; y <= center + 6; y += 1) {
         for (let x = center - 5; x <= center - 1; x += 1) {
-          const existing = this.state.getCell(x, y);
+          const existing = this.services.state.getCell(x, y);
           if (
             existing &&
             (existing.kind === 'tree' ||
@@ -8432,7 +8417,7 @@ export class ThreeGame {
               existing.kind === 'hut' ||
               existing.kind === 'mountain')
           ) {
-            this.state.removeCell(x, y);
+            this.services.state.removeCell(x, y);
           }
           this.terrainOverrides.set(this.key(x, y), 'plains');
           this.setAbsoluteElevation(x, y, 0.62 + Math.sin((x + y) * 0.5) * 0.12);
@@ -8442,7 +8427,7 @@ export class ThreeGame {
       for (let y = 8; y < SIZE - 4; y += 2) {
         for (const x of [4, 6, SIZE - 6, SIZE - 4]) {
           if (
-            !this.state.getCell(x, y) &&
+            !this.services.state.getCell(x, y) &&
             this.terrainAt(x, y) !== 'water' &&
             this.terrainAt(x, y) !== 'river'
           ) {
@@ -8545,7 +8530,7 @@ export class ThreeGame {
       place(center + 2, center + 2, 'farm');
       place(center + 3, center - 2, 'hut');
       for (let x = center - 4; x <= center + 3; x += 1) {
-        if (!this.state.getCell(x, center + 3)) place(x, center + 3, 'dirtRoad');
+        if (!this.services.state.getCell(x, center + 3)) place(x, center + 3, 'dirtRoad');
       }
     } else if (template === 'frontier-outpost') {
       this.stoneStyle = 'frontier';
@@ -8648,7 +8633,7 @@ export class ThreeGame {
         (point): point is GridPoint => point !== null,
       );
       for (const point of portPoints) {
-        this.state.removeCell(point.x - 1, point.y);
+        this.services.state.removeCell(point.x - 1, point.y);
         if (this.terrainAt(point.x - 1, point.y) !== 'water') {
           place(point.x - 1, point.y, 'stoneRoad');
         }
@@ -8661,10 +8646,10 @@ export class ThreeGame {
       place(center + 2, center + 3, 'house');
       place(center + 3, center - 2, 'cottage');
       for (let x = center - 6; x <= center + 4; x += 1) {
-        if (!this.state.getCell(x, center + 1)) place(x, center + 1, 'stoneRoad');
+        if (!this.services.state.getCell(x, center + 1)) place(x, center + 1, 'stoneRoad');
       }
       for (let y = center - 4; y <= center + 5; y += 1) {
-        if (!this.state.getCell(center, y)) place(center, y, 'road');
+        if (!this.services.state.getCell(center, y)) place(center, y, 'road');
       }
     } else if (template === 'mountain-fortress') {
       this.stoneStyle = 'frontier';
@@ -8730,13 +8715,13 @@ export class ThreeGame {
       place(center + 4, center + 5, 'farm');
 
       for (let x = center - 7; x <= center + 7; x += 1) {
-        if (!this.state.getCell(x, center + 3)) place(x, center + 3, 'road');
+        if (!this.services.state.getCell(x, center + 3)) place(x, center + 3, 'road');
       }
       for (let y = center - 5; y <= center + 6; y += 1) {
-        if (!this.state.getCell(center, y)) place(center, y, 'stoneRoad');
+        if (!this.services.state.getCell(center, y)) place(center, y, 'stoneRoad');
       }
       for (let y = center - 5; y <= center + 5; y += 1) {
-        if (!this.state.getCell(center - 3, y)) place(center - 3, y, 'dirtRoad');
+        if (!this.services.state.getCell(center - 3, y)) place(center - 3, y, 'dirtRoad');
       }
     } else if (template === 'architecture-gallery') {
       this.stoneStyle = 'limestone';
@@ -8821,10 +8806,10 @@ export class ThreeGame {
 
       for (let y = 2; y < SIZE - 2; y += 1) {
         const x = center + 4 + Math.round(Math.sin(y * 0.48) * 0.8);
-        this.state.removeCell(x, y);
+        this.services.state.removeCell(x, y);
         this.terrainOverrides.set(this.key(x, y), 'river');
         if (y > center - 3 && y < center + 4) {
-          this.state.removeCell(x + 1, y);
+          this.services.state.removeCell(x + 1, y);
           this.terrainOverrides.set(this.key(x + 1, y), 'river');
         }
       }
@@ -8872,10 +8857,10 @@ export class ThreeGame {
       for (const [x, y] of farms) place(x, y, 'farm');
 
       for (let x = center - 9; x <= center + 9; x += 1) {
-        if (!this.state.getCell(x, center + 5)) place(x, center + 5, 'dirtRoad');
+        if (!this.services.state.getCell(x, center + 5)) place(x, center + 5, 'dirtRoad');
       }
       for (let y = center - 7; y <= center + 7; y += 1) {
-        if (!this.state.getCell(center, y)) place(center, y, 'road');
+        if (!this.services.state.getCell(center, y)) place(center, y, 'road');
       }
     } else if (template === 'twin-keep') {
       this.stoneStyle = 'darkStone';
@@ -8897,7 +8882,7 @@ export class ThreeGame {
       addTemplateBridge(t1,t2,'stone');
       addTemplateStairTower(center - 8, center);
       place(center, center + 2, 'armyCamp');
-      for (let y=center+1;y<center+6;y+=1) if(!this.state.getCell(center,y)) place(center,y,'stoneRoad');
+      for (let y=center+1;y<center+6;y+=1) if(!this.services.state.getCell(center,y)) place(center,y,'stoneRoad');
     } else if (template === 'border-march') {
       this.stoneStyle = 'frontier';
       prepareArea(center - 11, center - 9, center + 11, center + 9, 0.1);
@@ -8914,10 +8899,10 @@ export class ThreeGame {
       place(center+3,center+2,'farm');
       place(center,center+3,'hut');
       place(center+5,center+4,'cottage');
-      for(let x=center-6;x<=center+7;x+=1) if(!this.state.getCell(x,center+2)) place(x,center+2,'dirtRoad');
+      for(let x=center-6;x<=center+7;x+=1) if(!this.services.state.getCell(x,center+2)) place(x,center+2,'dirtRoad');
 
       for(let y=center-8;y<=center+8;y+=2) {
-        if(!this.state.getCell(center+8,y)) place(center+8,y,'tree',1+(y%3+3)%3);
+        if(!this.services.state.getCell(center+8,y)) place(center+8,y,'tree',1+(y%3+3)%3);
       }
     } else if (template === 'forest-citadel') {
       this.stoneStyle = 'limestone';
@@ -8926,7 +8911,7 @@ export class ThreeGame {
       for(let y=2;y<SIZE-2;y+=1){
         for(let x=2;x<SIZE-2;x+=1){
           const d=Math.hypot(x-center,y-center);
-          if(d>7.5 && (x*17+y*29)%4!==0 && !this.state.getCell(x,y)) place(x,y,'tree',1+Math.abs((x+y)%3));
+          if(d>7.5 && (x*17+y*29)%4!==0 && !this.services.state.getCell(x,y)) place(x,y,'tree',1+Math.abs((x+y)%3));
         }
       }
 
@@ -8963,7 +8948,7 @@ export class ThreeGame {
       placeKeepTemplate(center+4,center-1,2,3,5,'defensivePlatform',true);
       addTemplateStairTower(center+2,center);
       place(center-3,center+1,'armyCamp');
-      for(let y=center-2;y<=center+4;y+=1) if(!this.state.getCell(center,y)) place(center,y,'stoneRoad');
+      for(let y=center-2;y<=center+4;y+=1) if(!this.services.state.getCell(center,y)) place(center,y,'stoneRoad');
     } else if (template === 'moat-palace') {
       this.stoneStyle = 'sandstone';
       prepareArea(center - 11, center - 9, center + 11, center + 9, 0.05);
@@ -8982,7 +8967,7 @@ export class ThreeGame {
         if(Math.abs(x-center)>1){place(x,center-7,'moat');place(x,center+7,'moat');}
       }
       for(let y=center-6;y<=center+6;y+=1){place(center-8,y,'moat');place(center+8,y,'moat');}
-      for(let y=center-1;y<=center+6;y+=1) if(!this.state.getCell(center,y)) place(center,y,'stoneRoad');
+      for(let y=center-1;y<=center+6;y+=1) if(!this.services.state.getCell(center,y)) place(center,y,'stoneRoad');
       addTemplateStairTower(center-5,center);
     } else if (template === 'merchant-republic') {
       this.stoneStyle = 'limestone';
@@ -9001,8 +8986,8 @@ export class ThreeGame {
       for(const [x,y,k] of districts) place(x,y,k);
       place(center-7,center+5,'farm');
       place(center+7,center+5,'farm');
-      for(let x=center-8;x<=center+8;x+=1) if(!this.state.getCell(x,center+1)) place(x,center+1,'stoneRoad');
-      for(let y=center-6;y<=center+6;y+=1) if(!this.state.getCell(center,y)) place(center,y,'road');
+      for(let x=center-8;x<=center+8;x+=1) if(!this.services.state.getCell(x,center+1)) place(x,center+1,'stoneRoad');
+      for(let y=center-6;y<=center+6;y+=1) if(!this.services.state.getCell(center,y)) place(center,y,'road');
       placeHarborTemplate('smallDock','fishingBoat',SIZE-5,center+5);
     } else if (template === 'war-camp') {
       this.stoneStyle = 'frontier';
@@ -9023,8 +9008,8 @@ export class ThreeGame {
       place(center-6,center+4,'farm');
       place(center+6,center+4,'farm');
       placeKeepTemplate(center,center-1,2,2,2,'flatBattlement',false);
-      for(let x=center-7;x<=center+7;x+=1) if(!this.state.getCell(x,center+3)) place(x,center+3,'dirtRoad');
-      for(let y=center-5;y<=center+5;y+=1) if(!this.state.getCell(center,y)) place(center,y,'road');
+      for(let x=center-7;x<=center+7;x+=1) if(!this.services.state.getCell(x,center+3)) place(x,center+3,'dirtRoad');
+      for(let y=center-5;y<=center+5;y+=1) if(!this.services.state.getCell(center,y)) place(center,y,'road');
     } else if (template === 'island-monastery') {
       this.stoneStyle = 'limestone';
       prepareArea(center-8,center-8,center+8,center+8,0.32);
@@ -9063,8 +9048,8 @@ export class ThreeGame {
 
   private applyTerrainTemplate(template: string): void {
     this.recordHistory();
-    this.state.clear();
-    this.keepSystem.clear();
+    this.services.state.clear();
+    this.services.keepSystem.clear();
     this.towerBridges.clear();
     this.nextTowerBridgeId = 1;
     this.towerBridgeStart = null;
@@ -9082,7 +9067,7 @@ export class ThreeGame {
       if (x < 0 || y < 0 || x >= SIZE || y >= SIZE) return;
       const terrain = this.terrainAt(x, y);
       if (terrain === 'water' || terrain === 'river') return;
-      if (!this.state.getCell(x, y)) this.state.setCell(x, y, kind, level);
+      if (!this.services.state.getCell(x, y)) this.services.state.setCell(x, y, kind, level);
     };
 
     const flattenLand = (): void => {
@@ -9130,7 +9115,7 @@ export class ThreeGame {
       this.applyMountainRange({ x: 5, y: 4 }, { x: SIZE - 6, y: 3 }, true);
       for (let y = center - 5; y <= center + 6; y += 1) {
         for (let x = center - 5; x <= center + 5; x += 1) {
-          this.state.removeCell(x, y);
+          this.services.state.removeCell(x, y);
           this.terrainOverrides.set(this.key(x, y), 'plains');
           this.setAbsoluteElevation(x, y, 0.35 + Math.hypot(x-center,y-center)*0.025);
         }
@@ -9169,7 +9154,7 @@ export class ThreeGame {
           const wet =
             Math.sin(x*0.7)+Math.cos(y*0.63)+Math.sin((x-y)*0.32) > 1.35;
           if (wet && Math.hypot(x-center,y-center)>3.5) {
-            this.state.removeCell(x,y);
+            this.services.state.removeCell(x,y);
             this.terrainOverrides.set(this.key(x,y),'river');
           } else if ((x*31+y*17)%13===0) {
             addProp(x,y,'tree',1);
@@ -9284,18 +9269,21 @@ export class ThreeGame {
     this.workerLayer.visible = false;
     this.settlementLayer.visible = false;
     document.getElementById('game-shell')?.classList.add('battle-mode');
-    this.gateSystem.setAttackState(true);
+    this.services.gateSystem.setAttackState(true);
+    audioEvents.emit({ action: 'play_sfx', assetId: 'combat.battle-start' });
     this.battleSystem.start(this.battleSetup);
     this.setStatus('Battle started · Attackers are advancing on the castle');
   }
 
   private stopBattleFromUI(): void {
+    audioEvents.emit({ action: 'play_sfx', assetId: 'combat.battle-stop' });
     this.battleSystem.stop();
     this.setStatus('Battle stopped · press Start Battle to resume');
   }
 
   private resetBattleFromUI(): void {
-    this.gateSystem.setAttackState(false);
+    audioEvents.emit({ action: 'play_sfx', assetId: 'combat.battle-reset' });
+    this.services.gateSystem.setAttackState(false);
     this.battleSystem.reset();
     document.getElementById('game-shell')?.classList.remove('battle-mode');
     this.workerLayer.visible = this.viewMode === 'world3d';
@@ -9304,6 +9292,10 @@ export class ThreeGame {
   }
 
   private updateBattleUI(status: BattleStatus): void {
+    if (status.mode === 'finished') {
+      this.redraw();
+      this.save(false);
+    }
     const panel = document.getElementById('battle-panel');
     const mode = document.getElementById('battle-mode-status');
     const attackerAlive = document.getElementById('battle-attacker-alive');
@@ -9382,7 +9374,11 @@ export class ThreeGame {
       's</span>';
   }
 
-  private selectTool(tool: ToolKind): void {
+  private selectTool(tool: ToolKind | null): void {
+    if (tool !== null && !this.isToolAvailable(tool)) {
+      this.setStatus('Tool unavailable in ' + getGameModeDefinition(this.gameMode).label);
+      return;
+    }
     if (this.battleSystem.isActive()) {
       this.setStatus('Reset Battle before returning to construction');
       return;
@@ -9394,11 +9390,27 @@ export class ThreeGame {
       this.clearGroup(this.wallPreviewLayer);
     }
 
+    this.wallDragStart = null;
+    this.wallDragEnd = null;
+    this.roadDragStart = null;
+    this.roadDragEnd = null;
+    this.mountainRangeStart = null;
+    this.mountainRangeEnd = null;
+    this.terrainStrokeActive = false;
+    this.terrainStrokeSnapshot = null;
+    this.lastTerrainBrushKey = '';
+    this.pointerStart = null;
+    this.cancelLongPress();
+    this.controls.enabled = true;
     this.selectedTool = tool;
+    if (tool) audioEvents.emit({ action: 'play_sfx', assetId: 'ui.tool-select' });
     document.querySelectorAll('[data-tool]').forEach((element) => {
-      element.classList.toggle('is-selected', (element as HTMLElement).dataset.tool === tool);
+      element.classList.toggle('is-selected', tool !== null && (element as HTMLElement).dataset.tool === tool);
     });
-    this.setStatus('Selected: ' + tool);
+    const noneButton = document.querySelector('[data-build-none]');
+    noneButton?.classList.toggle('is-selected', tool === null);
+    noneButton?.setAttribute('aria-pressed', String(tool === null));
+    this.setStatus(tool === null ? 'No Build Tool Selected · free camera / inspect' : 'Selected: ' + tool);
   }
 
   private setStatus(text: string): void {
@@ -9423,7 +9435,7 @@ export class ThreeGame {
       this.updateSettlementAgents(deltaMs);
     }
     this.battleSystem.update(deltaMs, time);
-    this.windmillSystem.update(deltaMs / 1000);
+    this.services.windmillSystem.update(deltaMs / 1000);
     this.updateLongPress(time);
     this.riverTexture.offset.y -= deltaMs * 0.00032;
     this.riverTexture.offset.x += deltaMs * 0.000035;

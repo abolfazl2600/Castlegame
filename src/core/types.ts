@@ -1,7 +1,8 @@
+import type { GameMode } from './GameMode';
+
 export type WallKind = 'wall1' | 'wall2' | 'wall3';
 export type RoadKind = 'road' | 'dirtRoad' | 'stoneRoad';
 export type HarborKind = 'smallDock' | 'woodenPier' | 'harbor' | 'fishingDock';
-export type MarketBuildingKind = 'marketStall' | 'smallMarket' | 'marketHall';
 export type ShipKind = 'fishingBoat' | 'tradingBoat' | 'transportShip';
 export type WallThickness = 'thin' | 'medium' | 'thick';
 export type WallDirection = 'N' | 'NE' | 'E' | 'SE' | 'S' | 'SW' | 'W' | 'NW';
@@ -53,7 +54,7 @@ export type TileKind =
   | 'farm'
   | 'appleOrchard'
   | 'armyCamp'
-  | MarketBuildingKind
+  | 'market'
   | 'windmill'
   | 'mine'
   | 'mountain'
@@ -89,6 +90,8 @@ export interface GridCell {
   wallLinks?: WallDirection[];
   shipKind?: ShipKind;
   accessHeight?: number;
+  /** Persistent building damage ratio: 0 = healthy, 1 = destroyed. */
+  damage?: number;
 }
 
 export interface TowerBridgeState {
@@ -102,6 +105,7 @@ export interface TowerBridgeState {
 
 export interface SavedGame {
   version: number;
+  gameMode?: GameMode;
   updatedAt: number;
   cells: Array<{
     x: number;
@@ -117,6 +121,7 @@ export interface SavedGame {
     wallLinks?: WallDirection[];
     shipKind?: ShipKind;
     accessHeight?: number;
+    damage?: number;
   }>;
   keeps?: KeepState[];
   stoneStyle?: StoneStyle;
@@ -124,5 +129,4 @@ export interface SavedGame {
   terrain?: Array<{ x: number; y: number; kind: TerrainOverrideKind }>;
   elevations?: Array<{ x: number; y: number; value: number }>;
   worldSeeded?: boolean;
-  territoryStage?: number;
 }

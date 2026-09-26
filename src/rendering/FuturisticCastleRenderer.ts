@@ -1,15 +1,18 @@
 import * as THREE from 'three';
+import { ModernArchitecture } from './ModernArchitecture';
 
 export class FuturisticCastleRenderer {
   render(seed = 3000): THREE.Group {
     const group = new THREE.Group();
-    const metal = new THREE.MeshStandardMaterial({ color: 0x39434b, metalness: 0.82, roughness: 0.28 });
-    const armor = new THREE.MeshStandardMaterial({ color: 0x697782, metalness: 0.9, roughness: 0.2 });
-    const dark = new THREE.MeshStandardMaterial({ color: 0x151d23, metalness: 0.72, roughness: 0.24 });
-    const glass = new THREE.MeshStandardMaterial({ color: 0x4fd9e8, metalness: 0.35, roughness: 0.12, emissive: 0x0b5260, emissiveIntensity: 1.25 });
-    const energy = new THREE.MeshStandardMaterial({ color: 0x83f5ff, metalness: 0.15, roughness: 0.08, emissive: 0x1bbdca, emissiveIntensity: 2.2 });
-    const weapon = new THREE.MeshStandardMaterial({ color: 0x202a32, metalness: 0.94, roughness: 0.16 });
-    const warning = new THREE.MeshStandardMaterial({ color: 0xd9b84c, metalness: 0.7, roughness: 0.22, emissive: 0x5b4308, emissiveIntensity: 0.25 });
+    const architecture = new ModernArchitecture();
+    const { materials } = architecture;
+    const metal = materials.structuralSteel;
+    const armor = materials.armoredSteel;
+    const dark = materials.compositePanel;
+    const glass = materials.reinforcedGlass;
+    const energy = materials.securityLight;
+    const weapon = materials.industrialMetal;
+    const warning = materials.industrialMetal;
 
     const addBox = (w: number, h: number, d: number, material: THREE.Material, x: number, y: number, z: number): THREE.Mesh => {
       const mesh = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), material);
@@ -58,13 +61,27 @@ export class FuturisticCastleRenderer {
     };
 
     const outer = 15.2;
+
+    // Modern architectural foundation: shared concrete geometry/materials.
+    const foundation = architecture.ConcreteFoundation(31.8, 31.8, 0.45);
+    foundation.position.y = 0.22;
+    group.add(foundation);
+
     const wallH = 5.8;
     const wallT = 1.65;
 
-    addBox(outer * 2, wallH, wallT, metal, 0, wallH / 2, -outer);
-    addBox(outer * 2, wallH, wallT, metal, 0, wallH / 2, outer);
-    addBox(wallT, wallH, outer * 2, metal, -outer, wallH / 2, 0);
-    addBox(wallT, wallH, outer * 2, metal, outer, wallH / 2, 0);
+    const northWall = architecture.ConcreteWallSegment(outer * 2, wallH, wallT);
+    northWall.position.z = -outer;
+    group.add(northWall);
+    const southWall = architecture.ConcreteWallSegment(outer * 2, wallH, wallT);
+    southWall.position.z = outer;
+    group.add(southWall);
+    const westWall = architecture.ConcreteWallSegment(wallT, wallH, outer * 2);
+    westWall.position.x = -outer;
+    group.add(westWall);
+    const eastWall = architecture.ConcreteWallSegment(wallT, wallH, outer * 2);
+    eastWall.position.x = outer;
+    group.add(eastWall);
 
     for (let i = -3; i <= 3; i += 1) {
       const offset = i * 4.25;
@@ -101,6 +118,27 @@ export class FuturisticCastleRenderer {
     });
 
     addBox(12.5, 5.4, 10.5, metal, 0, 3.2, 1.4);
+
+    // Reusable structural frame and access components around the central block.
+    const frame = architecture.SteelFrame(12.5, 5.4, 10.5, 0.22);
+    frame.position.set(0, 0, 1.4);
+    group.add(frame);
+
+    const frontWindow = architecture.ReinforcedWindow(6.1, 2.2, 0.28);
+    frontWindow.position.set(0, 9.9, -1.28);
+    group.add(frontWindow);
+
+    const rearWindow = architecture.ReinforcedWindow(6.1, 2.2, 0.28);
+    rearWindow.position.set(0, 9.9, 4.08);
+    group.add(rearWindow);
+
+    const modernDoor = architecture.ModernDoor(2.4, 3.0, 0.28);
+    modernDoor.position.set(0, 0, -3.95);
+    group.add(modernDoor);
+
+    const roofPlatform = architecture.IndustrialPlatform(10.7, 9.0, 0.28);
+    roofPlatform.position.set(0, 6.85, 1.4);
+    group.add(roofPlatform);
     addBox(10.7, 2.2, 9.0, armor, 0, 6.9, 1.4);
     addBox(8.8, 0.32, 7.2, dark, 0, 8.2, 1.4);
     addBox(6.8, 3.4, 5.2, dark, 0, 9.8, 1.4);
@@ -126,10 +164,15 @@ export class FuturisticCastleRenderer {
       addBox(1.2, 2.2, 0.16, glass, x, 1.75, z + Math.sin(a) * 1.27);
     }
 
-    addBox(31.8, 0.45, 31.8, dark, 0, 0.18, 0);
     addBox(28.8, 0.12, 28.8, energy, 0, 0.44, 0);
 
-    group.userData.futuristicCastle = { era: 3000, automatedDefenses: 12, combatSystem: false };
+    group.userData.futuristicCastle = {
+      era: 3000,
+      architecturalLanguage: 'reinforced-concrete-steel',
+      reusableArchitecture: true,
+      automatedDefenses: 12,
+      combatSystem: false,
+    };
     return group;
   }
 }
