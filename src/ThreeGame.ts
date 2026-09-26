@@ -431,7 +431,6 @@ export class ThreeGame {
         setBuildingDamage: (x, y, damageRatio) => this.setBuildingDamage(x, y, damageRatio),
         gatePassable: (x, y) => this.gateSystem.isGatePassable(x, y),
         generatedAccess: () => this.getGeneratedWallAccess(),
-        wallWeaponVisuals: () => this.getWallWeaponVisuals(),
       },
       (status) => this.updateBattleUI(status),
     );
