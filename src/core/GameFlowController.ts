@@ -46,7 +46,7 @@ export class GameFlowController {
     const root = document.createElement('div');
     root.id = 'core-game-flow';
     root.innerHTML = `
-      <div class="core-flow-backdrop"></div>
+      <div class="core-flow-backdrop"></div><button class="core-flow-pause-button" data-flow-action="pause" type="button" aria-label="Pause battle">Ⅱ</button>
       <main class="core-flow-card" role="dialog" aria-modal="true" aria-labelledby="core-flow-title">
         <div class="core-flow-eyebrow">CASTLEGAME</div>
         <h1 id="core-flow-title">Castle Command</h1>
@@ -89,6 +89,7 @@ export class GameFlowController {
         case 'new': this.startNewGame(); break;
         case 'continue': this.continueGame(); break;
         case 'settings': this.openSettings(this.state); break;
+        case 'pause': this.pauseBattle(); break;
         case 'settings-open': this.openSettings(this.settingsReturnState); break;
         case 'settings-back': this.returnFromSettings(); break;
         case 'resume': this.resumeBattle(); break;
@@ -244,6 +245,8 @@ export class GameFlowController {
     const result = this.overlay.querySelector<HTMLElement>('[data-flow-result]');
     const stats = this.overlay.querySelector<HTMLElement>('[data-flow-stats]');
     const continueButton = this.overlay.querySelector<HTMLButtonElement>('[data-flow-action="continue"]');
+    const pauseButton = this.overlay.querySelector<HTMLButtonElement>('[data-flow-action="pause"]');
+    if (pauseButton) pauseButton.hidden = this.state !== 'BATTLE';
 
     if (this.state === 'MAIN_MENU') {
       this.overlay.querySelector<HTMLElement>('[data-flow-screen="menu"]')!.hidden = false;
