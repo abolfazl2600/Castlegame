@@ -25,7 +25,7 @@ const MEDIEVAL_BUILDINGS: readonly TileKind[] = [
 ];
 
 const COMMON_WORLD_TOOLS: readonly ToolKind[] = [
-  'tree','mountain','mountainRange','mine','river','land','raise','lower','flatten','smooth','dig','hill','cliff','erase',
+  'tree','rock','mountain','mountainRange','river','land','raise','lower','flatten','smooth','dig','hill','cliff','erase',
 ];
 
 export const GAME_MODE_CONFIG: Record<GameMode, GameModeDefinition> = {
@@ -42,7 +42,7 @@ export const GAME_MODE_CONFIG: Record<GameMode, GameModeDefinition> = {
       { label: 'Roads & Harbor', toolIds: ['road','dirtRoad','stoneRoad','smallDock','woodenPier','harbor','fishingDock'] },
     ],
     availableTools: [...MEDIEVAL_BUILDINGS, 'keep','towerBridge','mountainRange',...COMMON_WORLD_TOOLS],
-    availableBuildingKinds: MEDIEVAL_BUILDINGS,
+    availableBuildingKinds: [...MEDIEVAL_BUILDINGS, 'tree','rock','mountain'],
   },
   modern: {
     id: 'modern',
@@ -58,7 +58,7 @@ export const GAME_MODE_CONFIG: Record<GameMode, GameModeDefinition> = {
       { label: 'Environment', toolIds: COMMON_WORLD_TOOLS },
     ],
     availableTools: ['futuristicCastle', ...COMMON_WORLD_TOOLS],
-    availableBuildingKinds: ['futuristicCastle'],
+    availableBuildingKinds: ['futuristicCastle','tree','rock','mountain'],
   },
 };
 
