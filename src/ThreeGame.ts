@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { createGameDomainServices } from './core/GameDomainServices';
 import { SaveSystem } from './core/SaveSystem';
+import type { GameState } from './state/GameState';
 import { SAVE_KEY, SAVE_VERSION, TILE_SIZE, WORLD_COLS } from './core/constants';
 import { WallSystem } from './building/WallSystem';
 import { KeepRenderer } from './rendering/KeepRenderer';
@@ -2750,7 +2751,7 @@ export class ThreeGame {
     }
 
     const shouldFlag = links.some((direction) =>
-      this.detailGenerator.wallPlan(
+      this.services.detailGenerator.wallPlan(
         gx,
         gy,
         level,
@@ -2875,7 +2876,7 @@ export class ThreeGame {
       }
     }
 
-    const detailPlan = this.detailGenerator.wallPlan(
+    const detailPlan = this.services.detailGenerator.wallPlan(
       gx,
       gy,
       level,
