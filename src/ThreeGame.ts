@@ -15,6 +15,7 @@ import { PopulationSystem } from './systems/PopulationSystem';
 import { MaritimeSystem } from './systems/MaritimeSystem';
 import { WindmillSystem } from './systems/WindmillSystem';
 import { OrchardSystem } from './systems/OrchardSystem';
+import { FuturisticCastleRenderer } from './rendering/FuturisticCastleRenderer';
 import type {
   AccessKind,
   GridCell,
@@ -84,6 +85,7 @@ const BUILDING_KINDS: TileKind[] = [
   'woodenStairs',
   'ramp',
   'ladder',
+  'futuristicCastle',
 ];
 
 type ViewMode = 'plan2d' | 'world3d';
@@ -183,6 +185,7 @@ const TOOL_GROUPS: Array<{ label: string; tools: ToolDefinition[] }> = [
     label: 'Military',
     tools: [
       { id: 'armyCamp', icon: '⛺', label: 'Army Camp', detail: 'Large command tent · defender rally point', shortcut: 'A' },
+      { id: 'futuristicCastle', icon: '◈', label: 'Futuristic Castle', detail: 'Year 3000 fortress · armored walls · automated gun turrets', shortcut: '-' },
     ],
   },
   {
@@ -228,6 +231,7 @@ export class ThreeGame {
   private readonly populationSystem = new PopulationSystem();
   private readonly windmillSystem = new WindmillSystem();
   private readonly orchardSystem = new OrchardSystem();
+  private readonly futuristicCastleRenderer = new FuturisticCastleRenderer();
   private readonly maritimeSystem = new MaritimeSystem({
     size: SIZE,
     terrainAt: (x, y) => this.terrainAt(x, y),
@@ -1278,6 +1282,7 @@ export class ThreeGame {
       farm: 0xc2ad54,
       appleOrchard: 0x9c6d3e,
       armyCamp: 0x8f6b4d,
+      futuristicCastle: 0x4b8792,
       mine: 0x665f59,
       mountain: 0x71675f,
       tree: 0x356c43,
@@ -1366,6 +1371,7 @@ export class ThreeGame {
         cell.kind === 'road' ? 2.0 :
         cell.kind === 'tree' || cell.kind === 'rock' ? 1.25 :
         cell.kind === 'farm' || cell.kind === 'appleOrchard' || cell.kind === 'armyCamp' ? 3.5 :
+        cell.kind === 'futuristicCastle' ? 31.5 :
         cell.kind === 'moat' ? 3.65 :
         2.7;
 
@@ -2159,6 +2165,7 @@ export class ThreeGame {
     }
     else if (cell.kind === 'appleOrchard') this.orchardSystem.create(group, cell.level ?? 1, cell.x * 97 + cell.y * 53);
     else if (cell.kind === 'armyCamp') this.makeArmyCamp(group);
+    else if (cell.kind === 'futuristicCastle') group.add(this.futuristicCastleRenderer.render(cell.x * 97 + cell.y * 53));
     else if (cell.kind === 'windmill') this.windmillSystem.create(group);
     else if (cell.kind === 'mine') this.makeMine(group);
     else if (cell.kind === 'mountain') this.makeMountain(group, cell.level ?? 1, cell.x, cell.y);
@@ -8189,7 +8196,11 @@ export class ThreeGame {
 
     if (template !== 'empty-land') this.seedNaturalProps();
 
-    if (template === 'empty-land') {
+    if (template === 'futuristic-castle') {
+      this.stoneStyle = 'darkStone';
+      prepareArea(center - 10, center - 10, center + 10, center + 10, 0.05);
+      place(center, center, 'futuristicCastle');
+    } else if (template === 'empty-land') {
       for (let y = 0; y < SIZE; y += 1) {
         for (let x = 0; x < SIZE; x += 1) {
           if (this.baseTerrainAt(x, y) !== 'water') {
