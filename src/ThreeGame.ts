@@ -304,6 +304,7 @@ export class ThreeGame {
   private worldSeeded = false;
   private loadedSaveVersion = 0;
   private lastFrameTime = 0;
+  private cameraTransitionFrame: number | null = null;
 
   constructor(root: HTMLElement) {
     const hadSave = localStorage.getItem(SAVE_KEY) !== null;
@@ -357,7 +358,7 @@ export class ThreeGame {
     this.controls.dampingFactor = 0.06;
     this.controls.minDistance = 34;
     this.controls.maxDistance = 150;
-    this.controls.maxPolarAngle = Math.PI * 0.47;
+    this.controls.maxPolarAngle = Math.PI / 2;
     this.controls.target.set(0, 0, 0);
 
     this.addLights();
@@ -1233,6 +1234,63 @@ export class ThreeGame {
       ring.renderOrder = 50;
       this.planLayer.add(ring);
     }
+  }
+
+  private setCameraView(view: '45' | 'top'): void {
+    if (this.viewMode !== 'world3d' || this.battleSystem.isActive()) {
+      this.setViewMode('world3d');
+    }
+
+    if (this.cameraTransitionFrame !== null) {
+      cancelAnimationFrame(this.cameraTransitionFrame);
+      this.cameraTransitionFrame = null;
+    }
+
+    const target = this.controls.target.clone();
+    const offset = this.camera.position.clone().sub(target);
+    const distance = THREE.MathUtils.clamp(offset.length(), this.controls.minDistance, this.controls.maxDistance);
+    const horizontalDistance = Math.hypot(offset.x, offset.z);
+    const azimuth = horizontalDistance > 0.0001 ? Math.atan2(offset.z, offset.x) : 0;
+
+    const destination = new THREE.Vector3();
+    if (view === 'top') {
+      destination.set(target.x, target.y + distance, target.z);
+    } else {
+      const horizontalRadius = distance * Math.SQRT1_2;
+      destination.set(
+        target.x + Math.cos(azimuth) * horizontalRadius,
+        target.y + horizontalRadius,
+        target.z + Math.sin(azimuth) * horizontalRadius,
+      );
+    }
+
+    const start = this.camera.position.clone();
+    const duration = 280;
+    const startedAt = performance.now();
+    this.controls.enabled = false;
+
+    const animateTransition = (time: number): void => {
+      const progress = THREE.MathUtils.clamp((time - startedAt) / duration, 0, 1);
+      const eased = 1 - Math.pow(1 - progress, 3);
+
+      this.camera.position.lerpVectors(start, destination, eased);
+      this.camera.lookAt(target);
+
+      if (progress < 1) {
+        this.cameraTransitionFrame = requestAnimationFrame(animateTransition);
+        return;
+      }
+
+      this.camera.position.copy(destination);
+      this.camera.lookAt(target);
+      this.controls.target.copy(target);
+      this.controls.enabled = true;
+      this.controls.update();
+      this.cameraTransitionFrame = null;
+      this.setStatus(view === '45' ? '45° Camera View' : 'Top Camera View');
+    };
+
+    this.cameraTransitionFrame = requestAnimationFrame(animateTransition);
   }
 
   private setViewMode(mode: ViewMode): void {
@@ -6982,6 +7040,8 @@ export class ThreeGame {
     get<HTMLButtonElement>('toolbar-open').onclick = () => this.setToolbarOpen(true);
     get<HTMLButtonElement>('view-2d-button').onclick = () => this.setViewMode('plan2d');
     get<HTMLButtonElement>('view-3d-button').onclick = () => this.setViewMode('world3d');
+    get<HTMLButtonElement>('camera-45-button').onclick = () => this.setCameraView('45');
+    get<HTMLButtonElement>('camera-top-button').onclick = () => this.setCameraView('top');
 
     const wallThickness = get<HTMLSelectElement>('wall-thickness');
     wallThickness.onchange = () => {
