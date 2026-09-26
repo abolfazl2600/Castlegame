@@ -11,10 +11,13 @@ if (!gameRoot) throw new Error('Game root was not found');
 const settingsStore = new SettingsStore(localStorage);
 
 const game = new ThreeGame(gameRoot, settingsStore);
-new FarmLifeSystem(game);
-new MobileUI();
 
-new SettingsUI(settingsStore, () => {
+const settingsUI = new SettingsUI(settingsStore, () => {
   settingsStore.resetLocalSave();
   window.location.reload();
 });
+
+new FarmLifeSystem(game);
+new MobileUI();
+
+void settingsUI;
