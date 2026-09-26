@@ -2353,7 +2353,7 @@ export class ThreeGame {
 
     else if (cell.kind === 'farm') this.makeFarm(group);
     else if (cell.kind === 'appleOrchard') this.services.orchardSystem.create(group, cell.level ?? 1, cell.x * 97 + cell.y * 53);
-    else if (cell.kind === 'armyCamp') this.makeArmyCamp(group);
+    else if (cell.kind === 'armyCamp') this.makeArmyCamp(group, Math.max(1, Math.min(5, cell.level ?? 1)));
     else if (cell.kind === 'market') this.makeMarketBuilding(group, cell.x, cell.y);
     else if (cell.kind === 'futuristicCastle') group.add(this.futuristicCastleRenderer.render(cell.x * 97 + cell.y * 53));
     else if (cell.kind === 'windmill') this.services.windmillSystem.create(group);
@@ -5247,7 +5247,13 @@ export class ThreeGame {
     return group;
   }
 
-  private makeArmyCamp(group: THREE.Group): THREE.Group {
+  private makeArmyCamp(group: THREE.Group, variantLevel = 1): THREE.Group {
+    type CampVariant = 'standard' | 'siege' | 'command' | 'logistics' | 'medical';
+
+    const variant = (['standard', 'siege', 'command', 'logistics', 'medical'] as CampVariant[])[
+      Math.max(0, Math.min(4, Math.floor(variantLevel) - 1))
+    ];
+
     const canvas = this.environmentMaterial('army-canvas', 0x9b7653, 0.96);
     const canvasDark = this.environmentMaterial('army-canvas-dark', 0x6f5039, 1);
     const wood = this.environmentMaterial('army-camp-wood', 0x62452f, 1);
@@ -5256,70 +5262,199 @@ export class ThreeGame {
     const iron = this.environmentMaterial('army-camp-iron', 0x555d61, 0.72);
     const fire = this.environmentMaterial('army-camp-fire', 0xd97832, 0.72);
     const ground = this.environmentMaterial('army-camp-ground', 0x7b6a50, 1);
+    const canvasLight = this.environmentMaterial('army-canvas-light', 0xb28d68, 0.94);
+    const medical = this.environmentMaterial('army-medical-canvas', 0xd6d0bd, 0.92);
+    const medicalRed = this.environmentMaterial('army-medical-mark', 0x9b3f3f, 0.9);
+    const darkWood = this.environmentMaterial('army-camp-dark-wood', 0x493426, 1);
 
-    this.addBox(group, 3.72, 0.06, 3.72, ground, 0, 2.22, 0);
+    const addBox = (w: number, h: number, d: number, material: THREE.Material, x: number, y: number, z: number): THREE.Mesh =>
+      this.addBox(group, w, h, d, material, x, y, z);
 
-    // Large command tent.
-    this.addBox(group, 2.72, 1.42, 2.45, canvas, 0, 3.0, -0.18);
-    const tentRoof = new THREE.Mesh(
-      new THREE.ConeGeometry(2.02, 1.65, 4),
-      canvasDark,
+    const addTent = (
+      x: number,
+      z: number,
+      scale = 1,
+      material = canvas,
+      roofMaterial = canvasDark,
+    ): void => {
+      addBox(2.05 * scale, 1.08 * scale, 1.75 * scale, material, x, 2.78 + 0.54 * scale, z);
+      const roof = new THREE.Mesh(
+        new THREE.ConeGeometry(1.52 * scale, 1.22 * scale, 4),
+        roofMaterial,
+      );
+      roof.rotation.y = Math.PI / 4;
+      roof.scale.z = 0.78;
+      roof.position.set(x, 3.96 + 0.54 * scale, z);
+      roof.castShadow = true;
+      roof.receiveShadow = true;
+      group.add(roof);
+      addBox(0.78 * scale, 0.82 * scale, 0.06 * scale, roofMaterial, x, 2.72 + 0.54 * scale, z - 0.89 * scale);
+      for (const sign of [-1, 1]) {
+        const ropeMesh = new THREE.Mesh(
+          new THREE.CylinderGeometry(0.014 * scale, 0.014 * scale, 1.28 * scale, 5),
+          rope,
+        );
+        ropeMesh.position.set(x + sign * 1.12 * scale, 2.65 + 0.45 * scale, z + 0.06 * scale);
+        ropeMesh.rotation.z = sign * 0.72;
+        group.add(ropeMesh);
+        addBox(0.06 * scale, 0.3 * scale, 0.06 * scale, wood, x + sign * 1.27 * scale, 2.35 + 0.28 * scale, z + 0.06 * scale);
+      }
+    };
+
+    const addCrate = (x: number, z: number, scale = 1): void => {
+      addBox(0.54 * scale, 0.42 * scale, 0.54 * scale, crate, x, 2.43 + 0.2 * scale, z);
+      addBox(0.58 * scale, 0.045, 0.045, iron, x, 2.46 + 0.2 * scale, z);
+    };
+
+    const addWeaponRack = (x: number, z: number, scale = 1): void => {
+      addBox(0.07 * scale, 0.9 * scale, 0.07 * scale, wood, x - 0.35 * scale, 2.78, z);
+      addBox(0.07 * scale, 0.9 * scale, 0.07 * scale, wood, x + 0.35 * scale, 2.78, z);
+      addBox(0.82 * scale, 0.07 * scale, 0.07 * scale, wood, x, 3.08, z);
+      for (let i = 0; i < 3; i += 1) {
+        const spear = new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.025, 0.95 * scale, 5), iron);
+        spear.position.set(x - 0.25 * scale + i * 0.25 * scale, 3.42, z);
+        spear.rotation.z = (i - 1) * 0.08;
+        group.add(spear);
+      }
+    };
+
+    const addFire = (x: number, z: number, scale = 1): void => {
+      for (let i = 0; i < 3; i += 1) {
+        const angle = (i / 3) * Math.PI * 2;
+        const stone = new THREE.Mesh(
+          new THREE.DodecahedronGeometry(0.14 * scale, 0),
+          this.environmentMaterial('army-camp-stone', 0x69625b, 1),
+        );
+        stone.position.set(x + Math.cos(angle) * 0.24 * scale, 2.36, z + Math.sin(angle) * 0.24 * scale);
+        group.add(stone);
+      }
+      const flame = new THREE.Mesh(new THREE.ConeGeometry(0.16 * scale, 0.46 * scale, 7), fire);
+      flame.position.set(x, 2.62 + 0.18 * scale, z);
+      group.add(flame);
+    };
+
+    const addBanner = (x: number, z: number, scale = 1, material = canvasDark): void => {
+      addBox(0.065, 2.35 * scale, 0.065, wood, x, 3.22 + 0.35 * scale, z);
+      const banner = addBox(0.78 * scale, 0.42 * scale, 0.04, material, x + 0.34 * scale, 4.16 + 0.35 * scale, z);
+      banner.userData.castleFlag = { phase: x * 0.4 + z * 0.2 };
+    };
+
+    const addWagon = (x: number, z: number, scale = 1): void => {
+      addBox(1.55 * scale, 0.24 * scale, 0.82 * scale, wood, x, 2.62, z);
+      addBox(0.1 * scale, 0.1 * scale, 1.35 * scale, darkWood, x, 2.77, z);
+      for (const wheelX of [-0.62, 0.62]) {
+        const wheel = new THREE.Mesh(new THREE.CylinderGeometry(0.28 * scale, 0.28 * scale, 0.12 * scale, 10), darkWood);
+        wheel.rotation.z = Math.PI / 2;
+        wheel.position.set(x + wheelX * scale, 2.42, z);
+        wheel.castShadow = true;
+        group.add(wheel);
+      }
+      addCrate(x - 0.35 * scale, z, 0.75 * scale);
+      addCrate(x + 0.35 * scale, z, 0.75 * scale);
+    };
+
+    const addMedicalTent = (x: number, z: number, scale = 1): void => {
+      addTent(x, z, scale, medical, medical);
+      addBox(0.42 * scale, 0.16 * scale, 0.035, medicalRed, x, 3.22 + 0.54 * scale, z - 0.91 * scale);
+      addBox(0.035, 0.42 * scale, 0.035, medicalRed, x, 3.22 + 0.54 * scale, z - 0.91 * scale);
+    };
+
+    addBox(
+      variant === 'siege' ? 5.8 : variant === 'logistics' ? 6.2 : variant === 'medical' ? 5.6 : 5.0,
+      0.06,
+      variant === 'siege' ? 5.8 : variant === 'logistics' ? 5.6 : variant === 'medical' ? 5.4 : 5.0,
+      ground,
+      0,
+      2.22,
+      0,
     );
-    tentRoof.rotation.y = Math.PI / 4;
-    tentRoof.scale.z = 0.78;
-    tentRoof.position.set(0, 4.5, -0.18);
-    tentRoof.castShadow = true;
-    tentRoof.receiveShadow = true;
-    group.add(tentRoof);
 
-    this.addBox(group, 0.08, 2.9, 0.08, wood, 0, 3.78, -0.18);
-    this.addBox(group, 0.9, 1.04, 0.08, canvasDark, 0, 2.86, -1.43);
+    if (variant === 'standard') {
+      addTent(0, -0.55, 1.15);
+      addTent(-1.25, 1.2, 0.58, canvasLight, canvas);
+      addTent(1.3, 1.15, 0.58, canvasLight, canvas);
+      addCrate(-1.55, 0.15);
+      addCrate(-1.0, 0.42, 0.85);
+      addWeaponRack(1.25, 0.25);
+      addFire(0.7, 1.05);
+      addBanner(1.72, -0.92);
+    } else if (variant === 'siege') {
+      addTent(0, -0.9, 1.45, canvas, darkWood);
+      addTent(-2.0, 1.05, 0.75, canvasLight, canvasDark);
+      addTent(2.0, 1.05, 0.75, canvasLight, canvasDark);
+      addCrate(-1.95, 0.05, 1.15);
+      addCrate(-1.35, 0.45, 1.05);
+      addCrate(1.55, 0.15, 1.1);
+      addWeaponRack(0.95, 0.85, 1.15);
+      addBanner(2.25, -1.1, 1.15, darkWood);
+      addFire(-0.75, 1.18, 1.1);
 
-    // Guy ropes and pegs.
-    for (const sign of [-1, 1]) {
-      const ropeMesh = new THREE.Mesh(
-        new THREE.CylinderGeometry(0.018, 0.018, 1.85, 5),
-        rope,
-      );
-      ropeMesh.position.set(sign * 1.66, 2.88, 0.1);
-      ropeMesh.rotation.z = sign * 0.72;
-      group.add(ropeMesh);
-      this.addBox(group, 0.08, 0.42, 0.08, wood, sign * 1.86, 2.39, 0.1);
+      // Siege preparation timber, frames and bundled materials.
+      for (let i = 0; i < 4; i += 1) {
+        const timber = addBox(0.22, 1.75, 0.22, wood, -2.25 + i * 0.42, 3.02, -0.1 + (i % 2) * 0.16);
+        timber.rotation.z = (i % 2 === 0 ? -1 : 1) * 0.13;
+      }
+      for (let i = 0; i < 3; i += 1) {
+        const beam = addBox(0.24, 0.24, 1.9, darkWood, -0.3 + i * 0.34, 2.47, 1.52);
+        beam.rotation.y = i * 0.12;
+      }
+      // Simple siege-frame silhouette; visual staging only, not a siege weapon.
+      addBox(0.14, 1.65, 0.14, wood, 0.0, 3.0, 1.72);
+      addBox(1.3, 0.12, 0.12, wood, 0.0, 3.72, 1.72);
+      addBox(0.12, 1.2, 0.12, wood, -0.62, 3.15, 1.72);
+      addBox(0.12, 1.2, 0.12, wood, 0.62, 3.15, 1.72);
+    } else if (variant === 'command') {
+      addTent(0, -0.65, 1.55, canvas, darkWood);
+      addTent(-1.9, 1.25, 0.58, canvasLight, canvas);
+      addTent(1.9, 1.25, 0.58, canvasLight, canvas);
+      addBanner(-2.25, -1.25, 1.2);
+      addBanner(2.25, -1.25, 1.2);
+
+      // Command table and map board.
+      addBox(1.65, 0.12, 0.72, darkWood, 0, 3.0, -0.55);
+      addBox(1.3, 0.045, 0.55, canvasLight, 0, 3.09, -0.55);
+      addBox(0.08, 0.8, 0.08, wood, -0.68, 2.63, -0.55);
+      addBox(0.08, 0.8, 0.08, wood, 0.68, 2.63, -0.55);
+      addCrate(-1.7, 0.1);
+      addCrate(1.7, 0.1);
+      addWeaponRack(-1.55, 1.35, 0.8);
+      addWeaponRack(1.55, 1.35, 0.8);
+      addFire(0, 1.35, 0.7);
+      addBanner(0, 1.72, 1.15, canvasDark);
+    } else if (variant === 'logistics') {
+      addTent(-1.75, -0.9, 0.92);
+      addTent(1.75, -0.9, 0.92);
+      addTent(0, 1.35, 0.78, canvasLight, canvas);
+      addWagon(-1.25, 0.55, 0.9);
+      addWagon(1.25, 0.55, 0.9);
+      addCrate(-2.0, 1.55, 1.2);
+      addCrate(2.0, 1.55, 1.2);
+      addCrate(0, 0.1, 1.35);
+      addFire(0, -0.05, 0.7);
+      addBanner(0, -1.75, 1.0);
+      // Covered storage rack.
+      addBox(2.35, 0.1, 0.1, wood, 0, 3.08, 1.95);
+      addBox(0.1, 0.95, 0.1, wood, -1.05, 2.62, 1.95);
+      addBox(0.1, 0.95, 0.1, wood, 1.05, 2.62, 1.95);
+    } else {
+      addMedicalTent(-1.65, -0.85, 1.0);
+      addMedicalTent(1.65, -0.85, 1.0);
+      addTent(0, 1.28, 0.78, canvasLight, canvas);
+      addBox(1.5, 0.16, 0.62, darkWood, 0, 2.55, 0.95);
+      addBox(0.12, 0.7, 0.12, wood, -0.58, 2.84, 0.95);
+      addBox(0.12, 0.7, 0.12, wood, 0.58, 2.84, 0.95);
+      addCrate(-2.0, 1.35);
+      addCrate(2.0, 1.35);
+      addFire(0, -0.05, 0.65);
+      addBanner(0, -1.72, 0.9, medicalRed);
+      // Rest benches.
+      addBox(1.45, 0.12, 0.28, wood, -1.8, 2.47, 1.55);
+      addBox(1.45, 0.12, 0.28, wood, 1.8, 2.47, 1.55);
     }
-
-    // Supply corner.
-    this.addBox(group, 0.62, 0.55, 0.62, crate, -1.35, 2.52, 1.28);
-    this.addBox(group, 0.52, 0.45, 0.52, crate, -0.78, 2.47, 1.48);
-    this.addBox(group, 0.68, 0.08, 0.22, iron, 1.22, 2.45, 1.34);
-    this.addBox(group, 0.08, 0.82, 0.08, iron, 1.22, 2.82, 1.34);
-
-    // Campfire with three stones.
-    for (let i = 0; i < 3; i += 1) {
-      const angle = (i / 3) * Math.PI * 2;
-      const stone = new THREE.Mesh(
-        new THREE.DodecahedronGeometry(0.16, 0),
-        this.environmentMaterial('army-camp-stone', 0x69625b, 1),
-      );
-      stone.position.set(
-        0.95 + Math.cos(angle) * 0.28,
-        2.38,
-        0.7 + Math.sin(angle) * 0.28,
-      );
-      group.add(stone);
-    }
-    const flame = new THREE.Mesh(
-      new THREE.ConeGeometry(0.18, 0.52, 7),
-      fire,
-    );
-    flame.position.set(0.95, 2.67, 0.7);
-    group.add(flame);
-
-    // Command banner.
-    this.addBox(group, 0.07, 2.4, 0.07, wood, 1.58, 3.33, -0.88);
-    const banner = this.addBox(group, 0.92, 0.48, 0.04, canvasDark, 2.0, 4.16, -0.88);
-    banner.userData.castleFlag = { phase: 1.7 };
 
     group.userData.armyCamp = true;
+    group.userData.armyCampVariant = variant;
+    group.userData.armyCampVariantLevel = Math.max(1, Math.min(5, Math.floor(variantLevel)));
     return group;
   }
 
@@ -7785,6 +7920,12 @@ export class ThreeGame {
         x: 'erase',
       };
 
+      if (event.shiftKey && key === 'a') {
+        event.preventDefault();
+        this.cycleSelectedArmyCampVariant();
+        return;
+      }
+
       const selected = shortcutMap[key];
       if (selected) this.selectTool(selected);
       if (event.key === '[') this.adjustSelectedHeight(-1);
@@ -8029,6 +8170,30 @@ export class ThreeGame {
     this.setStatus(`Keep built · ${keep.width}×${keep.depth} · ${keep.floors} floors · details generated automatically`);
   }
 
+  private armyCampVariantName(level: number): string {
+    return ['Standard Army Camp', 'Siege Camp', 'Command Camp', 'Logistics / Supply Camp', 'Medical / Support Camp'][
+      Math.max(0, Math.min(4, Math.floor(level) - 1))
+    ];
+  }
+
+  private cycleSelectedArmyCampVariant(): void {
+    if (!this.selectedCell) {
+      this.setStatus('Select an Army Camp first');
+      return;
+    }
+    const cell = this.services.state.getCell(this.selectedCell.x, this.selectedCell.y);
+    if (!cell || cell.kind !== 'armyCamp') {
+      this.setStatus('Select an Army Camp first');
+      return;
+    }
+    this.recordHistory();
+    const nextLevel = (Math.max(1, Math.min(5, cell.level ?? 1)) % 5) + 1;
+    this.services.state.setLevel(this.selectedCell.x, this.selectedCell.y, nextLevel);
+    this.redraw();
+    this.scheduleSave();
+    this.setStatus(`Army Camp variant: ${this.armyCampVariantName(nextLevel)}`);
+  }
+
   private adjustSelectedHeight(delta: number): void {
     if (this.selectedKeepId !== null) {
       this.adjustSelectedKeepFloors(delta);
@@ -8041,20 +8206,20 @@ export class ThreeGame {
     }
 
     const cell = this.services.state.getCell(this.selectedCell.x, this.selectedCell.y);
-    if (!cell || (!WALL_KINDS.includes(cell.kind as WallKind) && cell.kind !== 'tower')) {
-      this.setStatus('Selected tile is not a wall or tower');
+    const isCamp = cell?.kind === 'armyCamp';
+    if (!cell || (!WALL_KINDS.includes(cell.kind as WallKind) && cell.kind !== 'tower' && !isCamp)) {
+      this.setStatus('Selected tile is not a wall, tower, or army camp');
       return;
     }
 
     this.recordHistory();
-    this.services.state.setLevel(
-      this.selectedCell.x,
-      this.selectedCell.y,
-      Math.max(1, (cell.level ?? 1) + delta),
-    );
+    const nextLevel = Math.max(1, isCamp ? Math.min(5, (cell.level ?? 1) + delta) : (cell.level ?? 1) + delta);
+    this.services.state.setLevel(this.selectedCell.x, this.selectedCell.y, nextLevel);
     this.redraw();
     this.scheduleSave();
-    this.setStatus(`Height level: ${Math.max(1, (cell.level ?? 1) + delta)}`);
+    this.setStatus(isCamp
+      ? `Army Camp variant: ${this.armyCampVariantName(nextLevel)}`
+      : `Height level: ${nextLevel}`);
   }
 
   private applyTemplate(template: string): void {
