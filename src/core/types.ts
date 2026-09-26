@@ -122,4 +122,5 @@ export interface SavedGame {
   terrain?: Array<{ x: number; y: number; kind: TerrainOverrideKind }>;
   elevations?: Array<{ x: number; y: number; value: number }>;
   worldSeeded?: boolean;
+  territoryStage?: number;
 }
