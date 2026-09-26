@@ -218,6 +218,18 @@ h1 { margin: 3px 0 0; font-size: 22px; line-height: 1; letter-spacing: -.035em; 
   background: linear-gradient(135deg, rgba(55,193,238,.19), rgba(126,92,255,.12));
   box-shadow: inset 0 0 0 1px rgba(255,255,255,.06), 0 8px 20px rgba(0,0,0,.16);
 }
+.tool-button-none {
+  border-color: rgba(255,255,255,.08);
+  background: rgba(255,255,255,.035);
+}
+.tool-button-none.is-selected {
+  border-color: rgba(255,255,255,.28);
+  background: rgba(255,255,255,.09);
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,.045);
+}
+.tool-button-none .tool-icon {
+  color: #dcebf0;
+}
 .tool-icon {
   display: grid;
   place-items: center;
