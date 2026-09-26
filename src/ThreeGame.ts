@@ -651,7 +651,7 @@ export class ThreeGame {
     grid.querySelectorAll<HTMLButtonElement>('[data-game-mode]').forEach((button) => {
       button.onclick = () => {
         const requested = button.dataset.gameMode;
-        if (requested && isGameMode(requested)) this.startNewGameWithMode(requested);
+        if (requested) this.handleGameModeSelection(requested);
       };
     });
   }
@@ -660,6 +660,41 @@ export class ThreeGame {
     this.renderGameModeSelection();
     const modal = document.getElementById('game-mode-modal');
     if (modal) modal.hidden = false;
+  }
+
+  private handleGameModeSelection(modeId: string): void {
+    if (isGameMode(modeId)) {
+      this.startNewGameWithMode(modeId);
+      return;
+    }
+
+    const session = this.services.session;
+    if (session.getStatus() === 'running' || session.getStatus() === 'paused') {
+      session.end();
+    }
+    session.cleanup();
+
+    const selection = session.selectMode(modeId);
+    if (!selection.ok || !selection.mode) {
+      this.setStatus('Game mode is unavailable');
+      return;
+    }
+
+    const initialized = session.initialize();
+    if (!initialized.ok) {
+      this.setStatus('Game mode could not be initialized');
+      return;
+    }
+
+    const started = session.start();
+    if (!started.ok) {
+      this.setStatus('Game mode could not be started');
+      return;
+    }
+
+    const modeModal = document.getElementById('game-mode-modal');
+    if (modeModal) modeModal.hidden = true;
+    this.setStatus('Game mode selected: ' + selection.mode.displayName);
   }
 
   private startNewGameWithMode(mode: GameMode): void {
