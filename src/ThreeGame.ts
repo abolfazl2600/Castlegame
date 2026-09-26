@@ -345,7 +345,6 @@ export class ThreeGame {
   private saveTimer: number | null = null;
   private worldSeeded = false;
   private loadedSaveVersion = 0;
-  private modeSelectionPending = false;
   private lastFrameTime = 0;
   private cameraTransitionFrame: number | null = null;
 
@@ -461,7 +460,6 @@ export class ThreeGame {
     if (!hadSave) {
       const modeModal = document.getElementById('game-mode-modal');
       if (modeModal) modeModal.hidden = false;
-      this.modeSelectionPending = true;
     }
     this.bindPointerInput();
     this.resize();
@@ -7615,24 +7613,6 @@ export class ThreeGame {
     get<HTMLButtonElement>('reset-button').onclick = () => {
       if (confirm('Reset the entire island and choose a game mode?')) {
         this.openGameModeSelector();
-        return;
-        this.recordHistory();
-        this.state.clear();
-        this.keepSystem.clear();
-        this.towerBridges.clear();
-        this.nextTowerBridgeId = 1;
-        this.towerBridgeStart = null;
-        this.towerBridgeHover = null;
-        this.clearGroup(this.wallPreviewLayer);
-        this.selectedKeepId = null;
-        this.terrainOverrides.clear();
-        this.elevationOverrides.clear();
-        this.moatTasks.clear();
-        this.worldSeeded = false;
-        this.seedNaturalProps();
-        this.worldSeeded = true;
-        this.redraw();
-        this.save();
       }
     };
     get<HTMLButtonElement>('fullscreen-button').onclick = async () => {
