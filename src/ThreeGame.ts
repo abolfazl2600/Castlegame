@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { createGameDomainServices } from './core/GameDomainServices';
+import { SaveSystem } from './core/SaveSystem';
 import { SAVE_KEY, SAVE_VERSION, TILE_SIZE, WORLD_COLS } from './core/constants';
 import { WallSystem } from './building/WallSystem';
 import { KeepRenderer } from './rendering/KeepRenderer';
@@ -23,7 +24,6 @@ import type {
   TowerBridgeKind,
   TowerBridgeState,
   KeepState,
-  SavedGame,
   TerrainKind,
   TerrainOverrideKind,
   TerrainToolKind,
@@ -237,6 +237,7 @@ export class ThreeGame {
     private readonly medievalMaterials = new MedievalMaterials();
   private readonly keepRenderer = new KeepRenderer(this.services.detailGenerator, this.medievalMaterials);
   private readonly futuristicCastleRenderer = new FuturisticCastleRenderer();
+  private saveSystem!: SaveSystem;
   private readonly terrainOverrides = new Map<string, TerrainOverrideKind>();
   private readonly elevationOverrides = new Map<string, number>();
   private readonly raycaster = new THREE.Raycaster();
@@ -334,6 +335,25 @@ export class ThreeGame {
   constructor(root: HTMLElement) {
     const hadSave = localStorage.getItem(SAVE_KEY) !== null;
     this.root = root;
+    this.saveSystem = new SaveSystem({
+      state: this.services.state,
+      keepSystem: this.services.keepSystem,
+      terrainOverrides: this.terrainOverrides,
+      elevationOverrides: this.elevationOverrides,
+      towerBridges: this.towerBridges,
+      getGameMode: () => this.gameMode,
+      getStoneStyle: () => this.stoneStyle,
+      getWorldSeeded: () => this.worldSeeded,
+      setWorldSeeded: (value) => { this.worldSeeded = value; },
+      setLoadedSaveVersion: (value) => { this.loadedSaveVersion = value; },
+      setStoneStyle: (value) => { this.stoneStyle = value; },
+      migrateKind: (kind, level) => this.migrateKind(kind, level),
+      isBuildingAvailable: (kind) => this.isBuildingAvailable(kind as TileKind),
+      key: (x, y) => this.key(x, y),
+      updateGameModeUI: () => this.updateGameModeUI(),
+      syncTemplateAvailability: () => this.syncTemplateAvailability(),
+      setStatus: (message) => this.setStatus(message),
+    });
     this.riverTexture = this.createRiverTexture();
     this.oceanTexture = this.createOceanTexture();
     this.riverWaterMaterial = new THREE.MeshStandardMaterial({
@@ -7165,147 +7185,12 @@ export class ThreeGame {
     }, 450);
   }
 
-  private save(updateStatus = true): void {
-    const terrain = Array.from(this.terrainOverrides.entries()).map(([key, kind]) => {
-      const [x, y] = key.split(',').map(Number);
-      return { x, y, kind };
-    });
-
-    const elevations = Array.from(this.elevationOverrides.entries()).map(([key, value]) => {
-      const [x, y] = key.split(',').map(Number);
-      return { x, y, value };
-    });
-
-    const data: SavedGame = {
-      version: SAVE_VERSION,
-      gameMode: this.gameMode,
-      updatedAt: Date.now(),
-      cells: this.services.state.entries(),
-      keeps: this.services.keepSystem.entries(),
-      stoneStyle: this.stoneStyle,
-      towerBridges: Array.from(this.towerBridges.values()).map((bridge) => ({ ...bridge })),
-      terrain,
-      elevations,
-      worldSeeded: this.worldSeeded,
-    };
-
-    localStorage.setItem(SAVE_KEY, JSON.stringify(data));
-    if (updateStatus) this.setStatus('Saved');
+    private save(updateStatus = true): void {
+    this.saveSystem.save(updateStatus);
   }
 
-  private load(): void {
-    const raw = localStorage.getItem(SAVE_KEY);
-    if (!raw) return;
-
-    try {
-      const data = JSON.parse(raw) as {
-        version?: number;
-        gameMode?: unknown;
-        cells?: Array<{
-          x: number;
-          y: number;
-          kind: string;
-          level?: number;
-          thickness?: WallThickness;
-          battlement?: boolean;
-          walkway?: boolean;
-          towerShape?: TowerShape;
-          towerTop?: TowerTop;
-          rotation?: number;
-          wallLinks?: WallDirection[];
-          shipKind?: ShipKind;
-          accessHeight?: number;
-          damage?: number;
-        }>;
-        keeps?: KeepState[];
-        stoneStyle?: StoneStyle;
-        towerBridges?: TowerBridgeState[];
-        terrain?: Array<{ x: number; y: number; kind: TerrainOverrideKind }>;
-        elevations?: Array<{ x: number; y: number; value: number }>;
-        worldSeeded?: boolean;
-      };
-
-      const loadedMode: GameMode = isGameMode(data.gameMode) ? data.gameMode : 'medieval';
-      this.services.state.setGameMode(loadedMode);
-      const cells: Array<ReturnType<GameState['entries']>[number]> = [];
-      let skippedIncompatible = false;
-
-      for (const cell of data.cells ?? []) {
-        if (cell.x < 0 || cell.y < 0 || cell.x >= SIZE || cell.y >= SIZE) continue;
-
-        const migration = this.migrateKind(cell.kind, cell.level ?? 1);
-        if (!migration) continue;
-        if (!this.isBuildingAvailable(migration.kind)) {
-          skippedIncompatible = true;
-          continue;
-        }
-
-        cells.push({
-          x: cell.x,
-          y: cell.y,
-          kind: migration.kind,
-          level: migration.level,
-          thickness: cell.thickness,
-          battlement: cell.battlement,
-          walkway: cell.walkway,
-          towerShape: cell.towerShape,
-          towerTop: cell.towerTop,
-          rotation: cell.rotation,
-          wallLinks: cell.wallLinks,
-          shipKind: cell.shipKind,
-          accessHeight: cell.accessHeight,
-          damage: THREE.MathUtils.clamp(cell.damage ?? 0, 0, 1),
-        });
-      }
-
-      this.services.state.replace(cells);
-      this.services.keepSystem.replace(data.keeps ?? []);
-      this.stoneStyle =
-        data.stoneStyle === 'darkStone' ||
-        data.stoneStyle === 'sandstone' ||
-        data.stoneStyle === 'frontier'
-          ? data.stoneStyle
-          : 'limestone';
-      this.towerBridges.clear();
-      for (const bridge of data.towerBridges ?? []) {
-        if (
-          !Number.isInteger(bridge.id) ||
-          !Number.isInteger(bridge.ax) ||
-          !Number.isInteger(bridge.ay) ||
-          !Number.isInteger(bridge.bx) ||
-          !Number.isInteger(bridge.by)
-        ) continue;
-        if (bridge.kind !== 'stone' && bridge.kind !== 'wood') continue;
-        this.towerBridges.set(bridge.id, { ...bridge });
-      }
-      this.nextTowerBridgeId =
-        Math.max(0, ...Array.from(this.towerBridges.keys())) + 1;
-      this.terrainOverrides.clear();
-      this.elevationOverrides.clear();
-
-      for (const terrainCell of data.terrain ?? []) {
-        if (terrainCell.x < 0 || terrainCell.y < 0 || terrainCell.x >= SIZE || terrainCell.y >= SIZE) continue;
-        if (terrainCell.kind !== 'plains' && terrainCell.kind !== 'river') continue;
-        this.terrainOverrides.set(this.key(terrainCell.x, terrainCell.y), terrainCell.kind);
-      }
-
-      for (const elevationCell of data.elevations ?? []) {
-        if (elevationCell.x < 0 || elevationCell.y < 0 || elevationCell.x >= SIZE || elevationCell.y >= SIZE) continue;
-        if (!Number.isFinite(elevationCell.value)) continue;
-        this.elevationOverrides.set(
-          this.key(elevationCell.x, elevationCell.y),
-          THREE.MathUtils.clamp(elevationCell.value, -6, 6),
-        );
-      }
-
-      this.worldSeeded = Boolean(data.worldSeeded);
-      this.loadedSaveVersion = Math.max(0, Math.floor(data.version ?? 0));
-      this.updateGameModeUI();
-      this.syncTemplateAvailability();
-      this.setStatus(skippedIncompatible ? 'Loaded · incompatible mode content skipped' : 'Loaded');
-    } catch {
-      this.setStatus('Could not load save');
-    }
+    private load(): void {
+    this.saveSystem.load();
   }
 
   private migrateKind(kind: string, level: number): { kind: TileKind; level: number } | null {
