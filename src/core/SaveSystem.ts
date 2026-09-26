@@ -1,6 +1,7 @@
 import {
   SAVE_AUTOSAVE_KEY,
   SAVE_KEY,
+  SAVE_LEGACY_KEY,
   SAVE_QUICK_KEY,
   SAVE_SLOT_COUNT,
   SAVE_STORAGE_PREFIX,
@@ -39,8 +40,8 @@ export interface SaveLoadHost {
   getGameMode(): GameMode;
   getStoneStyle(): StoneStyle;
   getWorldSeeded(): boolean;
-  getBattleSetup(): SavedBattleSetup;
-  setBattleSetup(value: SavedBattleSetup): void;
+  getBattleSetup?(): SavedBattleSetup;
+  setBattleSetup?(value: SavedBattleSetup): void;
   setWorldSeeded(value: boolean): void;
   setLoadedSaveVersion(value: number): void;
   setStoneStyle(value: StoneStyle): void;
@@ -50,8 +51,8 @@ export interface SaveLoadHost {
   updateGameModeUI(): void;
   syncTemplateAvailability(): void;
   setStatus(message: string): void;
-  prepareForLoad(): void;
-  afterLoad(): void;
+  prepareForLoad?(): void;
+  afterLoad?(): void;
 }
 
 interface RawSave {
@@ -394,6 +395,7 @@ export class SaveSystem {
       if (!verified) throw new Error('Save verification failed');
       JSON.parse(verified);
       localStorage.setItem(key, verified);
+      localStorage.setItem(SAVE_KEY, '1');
       localStorage.removeItem(tempKey);
       if (updateStatus) this.host.setStatus('Saved');
       return true;
@@ -425,7 +427,7 @@ export class SaveSystem {
       terrain,
       elevations,
       worldSeeded: this.host.getWorldSeeded(),
-      battleSetup: { ...this.host.getBattleSetup() },
+      battleSetup: this.host.getBattleSetup ? { ...this.host.getBattleSetup() } : undefined,
     };
   }
 
@@ -438,17 +440,17 @@ export class SaveSystem {
 
     const backup = this.createData();
     try {
-      this.host.prepareForLoad();
+      this.host.prepareForLoad?.();
       this.applyData(record.data);
       this.dirty = false;
-      this.host.afterLoad();
+      this.host.afterLoad?.();
       this.host.setStatus('Loaded');
       return true;
     } catch {
       try {
-        this.host.prepareForLoad();
+        this.host.prepareForLoad?.();
         this.applyData(backup);
-        this.host.afterLoad();
+        this.host.afterLoad?.();
       } catch {
         // The normal path should not fail after validation. Do not mask the original load error.
       }
@@ -514,7 +516,7 @@ export class SaveSystem {
 
     this.host.setWorldSeeded(Boolean(data.worldSeeded));
     this.host.setLoadedSaveVersion(Math.max(0, Math.floor(data.version ?? 0)));
-    if (data.battleSetup) this.host.setBattleSetup(normalizeBattleSetup(data.battleSetup));
+    if (data.battleSetup) this.host.setBattleSetup?.(normalizeBattleSetup(data.battleSetup));
     this.host.updateGameModeUI();
     this.host.syncTemplateAvailability();
   }
@@ -559,7 +561,7 @@ export class SaveSystem {
 
   private migrateLegacySave(): void {
     try {
-      const raw = localStorage.getItem(SAVE_KEY);
+      const raw = localStorage.getItem(SAVE_LEGACY_KEY);
       if (!raw) return;
       const parsed = JSON.parse(raw) as RawSave;
       const data = parsed.data ?? {
@@ -583,7 +585,7 @@ export class SaveSystem {
         summary: { buildings: data.cells.length, keeps: data.keeps?.length ?? 0, terrainChanges: data.terrain?.length ?? 0, elevations: data.elevations?.length ?? 0 },
       };
       this.writeRaw('autosave', { metadata, data });
-      localStorage.removeItem(SAVE_KEY);
+      localStorage.removeItem(SAVE_LEGACY_KEY);
     } catch {
       // A malformed legacy save is ignored; it must never prevent a new game.
     }
