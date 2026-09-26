@@ -12,6 +12,8 @@ import type { BattleSetup, BattleStatus } from './battle/types';
 import { MaritimeSystem } from './systems/MaritimeSystem';
 import type { GameMode } from './core/GameMode';
 import { getGameModeDefinition, isBuildingAvailable, isGameMode, isToolAvailable } from './core/GameMode';
+import type { SettingsStore } from './settings/SettingsStore';
+import { applyGraphicsSettings, applyInputSettings } from './settings/SettingsSubsystems';
 import { FuturisticCastleRenderer } from './rendering/FuturisticCastleRenderer';
 import { audioEvents } from './audio/AudioEventBus';
 import type {
@@ -225,6 +227,8 @@ export class ThreeGame {
   private readonly camera = new THREE.PerspectiveCamera(48, 1, 0.1, 700);
   private readonly renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
   private readonly controls: OrbitControls;
+  private readonly settingsStore: SettingsStore;
+  private readonly audioManager: AudioManager;
   /** Domain state and gameplay services are composed here, away from rendering/UI concerns. */
   private readonly services = createGameDomainServices();
   private readonly maritimeSystem = new MaritimeSystem({
@@ -329,9 +333,11 @@ export class ThreeGame {
   private lastFrameTime = 0;
   private cameraTransitionFrame: number | null = null;
 
-  constructor(root: HTMLElement) {
+  constructor(root: HTMLElement, settingsStore: SettingsStore) {
     const hadSave = localStorage.getItem(SAVE_KEY) !== null;
     this.root = root;
+    this.settingsStore = settingsStore;
+    this.audioManager = new AudioManager();
     this.saveSystem = new SaveSystem({
       state: this.services.state,
       keepSystem: this.services.keepSystem,
@@ -383,7 +389,7 @@ export class ThreeGame {
       emissive: 0x123b43,
       emissiveIntensity: 0.08,
     });
-    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.6));
+    applyGraphicsSettings(this.renderer, this.settingsStore.get());
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
     this.renderer.toneMappingExposure = 1.08;
@@ -402,6 +408,19 @@ export class ThreeGame {
     this.controls.maxDistance = 150;
     this.controls.maxPolarAngle = Math.PI / 2;
     this.controls.target.set(0, 0, 0);
+    applyInputSettings(this.controls, this.settingsStore.get());
+    this.settingsStore.subscribe((settings) => {
+      applyGraphicsSettings(this.renderer, settings);
+      this.renderer.toneMappingExposure = settings.graphics.effectsEnabled ? 1.08 : 1;
+      applyInputSettings(this.controls, settings);
+      this.audioManager.setMasterVolume(settings.audio.masterVolume);
+      this.audioManager.setMusicVolume(settings.audio.musicVolume);
+      this.audioManager.setSfxVolume(settings.audio.sfxVolume);
+      this.audioManager.setMuted(settings.audio.muted);
+      document.documentElement.style.setProperty('--castle-ui-scale', String(settings.interface.uiScale));
+      document.documentElement.toggleAttribute('data-reduced-motion', settings.interface.reducedMotion);
+      document.documentElement.toggleAttribute('data-high-contrast', settings.interface.highContrast);
+    });
 
     this.addLights();
     this.createWorld();
