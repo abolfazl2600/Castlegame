@@ -50,8 +50,8 @@ export class PrivacyLegalUI {
 
           <h5>Information stored by the game</h5>
           <ul>
-            <li><strong>Game saves:</strong> the current game save is stored in this browser's local storage under <code>castle-role-save-v1</code>. The saved game contains game state such as constructed cells, Keep data, terrain overrides, elevation edits, game mode, style information, bridge data, seed state, and a save timestamp.</li>
-            <li><strong>Settings:</strong> gameplay, graphics, audio, and interface preferences are stored locally under <code>castle-role.settings.v2</code>. The application migrates the previous <code>castle-role.settings.v1</code> key when present.</li>
+            <li><strong>Game saves:</strong> the current game save is stored in this browser's local storage under <code>${SAVE_STORAGE_KEY}</code>. The saved game contains game state such as constructed cells, Keep data, terrain overrides, elevation edits, game mode, style information, bridge data, seed state, and a save timestamp.</li>
+            <li><strong>Settings:</strong> gameplay, graphics, audio, and interface preferences are stored locally under <code>${SETTINGS_STORAGE_KEY}</code>. The application migrates the previous <code>castle-role.settings.v1</code> key when present.</li>
             <li><strong>Other application data:</strong> the inspected application currently has no additional application-managed persistent data store configured. An older privacy-consent key may exist from a previous build; Clear All Local Game Data removes it.</li>
           </ul>
 
@@ -72,12 +72,12 @@ export class PrivacyLegalUI {
           <h4>Data & Storage</h4>
           <div class="privacy-data-card">
             <strong>Game saves</strong>
-            <span>Local browser storage · <code>castle-role-save-v1</code></span>
+            <span>Local browser storage · <code>${SAVE_STORAGE_KEY}</code></span>
             <small>Deleting this key removes the saved castle/world state. It does not remove settings.</small>
           </div>
           <div class="privacy-data-card">
             <strong>Settings</strong>
-            <span>Local browser storage · <code>castle-role.settings.v2</code></span>
+            <span>Local browser storage · <code>${SETTINGS_STORAGE_KEY}</code></span>
             <small>Resetting settings restores defaults without deleting the game save.</small>
           </div>
           <div class="privacy-data-card">
@@ -149,8 +149,8 @@ export class PrivacyLegalUI {
         <article id="about" class="privacy-document">
           <h4>About</h4>
           <div class="privacy-about-grid">
-            <div><span>Game</span><strong>Castle Role</strong></div>
-            <div><span>Version</span><strong>0.2.0</strong></div>
+            <div><span>Game</span><strong>${APPLICATION_METADATA.name}</strong></div>
+            <div><span>Version</span><strong>${APPLICATION_METADATA.version}</strong></div>
             <div><span>Save format</span><strong>v${SAVE_VERSION}</strong></div>
             <div><span>Technology</span><strong>Three.js · TypeScript · Vite</strong></div>
           </div>
