@@ -11,7 +11,7 @@ import type { GameMode } from './GameMode';
 import { isGameMode } from './GameMode';
 import type { GameState } from '../state/GameState';
 import type { KeepSystem } from '../building/KeepSystem';
-import type { APPLICATION_METADATA } from '../app/applicationMetadata';
+import { APPLICATION_METADATA } from '../app/applicationMetadata';
 import type {
   KeepState,
   SavedBattleSetup,
@@ -75,7 +75,22 @@ export class SaveSystem {
   private modal: HTMLElement | null = null;
   private dialogMode: 'save' | 'load' = 'load';
 
-  constructor(private readonly host: SaveLoadHost) {}
+  constructor(private readonly host: SaveLoadHost) {
+    this.installToolbarInterceptors();
+  }
+
+  private installToolbarInterceptors(): void {
+    if (typeof document === 'undefined') return;
+    document.addEventListener('click', (event) => {
+      const target = event.target as HTMLElement | null;
+      const button = target?.closest<HTMLButtonElement>('#save-button, #load-button');
+      if (!button) return;
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      if (button.id === 'save-button') this.openSaveDialog();
+      else this.openLoadDialog();
+    }, true);
+  }
 
   static hasAnySave(): boolean {
     if (typeof localStorage === 'undefined') return false;
@@ -101,6 +116,7 @@ export class SaveSystem {
   }
 
   autoSave(updateStatus = true): boolean {
+    this.dirty = true;
     const ok = this.writeRecord('autosave', 'Auto Save', updateStatus);
     if (ok && updateStatus) this.host.setStatus('Auto-saved');
     return ok;
@@ -331,9 +347,9 @@ export class SaveSystem {
 
   private confirmDiscardForLoad(): boolean {
     if (!this.dirty) return true;
-    const saveBeforeLoad = confirm('There are changes since the last manual save. Press OK to Quick Save, or Cancel to keep the current game.');
-    if (saveBeforeLoad) this.quickSave();
-    return saveBeforeLoad || confirm('Discard the current changes and continue loading?');
+    const saveBeforeLoad = confirm('There are changes since the last manual save. Press OK to Quick Save before loading, or Cancel to abort.');
+    if (saveBeforeLoad) return this.quickSave();
+    return confirm('Discard the current changes and continue loading?');
   }
 
   private writeRecord(
@@ -560,7 +576,13 @@ export class SaveSystem {
         battleSetup: parsed.battleSetup,
       };
       if (!Array.isArray(data.cells)) return;
-      this.writeRecord('autosave', 'Migrated Save', false, Number(data.updatedAt) || Date.now());
+      const now = Number(data.updatedAt) || Date.now();
+      const metadata: SaveMetadata = {
+        id: makeId(), slot: 'autosave', name: 'Migrated Save', createdAt: now, updatedAt: now,
+        schemaVersion: Number(data.version) || 0, gameVersion: getGameVersion(), gameMode: data.gameMode,
+        summary: { buildings: data.cells.length, keeps: data.keeps?.length ?? 0, terrainChanges: data.terrain?.length ?? 0, elevations: data.elevations?.length ?? 0 },
+      };
+      this.writeRaw('autosave', { metadata, data });
       localStorage.removeItem(SAVE_KEY);
     } catch {
       // A malformed legacy save is ignored; it must never prevent a new game.
