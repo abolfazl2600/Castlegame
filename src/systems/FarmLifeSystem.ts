@@ -70,7 +70,7 @@ export class FarmLifeSystem {
       cell: { x: number; y: number; kind: string; level?: number },
       floodedMoats: Set<string>,
     ): THREE.Group {
-      if (cell.kind === 'farm' && cell.level === COW_BARN_LEVEL) {
+      if (cell.kind === 'cowBarn' || (cell.kind === 'farm' && cell.level === COW_BARN_LEVEL)) {
         return system.makeCowBarn(this, cell.x, cell.y);
       }
       return original.call(this, cell, floodedMoats);
@@ -205,7 +205,7 @@ export class FarmLifeSystem {
       if (!point) return;
 
       const cell = this.game.services.state.getCell(point.x, point.y);
-      if (cell?.kind === 'farm' && cell.level === COW_BARN_LEVEL) {
+      if (cell?.kind === 'cowBarn' || (cell?.kind === 'farm' && cell.level === COW_BARN_LEVEL)) {
         this.game.selectedCell = point;
         this.game.setStatus('Selected: Cow Barn');
         event.preventDefault();
@@ -484,7 +484,7 @@ export class FarmLifeSystem {
       if (!animation) continue;
 
       const target = this.game.services.state.getCell(agent.targetGrid.x, agent.targetGrid.y);
-      const atBarn = target?.kind === 'farm' && target.level === COW_BARN_LEVEL;
+      const atBarn = target?.kind === 'cowBarn' || (target?.kind === 'farm' && target.level === COW_BARN_LEVEL);
       const moving = agent.phase !== 'work';
       const time = performance.now() * 0.001 + agent.anim * 0.1;
 
