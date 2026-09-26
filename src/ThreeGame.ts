@@ -554,6 +554,7 @@ export class ThreeGame {
     }).join('');
 
     settings.insertAdjacentHTML('beforebegin', toolHtml);
+    settings.hidden = this.gameMode === 'modern';
 
     toolbar.querySelectorAll<HTMLButtonElement>('.tool-category-header').forEach((header) => {
       header.onclick = () => {
@@ -603,7 +604,6 @@ export class ThreeGame {
     this.seedNaturalProps();
     this.worldSeeded = true;
     this.selectedTool = null;
-    this.modeSelectionPending = false;
     this.updateGameModeUI();
     this.syncTemplateAvailability();
     this.refreshBuildPanelForMode();
@@ -7445,6 +7445,9 @@ export class ThreeGame {
       '<div class="settings-actions"><button id="redo-button" type="button">Redo</button><button id="select-clear" type="button">Clear Select</button></div>' +
       '<div class="settings-hint">Walls: drag A→B. Terrain tools also support drag strokes. Ctrl+Z / Ctrl+Y undo and redo.</div>' +
       '</div>';
+
+    const builderSettings = toolbar.querySelector<HTMLElement>('.builder-settings');
+    if (builderSettings) builderSettings.hidden = this.gameMode === 'modern';
 
     toolbar.querySelectorAll<HTMLButtonElement>('.tool-category-header').forEach((header) => {
       header.onclick = () => {
