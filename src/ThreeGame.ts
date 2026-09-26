@@ -9,6 +9,8 @@ import { CastleAccessSystem } from './building/CastleAccessSystem';
 import { WallDefenseSystem } from './building/WallDefenseSystem';
 import { GateSystem } from './building/GateSystem';
 import { DestructibleBuildingSystem } from './building/DestructibleBuildingSystem';
+import { ModernDefenseTowerSystem } from './building/ModernDefenseTowerSystem';
+import { GameModeSystem } from './core/GameModeSystem';
 import { CastleDetailGenerator } from './building/CastleDetailGenerator';
 import { KeepRenderer } from './rendering/KeepRenderer';
 import { MedievalMaterials } from './rendering/MedievalMaterials';
@@ -21,9 +23,11 @@ import { OrchardSystem } from './systems/OrchardSystem';
 import type {
   AccessKind,
   GridCell,
+  GameMode,
   HarborKind,
   KeepRoofStyle,
   MarketBuildingKind,
+  ModernTowerKind,
   RoadKind,
   ShipKind,
   StoneStyle,
@@ -55,6 +59,11 @@ const BUILDING_KINDS: TileKind[] = [
   'wall3',
   'gate',
   'tower',
+  'modernWatchtower',
+  'heavyDefenseTower',
+  'missileDefenseTower',
+  'automatedTurretTower',
+  'radarTower',
   'road',
   'dirtRoad',
   'stoneRoad',
@@ -138,6 +147,22 @@ interface HistorySnapshot {
   stoneStyle: StoneStyle;
   towerBridges: TowerBridgeState[];
 }
+
+const MODERN_TOWER_KINDS: ModernTowerKind[] = [
+  'modernWatchtower',
+  'heavyDefenseTower',
+  'missileDefenseTower',
+  'automatedTurretTower',
+  'radarTower',
+];
+
+const MODERN_TOWER_TOOLS: ToolDefinition[] = [
+  { id: 'modernWatchtower', icon: '◫', label: 'Modern Watchtower', detail: 'Steel frame · sensor-ready platform', shortcut: 'M1' },
+  { id: 'heavyDefenseTower', icon: '▣', label: 'Heavy Defense Tower', detail: 'Reinforced concrete · armored platform', shortcut: 'M2' },
+  { id: 'missileDefenseTower', icon: '△', label: 'Missile Defense Tower', detail: 'Vertical launcher mounts · no missile AI', shortcut: 'M3' },
+  { id: 'automatedTurretTower', icon: '◉', label: 'Automated Turret Tower', detail: 'Armored turret mount · future weapon-ready', shortcut: 'M4' },
+  { id: 'radarTower', icon: '⌁', label: 'Radar Tower', detail: 'Sensor mast · radar assembly placeholder', shortcut: 'M5' },
+];
 
 const TOOL_GROUPS: Array<{ label: string; tools: ToolDefinition[] }> = [
   {
@@ -238,6 +263,9 @@ export class ThreeGame {
   private readonly castleAccessSystem = new CastleAccessSystem();
   private readonly gateSystem = new GateSystem();
   private readonly destructibleBuildingSystem = new DestructibleBuildingSystem();
+  private readonly modernDefenseTowerSystem = new ModernDefenseTowerSystem();
+  private readonly gameModeSystem = new GameModeSystem();
+  private gameMode: GameMode = this.gameModeSystem.get();
   private readonly populationSystem = new PopulationSystem();
   private readonly windmillSystem = new WindmillSystem();
   private readonly orchardSystem = new OrchardSystem();
@@ -345,7 +373,9 @@ export class ThreeGame {
   private cameraTransitionFrame: number | null = null;
 
   constructor(root: HTMLElement) {
-    const hadSave = localStorage.getItem(SAVE_KEY) !== null;
+    const hadSave =
+      localStorage.getItem(this.saveStorageKey()) !== null ||
+      (this.gameMode === 'Medieval' && localStorage.getItem(SAVE_KEY) !== null);
     this.root = root;
     this.riverTexture = this.createRiverTexture();
     this.oceanTexture = this.createOceanTexture();
@@ -465,7 +495,69 @@ export class ThreeGame {
   }
 
   private key(x: number, y: number): string {
-    return `${x},${y}`;
+    return x + ',' + y;
+  }
+
+  private saveStorageKey(): string {
+    return this.gameModeSystem.saveKey(SAVE_KEY, this.gameMode);
+  }
+
+  private isModernTowerKind(kind: TileKind | ToolKind | undefined): kind is ModernTowerKind {
+    return kind !== undefined && MODERN_TOWER_KINDS.includes(kind as ModernTowerKind);
+  }
+
+  private updateGameModeUI(): void {
+    const medieval = document.getElementById('mode-medieval');
+    const modern = document.getElementById('mode-modern');
+    medieval?.classList.toggle('is-active', this.gameMode === 'Medieval');
+    modern?.classList.toggle('is-active', this.gameMode === 'Modern');
+    medieval?.setAttribute('aria-pressed', String(this.gameMode === 'Medieval'));
+    modern?.setAttribute('aria-pressed', String(this.gameMode === 'Modern'));
+
+    document.querySelectorAll<HTMLElement>('.modern-only').forEach((element) => {
+      element.hidden = this.gameMode !== 'Modern';
+    });
+  }
+
+  private switchGameMode(nextMode: GameMode): void {
+    if (nextMode === this.gameMode) return;
+    if (this.battleSystem.isActive()) {
+      this.setStatus('Reset Battle before changing Game Mode');
+      return;
+    }
+
+    this.save(false);
+    this.gameMode = nextMode;
+    this.gameModeSystem.set(nextMode);
+
+    this.state.clear();
+    this.keepSystem.clear();
+    this.towerBridges.clear();
+    this.nextTowerBridgeId = 1;
+    this.towerBridgeStart = null;
+    this.towerBridgeHover = null;
+    this.moatTasks.clear();
+    this.terrainOverrides.clear();
+    this.elevationOverrides.clear();
+    this.selectedCell = null;
+    this.selectedKeepId = null;
+    this.undoStack.length = 0;
+    this.redoStack.length = 0;
+    this.loadedSaveVersion = 0;
+    this.worldSeeded = false;
+
+    this.load();
+    if (!this.worldSeeded || this.loadedSaveVersion < SAVE_VERSION) {
+      this.seedNaturalProps();
+      this.worldSeeded = true;
+      this.loadedSaveVersion = SAVE_VERSION;
+      this.save(false);
+    }
+
+    this.selectTool(null);
+    this.redraw();
+    this.updateGameModeUI();
+    this.setStatus(this.gameMode + ' Mode active · separate world save');
   }
 
   private isWallTool(tool: ToolKind): tool is WallKind {
@@ -1172,6 +1264,11 @@ export class ThreeGame {
       wall3: 0x9ba4a7,
       gate: 0x9e7041,
       tower: 0xb7ab91,
+      modernWatchtower: 0x607983,
+      heavyDefenseTower: 0x4b5961,
+      missileDefenseTower: 0x566d76,
+      automatedTurretTower: 0x35464f,
+      radarTower: 0x6b8f99,
       road: 0x9a7658,
       dirtRoad: 0x8a6142,
       stoneRoad: 0xa9a195,
@@ -1255,6 +1352,18 @@ export class ThreeGame {
         tower.position.set(position.x, 10.3, position.z);
         tower.renderOrder = 44;
         this.planLayer.add(tower);
+        continue;
+      }
+
+      if (this.isModernTowerKind(cell.kind)) {
+        const modernTower = new THREE.Mesh(
+          new THREE.BoxGeometry(TILE * 0.72, 0.08, TILE * 0.72),
+          this.planMaterial(color),
+        );
+        modernTower.position.set(position.x, 10.32, position.z);
+        modernTower.rotation.y = Math.PI / 4;
+        modernTower.renderOrder = 44;
+        this.planLayer.add(modernTower);
         continue;
       }
 
@@ -1519,7 +1628,7 @@ export class ThreeGame {
         const occupying = this.state.getCell(x, y)?.kind;
         const hidesMountain =
           occupying !== undefined &&
-          (this.isWallFamily(occupying) || occupying === 'mine' || occupying === 'tower' || occupying === 'gate');
+          (this.isWallFamily(occupying) || occupying === 'mine' || occupying === 'tower' || occupying === 'gate' || this.isModernTowerKind(occupying));
 
         if (terrain === 'mountain' && !hidesMountain) {
           const mountainGroup = new THREE.Group();
@@ -2054,6 +2163,7 @@ export class ThreeGame {
       this.makeWall(group, cell.kind as WallKind, cell.x, cell.y, cell);
     } else if (cell.kind === 'gate') this.makeGate(group, cell.x, cell.y);
     else if (cell.kind === 'tower') this.makeTower(group, cell.x, cell.y, cell);
+    else if (this.isModernTowerKind(cell.kind)) this.modernDefenseTowerSystem.create(group, cell, cell.x, cell.y);
     else if (cell.kind === 'farm') this.makeFarm(group);
     else if (cell.kind === 'marketStall' || cell.kind === 'smallMarket' || cell.kind === 'marketHall') {
       this.makeMarketBuilding(group, cell.kind as MarketBuildingKind);
@@ -2114,6 +2224,10 @@ export class ThreeGame {
 
   private isWallFamily(kind: TileKind | undefined): boolean {
     return kind === 'wall1' || kind === 'wall2' || kind === 'wall3' || kind === 'gate' || kind === 'tower';
+  }
+
+  private isFortificationKind(kind: TileKind | undefined): boolean {
+    return this.isWallFamily(kind) || this.isModernTowerKind(kind);
   }
 
   private isRoadFamily(kind: TileKind | undefined): boolean {
@@ -6469,6 +6583,36 @@ export class ThreeGame {
       return;
     }
 
+    if (this.isModernTowerKind(this.selectedTool)) {
+      if (this.gameMode !== 'Modern') {
+        this.setStatus('Modern defensive towers are available only in Modern Mode');
+        return;
+      }
+
+      if (current && this.isModernTowerKind(current)) {
+        if (current !== this.selectedTool) {
+          this.setStatus('Modern tower footprint is occupied by another tower type');
+          return;
+        }
+        const nextLevel = event.shiftKey
+          ? Math.max(1, (cell?.level ?? 1) - 1)
+          : (cell?.level ?? 1) + 1;
+        this.recordHistory();
+        this.state.updateCell(gx, gy, { level: nextLevel });
+        this.finishBuild();
+        this.setStatus(this.modernDefenseTowerSystem.getConfig(this.selectedTool).label + ' level ' + nextLevel);
+        return;
+      }
+
+      if (current || !this.canBuildFortificationOnTerrain(terrain)) return;
+
+      this.recordHistory();
+      this.state.setCell(gx, gy, this.selectedTool, 1, { rotation: 0 });
+      this.finishBuild();
+      this.setStatus(this.modernDefenseTowerSystem.getConfig(this.selectedTool).label + ' placed');
+      return;
+    }
+
     if (this.selectedTool === 'tower') {
       if (current === 'tower') {
         const nextLevel = event.shiftKey
@@ -6521,7 +6665,7 @@ export class ThreeGame {
   }
 
   private canBuildOnTerrain(tool: ToolKind, terrain: TerrainKind): boolean {
-    if (tool === 'gate' || tool === 'tower') return this.canBuildFortificationOnTerrain(terrain);
+    if (tool === 'gate' || tool === 'tower' || this.isModernTowerKind(tool)) return this.canBuildFortificationOnTerrain(terrain);
     if (terrain === 'water' || terrain === 'river') return false;
     if (terrain === 'mountain') return tool === 'mine';
     if (terrain === 'forest') return tool === 'tree';
@@ -6945,6 +7089,7 @@ export class ThreeGame {
 
     const data: SavedGame = {
       version: SAVE_VERSION,
+      mode: this.gameMode,
       updatedAt: Date.now(),
       cells: this.state.entries(),
       keeps: this.keepSystem.entries(),
@@ -6955,17 +7100,20 @@ export class ThreeGame {
       worldSeeded: this.worldSeeded,
     };
 
-    localStorage.setItem(SAVE_KEY, JSON.stringify(data));
+    localStorage.setItem(this.saveStorageKey(), JSON.stringify(data));
     if (updateStatus) this.setStatus('Saved');
   }
 
   private load(): void {
-    const raw = localStorage.getItem(SAVE_KEY);
+    const raw =
+      localStorage.getItem(this.saveStorageKey()) ??
+      (this.gameMode === 'Medieval' ? localStorage.getItem(SAVE_KEY) : null);
     if (!raw) return;
 
     try {
       const data = JSON.parse(raw) as {
         version?: number;
+        mode?: GameMode;
         cells?: Array<{
           x: number;
           y: number;
@@ -6999,6 +7147,7 @@ export class ThreeGame {
         // derived from the wall network, so discard the legacy cell and let
         // CastleAccessSystem regenerate the equivalent access geometry.
         if (cell.kind === 'stairTower') continue;
+        if (this.gameMode === 'Medieval' && this.isModernTowerKind(cell.kind as TileKind)) continue;
 
         const migration = this.migrateKind(cell.kind, cell.level ?? 1);
         if (!migration) continue;
@@ -7133,10 +7282,26 @@ export class ThreeGame {
       );
     }).join('');
 
+    const modernToolHtml =
+      '<section class="tool-category modern-only" data-category="Modern Defense" hidden>' +
+      '<button class="tool-category-header" type="button" aria-expanded="true">' +
+      '<span>Modern Defense</span>' +
+      '<span class="tool-category-chevron" aria-hidden="true">▶</span>' +
+      '</button>' +
+      '<div class="tool-category-items">' +
+      MODERN_TOWER_TOOLS.map((tool) =>
+        '<button class="tool-button" data-tool="' + tool.id + '">' +
+        '<span class="tool-icon">' + tool.icon + '</span>' +
+        '<span class="tool-copy"><strong>' + tool.label + '</strong><small>' + tool.detail + '</small></span>' +
+        '<kbd>' + tool.shortcut + '</kbd></button>'
+      ).join('') +
+      '</div></section>';
+
     toolbar.innerHTML =
-      '<div class="toolbar-title"><div><span>Build</span><small>Modular engineering</small></div><button id="toolbar-close" class="toolbar-close" type="button" aria-label="Close build panel">×</button></div>' +
+      '<div class="toolbar-title"><div><span>Build</span><small>' + this.gameMode + ' architecture</small></div><button id="toolbar-close" class="toolbar-close" type="button" aria-label="Close build panel">×</button></div>' +
       noneHtml +
       toolHtml +
+      modernToolHtml +
       '<section class="tool-category" data-category="Walls & Defense">' +
       '<button class="tool-category-header" type="button" aria-expanded="false">' +
       '<span>Walls & Defense</span>' +
@@ -7224,6 +7389,10 @@ export class ThreeGame {
         }
       };
     });
+
+    get<HTMLButtonElement>('mode-medieval').onclick = () => this.switchGameMode('Medieval');
+    get<HTMLButtonElement>('mode-modern').onclick = () => this.switchGameMode('Modern');
+    this.updateGameModeUI();
 
     get<HTMLButtonElement>('toolbar-close').onclick = () => this.setToolbarOpen(false);
     get<HTMLButtonElement>('toolbar-open').onclick = () => this.setToolbarOpen(true);
@@ -9102,6 +9271,11 @@ export class ThreeGame {
       return;
     }
 
+    if (this.isModernTowerKind(tool) && this.gameMode !== 'Modern') {
+      this.setStatus('Modern defensive towers require Modern Mode');
+      return;
+    }
+
     if (tool !== 'towerBridge') {
       this.towerBridgeStart = null;
       this.towerBridgeHover = null;
@@ -9127,7 +9301,7 @@ export class ThreeGame {
     const noneButton = document.querySelector('[data-build-none]');
     noneButton?.classList.toggle('is-selected', tool === null);
     noneButton?.setAttribute('aria-pressed', String(tool === null));
-    this.setStatus(tool === null ? 'No Build Tool Selected · free camera / inspect' : 'Selected: ' + tool);
+    this.setStatus(tool === null ? this.gameMode + ' Mode · free camera / inspect' : 'Selected: ' + tool);
   }
 
   private setStatus(text: string): void {
