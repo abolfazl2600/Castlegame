@@ -4,6 +4,10 @@ export type UnitState = 'forming' | 'moving' | 'guarding' | 'attacking' | 'dead'
 
 export interface BattleUnitStats {
   maxHealth: number;
+  attack: number;
+  defense: number;
+  attack: number;
+  defense: number;
   damage: number;
   attackRange: number;
   attackCooldown: number;
