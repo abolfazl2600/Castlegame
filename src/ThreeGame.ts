@@ -8,7 +8,7 @@ import { WallSystem } from './building/WallSystem';
 import { WallDefenseSystem } from './building/WallDefenseSystem';
 import { KeepRenderer } from './rendering/KeepRenderer';
 import { MedievalMaterials } from './rendering/MedievalMaterials';
-import { BattleSystem } from './battle/BattleSystem';
+import { BattleSystem, getUnitCombatStats } from './battle/BattleSystem';
 import type { BattleSetup, BattleStatus } from './battle/types';
 import { MaritimeSystem } from './systems/MaritimeSystem';
 import type { GameMode } from './core/GameMode';
@@ -494,6 +494,7 @@ export class ThreeGame {
     if (this.gameMode === 'medieval') this.createWorkers();
     this.redraw();
     this.bindUI();
+    this.syncBattleCombatStatsUI();
     // Keep the construction tool initialized during world creation/redraw, then enter the neutral mode only after UI binding.
     this.selectTool(null);
     this.setToolbarOpen(this.toolbarOpen);
@@ -9236,7 +9237,27 @@ export class ThreeGame {
       [field]: normalized,
     };
     this.syncBattleSetupUI();
+    this.syncBattleCombatStatsUI();
     this.updatePopulationUI();
+  }
+
+  private syncBattleCombatStatsUI(): void {
+    const mappings: Array<[string, 'swordsman' | 'spearman' | 'archer' | 'crossbowman' | 'modernSoldier']> = [
+      ['swordsman', 'swordsman'],
+      ['spearman', 'spearman'],
+      ['archer', 'archer'],
+      ['crossbowman', 'crossbowman'],
+      ['modernSoldier', 'modernSoldier'],
+    ];
+
+    for (const [key, unitType] of mappings) {
+      const stats = getUnitCombatStats(unitType);
+      if (!stats) continue;
+      const attack = document.getElementById(`battle-stat-${key}-attack`);
+      const defense = document.getElementById(`battle-stat-${key}-defense`);
+      if (attack) attack.textContent = String(stats.attack);
+      if (defense) defense.textContent = String(stats.defense);
+    }
   }
 
   private syncBattleSetupUI(): void {
