@@ -429,6 +429,7 @@ export class ThreeGame {
         setBuildingDamage: (x, y, damageRatio) => this.setBuildingDamage(x, y, damageRatio),
         gatePassable: (x, y) => this.gateSystem.isGatePassable(x, y),
         generatedAccess: () => this.getGeneratedWallAccess(),
+        wallWeaponVisuals: () => this.getWallWeaponVisuals(),
       },
       (status) => this.updateBattleUI(status),
     );
@@ -988,6 +989,14 @@ export class ThreeGame {
         Boolean(this.state.getCell(x, y)) ||
         Boolean(this.keepSystem.findAtCell(x, y)),
     });
+  }
+
+  private getWallWeaponVisuals(): THREE.Object3D[] {
+    const result: THREE.Object3D[] = [];
+    this.buildLayer.traverse((object) => {
+      if (object.userData.wallWeapon) result.push(object);
+    });
+    return result;
   }
 
   private makeWallWeaponVisual(
