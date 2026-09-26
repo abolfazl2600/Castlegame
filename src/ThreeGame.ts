@@ -7130,6 +7130,11 @@ export class ThreeGame {
       for (const cell of data.cells ?? []) {
         if (cell.x < 0 || cell.y < 0 || cell.x >= SIZE || cell.y >= SIZE) continue;
 
+        // Stair Towers were formerly persistent/manual structures. They are now
+        // derived from the wall network, so discard the legacy cell and let
+        // CastleAccessSystem regenerate the equivalent access geometry.
+        if (cell.kind === 'stairTower') continue;
+
         const migration = this.migrateKind(cell.kind, cell.level ?? 1);
         if (!migration) continue;
 
