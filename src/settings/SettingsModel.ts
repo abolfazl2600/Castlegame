@@ -1,13 +1,16 @@
-export const SETTINGS_SCHEMA_VERSION = 1 as const;
+export const SETTINGS_SCHEMA_VERSION = 2 as const;
 
 export type GraphicsQuality = 'low' | 'medium' | 'high';
 export type PerformanceMode = 'balanced' | 'performance' | 'quality';
+export type EnvironmentDetail = 'low' | 'medium' | 'high';
 export type LanguageCode = 'system' | 'en';
 export type ControlScheme = 'standard' | 'touch';
 
 export interface GameplaySettings {
   controlScheme: ControlScheme;
   tutorialCompleted: boolean;
+  cameraSensitivity: number;
+  combatFeedback: boolean;
 }
 
 export interface GraphicsSettings {
@@ -15,6 +18,7 @@ export interface GraphicsSettings {
   effectsEnabled: boolean;
   shadowsEnabled: boolean;
   performanceMode: PerformanceMode;
+  environmentDetail: EnvironmentDetail;
 }
 
 export interface AudioSettings {
@@ -29,6 +33,8 @@ export interface InterfaceSettings {
   language: LanguageCode;
   reducedMotion: boolean;
   highContrast: boolean;
+  confirmDestructiveActions: boolean;
+  showHelp: boolean;
 }
 
 export interface SettingsData {
@@ -45,12 +51,15 @@ export function createDefaultSettings(): SettingsData {
     gameplay: {
       controlScheme: 'standard',
       tutorialCompleted: false,
+      cameraSensitivity: 1,
+      combatFeedback: true,
     },
     graphics: {
       quality: 'high',
       effectsEnabled: true,
       shadowsEnabled: true,
       performanceMode: 'balanced',
+      environmentDetail: 'high',
     },
     audio: {
       masterVolume: 1,
@@ -63,6 +72,8 @@ export function createDefaultSettings(): SettingsData {
       language: 'system',
       reducedMotion: false,
       highContrast: false,
+      confirmDestructiveActions: true,
+      showHelp: true,
     },
   };
 }
