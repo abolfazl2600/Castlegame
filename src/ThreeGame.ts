@@ -809,16 +809,6 @@ export class ThreeGame {
     return path.every((point) => this.isWithinTerritory(point.x, point.y));
   }
 
-  private territoryCellBounds(): { minX: number; maxX: number; minY: number; maxY: number } {
-    const zones = this.territoryZones();
-    return {
-      minX: Math.min(...zones.map((zone) => zone.minX)),
-      maxX: Math.max(...zones.map((zone) => zone.maxX)),
-      minY: Math.min(...zones.map((zone) => zone.minY)),
-      maxY: Math.max(...zones.map((zone) => zone.maxY)),
-    };
-  }
-
   private updateTerritoryUI(): void {
     const label = document.getElementById('territory-stage');
     const button = document.getElementById('expand-territory') as HTMLButtonElement | null;
