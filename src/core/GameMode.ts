@@ -1,6 +1,6 @@
 import type { TileKind, ToolKind } from './types';
 
-export type GameMode = "medieval" | "modern";
+export type GameMode = "medieval" | "modern" | "survival";
 
 export interface GameModeToolGroup {
   label: string;
@@ -48,6 +48,23 @@ export const GAME_MODE_CONFIG: Record<GameMode, GameModeDefinition> = {
     availableUnits: ['swordsman','spearman','archer','crossbowman'],
     availableWeapons: ['sword','spear','bow','crossbow'],
   },
+  survival: {
+    id: 'survival',
+    label: 'Survival',
+    description: 'Endless wave defense using the existing castle, enemy, combat, and navigation systems.',
+    toolGroups: [
+      { label: 'Castle', toolIds: ['wall1','wall2','wall3','gate','tower','stairTower','towerBridge','keep','moat'] },
+      { label: 'Buildings', toolIds: ['cottage','house','manor','villa','market','farm','appleOrchard','windmill','mine','hut'] },
+      { label: 'Defense', toolIds: ['wall1','wall2','wall3','gate','tower','towerBridge','keep','moat'] },
+      { label: 'Military', toolIds: ['armyCamp'] },
+      { label: 'Environment', toolIds: COMMON_WORLD_TOOLS },
+      { label: 'Roads & Harbor', toolIds: ['road','dirtRoad','stoneRoad','smallDock','woodenPier','harbor','fishingDock'] },
+    ],
+    availableTools: [...MEDIEVAL_BUILDINGS, 'keep','towerBridge','mountainRange',...COMMON_WORLD_TOOLS],
+    availableBuildingKinds: [...MEDIEVAL_BUILDINGS, 'tree','rock','mountain'],
+    availableUnits: ['swordsman','spearman','archer','crossbowman'],
+    availableWeapons: ['sword','spear','bow','crossbow'],
+  },
   modern: {
     id: 'modern',
     label: 'Modern Fortress',
@@ -73,7 +90,7 @@ export function getGameModeDefinition(mode: GameMode): GameModeDefinition {
 }
 
 export function isGameMode(value: unknown): value is GameMode {
-  return value === 'medieval' || value === 'modern';
+  return value === 'medieval' || value === 'modern' || value === 'survival';
 }
 
 export function isToolAvailable(mode: GameMode, tool: ToolKind): boolean {
