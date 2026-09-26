@@ -388,4 +388,3 @@ function formatTime(seconds: number): string {
 }
 
 export const SURVIVAL_MODE_ID: GameModeId = 'survival';
-export type SurvivalStateStore = GameState;
