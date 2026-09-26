@@ -79,6 +79,13 @@ export class SettingsStore {
     this.storage?.removeItem(LEGACY_SETTINGS_STORAGE_KEY);
   }
 
+  clearAllLocalData(): void {
+    this.storage?.removeItem(SETTINGS_STORAGE_KEY);
+    this.storage?.removeItem(LEGACY_SETTINGS_STORAGE_KEY);
+    if (this.gameSaveKey) this.storage?.removeItem(this.gameSaveKey);
+    this.storage?.removeItem('castle-role:privacy-consent:v1');
+  }
+
   private load(): SettingsData {
     const defaults = createDefaultSettings();
     if (!this.storage) return defaults;
