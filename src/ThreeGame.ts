@@ -1319,7 +1319,7 @@ export class ThreeGame {
 
     if (planMode) {
       this.camera.up.set(0, 1, 0);
-      this.camera.position.set(0, 118, 0.001;
+      this.camera.position.set(0, 118, 0.001);
       this.controls.target.set(0, 0, 0);
       this.controls.enableRotate = false;
       this.controls.enablePan = true;
