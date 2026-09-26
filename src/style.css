@@ -1706,3 +1706,39 @@ html[data-reduced-motion] *,html[data-reduced-motion] *::before,html[data-reduce
 html[data-high-contrast] .settings-modal { background:rgba(0,0,0,.86); }
 html[data-high-contrast] .settings-card { border-color:rgba(255,255,255,.42); }
 @media (max-width:560px) { .settings-modal { padding:8px; } .settings-card { max-height:calc(100vh - 16px); border-radius:14px; } .settings-scroll { padding:10px; } .settings-scroll label { grid-template-columns:1fr; gap:6px; } .settings-scroll label:has(input[type="checkbox"]) { grid-template-columns:1fr auto; } }
+
+
+/* Complete game settings */
+.settings-control-reference {
+  display: grid;
+  gap: 7px;
+  color: rgba(235,247,252,.72);
+  font-size: 10px;
+  line-height: 1.5;
+}
+.settings-control-reference span {
+  display: block;
+}
+.settings-control-reference kbd {
+  display: inline-block;
+  min-width: 0;
+  margin-right: 4px;
+  padding: 2px 5px;
+  border: 1px solid rgba(255,255,255,.12);
+  border-radius: 5px;
+  color: #eefbff;
+  background: rgba(255,255,255,.06);
+  font-size: 8px;
+}
+.settings-scroll section button[data-action="reset-settings"] {
+  border-color: rgba(255,130,120,.22);
+}
+.settings-scroll section button[data-action="reset-settings"]:hover {
+  border-color: rgba(255,130,120,.48);
+  background: rgba(255,90,80,.1);
+}
+.battle-panel.settings-no-combat-feedback .battle-live,
+.battle-panel.settings-no-combat-feedback .battle-capture,
+.battle-panel.settings-no-combat-feedback .battle-result {
+  display: none;
+}
