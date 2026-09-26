@@ -14,28 +14,25 @@ export class SettingsUI {
     document.body.appendChild(this.panel);
     const settingsButton = document.getElementById('settings-button');
     if (settingsButton instanceof HTMLButtonElement) {
-      const openFromEvent = (event: Event): void => {
+      settingsButton.onclick = (event) => {
         event.preventDefault();
-        event.stopPropagation();
         this.open();
       };
-
-      settingsButton.addEventListener('pointerup', openFromEvent);
-      settingsButton.addEventListener('click', openFromEvent);
-      settingsButton.addEventListener('keydown', (event) => {
-        const keyboardEvent = event as KeyboardEvent;
-        if (keyboardEvent.key === 'Enter' || keyboardEvent.key === ' ') {
-          openFromEvent(event);
-        }
-      });
     }
     this.store.subscribe((settings) => this.render(settings));
     this.bindSystemActionReturns();
   }
 
   open(): void {
+    this.panel.removeAttribute('hidden');
     this.panel.hidden = false;
+    this.panel.setAttribute('aria-hidden', 'false');
     this.panel.querySelector<HTMLElement>('[data-settings-autofocus]')?.focus();
+  }
+
+  close(): void {
+    this.panel.hidden = true;
+    this.panel.setAttribute('aria-hidden', 'true');
   }
 
   close(): void {
