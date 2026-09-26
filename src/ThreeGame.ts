@@ -513,6 +513,71 @@ export class ThreeGame {
     });
   }
 
+  private refreshBuildPanelForMode(): void {
+    const toolbar = document.getElementById('toolbar');
+    if (!toolbar) return;
+
+    toolbar.querySelectorAll<HTMLElement>('.tool-category').forEach((category) => category.remove());
+
+    const modeConfig = getGameModeDefinition(this.gameMode);
+    const toolDefinitions = new Map(
+      TOOL_GROUPS.flatMap((group) => group.tools.map((tool) => [tool.id, tool] as const)),
+    );
+    const noneButton = toolbar.querySelector<HTMLElement>('[data-build-none]');
+    const settings = toolbar.querySelector<HTMLElement>('.builder-settings');
+    if (!settings) return;
+
+    const toolHtml = modeConfig.toolGroups.map((group) => {
+      const buttons = group.toolIds
+        .map((toolId) => toolDefinitions.get(toolId))
+        .filter((tool): tool is ToolDefinition => Boolean(tool))
+        .map(
+          (tool) =>
+            '<button class="tool-button' +
+            (tool.id === this.selectedTool ? ' is-selected' : '') +
+            '" data-tool="' + tool.id + '">' +
+            '<span class="tool-icon">' + tool.icon + '</span>' +
+            '<span class="tool-copy"><strong>' + tool.label + '</strong><small>' + tool.detail + '</small></span>' +
+            '<kbd>' + tool.shortcut + '</kbd></button>',
+        )
+        .join('');
+
+      return (
+        '<section class="tool-category" data-category="' + group.label + '">' +
+        '<button class="tool-category-header" type="button" aria-expanded="false">' +
+        '<span>' + group.label + '</span>' +
+        '<span class="tool-category-chevron" aria-hidden="true">▶</span>' +
+        '</button>' +
+        '<div class="tool-category-items">' + buttons + '</div>' +
+        '</section>'
+      );
+    }).join('');
+
+    settings.insertAdjacentHTML('beforebegin', toolHtml);
+
+    toolbar.querySelectorAll<HTMLButtonElement>('.tool-category-header').forEach((header) => {
+      header.onclick = () => {
+        const category = header.closest<HTMLElement>('.tool-category');
+        if (!category) return;
+        const open = category.classList.toggle('is-open');
+        header.setAttribute('aria-expanded', String(open));
+      };
+    });
+
+    toolbar.querySelectorAll<HTMLButtonElement>('[data-tool]').forEach((button) => {
+      button.onclick = () => {
+        toolbar.querySelectorAll<HTMLButtonElement>('[data-tool]').forEach((item) => {
+          item.classList.toggle('is-selected', item === button);
+        });
+        this.selectTool(button.dataset.tool as ToolKind);
+        if (window.matchMedia('(max-width: 760px)').matches) this.setToolbarOpen(false);
+      };
+    });
+
+    noneButton?.classList.toggle('is-selected', this.selectedTool === null);
+    noneButton?.setAttribute('aria-pressed', String(this.selectedTool === null));
+  }
+
   private openGameModeSelector(): void {
     const modal = document.getElementById('game-mode-modal');
     if (modal) modal.hidden = false;
@@ -541,6 +606,7 @@ export class ThreeGame {
     this.modeSelectionPending = false;
     this.updateGameModeUI();
     this.syncTemplateAvailability();
+    this.refreshBuildPanelForMode();
     this.redraw();
     this.save(false);
     const modeModal = document.getElementById('game-mode-modal');
