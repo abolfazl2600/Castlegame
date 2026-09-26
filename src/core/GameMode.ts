@@ -66,7 +66,7 @@ export const GAME_MODE_CONFIG: Record<GameMode, GameModeDefinition> = {
     description: 'Endless wave defense using the existing castle, enemy, combat, and navigation systems.',
     toolGroups: [
       { label: 'Castle & Defense', toolIds: ['wall1','wall2','wall3','gate','tower','stairTower','towerBridge','keep','moat'] },
-      { label: 'Buildings', toolIds: ['cottage','house','manor','villa','market','farm','appleOrchard','windmill','mine','hut'] },
+      { label: 'Buildings', toolIds: ['cottage','house','manor','villa','market','farm','cowBarn','appleOrchard','windmill','mine','hut'] },
       { label: 'Military', toolIds: ['armyCamp'] },
       { label: 'Environment', toolIds: COMMON_WORLD_TOOLS },
       { label: 'Roads & Harbor', toolIds: ['road','dirtRoad','stoneRoad','smallDock','woodenPier','harbor','fishingDock'] },
@@ -100,7 +100,7 @@ export const GAME_MODE_CONFIG: Record<GameMode, GameModeDefinition> = {
     description: 'Free-form construction and experimentation using all building and world tools supported by the existing game.',
     toolGroups: [
       { label: 'Castle & Defense', toolIds: ['wall1','wall2','wall3','gate','tower','stairTower','towerBridge','keep','moat'] },
-      { label: 'Buildings', toolIds: ['cottage','house','manor','villa','market','farm','appleOrchard','windmill','mine','hut'] },
+      { label: 'Buildings', toolIds: ['cottage','house','manor','villa','market','farm','cowBarn','appleOrchard','windmill','mine','hut'] },
       { label: 'Roads & Harbor', toolIds: ['road','dirtRoad','stoneRoad','smallDock','woodenPier','harbor','fishingDock'] },
       { label: 'Military', toolIds: ['armyCamp'] },
       { label: 'Environment', toolIds: ['tree','rock','mountain'] },
