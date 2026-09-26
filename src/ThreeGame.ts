@@ -9323,6 +9323,7 @@ export class ThreeGame {
       this.updateSettlementAgents(deltaMs);
     }
     this.battleSystem.update(deltaMs, time);
+    this.updateLongPress(time);
     if (!settings.interface.reducedMotion && settings.graphics.effectsEnabled) {
       this.services.windmillSystem.update(deltaMs / 1000);
       this.riverTexture.offset.y -= deltaMs * 0.00032;
