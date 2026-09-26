@@ -1,3 +1,4 @@
+import { SAVE_AUTOSAVE_KEY, SAVE_KEY, SAVE_LEGACY_KEY, SAVE_QUICK_KEY, SAVE_SLOT_COUNT, SAVE_STORAGE_PREFIX } from '../core/constants';
 import {
   createDefaultSettings,
   SETTINGS_SCHEMA_VERSION,
@@ -69,8 +70,15 @@ export class SettingsStore {
   }
 
   resetLocalSave(): boolean {
-    if (!this.storage || !this.gameSaveKey) return false;
-    this.storage.removeItem(this.gameSaveKey);
+    if (!this.storage) return false;
+    this.storage.removeItem(SAVE_KEY);
+    this.storage.removeItem(SAVE_LEGACY_KEY);
+    this.storage.removeItem(SAVE_AUTOSAVE_KEY);
+    this.storage.removeItem(SAVE_QUICK_KEY);
+    for (let slot = 1; slot <= SAVE_SLOT_COUNT; slot += 1) {
+      this.storage.removeItem(`${SAVE_STORAGE_PREFIX}slot-${slot}`);
+    }
+    if (this.gameSaveKey && this.gameSaveKey !== SAVE_KEY) this.storage.removeItem(this.gameSaveKey);
     return true;
   }
 
@@ -82,7 +90,12 @@ export class SettingsStore {
   clearAllLocalData(): void {
     this.storage?.removeItem(SETTINGS_STORAGE_KEY);
     this.storage?.removeItem(LEGACY_SETTINGS_STORAGE_KEY);
-    if (this.gameSaveKey) this.storage?.removeItem(this.gameSaveKey);
+    this.storage?.removeItem(SAVE_KEY);
+    this.storage?.removeItem(SAVE_LEGACY_KEY);
+    this.storage?.removeItem(SAVE_AUTOSAVE_KEY);
+    this.storage?.removeItem(SAVE_QUICK_KEY);
+    for (let slot = 1; slot <= SAVE_SLOT_COUNT; slot += 1) this.storage?.removeItem(`${SAVE_STORAGE_PREFIX}slot-${slot}`);
+    if (this.gameSaveKey && this.gameSaveKey !== SAVE_KEY) this.storage?.removeItem(this.gameSaveKey);
     this.storage?.removeItem('castle-role:privacy-consent:v1');
   }
 
