@@ -164,12 +164,36 @@
                   <button type="button" data-battle-field="attackerCrossbowmen" data-delta="1">+</button>
                 </div>
               </div>
-              <div class="battle-unit-row">
+              <div class="battle-unit-row modern-only">
                 <span>Modern Soldier <small>modern rifle assault</small></span>
                 <div class="battle-stepper">
                   <button type="button" data-battle-field="attackerModernSoldiers" data-delta="-1">−</button>
                   <input id="battle-attacker-modern-soldiers" data-battle-input="attackerModernSoldiers" type="number" min="0" max="120" step="1" value="0" inputmode="numeric" />
                   <button type="button" data-battle-field="attackerModernSoldiers" data-delta="1">+</button>
+                </div>
+              </div>
+              <div class="battle-unit-row modern-only">
+                <span>Tank <small>armored direct-fire siege</small></span>
+                <div class="battle-stepper">
+                  <button type="button" data-battle-field="attackerTanks" data-delta="-1">−</button>
+                  <input id="battle-attacker-tanks" data-battle-input="attackerTanks" type="number" min="0" max="60" step="1" value="2" inputmode="numeric" />
+                  <button type="button" data-battle-field="attackerTanks" data-delta="1">+</button>
+                </div>
+              </div>
+              <div class="battle-unit-row modern-only">
+                <span>Armored Vehicle <small>mobile fire support</small></span>
+                <div class="battle-stepper">
+                  <button type="button" data-battle-field="attackerArmoredVehicles" data-delta="-1">−</button>
+                  <input id="battle-attacker-armored-vehicles" data-battle-input="attackerArmoredVehicles" type="number" min="0" max="60" step="1" value="3" inputmode="numeric" />
+                  <button type="button" data-battle-field="attackerArmoredVehicles" data-delta="1">+</button>
+                </div>
+              </div>
+              <div class="battle-unit-row modern-only">
+                <span>Missile Vehicle <small>stand-off structural strike</small></span>
+                <div class="battle-stepper">
+                  <button type="button" data-battle-field="attackerMissileVehicles" data-delta="-1">−</button>
+                  <input id="battle-attacker-missile-vehicles" data-battle-input="attackerMissileVehicles" type="number" min="0" max="40" step="1" value="1" inputmode="numeric" />
+                  <button type="button" data-battle-field="attackerMissileVehicles" data-delta="1">+</button>
                 </div>
               </div>
             </section>
@@ -187,7 +211,7 @@
           </div>
 
           <div id="battle-result" class="battle-result" hidden></div>
-          <p class="battle-hint">Type exact army sizes directly or use ±. Modern Soldiers use the same BattleSystem as the medieval units. Walkable walls can also mount automatic modern defensive weapons.</p>
+          <p class="battle-hint">Type exact army sizes directly or use ±. Modern Siege uses the same BattleSystem and navigation as Medieval Siege, with armored vehicles and stand-off missile attacks added only in Modern Mode. Walkable walls can also mount automatic defensive weapons.</p>
         </aside>
 
         <div id="help-modal" class="modal-backdrop" hidden>
