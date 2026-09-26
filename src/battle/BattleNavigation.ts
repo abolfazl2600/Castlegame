@@ -22,6 +22,14 @@ export interface BattleNavigationContext {
   towerBridges?: () => TowerBridgeState[];
   temporaryGroundPassable?: (x: number, y: number) => boolean;
   gatePassable?: (x: number, y: number) => boolean;
+  generatedAccess?: () => Array<{
+    x: number;
+    y: number;
+    kind: TileKind;
+    rotation: number;
+    targetX: number;
+    targetY: number;
+  }>;
 }
 
 interface SearchNode extends NavPoint {
@@ -419,7 +427,6 @@ export class BattleNavigation {
 
     for (const node of nodes) {
       if (
-        node.kind !== 'stairTower' &&
         node.kind !== 'tower' &&
         node.kind !== 'gate' &&
         !this.hasDedicatedWallAccess(node)
@@ -444,6 +451,34 @@ export class BattleNavigation {
       if (ground) result.push({ top: node, ground });
     }
 
+    // Generated access is derived from the wall network and is not stored as
+    // a GridCell. Expose it to the same movement path used by legacy access.
+    for (const access of this.context.generatedAccess?.() ?? []) {
+      const topCell = this.context.cellAt(access.targetX, access.targetY);
+      if (!topCell) continue;
+
+      const top: WallNavNode = {
+        x: access.targetX,
+        y: access.targetY,
+        kind: topCell.kind,
+        worldY:
+          this.context.elevationAt(access.targetX, access.targetY) +
+          this.context.fortificationTopAt(access.targetX, access.targetY, topCell) +
+          0.28,
+      };
+      const ground = { x: access.x, y: access.y };
+      if (!this.isGroundWalkable(ground.x, ground.y)) continue;
+
+      if (!result.some((item) =>
+        item.top.x === top.x &&
+        item.top.y === top.y &&
+        item.ground.x === ground.x &&
+        item.ground.y === ground.y
+      )) {
+        result.push({ top, ground });
+      }
+    }
+
     return result;
   }
 
@@ -466,11 +501,21 @@ export class BattleNavigation {
     return candidates.some((point) => {
       const cell = this.context.cellAt(point.x, point.y);
       if (!cell) return false;
-      return (
+      if (
         cell.kind === 'stoneStairs' ||
         cell.kind === 'woodenStairs' ||
         cell.kind === 'ramp' ||
         cell.kind === 'ladder'
+      ) {
+        return true;
+      }
+
+      return (this.context.generatedAccess?.() ?? []).some(
+        (access) =>
+          access.x === point.x &&
+          access.y === point.y &&
+          access.targetX === node.x &&
+          access.targetY === node.y,
       );
     });
   }
