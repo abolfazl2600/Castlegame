@@ -1426,3 +1426,30 @@ kbd {
 :fullscreen #game-shell {
   border-radius: 12px;
 }
+
+
+.game-mode-switch {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 2px;
+  border: 1px solid rgba(139, 206, 225, 0.2);
+  border-radius: 8px;
+  background: rgba(4, 13, 21, 0.72);
+}
+.mode-button {
+  border: 0;
+  border-radius: 6px;
+  padding: 6px 9px;
+  background: transparent;
+  color: rgba(232, 247, 252, 0.72);
+  font: inherit;
+  font-size: 10px;
+  font-weight: 800;
+  cursor: pointer;
+}
+.mode-button:hover { background: rgba(93, 202, 255, 0.08); }
+.mode-button.is-active {
+  background: rgba(93, 202, 255, 0.18);
+  color: #dff8ff;
+}
