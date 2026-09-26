@@ -7463,11 +7463,65 @@ export class ThreeGame {
     }, 450);
   }
 
-    private save(updateStatus = true): void {
+    /** Public application-flow API. The controller delegates all gameplay mutations to the existing systems. */
+  startCoreNewGame(): void {
+    this.startNewGameWithMode('medieval');
+    document.getElementById('templates-modal')?.setAttribute('hidden', '');
+    this.startBattleFromUI();
+  }
+
+  continueCoreGame(): boolean {
+    if (!SaveSystem.hasAnySave()) return false;
+    this.load();
+    this.selectedCell = null;
+    this.selectedKeepId = null;
+    this.undoStack.length = 0;
+    this.redoStack.length = 0;
+    this.redraw();
+    this.setViewMode('world3d');
+    document.getElementById('templates-modal')?.setAttribute('hidden', '');
+    this.startBattleFromUI();
+    return this.battleSystem.isActive();
+  }
+
+  pauseCoreBattle(): void {
+    this.stopBattleFromUI();
+  }
+
+  resumeCoreBattle(): void {
+    this.startBattleFromUI();
+  }
+
+  restartCoreBattle(): void {
+    this.resetBattleFromUI();
+    this.startBattleFromUI();
+  }
+
+  returnToCoreMainMenu(): void {
+    this.services.gateSystem.setAttackState(false);
+    if (this.battleSystem.isActive()) this.battleSystem.reset();
+    document.getElementById('game-shell')?.classList.remove('battle-mode');
+    document.getElementById('battle-panel')?.setAttribute('hidden', '');
+    document.getElementById('templates-modal')?.setAttribute('hidden', '');
+    document.getElementById('game-mode-modal')?.setAttribute('hidden', '');
+    this.workerLayer.visible = this.viewMode === 'world3d';
+    this.settlementLayer.visible = this.viewMode === 'world3d';
+    this.setStatus('Main Menu');
+  }
+
+  getBattleStatus(): BattleStatus {
+    return this.battleSystem.status();
+  }
+
+  getSettings() {
+    return this.settingsStore.get();
+  }
+
+  private save(updateStatus = true): void {
     this.saveSystem.save(updateStatus);
   }
 
-    private load(): void {
+  private load(): void {
     this.saveSystem.load();
   }
 
@@ -9544,6 +9598,7 @@ export class ThreeGame {
   }
 
   private updateBattleUI(status: BattleStatus): void {
+    window.dispatchEvent(new CustomEvent<BattleStatus>('castlegame:battle-state', { detail: status }));
     if (status.mode === 'finished') {
       this.redraw();
       this.save(false);
