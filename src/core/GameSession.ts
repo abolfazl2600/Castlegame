@@ -85,7 +85,7 @@ export class GameSession {
     };
   }
 
-  initialize(): Promise<GameSessionResult> {
+  initialize(): GameSessionResult {
     const context = this.context();
     if (!context || !this.lifecycle) return { ok: false, reason: 'no-mode' };
     if (this.status !== 'idle' && this.status !== 'ended') {
@@ -103,7 +103,7 @@ export class GameSession {
     }
   }
 
-  start(): Promise<GameSessionResult> {
+  start(): GameSessionResult {
     const context = this.context();
     if (!context || !this.lifecycle) return { ok: false, reason: 'no-mode' };
     if (this.status !== 'idle') return { ok: false, reason: 'invalid-state' };
@@ -118,7 +118,7 @@ export class GameSession {
     }
   }
 
-  pause(): Promise<GameSessionResult> {
+  pause(): GameSessionResult {
     const context = this.context();
     if (!context || !this.lifecycle) return { ok: false, reason: 'no-mode' };
     if (this.status !== 'running') return { ok: false, reason: 'invalid-state' };
@@ -132,7 +132,7 @@ export class GameSession {
     }
   }
 
-  resume(): Promise<GameSessionResult> {
+  resume(): GameSessionResult {
     const context = this.context();
     if (!context || !this.lifecycle) return { ok: false, reason: 'no-mode' };
     if (this.status !== 'paused') return { ok: false, reason: 'invalid-state' };
@@ -146,7 +146,7 @@ export class GameSession {
     }
   }
 
-  restart(): Promise<GameSessionResult> {
+  restart(): GameSessionResult {
     const context = this.context();
     if (!context || !this.lifecycle) return { ok: false, reason: 'no-mode' };
     if (this.status !== 'running' && this.status !== 'paused') {
@@ -163,7 +163,7 @@ export class GameSession {
     }
   }
 
-  end(): Promise<GameSessionResult> {
+  end(): GameSessionResult {
     const context = this.context();
     if (!context || !this.lifecycle) return { ok: false, reason: 'no-mode' };
     if (this.status !== 'running' && this.status !== 'paused') {
@@ -180,7 +180,7 @@ export class GameSession {
     }
   }
 
-  cleanup(): Promise<GameSessionResult> {
+  cleanup(): GameSessionResult {
     const context = this.context();
     if (!context || !this.lifecycle) return { ok: false, reason: 'no-mode' };
 
