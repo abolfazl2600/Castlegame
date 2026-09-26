@@ -1,6 +1,6 @@
 import type { TileKind, ToolKind } from './types';
 
-export type GameMode = "medieval" | "modern" | "survival";
+export type GameMode = "medieval" | "modern" | "survival" | "sandbox";
 
 export interface GameModeToolGroup {
   label: string;
@@ -28,6 +28,19 @@ const MEDIEVAL_BUILDINGS: readonly TileKind[] = [
 
 const COMMON_WORLD_TOOLS: readonly ToolKind[] = [
   'tree','rock','mountain','mountainRange','river','land','raise','lower','flatten','smooth','dig','hill','cliff','erase',
+];
+
+const SANDBOX_BUILDINGS: readonly TileKind[] = [
+  ...MEDIEVAL_BUILDINGS,
+  'futuristicCastle',
+];
+
+const SANDBOX_TOOLS: readonly ToolKind[] = [
+  ...SANDBOX_BUILDINGS,
+  'keep',
+  'towerBridge',
+  'mountainRange',
+  ...COMMON_WORLD_TOOLS,
 ];
 
 export const GAME_MODE_CONFIG: Record<GameMode, GameModeDefinition> = {
@@ -83,6 +96,24 @@ export const GAME_MODE_CONFIG: Record<GameMode, GameModeDefinition> = {
     availableUnits: [],
     availableWeapons: [],
   },
+  sandbox: {
+    id: 'sandbox',
+    label: 'Sandbox',
+    description: 'Free-form construction and experimentation using all building and world tools supported by the existing game.',
+    toolGroups: [
+      { label: 'Castle', toolIds: ['wall1','wall2','wall3','gate','tower','stairTower','towerBridge','keep','moat'] },
+      { label: 'Buildings', toolIds: ['cottage','house','manor','villa','market','farm','appleOrchard','windmill','mine','hut'] },
+      { label: 'Roads & Harbor', toolIds: ['road','dirtRoad','stoneRoad','smallDock','woodenPier','harbor','fishingDock'] },
+      { label: 'Military', toolIds: ['armyCamp'] },
+      { label: 'Environment', toolIds: ['tree','rock','mountain'] },
+      { label: 'Terrain', toolIds: ['mountainRange','river','land','raise','lower','flatten','smooth','dig','hill','cliff','erase'] },
+      { label: 'Modern', toolIds: ['futuristicCastle'] },
+    ],
+    availableTools: SANDBOX_TOOLS,
+    availableBuildingKinds: SANDBOX_BUILDINGS,
+    availableUnits: ['swordsman','spearman','archer','crossbowman'],
+    availableWeapons: ['sword','spear','bow','crossbow'],
+  },
 };
 
 export function getGameModeDefinition(mode: GameMode): GameModeDefinition {
@@ -90,7 +121,7 @@ export function getGameModeDefinition(mode: GameMode): GameModeDefinition {
 }
 
 export function isGameMode(value: unknown): value is GameMode {
-  return value === 'medieval' || value === 'modern' || value === 'survival';
+  return value === 'medieval' || value === 'modern' || value === 'survival' || value === 'sandbox';
 }
 
 export function isToolAvailable(mode: GameMode, tool: ToolKind): boolean {
