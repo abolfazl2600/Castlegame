@@ -8,7 +8,8 @@ import {
   type SettingsData,
 } from './SettingsModel';
 
-export const SETTINGS_STORAGE_KEY = 'castle-role.settings.v1';
+export const SETTINGS_STORAGE_KEY = 'castle-role.settings.v2';
+const LEGACY_SETTINGS_STORAGE_KEY = 'castle-role.settings.v1';
 
 export type SettingsListener = (settings: SettingsData) => void;
 
@@ -59,6 +60,14 @@ export class SettingsStore {
     this.emit();
   }
 
+  resetSettings(): void {
+    this.storage?.removeItem(SETTINGS_STORAGE_KEY);
+    this.storage?.removeItem(LEGACY_SETTINGS_STORAGE_KEY);
+    this.settings = createDefaultSettings();
+    this.persist();
+    this.emit();
+  }
+
   resetLocalSave(): boolean {
     if (!this.storage || !this.gameSaveKey) return false;
     this.storage.removeItem(this.gameSaveKey);
@@ -67,6 +76,7 @@ export class SettingsStore {
 
   clearSettingsStorage(): void {
     this.storage?.removeItem(SETTINGS_STORAGE_KEY);
+    this.storage?.removeItem(LEGACY_SETTINGS_STORAGE_KEY);
   }
 
   private load(): SettingsData {
@@ -74,11 +84,23 @@ export class SettingsStore {
     if (!this.storage) return defaults;
 
     try {
-      const raw = this.storage.getItem(SETTINGS_STORAGE_KEY);
+      const raw = this.storage.getItem(SETTINGS_STORAGE_KEY) ?? this.storage.getItem(LEGACY_SETTINGS_STORAGE_KEY);
       if (!raw) return defaults;
+
       const parsed = JSON.parse(raw) as StoredSettings;
       const migrated = migrate(parsed);
-      return validateSettings(mergeSettings(defaults, migrated));
+      const settings = validateSettings(mergeSettings(defaults, migrated));
+
+      if (this.storage.getItem(SETTINGS_STORAGE_KEY) === null) {
+        try {
+          this.storage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(settings));
+          this.storage.removeItem(LEGACY_SETTINGS_STORAGE_KEY);
+        } catch {
+          // Continue with the validated in-memory settings.
+        }
+      }
+
+      return settings;
     } catch {
       return defaults;
     }
@@ -106,16 +128,7 @@ export type DeepPartial<T> = {
 function migrate(input: StoredSettings): DeepPartial<SettingsData> {
   const version = Number.isInteger(input.schemaVersion) ? Number(input.schemaVersion) : 0;
 
-  if (version <= 0) {
-    return {
-      gameplay: input.gameplay,
-      graphics: input.graphics,
-      audio: input.audio,
-      interface: input.interface,
-    };
-  }
-
-  if (version === SETTINGS_SCHEMA_VERSION) {
+  if (version <= 0 || version === 1 || version === SETTINGS_SCHEMA_VERSION) {
     return {
       gameplay: input.gameplay,
       graphics: input.graphics,
@@ -139,11 +152,14 @@ function mergeSettings(base: SettingsData, patch: DeepPartial<SettingsData>): Se
 
 function validateSettings(input: SettingsData): SettingsData {
   const defaults = createDefaultSettings();
-  const numberInRange = (value: unknown, fallback: number): number =>
-    typeof value === 'number' && Number.isFinite(value) ? Math.min(1, Math.max(0, value)) : fallback;
+  const numberInRange = (value: unknown, fallback: number, min = 0, max = 1): number =>
+    typeof value === 'number' && Number.isFinite(value)
+      ? Math.min(max, Math.max(min, value))
+      : fallback;
 
   const quality = input.graphics.quality;
   const performanceMode = input.graphics.performanceMode;
+  const environmentDetail = input.graphics.environmentDetail;
   const language = input.interface.language;
   const controlScheme = input.gameplay.controlScheme;
 
@@ -154,24 +170,42 @@ function validateSettings(input: SettingsData): SettingsData {
         controlScheme === 'standard' || controlScheme === 'touch'
           ? controlScheme
           : defaults.gameplay.controlScheme,
-      tutorialCompleted: typeof input.gameplay.tutorialCompleted === 'boolean'
-        ? input.gameplay.tutorialCompleted
-        : defaults.gameplay.tutorialCompleted,
+      tutorialCompleted:
+        typeof input.gameplay.tutorialCompleted === 'boolean'
+          ? input.gameplay.tutorialCompleted
+          : defaults.gameplay.tutorialCompleted,
+      cameraSensitivity: numberInRange(
+        input.gameplay.cameraSensitivity,
+        defaults.gameplay.cameraSensitivity,
+        0.5,
+        2,
+      ),
+      combatFeedback:
+        typeof input.gameplay.combatFeedback === 'boolean'
+          ? input.gameplay.combatFeedback
+          : defaults.gameplay.combatFeedback,
     },
     graphics: {
-      quality: quality === 'low' || quality === 'medium' || quality === 'high'
-        ? quality
-        : defaults.graphics.quality,
-      effectsEnabled: typeof input.graphics.effectsEnabled === 'boolean'
-        ? input.graphics.effectsEnabled
-        : defaults.graphics.effectsEnabled,
-      shadowsEnabled: typeof input.graphics.shadowsEnabled === 'boolean'
-        ? input.graphics.shadowsEnabled
-        : defaults.graphics.shadowsEnabled,
+      quality:
+        quality === 'low' || quality === 'medium' || quality === 'high'
+          ? quality
+          : defaults.graphics.quality,
+      effectsEnabled:
+        typeof input.graphics.effectsEnabled === 'boolean'
+          ? input.graphics.effectsEnabled
+          : defaults.graphics.effectsEnabled,
+      shadowsEnabled:
+        typeof input.graphics.shadowsEnabled === 'boolean'
+          ? input.graphics.shadowsEnabled
+          : defaults.graphics.shadowsEnabled,
       performanceMode:
         performanceMode === 'balanced' || performanceMode === 'performance' || performanceMode === 'quality'
           ? performanceMode
           : defaults.graphics.performanceMode,
+      environmentDetail:
+        environmentDetail === 'low' || environmentDetail === 'medium' || environmentDetail === 'high'
+          ? environmentDetail
+          : defaults.graphics.environmentDetail,
     },
     audio: {
       masterVolume: numberInRange(input.audio.masterVolume, defaults.audio.masterVolume),
@@ -180,17 +214,24 @@ function validateSettings(input: SettingsData): SettingsData {
       muted: typeof input.audio.muted === 'boolean' ? input.audio.muted : defaults.audio.muted,
     },
     interface: {
-      uiScale:
-        typeof input.interface.uiScale === 'number' && Number.isFinite(input.interface.uiScale)
-          ? Math.min(1.5, Math.max(0.75, input.interface.uiScale))
-          : defaults.interface.uiScale,
+      uiScale: numberInRange(input.interface.uiScale, defaults.interface.uiScale, 0.75, 1.5),
       language: language === 'system' || language === 'en' ? language : defaults.interface.language,
-      reducedMotion: typeof input.interface.reducedMotion === 'boolean'
-        ? input.interface.reducedMotion
-        : defaults.interface.reducedMotion,
-      highContrast: typeof input.interface.highContrast === 'boolean'
-        ? input.interface.highContrast
-        : defaults.interface.highContrast,
+      reducedMotion:
+        typeof input.interface.reducedMotion === 'boolean'
+          ? input.interface.reducedMotion
+          : defaults.interface.reducedMotion,
+      highContrast:
+        typeof input.interface.highContrast === 'boolean'
+          ? input.interface.highContrast
+          : defaults.interface.highContrast,
+      confirmDestructiveActions:
+        typeof input.interface.confirmDestructiveActions === 'boolean'
+          ? input.interface.confirmDestructiveActions
+          : defaults.interface.confirmDestructiveActions,
+      showHelp:
+        typeof input.interface.showHelp === 'boolean'
+          ? input.interface.showHelp
+          : defaults.interface.showHelp,
     },
   };
 }
