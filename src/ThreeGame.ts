@@ -428,8 +428,6 @@ export class ThreeGame {
       document.documentElement.toggleAttribute('data-reduced-motion', settings.interface.reducedMotion);
       document.documentElement.toggleAttribute('data-high-contrast', settings.interface.highContrast);
       document.documentElement.lang = settings.interface.language === 'en' ? 'en' : (navigator.language || 'en');
-      const helpButton = document.getElementById('help-button');
-      if (helpButton) helpButton.hidden = !settings.interface.showHelp;
       const helpModal = document.getElementById('help-modal');
       if (helpModal && !settings.interface.showHelp) helpModal.hidden = true;
       const battlePanel = document.getElementById('battle-panel');
@@ -7819,9 +7817,13 @@ export class ThreeGame {
     this.syncBattleSetupUI();
     this.updateBattleUI(this.battleSystem.status());
 
-    get<HTMLButtonElement>('help-button').onclick = () => {
+    document.addEventListener('castlegame:open-help', () => {
+      if (!this.settingsStore.get().interface.showHelp) {
+        this.setStatus('Help is disabled in Settings');
+        return;
+      }
       help.hidden = false;
-    };
+    });
     get<HTMLButtonElement>('help-close-button').onclick = () => {
       help.hidden = true;
     };
