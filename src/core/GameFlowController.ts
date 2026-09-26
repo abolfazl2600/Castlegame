@@ -6,6 +6,7 @@ type CoreState = 'MAIN_MENU' | 'BATTLE' | 'PAUSED' | 'VICTORY' | 'DEFEAT' | 'SET
 
 const PROGRESS_KEY = 'castle-role.core-progress.v1';
 
+/** Coordinates the player-facing lifecycle without duplicating gameplay systems. */
 export class GameFlowController {
   private state: CoreState = 'MAIN_MENU';
   private overlay: HTMLElement;
