@@ -82,8 +82,8 @@ h1 { margin: 3px 0 0; font-size: 22px; line-height: 1; letter-spacing: -.035em; 
   max-height: calc(100% - 28px);
   overflow: auto;
   display: grid;
-  gap: 7px;
-  padding: 12px;
+  gap: 5px;
+  padding: 9px;
   border-radius: 17px;
   background: linear-gradient(180deg, rgba(10,28,42,.94), rgba(7,20,32,.9));
   border: 1px solid rgba(255,255,255,.12);
@@ -98,14 +98,14 @@ h1 { margin: 3px 0 0; font-size: 22px; line-height: 1; letter-spacing: -.035em; 
 }
 .toolbar-title {
   position: sticky;
-  top: -12px;
+  top: -9px;
   z-index: 3;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 10px;
-  margin: -12px -12px 0;
-  padding: 12px 14px 10px;
+  margin: -9px -9px 0;
+  padding: 9px 11px 8px;
   background: linear-gradient(180deg, rgba(10,28,42,.99), rgba(10,28,42,.93));
   border-bottom: 1px solid rgba(255,255,255,.08);
 }
@@ -144,24 +144,68 @@ h1 { margin: 3px 0 0; font-size: 22px; line-height: 1; letter-spacing: -.035em; 
   cursor: pointer;
 }
 .toolbar-open.is-visible { display: inline-flex; }
-.tool-section-label {
-  margin: 7px 4px 1px;
-  color: #7fe7ff;
-  font-size: 8px;
-  font-weight: 900;
-  letter-spacing: .16em;
-  text-transform: uppercase;
-  opacity: .82;
+.tool-category {
+  display: grid;
+  gap: 0;
+  margin: 2px 0;
+  border: 1px solid rgba(255,255,255,.055);
+  border-radius: 10px;
+  overflow: hidden;
+  background: rgba(255,255,255,.018);
 }
+
+.tool-category-header {
+  width: 100%;
+  min-height: 30px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 5px 8px;
+  border: 0;
+  color: #dff7ff;
+  background: rgba(255,255,255,.035);
+  cursor: pointer;
+  text-align: left;
+  font-size: 9px;
+  font-weight: 900;
+  letter-spacing: .11em;
+  text-transform: uppercase;
+}
+
+.tool-category-header:hover {
+  background: rgba(93,202,255,.08);
+}
+
+.tool-category-chevron {
+  font-size: 8px;
+  opacity: .75;
+  transition: transform .15s ease;
+}
+
+.tool-category.is-open .tool-category-chevron {
+  transform: rotate(90deg);
+}
+
+.tool-category-items {
+  display: none;
+  gap: 3px;
+  padding: 4px;
+}
+
+.tool-category.is-open .tool-category-items {
+  display: grid;
+}
+
 .tool-button {
   width: 100%;
   display: grid;
   grid-template-columns: 34px minmax(0,1fr) auto;
   align-items: center;
-  gap: 9px;
+  gap: 7px;
   border: 1px solid transparent;
-  border-radius: 12px;
-  padding: 8px;
+  border-radius: 9px;
+  padding: 6px;
   color: #f4f8fb;
   text-align: left;
   background: rgba(255,255,255,.045);
@@ -177,10 +221,10 @@ h1 { margin: 3px 0 0; font-size: 22px; line-height: 1; letter-spacing: -.035em; 
 .tool-icon {
   display: grid;
   place-items: center;
-  width: 34px;
-  height: 34px;
+  width: 30px;
+  height: 30px;
   border-radius: 9px;
-  font-size: 18px;
+  font-size: 16px;
   background: linear-gradient(145deg, rgba(255,255,255,.13), rgba(255,255,255,.035));
 }
 .tool-copy { min-width: 0; display: grid; gap: 2px; }
@@ -648,7 +692,7 @@ kbd { min-width: 23px; text-align: center; padding: 3px 5px; border-radius: 6px;
 
 .battle-live b {
   color: #fff;
-  font-size: 12px;
+  font-size: 11px;
 }
 
 .battle-armies {
