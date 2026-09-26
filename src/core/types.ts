@@ -61,7 +61,8 @@ export type TileKind =
   | 'rock'
   | 'hut'
   | 'moat'
-  | AccessKind;
+  | AccessKind
+  | 'futuristicCastle';
 
 export type ToolKind =
   | TileKind
