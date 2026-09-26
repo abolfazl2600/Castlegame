@@ -220,7 +220,7 @@ export class SaveSystem {
 
       if (action === 'close') backdrop.hidden = true;
       if (action === 'quick') {
-        if (this.confirmDiscardForLoad()) this.quickSave();
+        this.quickSave();
         this.renderModal();
       }
       if (action === 'save-slot' && targetValue) this.handleManualSave(Number(targetValue));
