@@ -319,7 +319,6 @@ kbd { min-width: 23px; text-align: center; padding: 3px 5px; border-radius: 6px;
   }
   .view-mode-button { min-height: 40px; padding: 8px 10px; }
   .camera-view-controls { top: 57px; right: 9px; }
-  .scene-badge { top: 102px; right: 9px; font-size: 8px; }
   .status-group { gap: 4px; }
   .secondary-button, .danger-button { padding: 6px 8px; }
   .help-grid { grid-template-columns: 1fr; }
@@ -334,7 +333,6 @@ kbd { min-width: 23px; text-align: center; padding: 3px 5px; border-radius: 6px;
   .view-mode-switch { max-width: calc(100% - 108px); }
   .view-mode-button { padding-inline: 9px; font-size: 9px; }
   .camera-view-button { padding: 7px 8px; font-size: 8px; }
-  .scene-badge { display: none; }
 }
 
 #game canvas { cursor: grab; }
@@ -1348,12 +1346,6 @@ kbd {
   font-size: 8px;
 }
 
-.scene-badge {
-  right: 9px;
-  top: 86px;
-  padding: 6px 8px;
-  font-size: 7px;
-}
 
 .world-counters {
   left: 9px;
@@ -1455,10 +1447,6 @@ kbd {
     right: 7px;
   }
 
-  .scene-badge {
-    top: 84px;
-    right: 7px;
-  }
 
   .world-counters {
     left: 7px;
@@ -1553,7 +1541,7 @@ kbd {
   .settings-row,.settings-check { font-size:10px; }
   .settings-row select { min-height:42px; }
   .range-wrap input[type=range] { min-height:32px; }
-  .view-mode-switch,.camera-view-controls,.scene-badge { display:none; }
+  .view-mode-switch,.camera-view-controls { display:none; }
   .world-counters { left:max(8px,var(--mobile-safe-left)); right:auto; bottom:calc(var(--mobile-dock-height) + var(--mobile-safe-bottom) + 46px); max-width:calc(100% - 16px); }
   .battle-panel { left:max(8px,var(--mobile-safe-left)); right:max(8px,var(--mobile-safe-right)); bottom:calc(var(--mobile-dock-height) + var(--mobile-safe-bottom) + 7px); width:auto; max-width:none; max-height:min(70dvh,680px); padding:12px; }
   .battle-close,.battle-stepper button,.battle-actions button { min-width:44px; min-height:44px; }
