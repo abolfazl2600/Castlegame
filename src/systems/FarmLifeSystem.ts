@@ -30,10 +30,11 @@ type GameRuntime = {
 
 interface CowState {
   target: THREE.Vector3;
-  phase: 'idle' | 'grazing' | 'walking';
+  phase: 'idle' | 'grazing' | 'walking' | 'eating' | 'drinking';
   timerMs: number;
   seed: number;
   speed: number;
+  actionOffset: number;
 }
 
 export class FarmLifeSystem {
@@ -395,6 +396,7 @@ export class FarmLifeSystem {
         timerMs: 700 + (seed % 1300),
         seed,
         speed: 0.32 + (seed % 5) * 0.045,
+        actionOffset: (seed % 360) * Math.PI / 180,
       } satisfies CowState;
       cow.userData.cowHead = head;
       cow.userData.cowTail = tail;
@@ -419,6 +421,7 @@ export class FarmLifeSystem {
 
         state.timerMs -= deltaMs;
         const phaseTime = Math.max(0, state.timerMs);
+        const now = performance.now() * 0.001;
         const head = cow.userData.cowHead as THREE.Object3D | undefined;
         const tail = cow.userData.cowTail as THREE.Object3D | undefined;
         const legs = cow.userData.cowLegs as THREE.Object3D[] | undefined;
@@ -438,23 +441,58 @@ export class FarmLifeSystem {
             legs?.forEach((leg, index) => { leg.rotation.x = walk * (index % 2 === 0 ? 0.35 : -0.35); });
           }
         } else if (state.timerMs <= 0) {
-          state.phase = state.seed % 3 === 0 ? 'walking' : 'grazing';
-          state.timerMs = state.phase === 'walking' ? 3000 + (state.seed % 2500) : 1800 + (state.seed % 2800);
-          if (state.phase === 'walking') {
+          const cycle = Math.abs(Math.floor((now * 0.18) + state.seed)) % 6;
+          if (cycle === 0) {
+            state.phase = 'walking';
+            state.timerMs = 2600 + (state.seed % 2200);
             state.target.set(-1.2 + (state.seed % 21) * 0.12, 2.38, 0.62 + (state.seed % 12) * 0.07);
+          } else if (cycle === 1) {
+            state.phase = 'eating';
+            state.timerMs = 1700 + (state.seed % 1800);
+          } else if (cycle === 2) {
+            state.phase = 'drinking';
+            state.timerMs = 1200 + (state.seed % 1100);
+          } else if (cycle === 3) {
+            state.phase = 'grazing';
+            state.timerMs = 2200 + (state.seed % 2400);
+          } else {
+            state.phase = 'idle';
+            state.timerMs = 900 + (state.seed % 1800);
           }
         }
 
+        const motion = now * 3.5 + state.actionOffset;
         if (state.phase === 'grazing') {
-          const graze = Math.sin((performance.now() * 0.0025) + state.seed);
-          if (head) head.rotation.x = 0.22 + Math.max(0, graze) * 0.18;
-          if (tail) tail.rotation.y = Math.sin((performance.now() * 0.004) + state.seed) * 0.22;
+          if (head) {
+            const graze = Math.sin(motion * 0.7);
+            head.rotation.x = 0.18 + Math.max(0, graze) * 0.34;
+            head.rotation.y = Math.sin(motion * 0.42) * 0.08;
+          }
+          if (tail) tail.rotation.y = Math.sin(motion * 1.15) * 0.28;
+        } else if (state.phase === 'eating') {
+          if (head) {
+            head.rotation.x = 0.38 + Math.sin(motion * 1.6) * 0.12;
+            head.rotation.y = Math.sin(motion * 0.8) * 0.12;
+          }
+          if (tail) tail.rotation.y = Math.sin(motion * 1.4) * 0.24;
+        } else if (state.phase === 'drinking') {
+          if (head) head.rotation.x = 0.62 + Math.sin(motion * 1.2) * 0.08;
+          if (tail) tail.rotation.y = Math.sin(motion * 1.1) * 0.2;
+        } else if (state.phase === 'idle') {
+          if (head) {
+            head.rotation.x = Math.sin(motion * 0.55) * 0.07;
+            head.rotation.y = Math.sin(motion * 0.33) * 0.14;
+          }
+          if (tail) tail.rotation.y = Math.sin(motion * 1.25) * 0.18;
         } else {
-          if (head) head.rotation.x = Math.sin((performance.now() * 0.002) + state.seed) * 0.05;
-          if (tail) tail.rotation.y = Math.sin((performance.now() * 0.006) + state.seed) * 0.12;
+          if (head) {
+            head.rotation.x = Math.sin(motion * 0.7) * 0.07;
+            head.rotation.y = Math.sin(motion * 0.55) * 0.1;
+          }
+          if (tail) tail.rotation.y = Math.sin(motion * 1.8) * 0.16;
         }
 
-        cow.position.y = 2.38 + Math.sin((performance.now() * 0.004) + state.seed) * 0.008;
+        cow.position.y = 2.38 + Math.sin(motion * 0.9) * 0.012;
         void phaseTime;
       });
     }
@@ -498,12 +536,16 @@ export class FarmLifeSystem {
       }
 
       const actionSeed = agent.id ?? Math.floor(agent.anim);
-      const actionIndex = Math.floor((agent.anim + actionSeed) / 2.6) % (atBarn ? 3 : 5);
+      const actionIndex = Math.floor((agent.anim + actionSeed + performance.now() * 0.00045) / 2.6) % (atBarn ? 5 : 5);
       if (atBarn) {
         if (actionIndex === 0) {
           this.setFarmerAction(animation, 'feed', time);
         } else if (actionIndex === 1) {
           this.setFarmerAction(animation, 'barn-work', time);
+        } else if (actionIndex === 2) {
+          this.setFarmerAction(animation, 'feed', time + 0.8);
+        } else if (actionIndex === 3) {
+          this.setFarmerAction(animation, 'carry', time);
         } else {
           this.setFarmerAction(animation, 'rest', time);
         }
@@ -548,8 +590,8 @@ export class FarmLifeSystem {
       if (animation.tool) animation.tool.rotation.z = -0.35 + Math.sin(time * 3.2) * 0.18;
     } else if (action === 'feed') {
       animation.body && (animation.body.rotation.x = 0.18 + Math.sin(time * 2.2) * 0.04);
-      animation.arms[0].rotation.z = -0.55 + Math.sin(time * 2.8) * 0.14;
-      animation.arms[1].rotation.z = 0.35 + Math.sin(time * 2.8) * 0.12;
+      animation.arms[0].rotation.z = -0.55 + Math.sin(time * 3.4) * 0.2;
+      animation.arms[1].rotation.z = 0.35 + Math.sin(time * 3.4) * 0.16;
       if (animation.tool) animation.tool.rotation.z = -0.12;
     } else if (action === 'barn-work') {
       animation.body && (animation.body.rotation.x = 0.1 + Math.sin(time * 3) * 0.04);
