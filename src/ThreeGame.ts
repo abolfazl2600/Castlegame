@@ -42,6 +42,9 @@ import type {
 const SIZE = WORLD_COLS;
 const TILE = TILE_SIZE;
 const WORLD = SIZE * TILE;
+const TERRITORY_INITIAL_RADIUS = 5.5;
+const TERRITORY_EXPANSION_STEP = 3.5;
+const TERRITORY_MAX_STAGE = 2;
 
 const WALL_KINDS: WallKind[] = ['wall1', 'wall2', 'wall3'];
 const ROAD_KINDS: RoadKind[] = ['road', 'dirtRoad', 'stoneRoad'];
@@ -134,6 +137,7 @@ interface HistorySnapshot {
   elevations: Array<[string, number]>;
   stoneStyle: StoneStyle;
   towerBridges: TowerBridgeState[];
+  territoryStage: number;
 }
 
 const TOOL_GROUPS: Array<{ label: string; tools: ToolDefinition[] }> = [
@@ -235,6 +239,7 @@ export class ThreeGame {
   private readonly terrainLayer = new THREE.Group();
   private readonly buildLayer = new THREE.Group();
   private readonly planLayer = new THREE.Group();
+  private readonly territoryLayer = new THREE.Group();
   private readonly wallPreviewLayer = new THREE.Group();
   private readonly workerLayer = new THREE.Group();
   private readonly settlementLayer = new THREE.Group();
@@ -258,6 +263,7 @@ export class ThreeGame {
   private readonly shallowWaterMaterial: THREE.MeshStandardMaterial;
 
   private selectedTool: ToolKind = 'wall1';
+  private territoryStage = 0;
   private selectedCell: GridPoint | null = null;
   private viewMode: ViewMode = 'world3d';
   private toolbarOpen = window.innerWidth > 760;
@@ -383,6 +389,7 @@ export class ThreeGame {
     this.scene.add(this.terrainLayer);
     this.scene.add(this.buildLayer);
     this.scene.add(this.planLayer);
+    this.scene.add(this.territoryLayer);
     this.scene.add(this.wallPreviewLayer);
     this.scene.add(this.workerLayer);
     this.scene.add(this.settlementLayer);
@@ -749,6 +756,112 @@ export class ThreeGame {
     };
   }
 
+  private territoryRadius(): number {
+    return Math.min(
+      (SIZE - 1) / 2,
+      TERRITORY_INITIAL_RADIUS + this.territoryStage * TERRITORY_EXPANSION_STEP,
+    );
+  }
+
+  private isWithinTerritory(x: number, y: number): boolean {
+    if (x < 0 || y < 0 || x >= SIZE || y >= SIZE) return false;
+    const center = (SIZE - 1) / 2;
+    const radius = this.territoryRadius();
+    return Math.abs(x - center) <= radius && Math.abs(y - center) <= radius;
+  }
+
+  private isPathWithinTerritory(path: GridPoint[]): boolean {
+    return path.every((point) => this.isWithinTerritory(point.x, point.y));
+  }
+
+  private territoryCellBounds(): { minX: number; maxX: number; minY: number; maxY: number } {
+    const center = (SIZE - 1) / 2;
+    const radius = this.territoryRadius();
+    return {
+      minX: Math.max(0, Math.ceil(center - radius)),
+      maxX: Math.min(SIZE - 1, Math.floor(center + radius)),
+      minY: Math.max(0, Math.ceil(center - radius)),
+      maxY: Math.min(SIZE - 1, Math.floor(center + radius)),
+    };
+  }
+
+  private updateTerritoryUI(): void {
+    const label = document.getElementById('territory-stage');
+    const button = document.getElementById('expand-territory') as HTMLButtonElement | null;
+    const maxed = this.territoryStage >= TERRITORY_MAX_STAGE;
+    const bounds = this.territoryCellBounds();
+    const width = bounds.maxX - bounds.minX + 1;
+    const height = bounds.maxY - bounds.minY + 1;
+
+    if (label) {
+      label.textContent = maxed
+        ? `Fully Expanded · ${width}×${height} tiles`
+        : `Stage ${this.territoryStage + 1}/3 · ${width}×${height} tiles`;
+    }
+
+    if (button) {
+      button.disabled = maxed;
+      button.textContent = maxed ? 'Territory Fully Expanded' : 'Expand Territory';
+    }
+  }
+
+  private expandTerritory(): void {
+    if (this.territoryStage >= TERRITORY_MAX_STAGE) {
+      this.setStatus('Territory is already fully expanded');
+      return;
+    }
+
+    this.recordHistory();
+    this.territoryStage += 1;
+    this.redraw();
+    this.scheduleSave();
+    this.setStatus(`Territory expanded · Stage ${this.territoryStage + 1}/3`);
+  }
+
+  private renderTerritory(): void {
+    this.clearGroup(this.territoryLayer);
+
+    const radius = this.territoryRadius();
+    const centerWorld = this.gridToWorld((SIZE - 1) / 2, (SIZE - 1) / 2);
+    const span = (radius * 2 + 1) * TILE;
+    const half = span / 2;
+    const y = this.viewMode === 'plan2d' ? 10.62 : 2.31;
+
+    const fill = new THREE.MeshBasicMaterial({
+      color: 0x62d7a4,
+      transparent: true,
+      opacity: this.viewMode === 'plan2d' ? 0.055 : 0.025,
+      depthTest: false,
+      depthWrite: false,
+      side: THREE.DoubleSide,
+    });
+    const area = new THREE.Mesh(new THREE.PlaneGeometry(span, span), fill);
+    area.rotation.x = -Math.PI / 2;
+    area.position.set(centerWorld.x, y, centerWorld.z);
+    area.renderOrder = 58;
+    this.territoryLayer.add(area);
+
+    const borderMaterial = new THREE.LineBasicMaterial({
+      color: 0x78e5b6,
+      transparent: true,
+      opacity: 0.92,
+      depthTest: false,
+      depthWrite: false,
+    });
+    const points = [
+      new THREE.Vector3(centerWorld.x - half, y + 0.02, centerWorld.z - half),
+      new THREE.Vector3(centerWorld.x + half, y + 0.02, centerWorld.z - half),
+      new THREE.Vector3(centerWorld.x + half, y + 0.02, centerWorld.z + half),
+      new THREE.Vector3(centerWorld.x - half, y + 0.02, centerWorld.z + half),
+    ];
+    const border = new THREE.LineLoop(new THREE.BufferGeometry().setFromPoints(points), borderMaterial);
+    border.renderOrder = 59;
+    this.territoryLayer.add(border);
+
+    this.updateTerritoryUI();
+  }
+
+
   private seedNaturalProps(): void {
     for (let y = 0; y < SIZE; y += 1) {
       for (let x = 0; x < SIZE; x += 1) {
@@ -860,6 +973,7 @@ export class ThreeGame {
   private redraw(): void {
     this.clearGroup(this.terrainLayer);
     this.clearGroup(this.buildLayer);
+    this.renderTerritory();
     this.windmillSystem.clear();
     this.buildObjectsByCell.clear();
     this.clearGroup(this.planLayer);
@@ -913,6 +1027,7 @@ export class ThreeGame {
     );
 
     for (const access of generatedAccess) {
+      if (!this.isWithinTerritory(access.x, access.y)) continue;
       const group = new THREE.Group();
       const position = this.gridToWorld(access.x, access.y);
       group.position.set(position.x, this.terrainElevation(access.x, access.y), position.z);
@@ -5159,6 +5274,7 @@ export class ThreeGame {
       elevations: Array.from(this.elevationOverrides.entries()),
       stoneStyle: this.stoneStyle,
       towerBridges: Array.from(this.towerBridges.values()).map((bridge) => ({ ...bridge })),
+      territoryStage: this.territoryStage,
     };
   }
 
@@ -5176,6 +5292,7 @@ export class ThreeGame {
     this.state.replace(snapshot.cells);
     this.keepSystem.replace(snapshot.keeps ?? []);
     this.stoneStyle = snapshot.stoneStyle ?? 'limestone';
+    this.territoryStage = THREE.MathUtils.clamp(Math.floor(snapshot.territoryStage ?? 0), 0, TERRITORY_MAX_STAGE);
     this.towerBridges.clear();
     for (const bridge of snapshot.towerBridges ?? []) {
       this.towerBridges.set(bridge.id, { ...bridge });
@@ -5361,6 +5478,11 @@ export class ThreeGame {
     const ny = this.selectedCell.y + dy;
     if (nx < 0 || ny < 0 || nx >= SIZE || ny >= SIZE || this.state.getCell(nx, ny)) {
       this.setStatus('Cannot move there');
+      return;
+    }
+
+    if (!this.isWithinTerritory(nx, ny)) {
+      this.setStatus('Cannot move a structure outside your territory');
       return;
     }
 
@@ -5877,6 +5999,11 @@ export class ThreeGame {
   private buildRoadDrag(start: GridPoint, end: GridPoint): void {
     const roadKind = this.selectedTool as RoadKind;
     const path = this.roadPath(start, end);
+    if (!this.isPathWithinTerritory(path)) {
+      this.clearGroup(this.wallPreviewLayer);
+      this.setStatus('Road path leaves your territory · expand Territory first');
+      return;
+    }
     const before = this.captureSnapshot();
     let changed = 0;
 
@@ -6030,6 +6157,12 @@ export class ThreeGame {
   }
 
   private buildMountainRange(start: GridPoint, end: GridPoint): void {
+    if (!this.isWithinTerritory(start.x, start.y) || !this.isWithinTerritory(end.x, end.y)) {
+      this.clearGroup(this.wallPreviewLayer);
+      this.setStatus('Mountain Range must start and end inside your territory');
+      return;
+    }
+
     const before = this.captureSnapshot();
     const changed = this.applyMountainRange(start, end, true);
 
@@ -6236,6 +6369,11 @@ export class ThreeGame {
   private buildWallDrag(start: GridPoint, end: GridPoint, decrease: boolean): void {
     const wallKind = this.selectedTool as WallKind;
     const path = this.wallPath(start, end);
+    if (!this.isPathWithinTerritory(path)) {
+      this.clearGroup(this.wallPreviewLayer);
+      this.setStatus('Wall path leaves your territory · expand Territory first');
+      return;
+    }
     const single = path.length === 1;
     const before = this.captureSnapshot();
     let changed = false;
@@ -6310,6 +6448,17 @@ export class ThreeGame {
     const terrain = this.terrainAt(gx, gy);
     const overrideKey = this.key(gx, gy);
     const keepAtPoint = this.keepSystem.findAtCell(gx, gy);
+
+    const territoryRestricted =
+      this.selectedTool !== 'erase' &&
+      !this.isTerrainTool(this.selectedTool) &&
+      this.selectedTool !== 'river' &&
+      this.selectedTool !== 'land';
+
+    if (territoryRestricted && !this.isWithinTerritory(gx, gy)) {
+      this.setStatus('Outside your territory · expand Territory to build here');
+      return;
+    }
 
     if (this.selectedTool === 'erase') {
       if (keepAtPoint) {
@@ -6971,6 +7120,7 @@ export class ThreeGame {
       terrain,
       elevations,
       worldSeeded: this.worldSeeded,
+      territoryStage: this.territoryStage,
     };
 
     localStorage.setItem(SAVE_KEY, JSON.stringify(data));
@@ -7005,6 +7155,7 @@ export class ThreeGame {
         terrain?: Array<{ x: number; y: number; kind: TerrainOverrideKind }>;
         elevations?: Array<{ x: number; y: number; value: number }>;
         worldSeeded?: boolean;
+        territoryStage?: number;
       };
 
       const cells: Array<ReturnType<GameState['entries']>[number]> = [];
@@ -7073,6 +7224,11 @@ export class ThreeGame {
       }
 
       this.worldSeeded = Boolean(data.worldSeeded);
+      this.territoryStage = THREE.MathUtils.clamp(
+        Math.floor(data.territoryStage ?? 0),
+        0,
+        TERRITORY_MAX_STAGE,
+      );
       this.loadedSaveVersion = Math.max(0, Math.floor(data.version ?? 0));
       this.setStatus('Loaded');
     } catch {
@@ -7121,6 +7277,11 @@ export class ThreeGame {
 
     toolbar.innerHTML =
       '<div class="toolbar-title"><div><span>Build</span><small>Modular engineering</small></div><button id="toolbar-close" class="toolbar-close" type="button" aria-label="Close build panel">×</button></div>' +
+      '<div class="builder-settings">' +
+      '<div class="settings-title">Territory</div>' +
+      '<div class="settings-actions"><button id="expand-territory" type="button">Expand Territory</button></div>' +
+      '<div id="territory-stage" class="settings-hint">Stage 1/3</div>' +
+      '</div>' +
       toolHtml +
       '<div class="builder-settings">' +
       '<div class="settings-title">Wall Settings</div>' +
@@ -7190,6 +7351,8 @@ export class ThreeGame {
 
     get<HTMLButtonElement>('toolbar-close').onclick = () => this.setToolbarOpen(false);
     get<HTMLButtonElement>('toolbar-open').onclick = () => this.setToolbarOpen(true);
+    get<HTMLButtonElement>('expand-territory').onclick = () => this.expandTerritory();
+    this.updateTerritoryUI();
     get<HTMLButtonElement>('view-2d-button').onclick = () => this.setViewMode('plan2d');
     get<HTMLButtonElement>('view-3d-button').onclick = () => this.setViewMode('world3d');
     get<HTMLButtonElement>('camera-45-button').onclick = () => this.setCameraView('45');
@@ -7399,6 +7562,7 @@ export class ThreeGame {
         this.terrainOverrides.clear();
         this.elevationOverrides.clear();
         this.moatTasks.clear();
+        this.territoryStage = 0;
         this.worldSeeded = false;
         this.seedNaturalProps();
         this.worldSeeded = true;
@@ -7573,6 +7737,11 @@ export class ThreeGame {
     draft: Omit<KeepState, 'id' | 'seed'>,
     ignoreKeepId?: number,
   ): { valid: boolean; reason?: string } {
+    const footprint = this.keepSystem.footprint(draft);
+    if (!footprint.every((cell) => this.isWithinTerritory(cell.x, cell.y))) {
+      return { valid: false, reason: 'Keep foundation extends outside your territory. Expand Territory first.' };
+    }
+
     return this.keepSystem.validate(
       draft,
       SIZE,
