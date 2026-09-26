@@ -82,7 +82,11 @@ export class BattleNavigation {
       kind === 'dirtRoad' ||
       kind === 'stoneRoad' ||
       kind === 'farm' ||
-      kind === 'gate'
+      kind === 'gate' ||
+      kind === 'stoneStairs' ||
+      kind === 'woodenStairs' ||
+      kind === 'ramp' ||
+      kind === 'ladder'
     ) {
       return true;
     }
