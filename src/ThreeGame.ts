@@ -7546,10 +7546,10 @@ export class ThreeGame {
       noneHtml +
       toolHtml +
       '<div class="builder-settings">' +
-      '<section class="settings-section wall-settings-section' + (WALL_KINDS.includes(this.selectedTool as WallKind) ? ' is-open' : '') + '">' +
-      '<button class="settings-section-header" type="button" aria-expanded="' + (WALL_KINDS.includes(this.selectedTool as WallKind) ? 'true' : 'false') + '">' +
-      '<span class="settings-section-title">Wall Settings</span>' +
-      '<span id="wall-settings-summary" class="settings-section-summary">Medium · Battlement · No Walkway</span>' +
+      '<section class="settings-section build-settings-section is-open">' +
+      '<button class="settings-section-header" type="button" aria-expanded="true">' +
+      '<span class="settings-section-title">Build Settings</span>' +
+      '<span id="build-settings-summary" class="settings-section-summary">Wall · Tower · Keep · Terrain</span>' +
       '<span class="settings-section-chevron" aria-hidden="true">▶</span>' +
       '</button>' +
       '<div class="settings-section-items">' +
@@ -7642,12 +7642,12 @@ export class ThreeGame {
     get<HTMLButtonElement>('camera-45-button').onclick = () => this.setCameraView('45');
     get<HTMLButtonElement>('camera-top-button').onclick = () => this.setCameraView('top');
 
-    const wallSettingsSection = toolbar.querySelector<HTMLElement>('.wall-settings-section');
-    const wallSettingsHeader = toolbar.querySelector<HTMLButtonElement>('.settings-section-header');
-    wallSettingsHeader?.addEventListener('click', () => {
-      if (!wallSettingsSection || !wallSettingsHeader) return;
-      const open = wallSettingsSection.classList.toggle('is-open');
-      wallSettingsHeader.setAttribute('aria-expanded', String(open));
+    const buildSettingsSection = toolbar.querySelector<HTMLElement>('.build-settings-section');
+    const buildSettingsHeader = toolbar.querySelector<HTMLButtonElement>('.settings-section-header');
+    buildSettingsHeader?.addEventListener('click', () => {
+      if (!buildSettingsSection || !buildSettingsHeader) return;
+      const open = buildSettingsSection.classList.toggle('is-open');
+      buildSettingsHeader.setAttribute('aria-expanded', String(open));
     });
 
     const wallThickness = get<HTMLSelectElement>('wall-thickness');
@@ -7962,7 +7962,7 @@ export class ThreeGame {
   }
 
   private syncWallSettingsSummary(): void {
-    const summary = document.getElementById('wall-settings-summary');
+    const summary = document.getElementById('build-settings-summary');
     if (!summary) return;
     const thickness = this.wallThickness.charAt(0).toUpperCase() + this.wallThickness.slice(1);
     const battlement = this.wallBattlement ? 'Battlement' : 'No Battlement';
