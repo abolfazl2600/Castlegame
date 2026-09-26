@@ -8,6 +8,13 @@ export type WallDirection = 'N' | 'NE' | 'E' | 'SE' | 'S' | 'SW' | 'W' | 'NW';
 export type WallCornerKind = 'square' | 'rounded' | 'reinforced' | 'turret' | 'buttressed';
 
 export type TowerShape = 'square' | 'round' | 'octagonal' | 'corner' | 'watch';
+export type ModernTowerKind =
+  | 'modernWatchtower'
+  | 'heavyDefenseTower'
+  | 'missileDefenseTower'
+  | 'automatedTurretTower'
+  | 'radarTower';
+
 export type TowerTop =
   | 'conical'
   | 'hipped'
@@ -62,7 +69,8 @@ export type TileKind =
   | 'hut'
   | 'moat'
   | AccessKind
-  | 'futuristicCastle';
+  | 'futuristicCastle'
+  | ModernTowerKind;
 
 export type ToolKind =
   | Exclude<TileKind, 'stairTower'>
@@ -104,6 +112,7 @@ export interface TowerBridgeState {
 
 export interface SavedGame {
   version: number;
+  mode?: 'Medieval' | 'Modern';
   updatedAt: number;
   cells: Array<{
     x: number;
