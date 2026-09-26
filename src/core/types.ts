@@ -103,6 +103,19 @@ export interface TowerBridgeState {
   kind: TowerBridgeKind;
 }
 
+export interface SavedBattleSetup {
+  attackerSwordsmen: number;
+  attackerArchers: number;
+  attackerSpearmen: number;
+  attackerCrossbowmen: number;
+  attackerModernSoldiers: number;
+  defenderSwordsmen: number;
+  defenderArchers: number;
+  defenderSpearmen: number;
+  defenderCrossbowmen: number;
+  defenderModernSoldiers: number;
+}
+
 export interface SavedGame {
   version: number;
   gameMode?: GameMode;
@@ -129,4 +142,27 @@ export interface SavedGame {
   terrain?: Array<{ x: number; y: number; kind: TerrainOverrideKind }>;
   elevations?: Array<{ x: number; y: number; value: number }>;
   worldSeeded?: boolean;
+  battleSetup?: SavedBattleSetup;
+}
+
+export interface SaveMetadata {
+  id: string;
+  slot: number | 'quick' | 'autosave';
+  name: string;
+  createdAt: number;
+  updatedAt: number;
+  schemaVersion: number;
+  gameVersion?: string;
+  gameMode?: GameMode;
+  summary: {
+    buildings: number;
+    keeps: number;
+    terrainChanges: number;
+    elevations: number;
+  };
+}
+
+export interface SaveRecord {
+  metadata: SaveMetadata;
+  data: SavedGame;
 }
