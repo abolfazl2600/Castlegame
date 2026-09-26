@@ -14,7 +14,7 @@ import { MaritimeSystem } from './systems/MaritimeSystem';
 import type { GameMode } from './core/GameMode';
 import { getGameModeDefinition, isBuildingAvailable, isGameMode, isToolAvailable } from './core/GameMode';
 import type { SettingsStore } from './settings/SettingsStore';
-import { applyGraphicsSettings, applyInputSettings } from './settings/SettingsSubsystems';
+import { applyGraphicsSettings, applyInputSettings, applySceneGraphicsSettings } from './settings/SettingsSubsystems';
 import { FuturisticCastleRenderer } from './rendering/FuturisticCastleRenderer';
 import { AudioManager } from './audio/AudioManager';
 import { audioEvents } from './audio/AudioEventBus';
@@ -391,12 +391,13 @@ export class ThreeGame {
       emissive: 0x123b43,
       emissiveIntensity: 0.08,
     });
-    applyGraphicsSettings(this.renderer, this.settingsStore.get());
+    const initialSettings = this.settingsStore.get();
+    applyGraphicsSettings(this.renderer, initialSettings);
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
     this.renderer.toneMappingExposure = 1.08;
-    this.renderer.shadowMap.enabled = true;
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    applyGraphicsSettings(this.renderer, initialSettings);
     root.appendChild(this.renderer.domElement);
 
     this.scene.background = new THREE.Color(0x718c91);
@@ -413,6 +414,7 @@ export class ThreeGame {
     applyInputSettings(this.controls, this.settingsStore.get());
     this.settingsStore.subscribe((settings) => {
       applyGraphicsSettings(this.renderer, settings);
+      applySceneGraphicsSettings(this.scene, settings);
       this.renderer.toneMappingExposure = settings.graphics.effectsEnabled ? 1.08 : 1;
       applyInputSettings(this.controls, settings);
       this.audioManager.setMasterVolume(settings.audio.masterVolume);
@@ -422,6 +424,13 @@ export class ThreeGame {
       document.documentElement.style.setProperty('--castle-ui-scale', String(settings.interface.uiScale));
       document.documentElement.toggleAttribute('data-reduced-motion', settings.interface.reducedMotion);
       document.documentElement.toggleAttribute('data-high-contrast', settings.interface.highContrast);
+      document.documentElement.lang = settings.interface.language === 'en' ? 'en' : (navigator.language || 'en');
+      const helpButton = document.getElementById('help-button');
+      if (helpButton) helpButton.hidden = !settings.interface.showHelp;
+      const helpModal = document.getElementById('help-modal');
+      if (helpModal && !settings.interface.showHelp) helpModal.hidden = true;
+      const battlePanel = document.getElementById('battle-panel');
+      battlePanel?.classList.toggle('settings-no-combat-feedback', !settings.gameplay.combatFeedback);
     });
 
     this.addLights();
@@ -7509,7 +7518,8 @@ export class ThreeGame {
       templates.hidden = false;
     };
     get<HTMLButtonElement>('game-mode-button').onclick = () => {
-      if (confirm('Start a new game and choose a game mode? Current changes will be replaced.')) this.openGameModeSelector();
+      const confirmRequired = this.settingsStore.get().interface.confirmDestructiveActions;
+      if (!confirmRequired || confirm('Start a new game and choose a game mode? Current changes will be replaced.')) this.openGameModeSelector();
     };
     document.querySelectorAll<HTMLButtonElement>('[data-game-mode]').forEach((button) => {
       button.onclick = () => {
@@ -7549,7 +7559,8 @@ export class ThreeGame {
       this.redraw();
     };
     get<HTMLButtonElement>('reset-button').onclick = () => {
-      if (confirm('Reset the entire island and choose a game mode?')) {
+      const confirmRequired = this.settingsStore.get().interface.confirmDestructiveActions;
+      if (!confirmRequired || confirm('Reset the entire island and choose a game mode?')) {
         this.openGameModeSelector();
       }
     };
@@ -9139,19 +9150,25 @@ export class ThreeGame {
     this.settlementLayer.visible = false;
     document.getElementById('game-shell')?.classList.add('battle-mode');
     this.services.gateSystem.setAttackState(true);
-    audioEvents.emit({ action: 'play_sfx', assetId: 'combat.battle-start' });
+    if (this.settingsStore.get().gameplay.combatFeedback) {
+      audioEvents.emit({ action: 'play_sfx', assetId: 'combat.battle-start' });
+    }
     this.battleSystem.start(this.battleSetup);
     this.setStatus('Battle started · Attackers are advancing on the castle');
   }
 
   private stopBattleFromUI(): void {
-    audioEvents.emit({ action: 'play_sfx', assetId: 'combat.battle-stop' });
+    if (this.settingsStore.get().gameplay.combatFeedback) {
+      audioEvents.emit({ action: 'play_sfx', assetId: 'combat.battle-stop' });
+    }
     this.battleSystem.stop();
     this.setStatus('Battle stopped · press Start Battle to resume');
   }
 
   private resetBattleFromUI(): void {
-    audioEvents.emit({ action: 'play_sfx', assetId: 'combat.battle-reset' });
+    if (this.settingsStore.get().gameplay.combatFeedback) {
+      audioEvents.emit({ action: 'play_sfx', assetId: 'combat.battle-reset' });
+    }
     this.services.gateSystem.setAttackState(false);
     this.battleSystem.reset();
     document.getElementById('game-shell')?.classList.remove('battle-mode');
@@ -9299,23 +9316,25 @@ export class ThreeGame {
     const deltaMs = this.lastFrameTime === 0 ? 16 : Math.min(50, time - this.lastFrameTime);
     this.lastFrameTime = time;
 
+    const settings = this.settingsStore.get();
     if (!this.battleSystem.isActive()) {
       this.updateWorkers(deltaMs);
       this.updateSettlementAgents(deltaMs);
     }
     this.battleSystem.update(deltaMs, time);
-    this.services.windmillSystem.update(deltaMs / 1000);
-    this.updateLongPress(time);
-    this.riverTexture.offset.y -= deltaMs * 0.00032;
-    this.riverTexture.offset.x += deltaMs * 0.000035;
-    this.oceanTexture.offset.x += deltaMs * 0.000018;
-    this.oceanTexture.offset.y -= deltaMs * 0.000012;
+    if (!settings.interface.reducedMotion && settings.graphics.effectsEnabled) {
+      this.services.windmillSystem.update(deltaMs / 1000);
+      this.riverTexture.offset.y -= deltaMs * 0.00032;
+      this.riverTexture.offset.x += deltaMs * 0.000035;
+      this.oceanTexture.offset.x += deltaMs * 0.000018;
+      this.oceanTexture.offset.y -= deltaMs * 0.000012;
 
-    for (const flag of this.animatedFlags) {
-      const phase = Number(flag.userData.castleFlag?.phase ?? 0);
-      const wave = Math.sin(time * 0.0032 + phase);
-      flag.rotation.y = wave * 0.08;
-      flag.scale.x = 0.94 + Math.abs(wave) * 0.09;
+      for (const flag of this.animatedFlags) {
+        const phase = Number(flag.userData.castleFlag?.phase ?? 0);
+        const wave = Math.sin(time * 0.0032 + phase);
+        flag.rotation.y = wave * 0.08;
+        flag.scale.x = 0.94 + Math.abs(wave) * 0.09;
+      }
     }
 
     this.controls.update();
