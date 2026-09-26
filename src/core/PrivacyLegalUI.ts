@@ -15,6 +15,7 @@ export class PrivacyLegalUI {
 
   constructor(private readonly actions: PrivacyLegalActions) {
     this.section = this.createSection();
+    this.bind();
   }
 
   getSection(): HTMLElement {
@@ -161,7 +162,6 @@ export class PrivacyLegalUI {
       </div>
     `;
 
-    this.bind();
     return section;
   }
 
