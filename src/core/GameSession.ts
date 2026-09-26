@@ -180,6 +180,20 @@ export class GameSession {
     }
   }
 
+  update(deltaMs: number, timeMs: number): GameSessionResult {
+    const context = this.context();
+    if (!context || !this.lifecycle) return { ok: false, reason: 'no-mode' };
+    if (this.status !== 'running') return { ok: true };
+
+    try {
+      this.lifecycle.update?.(context, deltaMs, timeMs);
+      return { ok: true };
+    } catch {
+      this.status = 'ended';
+      return { ok: false, reason: 'lifecycle-failed' };
+    }
+  }
+
   cleanup(): GameSessionResult {
     const context = this.context();
     if (!context || !this.lifecycle) return { ok: false, reason: 'no-mode' };
