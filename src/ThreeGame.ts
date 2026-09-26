@@ -128,6 +128,7 @@ interface SettlementAgent {
   phase: 'home' | 'work' | 'wander';
   speed: number;
   anim: number;
+  path: GridPoint[];
 }
 
 interface HistorySnapshot {
@@ -7187,6 +7188,7 @@ export class ThreeGame {
       phase: 'home',
       speed: role === 'farmer' ? 1.55 : 1.25 + (Math.abs(seed) % 4) * 0.08,
       anim: Math.abs(seed % 1000) * 0.013,
+      path: [],
     };
 
     this.settlementAgents.push(agent);
@@ -7323,8 +7325,97 @@ export class ThreeGame {
     agent: SettlementAgent,
     point: GridPoint,
   ): void {
-    agent.targetGrid = { ...point };
-    agent.target.copy(this.settlementTargetPosition(agent, point));
+    const start = this.worldToGrid(agent.position.x, agent.position.z);
+    const resolved = this.resolveSettlementDestination(point, start);
+    agent.targetGrid = { ...resolved };
+    agent.path = this.findSettlementPath(start, resolved);
+    if (agent.path.length > 0) {
+      agent.path.shift();
+      const next = agent.path[0];
+      if (next) agent.target.copy(this.settlementTargetPosition(agent, next));
+    } else {
+      agent.target.copy(this.settlementTargetPosition(agent, resolved));
+    }
+  }
+
+  private isSettlementBlocked(x: number, y: number): boolean {
+    if (x < 0 || y < 0 || x >= SIZE || y >= SIZE) return true;
+    const terrain = this.terrainAt(x, y);
+    if (terrain === 'water' || terrain === 'river') return true;
+
+    const cell = this.services.state.getCell(x, y);
+    if (!cell) return false;
+
+    return !ROAD_KINDS.includes(cell.kind as RoadKind);
+  }
+
+  private resolveSettlementDestination(point: GridPoint, start: GridPoint): GridPoint {
+    if (!this.isSettlementBlocked(point.x, point.y)) return { ...point };
+
+    let best: GridPoint | null = null;
+    let bestDistance = Number.POSITIVE_INFINITY;
+    for (let radius = 1; radius <= 3 && !best; radius += 1) {
+      for (let y = point.y - radius; y <= point.y + radius; y += 1) {
+        for (let x = point.x - radius; x <= point.x + radius; x += 1) {
+          if (Math.max(Math.abs(x - point.x), Math.abs(y - point.y)) !== radius) continue;
+          if (this.isSettlementBlocked(x, y)) continue;
+          const distance = Math.hypot(x - point.x, y - point.y);
+          if (distance < bestDistance) {
+            bestDistance = distance;
+            best = { x, y };
+          }
+        }
+      }
+    }
+    return best ?? start;
+  }
+
+  private findSettlementPath(start: GridPoint, goal: GridPoint): GridPoint[] {
+    if (start.x === goal.x && start.y === goal.y) return [start];
+
+    const queue: GridPoint[] = [{ ...start }];
+    const cameFrom = new Map<string, GridPoint | null>();
+    const key = (p: GridPoint) => this.key(p.x, p.y);
+    cameFrom.set(key(start), null);
+
+    const directions: GridPoint[] = [
+      { x: 1, y: 0 },
+      { x: -1, y: 0 },
+      { x: 0, y: 1 },
+      { x: 0, y: -1 },
+    ];
+
+    for (let index = 0; index < queue.length; index += 1) {
+      const current = queue[index];
+      if (current.x === goal.x && current.y === goal.y) break;
+
+      for (const direction of directions) {
+        const next = { x: current.x + direction.x, y: current.y + direction.y };
+        const nextKey = key(next);
+        if (cameFrom.has(nextKey) || this.isSettlementBlocked(next.x, next.y)) continue;
+        cameFrom.set(nextKey, current);
+        queue.push(next);
+      }
+    }
+
+    const goalKey = key(goal);
+    if (!cameFrom.has(goalKey)) return [start];
+
+    const path: GridPoint[] = [];
+    let current: GridPoint | null = goal;
+    while (current) {
+      path.push(current);
+      current = cameFrom.get(key(current)) ?? null;
+    }
+    path.reverse();
+    return path;
+  }
+
+  private worldToGrid(worldX: number, worldZ: number): GridPoint {
+    return {
+      x: THREE.MathUtils.clamp(Math.floor(worldX / TILE + SIZE / 2), 0, SIZE - 1),
+      y: THREE.MathUtils.clamp(Math.floor(worldZ / TILE + SIZE / 2), 0, SIZE - 1),
+    };
   }
 
   private updateSettlementAgents(deltaMs: number): void {
@@ -7359,6 +7450,15 @@ export class ThreeGame {
       if (planarDistance < 0.16) {
         agent.position.copy(agent.target);
         agent.view.position.copy(agent.position);
+
+        if (agent.path.length > 0) {
+          const next = agent.path.shift();
+          if (next) {
+            agent.targetGrid = { ...next };
+            agent.target.copy(this.settlementTargetPosition(agent, next));
+            continue;
+          }
+        }
 
         if (agent.role === 'farmer') {
           agent.waitMs = agent.phase === 'work' ? 2200 + (agent.id % 4) * 280 : 1200;
