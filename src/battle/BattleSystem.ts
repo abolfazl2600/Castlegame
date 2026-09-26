@@ -13,7 +13,15 @@ import type {
   UnitType,
 } from './types';
 
-type CoreUnitType = 'swordsman' | 'archer' | 'spearman' | 'crossbowman' | 'modernSoldier';
+type CoreUnitType =
+  | 'swordsman'
+  | 'archer'
+  | 'spearman'
+  | 'crossbowman'
+  | 'modernSoldier'
+  | 'tank'
+  | 'armoredVehicle'
+  | 'missileVehicle';
 
 export interface BattleWorldContext {
   size: number;
@@ -39,6 +47,7 @@ export interface BattleWorldContext {
     targetY: number;
   }>;
   wallWeaponVisuals?: () => THREE.Object3D[];
+  buildingMaxHealthAt?: (x: number, y: number) => number;
 }
 
 interface UnitRuntime {
@@ -71,6 +80,7 @@ interface UnitRuntime {
   lastProgressPosition: THREE.Vector3;
   assignedLadderId?: string;
   activeLadderId?: string;
+  vehicleTarget?: { x: number; y: number; kind: 'wall' | 'building' };
   climbProgress: number;
   wallSeconds: number;
   accessTransition?: WallAccessTransition;
@@ -118,6 +128,15 @@ interface WallSides {
 interface ArrowProjectile {
   view: THREE.Mesh;
   targetId: string;
+  damage: number;
+  speed: number;
+  life: number;
+}
+
+interface MissileProjectile {
+  view: THREE.Group;
+  targetX: number;
+  targetY: number;
   damage: number;
   speed: number;
   life: number;
@@ -182,6 +201,30 @@ const UNIT_STATS: Record<CoreUnitType, BattleUnitStats> = {
     moveSpeed: 3.0,
     scanRange: 17,
   },
+  tank: {
+    maxHealth: 520,
+    damage: 78,
+    attackRange: 9,
+    attackCooldown: 2.35,
+    moveSpeed: 1.85,
+    scanRange: 22,
+  },
+  armoredVehicle: {
+    maxHealth: 300,
+    damage: 42,
+    attackRange: 8,
+    attackCooldown: 1.35,
+    moveSpeed: 2.75,
+    scanRange: 20,
+  },
+  missileVehicle: {
+    maxHealth: 250,
+    damage: 135,
+    attackRange: 24,
+    attackCooldown: 4.4,
+    moveSpeed: 1.65,
+    scanRange: 30,
+  },
 };
 
 export class BattleSystem {
@@ -189,6 +232,7 @@ export class BattleSystem {
   private readonly relations = new FactionRelations();
   private readonly units = new Map<string, UnitRuntime>();
   private readonly arrows: ArrowProjectile[] = [];
+  private readonly missiles: MissileProjectile[] = [];
   private readonly sharedGeometries: THREE.BufferGeometry[] = [];
   private readonly sharedMaterials: THREE.Material[] = [];
   private readonly bodyGeometry = this.geometry(new THREE.CylinderGeometry(0.22, 0.29, 0.68, 7));
@@ -204,10 +248,16 @@ export class BattleSystem {
   private readonly crossbowBowGeometry = this.geometry(new THREE.BoxGeometry(0.08, 0.06, 0.62));
   private readonly quiverGeometry = this.geometry(new THREE.CylinderGeometry(0.08, 0.1, 0.48, 6));
   private readonly arrowGeometry = this.geometry(new THREE.CylinderGeometry(0.022, 0.022, 0.68, 5));
+  private readonly missileBodyGeometry = this.geometry(new THREE.CylinderGeometry(0.09, 0.12, 0.82, 8));
+  private readonly missileTipGeometry = this.geometry(new THREE.ConeGeometry(0.12, 0.24, 8));
+  private readonly vehicleWheelGeometry = this.geometry(new THREE.CylinderGeometry(0.22, 0.22, 0.16, 10));
   private readonly rifleGeometry = this.geometry(new THREE.BoxGeometry(0.08, 0.08, 0.9));
   private readonly rifleStockGeometry = this.geometry(new THREE.BoxGeometry(0.13, 0.11, 0.32));
   private readonly tacticalMaterial = this.material(new THREE.MeshStandardMaterial({ color: 0x334039, roughness: 0.9 }));
   private readonly rifleMaterial = this.material(new THREE.MeshStandardMaterial({ color: 0x1d2322, roughness: 0.46, metalness: 0.52 }));
+  private readonly vehicleMaterial = this.material(new THREE.MeshStandardMaterial({ color: 0x303b3e, roughness: 0.48, metalness: 0.82 }));
+  private readonly vehicleDarkMaterial = this.material(new THREE.MeshStandardMaterial({ color: 0x151c1e, roughness: 0.42, metalness: 0.88 }));
+  private readonly missileMaterial = this.material(new THREE.MeshStandardMaterial({ color: 0x9a9fa0, roughness: 0.35, metalness: 0.72 }));
   private readonly skinMaterial = this.material(new THREE.MeshStandardMaterial({ color: 0xd8aa82, roughness: 0.94 }));
   private readonly metalMaterial = this.material(new THREE.MeshStandardMaterial({ color: 0x757b7d, roughness: 0.64, metalness: 0.34 }));
   private readonly swordMaterial = this.material(new THREE.MeshStandardMaterial({ color: 0xb7bec1, roughness: 0.48, metalness: 0.54 }));
@@ -234,6 +284,7 @@ export class BattleSystem {
   private readonly ladderRailGeometry = this.geometry(new THREE.CylinderGeometry(0.055, 0.065, 1, 6));
   private readonly ladderRungGeometry = this.geometry(new THREE.CylinderGeometry(0.038, 0.042, 1, 6));
 
+  private gameMode: GameMode = 'Medieval';
   private mode: BattleStatus['mode'] = 'idle';
   private captureSeconds = 0;
   private readonly captureRequiredSeconds = 10;
@@ -293,6 +344,7 @@ export class BattleSystem {
     this.reset(false);
     this.navigation.invalidate();
     this.clearSiegeState();
+    this.gameMode = setup.gameMode ?? 'Medieval';
     this.mode = 'running';
     this.captureSeconds = 0;
     this.battleSeconds = 0;
@@ -307,13 +359,16 @@ export class BattleSystem {
       normalized.attackerArchers +
       normalized.attackerSpearmen +
       normalized.attackerCrossbowmen +
-      normalized.attackerModernSoldiers;
+      (this.gameMode === 'Modern' ? normalized.attackerModernSoldiers : 0) +
+      (this.gameMode === 'Modern'
+        ? normalized.attackerTanks + normalized.attackerArmoredVehicles + normalized.attackerMissileVehicles
+        : 0);
     this.defenderStartCount =
       normalized.defenderSwordsmen +
       normalized.defenderArchers +
       normalized.defenderSpearmen +
       normalized.defenderCrossbowmen +
-      normalized.defenderModernSoldiers;
+      (this.gameMode === 'Modern' ? normalized.defenderModernSoldiers : 0);
 
     this.objectiveGrid = this.navigation.castleObjective();
     this.capturePointGrid =
@@ -357,6 +412,10 @@ export class BattleSystem {
       this.layer.remove(arrow.view);
     }
     this.arrows.length = 0;
+    for (const missile of this.missiles) {
+      this.layer.remove(missile.view);
+    }
+    this.missiles.length = 0;
 
     if (this.objectiveMarker) {
       this.layer.remove(this.objectiveMarker);
@@ -406,6 +465,7 @@ export class BattleSystem {
 
     this.updateWallWeapons(delta);
     this.updateProjectiles(delta);
+    this.updateMissiles(delta);
     this.updateCapture(delta);
     this.cleanupDead(delta);
     this.animateObjective(timeMs);
@@ -453,6 +513,9 @@ export class BattleSystem {
       attackerSpearmen: clamp(setup.attackerSpearmen),
       attackerCrossbowmen: clamp(setup.attackerCrossbowmen),
       attackerModernSoldiers: clamp(setup.attackerModernSoldiers),
+      attackerTanks: clamp(setup.attackerTanks),
+      attackerArmoredVehicles: clamp(setup.attackerArmoredVehicles),
+      attackerMissileVehicles: clamp(setup.attackerMissileVehicles),
       defenderSwordsmen: clamp(setup.defenderSwordsmen),
       defenderArchers: clamp(setup.defenderArchers),
       defenderSpearmen: clamp(setup.defenderSpearmen),
@@ -467,7 +530,9 @@ export class BattleSystem {
       setup.attackerArchers +
       setup.attackerSpearmen +
       setup.attackerCrossbowmen +
-      setup.attackerModernSoldiers;
+      (this.gameMode === 'Modern'
+        ? setup.attackerModernSoldiers + setup.attackerTanks + setup.attackerArmoredVehicles + setup.attackerMissileVehicles
+        : 0);
     const spawnCells = this.navigation.attackerSpawnCells(
       this.objectiveGrid,
       Math.max(1, total),
@@ -494,7 +559,12 @@ export class BattleSystem {
     spawnType('spearman', setup.attackerSpearmen, 5);
     spawnType('archer', setup.attackerArchers, 11);
     spawnType('crossbowman', setup.attackerCrossbowmen, 17);
-    spawnType('modernSoldier', setup.attackerModernSoldiers, 23);
+    if (this.gameMode === 'Modern') {
+      spawnType('modernSoldier', setup.attackerModernSoldiers, 23);
+      spawnType('tank', setup.attackerTanks, 31);
+      spawnType('armoredVehicle', setup.attackerArmoredVehicles, 37);
+      spawnType('missileVehicle', setup.attackerMissileVehicles, 43);
+    }
   }
 
   private spawnDefenders(setup: BattleSetup): void {
@@ -502,7 +572,9 @@ export class BattleSystem {
     const usedWallNodes = new Set<string>();
 
     const rangedOrder: Array<{ type: CoreUnitType; count: number }> = [
-      { type: 'modernSoldier', count: setup.defenderModernSoldiers },
+      ...(this.gameMode === 'Modern'
+        ? [{ type: 'modernSoldier' as CoreUnitType, count: setup.defenderModernSoldiers }]
+        : []),
       { type: 'crossbowman', count: setup.defenderCrossbowmen },
       { type: 'archer', count: setup.defenderArchers },
     ];
@@ -604,7 +676,8 @@ export class BattleSystem {
       remainingSwordsmen +
       remainingSpearmen +
       remainingArchers +
-      remainingCrossbowmen;
+      remainingCrossbowmen +
+      remainingModernSoldiers;
 
     const camp = this.findArmyCamp();
     const defenseAnchor = camp ?? this.capturePointGrid;
@@ -840,6 +913,55 @@ export class BattleSystem {
       shield.scale.set(0.9, 0.9, 0.9);
       shield.position.set(-0.31, 0.76, 0.02);
       root.add(shield);
+    } else if (unitType === 'tank' || unitType === 'armoredVehicle' || unitType === 'missileVehicle') {
+      const isTank = unitType === 'tank';
+      const isMissile = unitType === 'missileVehicle';
+      const chassis = new THREE.Mesh(
+        new THREE.BoxGeometry(isTank ? 1.55 : 1.28, isTank ? 0.48 : 0.42, isTank ? 2.05 : 1.75),
+        this.vehicleMaterial,
+      );
+      chassis.position.y = 0.48;
+      root.add(chassis);
+      const wheels: THREE.Mesh[] = [];
+      for (const x of [-0.68, 0.68]) {
+        for (const z of [-0.62, 0, 0.62]) {
+          const wheel = new THREE.Mesh(this.vehicleWheelGeometry, this.vehicleDarkMaterial);
+          wheel.rotation.z = Math.PI / 2;
+          wheel.position.set(x, 0.27, z);
+          root.add(wheel);
+          wheels.push(wheel);
+        }
+      }
+      if (isMissile) {
+        const rack = new THREE.Group();
+        rack.position.y = 0.82;
+        for (const x of [-0.38, 0, 0.38]) {
+          const tube = new THREE.Mesh(new THREE.CylinderGeometry(0.11, 0.14, 0.95, 8), this.vehicleDarkMaterial);
+          tube.rotation.x = Math.PI / 2;
+          tube.position.x = x;
+          rack.add(tube);
+        }
+        root.add(rack);
+        weapon = rack;
+      } else {
+        const turret = new THREE.Mesh(new THREE.CylinderGeometry(isTank ? 0.48 : 0.36, isTank ? 0.55 : 0.42, 0.28, 10), this.vehicleDarkMaterial);
+        turret.position.y = 0.82;
+        root.add(turret);
+        const barrel = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.08, isTank ? 1.35 : 0.9, 8), this.rifleMaterial);
+        barrel.rotation.x = Math.PI / 2;
+        barrel.position.set(0, 0.9, 0.55);
+        root.add(barrel);
+        weapon = turret;
+      }
+      const refs: UnitVisualRefs = {
+        body: chassis,
+        leftLeg: wheels[0],
+        rightLeg: wheels[3] ?? wheels[0],
+        weapon,
+      };
+      root.userData.visualRefs = refs;
+      root.scale.setScalar(isTank ? 1.18 : 1.02);
+      return root;
     } else if (unitType === 'modernSoldier') {
       const rifle = new THREE.Group();
       const stock = new THREE.Mesh(this.rifleStockGeometry, this.tacticalMaterial);
@@ -932,6 +1054,10 @@ export class BattleSystem {
     return unitType === 'archer' || unitType === 'crossbowman' || unitType === 'modernSoldier';
   }
 
+  private isVehicleUnit(unitType: UnitType): boolean {
+    return unitType === 'tank' || unitType === 'armoredVehicle' || unitType === 'missileVehicle';
+  }
+
   private isMeleeUnit(unitType: UnitType): boolean {
     return unitType === 'swordsman' || unitType === 'spearman';
   }
@@ -952,6 +1078,16 @@ export class BattleSystem {
       runtime.deathTime += delta;
       runtime.view.rotation.z = THREE.MathUtils.lerp(runtime.view.rotation.z, Math.PI / 2, delta * 5);
       runtime.view.position.y = runtime.position.y - Math.min(0.2, runtime.deathTime * 0.08);
+      return;
+    }
+
+    if (runtime.data.faction === 'attacker' && this.isVehicleUnit(runtime.data.unitType)) {
+      if (this.gameMode !== 'Modern') {
+        this.killUnit(runtime);
+        return;
+      }
+      this.updateModernVehicle(runtime, delta);
+      runtime.view.position.copy(runtime.position);
       return;
     }
 
@@ -3080,6 +3216,11 @@ export class BattleSystem {
     }
 
     for (const runtime of alive) {
+      if (runtime.data.faction === 'attacker' && this.isVehicleUnit(runtime.data.unitType)) {
+        runtime.data.targetId = undefined;
+        continue;
+      }
+
       const current = runtime.data.targetId
         ? this.units.get(runtime.data.targetId)
         : undefined;
@@ -3452,6 +3593,7 @@ export class BattleSystem {
       if (ladder?.climberId === runtime.data.id) ladder.climberId = undefined;
     }
 
+    runtime.vehicleTarget = undefined;
     runtime.data.health = 0;
     runtime.data.state = 'dead';
     runtime.data.targetId = undefined;
@@ -3464,6 +3606,198 @@ export class BattleSystem {
 
   private cleanupDead(_delta: number): void {
     // Corpses remain visible until Reset Battle so the battlefield result is readable.
+  }
+
+  private updateModernVehicle(runtime: UnitRuntime, delta: number): void {
+    runtime.decisionTimer -= delta;
+    runtime.attackTimer = Math.max(0, runtime.attackTimer - delta);
+
+    const target = runtime.vehicleTarget;
+    const targetValid = target
+      ? target.kind === 'wall'
+        ? this.wallStates.get(this.gridKey(target.x, target.y))?.stage !== 'breached'
+        : Boolean(this.world.cellAt(target.x, target.y) && (this.world.buildingDamageAt?.(target.x, target.y) ?? 0) < 1)
+      : false;
+
+    if (runtime.decisionTimer <= 0 || !targetValid || runtime.path.length === 0 || runtime.pathIndex >= runtime.path.length) {
+      runtime.decisionTimer = 0.28;
+      const next = this.selectModernVehicleTarget(runtime);
+      runtime.vehicleTarget = next ?? undefined;
+      runtime.path = next ? this.vehicleApproachPath(runtime, next) : [];
+      runtime.pathIndex = Math.min(1, Math.max(0, runtime.path.length - 1));
+    }
+
+    const active = runtime.vehicleTarget;
+    if (!active) {
+      if (runtime.path.length === 0 || runtime.pathIndex >= runtime.path.length) {
+        runtime.path = this.navigation.findPath({ x: runtime.gridX, y: runtime.gridY }, this.capturePointGrid, true);
+        runtime.pathIndex = Math.min(1, Math.max(0, runtime.path.length - 1));
+      }
+      if (runtime.path.length > 1 && runtime.pathIndex < runtime.path.length) this.followGroundPath(runtime, delta, 'moving');
+      return;
+    }
+
+    if (runtime.path.length > 1 && runtime.pathIndex < runtime.path.length) {
+      this.followGroundPath(runtime, delta, 'moving');
+      return;
+    }
+
+    const targetWorld = this.world.gridToWorld(active.x, active.y);
+    const targetPoint = new THREE.Vector3(targetWorld.x, 2.22 + this.world.elevationAt(active.x, active.y), targetWorld.z);
+    const distance = Math.hypot(runtime.position.x - targetPoint.x, runtime.position.z - targetPoint.z);
+    const safeDistance = runtime.data.unitType === 'missileVehicle' ? runtime.stats.attackRange * 0.72 : runtime.data.unitType === 'tank' ? 4.6 : 4.0;
+
+    this.faceTarget(runtime, targetPoint);
+    if (distance > safeDistance + 0.7) {
+      const approach = this.vehicleApproachPath(runtime, active);
+      if (approach.length > 1) {
+        runtime.path = approach;
+        runtime.pathIndex = Math.min(1, approach.length - 1);
+        this.followGroundPath(runtime, delta, 'moving');
+      }
+      return;
+    }
+
+    runtime.data.state = 'attacking';
+    if (runtime.attackTimer > 0) return;
+    if (runtime.data.unitType === 'missileVehicle') this.launchMissile(runtime, active);
+    else {
+      this.damageModernStructure(active, runtime.stats.damage);
+      runtime.attackTimer = runtime.stats.attackCooldown;
+    }
+  }
+
+  private selectModernVehicleTarget(runtime: UnitRuntime): { x: number; y: number; kind: 'wall' | 'building' } | null {
+    if (this.gameMode !== 'Modern') return null;
+    let best: { x: number; y: number; kind: 'wall' | 'building' } | null = null;
+    let bestScore = Number.POSITIVE_INFINITY;
+    const from = { x: runtime.gridX, y: runtime.gridY };
+
+    for (const wall of this.wallStates.values()) {
+      if (wall.stage === 'breached') continue;
+      const distance = this.gridDistance(from, { x: wall.x, y: wall.y });
+      const defenders = this.defendersNearGrid(wall.x, wall.y, 2.5);
+      const score = distance + defenders * 0.45 + (wall.health / Math.max(1, wall.maxHealth)) * 2.4;
+      if (score < bestScore) {
+        bestScore = score;
+        best = { x: wall.x, y: wall.y, kind: 'wall' };
+      }
+    }
+
+    for (let y = 0; y < this.world.size; y += 1) {
+      for (let x = 0; x < this.world.size; x += 1) {
+        const cell = this.world.cellAt(x, y);
+        if (!cell || (cell.damage ?? 0) >= 1) continue;
+        if (cell.kind === 'wall1' || cell.kind === 'wall2' || cell.kind === 'wall3') continue;
+        if (cell.kind === 'road' || cell.kind === 'dirtRoad' || cell.kind === 'stoneRoad' || cell.kind === 'tree' || cell.kind === 'rock' || cell.kind === 'mountain' || cell.kind === 'moat') continue;
+
+        const distance = this.gridDistance(from, { x, y });
+        const priority = cell.kind === 'gate' ? -8 : cell.kind === 'tower' ? -5 : cell.kind === 'futuristicCastle' ? -10 : cell.kind.endsWith('Tower') ? -5 : cell.kind === 'armyCamp' ? -2 : 0;
+        const defenders = this.defendersNearGrid(x, y, 2.4);
+        const score = distance + priority + defenders * 0.35;
+        if (score < bestScore) {
+          bestScore = score;
+          best = { x, y, kind: 'building' };
+        }
+      }
+    }
+    return best;
+  }
+
+  private vehicleApproachPath(runtime: UnitRuntime, target: { x: number; y: number; kind: 'wall' | 'building' }): NavPoint[] {
+    const desiredDistance = runtime.data.unitType === 'missileVehicle' ? Math.max(4, Math.floor(runtime.stats.attackRange / 4)) : 1;
+    const candidates: NavPoint[] = [];
+    const maxRadius = runtime.data.unitType === 'missileVehicle' ? 6 : 2;
+
+    for (let radius = 0; radius <= maxRadius; radius += 1) {
+      for (let dy = -radius; dy <= radius; dy += 1) {
+        for (let dx = -radius; dx <= radius; dx += 1) {
+          if (Math.max(Math.abs(dx), Math.abs(dy)) !== radius) continue;
+          const x = target.x + dx;
+          const y = target.y + dy;
+          if (!this.navigation.isGroundWalkable(x, y)) continue;
+          if (Math.hypot(dx, dy) + 0.01 < desiredDistance) continue;
+          candidates.push({ x, y });
+        }
+      }
+      if (candidates.length >= 8) break;
+    }
+
+    if (target.kind === 'wall') {
+      const sides = this.wallSides(target.x, target.y);
+      if (sides) candidates.unshift(sides.base);
+    }
+
+    let bestPath: NavPoint[] = [];
+    let bestScore = Number.POSITIVE_INFINITY;
+    for (const candidate of candidates) {
+      const path = this.navigation.findPath({ x: runtime.gridX, y: runtime.gridY }, candidate, true);
+      if (path.length === 0) continue;
+      const distanceToTarget = this.gridDistance(candidate, { x: target.x, y: target.y });
+      const safePenalty = runtime.data.unitType === 'missileVehicle' ? Math.max(0, desiredDistance - distanceToTarget) * 10 : 0;
+      const score = path.length + safePenalty;
+      if (score < bestScore) {
+        bestScore = score;
+        bestPath = path;
+      }
+    }
+    return bestPath;
+  }
+
+  private damageModernStructure(target: { x: number; y: number; kind: 'wall' | 'building' }, amount: number): void {
+    if (target.kind === 'wall') {
+      const wall = this.wallStates.get(this.gridKey(target.x, target.y));
+      if (wall) this.damageWall(wall, amount);
+      return;
+    }
+    const cell = this.world.cellAt(target.x, target.y);
+    if (!cell || !this.world.setBuildingDamage) return;
+    const maxHealth = this.world.buildingMaxHealthAt?.(target.x, target.y) ?? 500;
+    const nextDamage = THREE.MathUtils.clamp((this.world.buildingDamageAt?.(target.x, target.y) ?? 0) + Math.max(0, amount) / Math.max(1, maxHealth), 0, 1);
+    this.world.setBuildingDamage(target.x, target.y, nextDamage);
+    this.navigation.invalidate();
+  }
+
+  private launchMissile(runtime: UnitRuntime, target: { x: number; y: number; kind: 'wall' | 'building' }): void {
+    runtime.attackTimer = runtime.stats.attackCooldown;
+    const missile = new THREE.Group();
+    const body = new THREE.Mesh(this.missileBodyGeometry, this.missileMaterial);
+    body.rotation.z = Math.PI / 2;
+    missile.add(body);
+    const tip = new THREE.Mesh(this.missileTipGeometry, this.missileMaterial);
+    tip.rotation.z = -Math.PI / 2;
+    tip.position.x = 0.52;
+    missile.add(tip);
+    missile.position.copy(runtime.position);
+    missile.position.y += 0.9;
+    this.layer.add(missile);
+    this.missiles.push({ view: missile, targetX: target.x, targetY: target.y, damage: runtime.stats.damage, speed: 20, life: 3.5 });
+  }
+
+  private updateMissiles(delta: number): void {
+    for (let i = this.missiles.length - 1; i >= 0; i -= 1) {
+      const missile = this.missiles[i];
+      missile.life -= delta;
+      const targetWorld = this.world.gridToWorld(missile.targetX, missile.targetY);
+      const target = new THREE.Vector3(targetWorld.x, 2.3 + this.world.elevationAt(missile.targetX, missile.targetY), targetWorld.z);
+      const deltaVector = target.sub(missile.view.position);
+      const distance = deltaVector.length();
+      if (distance <= 0.55 || missile.life <= 0) {
+        if (distance <= 0.55) {
+          const cell = this.world.cellAt(missile.targetX, missile.targetY);
+          if (cell) {
+            const kind = cell.kind === 'wall1' || cell.kind === 'wall2' || cell.kind === 'wall3' ? 'wall' : 'building';
+            this.damageModernStructure({ x: missile.targetX, y: missile.targetY, kind }, missile.damage);
+          }
+        }
+        this.layer.remove(missile.view);
+        this.missiles.splice(i, 1);
+        continue;
+      }
+      deltaVector.normalize();
+      missile.view.position.addScaledVector(deltaVector, Math.min(distance, missile.speed * delta));
+      missile.view.quaternion.setFromUnitVectors(new THREE.Vector3(1, 0, 0), deltaVector);
+    }
   }
 
   private createObjectiveMarker(): void {
