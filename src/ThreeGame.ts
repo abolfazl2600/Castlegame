@@ -161,7 +161,6 @@ const TOOL_GROUPS: Array<{ label: string; tools: ToolDefinition[] }> = [
       { id: 'house', icon: '🏡', label: 'House Cluster', detail: '4 connected village homes', shortcut: '8' },
       { id: 'manor', icon: '🏯', label: 'Manor Court', detail: 'Main hall + service houses', shortcut: '9' },
       { id: 'villa', icon: '🏘️', label: 'Villa Quarter', detail: '3 detailed homes + courtyard', shortcut: '0' },
-      { id: 'hut', icon: '🛖', label: 'Hut', detail: 'Small rustic shelter', shortcut: '-' },
     ],
   },
   {
@@ -170,7 +169,6 @@ const TOOL_GROUPS: Array<{ label: string; tools: ToolDefinition[] }> = [
       { id: 'marketStall', icon: '🪵', label: 'Market Stall', detail: 'Timber stall · counter · crates & goods', shortcut: '-' },
       { id: 'smallMarket', icon: '🏪', label: 'Small Market', detail: 'Covered market · multiple vendor stands', shortcut: '-' },
       { id: 'marketHall', icon: '🏛️', label: 'Market Hall', detail: 'Large trading hall · stalls & storage', shortcut: '-' },
-      { id: 'mine', icon: '⛏️', label: 'Mine', detail: 'Natural or built mountain', shortcut: 'M' },
     ],
   },
   {
@@ -187,10 +185,6 @@ const TOOL_GROUPS: Array<{ label: string; tools: ToolDefinition[] }> = [
       { id: 'road', icon: '🛣️', label: 'Road', detail: 'Drag A → B · standard road', shortcut: '6' },
       { id: 'dirtRoad', icon: '🟫', label: 'Dirt Road', detail: 'Drag A → B · village track', shortcut: 'I' },
       { id: 'stoneRoad', icon: '◼️', label: 'Stone Road', detail: 'Drag A → B · paved route', shortcut: 'O' },
-      { id: 'stoneStairs', icon: '🪜', label: 'Stone Stairs', detail: 'Connect different elevations', shortcut: '-' },
-      { id: 'woodenStairs', icon: '🪵', label: 'Wooden Stairs', detail: 'Simple elevation access', shortcut: '-' },
-      { id: 'ramp', icon: '↗️', label: 'Ramp', detail: 'Walkable sloped access', shortcut: '-' },
-      { id: 'ladder', icon: '🪜', label: 'Ladder', detail: 'Compact vertical access', shortcut: '-' },
     ],
   },
   {
@@ -213,7 +207,6 @@ const TOOL_GROUPS: Array<{ label: string; tools: ToolDefinition[] }> = [
     label: 'Environment',
     tools: [
       { id: 'tree', icon: '🌲', label: 'Tree', detail: 'Plant a detailed tree', shortcut: 'T' },
-      { id: 'rock', icon: '🪨', label: 'Rock', detail: 'Place a natural rock', shortcut: '-' },
       { id: 'erase', icon: '⌫', label: 'Remove', detail: 'Trees, rocks, huts & builds', shortcut: 'X' },
     ],
   },
@@ -232,7 +225,9 @@ const TOOL_GROUPS: Array<{ label: string; tools: ToolDefinition[] }> = [
       { id: 'fishingDock', icon: '🎣', label: 'Fishing Dock', detail: 'Coast only · fishing gear', shortcut: '-' },
     ],
   },
-]; {
+];
+
+export class ThreeGame {
   private readonly root: HTMLElement;
   private readonly scene = new THREE.Scene();
   private readonly camera = new THREE.PerspectiveCamera(48, 1, 0.1, 700);
@@ -7280,18 +7275,6 @@ const TOOL_GROUPS: Array<{ label: string; tools: ToolDefinition[] }> = [
         header.setAttribute('aria-expanded', String(open));
       };
     });
-
-    const ensureSelectedToolVisible = (): void => {
-      const selectedButton = toolbar.querySelector<HTMLButtonElement>(
-        '[data-tool="' + this.selectedTool + '"]',
-      );
-      if (!selectedButton) return;
-      const category = selectedButton.closest<HTMLElement>('.tool-category');
-      if (!category) return;
-      category.classList.add('is-open');
-      const header = category.querySelector<HTMLButtonElement>('.tool-category-header');
-      if (header) header.setAttribute('aria-expanded', 'true');
-    };
 
     toolbar.querySelectorAll<HTMLButtonElement>('[data-tool]').forEach((button) => {
       button.onclick = () => {
