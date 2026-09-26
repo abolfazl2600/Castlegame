@@ -239,6 +239,41 @@ export class SettingsUI {
     }
   }
 
+  private bindSystemActionReturns(): void {
+    const helpClose = document.getElementById('help-close-button');
+    helpClose?.addEventListener('click', () => this.restoreSettingsAfterSystemAction());
+
+    const templatesClose = document.getElementById('templates-close-button');
+    templatesClose?.addEventListener('click', () => this.restoreSettingsAfterSystemAction());
+  }
+
+  private openSystemAction(action: string): void {
+    const targetIds: Record<string, string> = {
+      help: 'help-button',
+      load: 'load-button',
+      save: 'save-button',
+      templates: 'templates-button',
+    };
+
+    const target = document.getElementById(targetIds[action] || '');
+    if (!(target instanceof HTMLButtonElement)) return;
+
+    this.returnToSettingsAfterAction = true;
+    this.close();
+    target.click();
+
+    // Save and Load complete immediately and do not expose a separate modal.
+    if (action === 'save' || action === 'load') {
+      this.restoreSettingsAfterSystemAction();
+    }
+  }
+
+  private restoreSettingsAfterSystemAction(): void {
+    if (!this.returnToSettingsAfterAction) return;
+    this.returnToSettingsAfterAction = false;
+    this.open();
+  }
+
   private render(settings: SettingsData): void {
     const set = (key: string, value: string | boolean | number): void => {
       const input = this.panel.querySelector<HTMLInputElement | HTMLSelectElement>(`[data-setting="${key}"]`);
