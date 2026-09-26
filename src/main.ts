@@ -9,10 +9,10 @@ if (!gameRoot) throw new Error('Game root was not found');
 
 const settingsStore = new SettingsStore(localStorage);
 
-new ThreeGame(gameRoot, settingsStore);
-new MobileUI();
-
 new SettingsUI(settingsStore, () => {
   settingsStore.resetLocalSave();
   window.location.reload();
 });
+
+new ThreeGame(gameRoot, settingsStore);
+new MobileUI();
