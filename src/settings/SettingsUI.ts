@@ -1,3 +1,4 @@
+import { PrivacyLegalUI } from '../core/PrivacyLegalUI';
 import type { SettingsStore } from './SettingsStore';
 import type { SettingsData } from './SettingsModel';
 
@@ -86,6 +87,8 @@ export class SettingsUI {
 
           <section>
             <h3>Data</h3>
+            <p class="settings-section-note">Game saves and settings are stored locally in your browser.</p>
+            <button type="button" data-action="open-privacy">Privacy & Legal</button>
             <button type="button" data-action="reset-save">Reset local save</button>
             <button type="button" data-action="defaults">Restore default settings</button>
             <button type="button" data-action="reset-settings">Reset settings</button>
@@ -93,6 +96,16 @@ export class SettingsUI {
         </div>
       </div>`;
     
+    const privacySection = new PrivacyLegalUI({
+      resetSettings: () => this.store.resetSettings(),
+      deleteSaveData: () => this.onResetSave(),
+      clearAllLocalData: () => {
+        this.store.clearAllLocalData();
+        window.location.reload();
+      },
+    }).getSection();
+    panel.querySelector('.settings-scroll')?.appendChild(privacySection);
+
     panel.querySelector<HTMLButtonElement>('#settings-close')?.addEventListener('click', () => this.close());
     panel.addEventListener('click', (event) => {
       if (event.target === panel) this.close();
@@ -102,12 +115,16 @@ export class SettingsUI {
       if (event.key === 'Escape' && !this.panel.hidden) this.close();
     });
 
+    panel.querySelector('[data-action="open-privacy"]')?.addEventListener('click', () => {
+      privacySection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+
     panel.querySelector('[data-action="reset-save"]')?.addEventListener('click', () => {
       if (this.confirmDestructive('Delete the local game save? This cannot be undone.')) this.onResetSave();
     });
     panel.querySelector('[data-action="defaults"]')?.addEventListener('click', () => this.store.restoreDefaults());
     panel.querySelector('[data-action="reset-settings"]')?.addEventListener('click', () => {
-      if (this.confirmDestructive('Reset all game settings to their initial defaults?')) this.store.resetSettings();
+      if (this.confirmDestructive('Reset all game settings to their initial defaults? Your game save will not be deleted.')) this.store.resetSettings();
     });
 
     panel.querySelectorAll<HTMLInputElement | HTMLSelectElement>('[data-setting]').forEach((input) => {
