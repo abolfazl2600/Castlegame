@@ -24,7 +24,7 @@ export interface BattleObjectiveSnapshot {
 
 export class BattleObjectiveSystem {
   private readonly registry = createDefaultBattleObjectiveRegistry();
-  private readonly eventBus: BattleObjectiveEventBus = new EventBus();
+  private readonly eventBus: BattleObjectiveEventBus = new BattleObjectiveEventBus();
   private readonly entries = new Map<string, RuntimeEntry>();
   private readonly order: string[] = [];
   private readonly ui = new BattleObjectiveUI(() => this.getEntries());
