@@ -7,7 +7,7 @@ import './style.css';
 const gameRoot = document.getElementById('game');
 if (!gameRoot) throw new Error('Game root was not found');
 
-const settingsStore = new SettingsStore(localStorage, 'castle-role-save-v1');
+const settingsStore = new SettingsStore(localStorage);
 
 new ThreeGame(gameRoot, settingsStore);
 new MobileUI();
