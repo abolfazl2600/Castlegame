@@ -1,4 +1,4 @@
-import { BattleObjectiveEventBus as EventBus } from './BattleObjectiveEvents';
+import { BattleObjectiveEventBus } from './BattleObjectiveEvents';
 import { BattleObjectiveUI } from './BattleObjectiveUI';
 import { createDefaultBattleObjectiveRegistry, type BattleObjectiveHandler } from './BattleObjectiveRegistry';
 import type {
@@ -28,7 +28,6 @@ export class BattleObjectiveSystem {
   private readonly entries = new Map<string, RuntimeEntry>();
   private readonly order: string[] = [];
   private readonly ui = new BattleObjectiveUI(() => this.getEntries());
-  private scenario: BattleScenario = DEFAULT_BATTLE_SCENARIO;
   private running = false;
   private battleFinished = false;
   private victoryMode: ObjectiveVictoryMode = 'any_primary';
@@ -37,7 +36,6 @@ export class BattleObjectiveSystem {
   start(scenario: BattleScenario = DEFAULT_BATTLE_SCENARIO, battleTime = 0): void {
     this.reset();
     this.validateScenario(scenario);
-    this.scenario = scenario;
     this.victoryMode = scenario.victory?.mode ?? 'any_primary';
 
     const definitions = [...scenario.primaryObjectives, ...(scenario.secondaryObjectives ?? [])];
