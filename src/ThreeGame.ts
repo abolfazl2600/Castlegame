@@ -7225,6 +7225,7 @@ export class ThreeGame {
 
     toolbar.innerHTML =
       '<div class="toolbar-title"><div><span>Build</span><small>Modular engineering</small></div><button id="toolbar-close" class="toolbar-close" type="button" aria-label="Close build panel">×</button></div>' +
+      noneHtml +
       toolHtml +
       '<div class="builder-settings">' +
       '<div class="settings-title">Wall Settings</div>' +
