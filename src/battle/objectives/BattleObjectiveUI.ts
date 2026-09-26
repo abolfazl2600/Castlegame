@@ -8,6 +8,7 @@ type ObjectiveItem = {
 export class BattleObjectiveUI {
   private panel: HTMLElement | null = null;
   private style: HTMLStyleElement | null = null;
+  private isVisible = true;
 
   constructor(private readonly getState: () => ObjectiveItem[]) {}
 
@@ -31,11 +32,25 @@ export class BattleObjectiveUI {
     document.body.appendChild(panel);
 
     this.panel = panel;
+    panel.addEventListener('click', (event) => {
+      const target = event.target instanceof Element
+        ? event.target.closest<HTMLButtonElement>('[data-battle-objectives-close]')
+        : null;
+      if (!target) return;
+      this.isVisible = false;
+      panel.hidden = true;
+    });
   }
 
   render(): void {
     if (!this.panel) return;
 
+    if (!this.isVisible) {
+      this.panel.hidden = true;
+      return;
+    }
+
+    this.panel.hidden = false;
     const items = this.getState();
     const groups: Record<string, string> = {
       primary: 'PRIMARY',
@@ -58,7 +73,10 @@ export class BattleObjectiveUI {
                 <span class="battle-objectives-eyebrow">BATTLE</span>
                 <strong>OBJECTIVES</strong>
               </div>
-              <span class="battle-objectives-count">${statusSummary}</span>
+              <div class="battle-objectives-header-actions">
+                <span class="battle-objectives-count">${statusSummary}</span>
+                <button type="button" class="battle-objectives-close" data-battle-objectives-close aria-label="Close battle objectives">×</button>
+              </div>
             </header>
             <div class="battle-objectives-list">
               ${group.map(({ definition, runtime }) => this.renderObjective(definition, runtime)).join('')}
@@ -215,6 +233,29 @@ export class BattleObjectiveUI {
         letter-spacing: .05em;
         white-space: nowrap;
       }
+
+      .battle-objectives-header-actions {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        flex: 0 0 auto;
+      }
+
+      .battle-objectives-close {
+        width: 24px;
+        height: 24px;
+        display: inline-grid;
+        place-items: center;
+        padding: 0;
+        border: 1px solid rgba(255,255,255,.1);
+        border-radius: 7px;
+        color: rgba(255,255,255,.78);
+        background: rgba(255,255,255,.045);
+        cursor: pointer;
+        font: 16px/1 system-ui, sans-serif;
+      }
+
+      .battle-objectives-close:hover { background: rgba(255,255,255,.1); }
 
       .battle-objectives-list {
         display: grid;
