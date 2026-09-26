@@ -165,6 +165,7 @@ export class WallWeaponSystem {
   update(delta: number): void {
     if (!this.world.isModernMode()) {
       this.clear();
+      this.clearProjectiles();
       return;
     }
 
@@ -486,10 +487,12 @@ export class WallWeaponSystem {
 
   private explode(projectile: Projectile): void {
     this.world.applyAreaDamage(projectile.lastTargetPosition, projectile.blastRadius, projectile.damage);
+    const flashMaterial = this.explosionMaterial.clone();
     const flash = new THREE.Mesh(
-      this.geometry(new THREE.SphereGeometry(0.35, 10, 8)),
-      this.explosionMaterial,
+      new THREE.SphereGeometry(0.35, 10, 8),
+      flashMaterial,
     );
+    this.geometryCache.push(flash.geometry);
     flash.position.copy(projectile.lastTargetPosition);
     this.layer.add(flash);
 
@@ -497,10 +500,10 @@ export class WallWeaponSystem {
     const animate = (): void => {
       const age = (performance.now() - startedAt) / 1000;
       flash.scale.setScalar(1 + age * 5);
-      flash.material.opacity = Math.max(0, 0.78 * (1 - age * 3));
+      flashMaterial.opacity = Math.max(0, 0.78 * (1 - age * 3));
       if (age >= 0.34) {
         this.layer.remove(flash);
-        flash.geometry.dispose();
+        flashMaterial.dispose();
         return;
       }
       requestAnimationFrame(animate);
@@ -511,6 +514,11 @@ export class WallWeaponSystem {
   private clear(): void {
     for (const mount of this.mounts.values()) this.layer.remove(mount.root);
     this.mounts.clear();
+  }
+
+  private clearProjectiles(): void {
+    for (const projectile of this.projectiles) this.layer.remove(projectile.view);
+    this.projectiles.length = 0;
   }
 
   private directionVector(direction: WallWeaponPosition['direction']): THREE.Vector3 {
