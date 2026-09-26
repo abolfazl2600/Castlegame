@@ -4,7 +4,6 @@ on:
   push:
     branches:
       - feat/modern-metal-defensive-towers
-      - feat/modern-siege
   workflow_dispatch:
 
 permissions:
@@ -20,5 +19,3 @@ jobs:
           node-version: 22
       - run: npm install
       - run: npm run build
-
-# modern siege verification
