@@ -10,7 +10,7 @@ import { WallDefenseSystem } from './building/WallDefenseSystem';
 import { GateSystem } from './building/GateSystem';
 import { DestructibleBuildingSystem } from './building/DestructibleBuildingSystem';
 import { ModernDefenseTowerSystem } from './building/ModernDefenseTowerSystem';
-import { GameModeSystem } from './core/GameModeSystem';
+import { GameModeSystem, type GameMode } from './core/GameModeSystem';
 import { CastleDetailGenerator } from './building/CastleDetailGenerator';
 import { KeepRenderer } from './rendering/KeepRenderer';
 import { MedievalMaterials } from './rendering/MedievalMaterials';
@@ -23,7 +23,6 @@ import { OrchardSystem } from './systems/OrchardSystem';
 import type {
   AccessKind,
   GridCell,
-  GameMode,
   HarborKind,
   KeepRoofStyle,
   MarketBuildingKind,
