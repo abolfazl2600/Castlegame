@@ -1,5 +1,6 @@
 import type { BattleStatus } from './battle/types';
 import { SaveSystem } from './core/SaveSystem';
+import { SAVE_KEY } from './core/constants';
 import type { ThreeGame } from './ThreeGame';
 
 type CoreState = 'MAIN_MENU' | 'BATTLE' | 'PAUSED' | 'VICTORY' | 'DEFEAT' | 'SETTINGS';
@@ -23,6 +24,20 @@ export class GameFlowController {
     window.addEventListener('castlegame:battle-state', (event) => {
       const status = (event as CustomEvent<BattleStatus>).detail;
       this.handleBattleStatus(status);
+    });
+
+    document.addEventListener('keydown', (event) => {
+      if (event.key !== 'Escape') return;
+      if (this.state === 'BATTLE') {
+        event.preventDefault();
+        this.pauseBattle();
+      } else if (this.state === 'PAUSED') {
+        event.preventDefault();
+        this.resumeBattle();
+      } else if (this.state === 'SETTINGS') {
+        event.preventDefault();
+        this.returnFromSettings();
+      }
     });
 
     document.addEventListener('visibilitychange', () => {
@@ -290,6 +305,6 @@ export class GameFlowController {
   }
 
   private hasContinue(): boolean {
-    return localStorage.getItem(PROGRESS_KEY) === '1' || SaveSystem.hasAnySave();
+    return localStorage.getItem(PROGRESS_KEY) === '1' || localStorage.getItem(SAVE_KEY) !== null;
   }
 }
