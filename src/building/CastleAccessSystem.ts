@@ -77,9 +77,16 @@ export class CastleAccessSystem {
       const longestLevel = Math.max(...walls.map((wall) => wall.level ?? 1));
       let accessCount = 0;
 
-      if (walls.length >= 11) accessCount = Math.max(1, Math.floor(walls.length / 9));
-      else if (walls.length >= 6 && !hasTowerOrGate) accessCount = 1;
-      else if (longestLevel >= 4 && walls.length >= 4 && !hasTowerOrGate) accessCount = 1;
+      // Every walkable wall component without a tower/gate access anchor needs
+      // at least one generated ground-to-wall connection. Longer components
+      // receive additional access points at deterministic intervals.
+      if (!hasTowerOrGate) {
+        accessCount = Math.max(1, Math.ceil(walls.length / 12));
+      } else if (walls.length >= 14 && walkwayWalls.length > 0) {
+        accessCount = Math.max(1, Math.floor(walls.length / 14));
+      } else if (longestLevel >= 4 && walkwayWalls.length > 0 && towerOrGate.length === 0) {
+        accessCount = 1;
+      }
 
       if (accessCount === 0) continue;
 
