@@ -54,6 +54,23 @@ export class SettingsUI {
           <button id="settings-close" type="button" aria-label="Close settings">×</button>
         </header>
         <div class="settings-scroll">
+          <section class="settings-system-actions-section">
+            <div class="settings-section-heading-row">
+              <div>
+                <span class="settings-section-eyebrow">QUICK ACCESS</span>
+                <h3>Game Actions</h3>
+              </div>
+              <span class="settings-section-badge">SYSTEM</span>
+            </div>
+            <p class="settings-section-note">Help, Load, Save, and Templates are managed from Settings.</p>
+            <div class="settings-system-actions">
+              <button type="button" data-system-action="help"><span class="settings-action-icon" aria-hidden="true">?</span><span class="settings-action-copy"><strong>Help</strong><small>Game guide and controls</small></span><span aria-hidden="true">›</span></button>
+              <button type="button" data-system-action="load"><span class="settings-action-icon" aria-hidden="true">↓</span><span class="settings-action-copy"><strong>Load</strong><small>Load your saved castle</small></span><span aria-hidden="true">›</span></button>
+              <button type="button" data-system-action="save"><span class="settings-action-icon" aria-hidden="true">↑</span><span class="settings-action-copy"><strong>Save</strong><small>Save the current castle</small></span><span aria-hidden="true">›</span></button>
+              <button type="button" data-system-action="templates"><span class="settings-action-icon" aria-hidden="true">▦</span><span class="settings-action-copy"><strong>Templates</strong><small>Choose a starting world</small></span><span aria-hidden="true">›</span></button>
+            </div>
+          </section>
+
           <section>
             <h3>General</h3>
             <label>Language<select data-setting="language"><option value="system">System language</option><option value="en">English</option></select></label>
@@ -100,17 +117,6 @@ export class SettingsUI {
               <span><kbd>Ctrl/Cmd + Y</kbd> Redo</span>
               <span><kbd>1–0, F, W, Y, A, T, N, M, Q, R, L, P, D, I, O, K, U, J, B, V, G, H, C, X</kbd> Select the corresponding build tools.</span>
               <span>Mouse / touch drag and OrbitControls provide camera interaction. Rebinding is not exposed because the current input architecture has no safe rebinding layer.</span>
-            </div>
-          </section>
-
-          <section>
-            <h3>System Actions</h3>
-            <p class="settings-section-note">Secondary game actions are grouped here so the main game header stays focused.</p>
-            <div class="settings-system-actions">
-              <button type="button" data-system-action="help">Help <span aria-hidden="true">›</span></button>
-              <button type="button" data-system-action="load">Load <span aria-hidden="true">›</span></button>
-              <button type="button" data-system-action="save">Save <span aria-hidden="true">›</span></button>
-              <button type="button" data-system-action="templates">Templates <span aria-hidden="true">›</span></button>
             </div>
           </section>
 
