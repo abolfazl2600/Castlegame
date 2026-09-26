@@ -96,8 +96,20 @@ export class MobileUI {
   private syncModeLabel(): void {
     const target = document.getElementById('game-mode-label');
     const button = document.querySelector<HTMLButtonElement>('[data-mobile-proxy="game-mode-button"]');
-    if (!target || !button) return;
-    button.textContent = target.textContent?.trim() || 'Mode';
+    if (target && button) {
+      button.textContent = target.textContent?.trim() || 'Mode';
+    }
+
+    this.syncProxyVisibility();
+  }
+
+  private syncProxyVisibility(): void {
+    document.querySelectorAll<HTMLButtonElement>('[data-mobile-proxy]').forEach((proxy) => {
+      const targetId = proxy.dataset.mobileProxy;
+      if (!targetId || targetId === 'game-mode-button') return;
+      const target = document.getElementById(targetId);
+      proxy.hidden = target instanceof HTMLButtonElement && target.hidden;
+    });
   }
 
   private syncStatus(): void {
