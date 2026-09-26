@@ -14,6 +14,8 @@ export interface GameModeDefinition {
   toolGroups: readonly GameModeToolGroup[];
   availableTools: readonly ToolKind[];
   availableBuildingKinds: readonly TileKind[];
+  availableUnits: readonly string[];
+  availableWeapons: readonly string[];
 }
 
 const MEDIEVAL_BUILDINGS: readonly TileKind[] = [
@@ -43,6 +45,8 @@ export const GAME_MODE_CONFIG: Record<GameMode, GameModeDefinition> = {
     ],
     availableTools: [...MEDIEVAL_BUILDINGS, 'keep','towerBridge','mountainRange',...COMMON_WORLD_TOOLS],
     availableBuildingKinds: [...MEDIEVAL_BUILDINGS, 'tree','rock','mountain'],
+    availableUnits: ['swordsman','spearman','archer','crossbowman'],
+    availableWeapons: ['sword','spear','bow','crossbow'],
   },
   modern: {
     id: 'modern',
@@ -59,6 +63,8 @@ export const GAME_MODE_CONFIG: Record<GameMode, GameModeDefinition> = {
     ],
     availableTools: ['futuristicCastle', ...COMMON_WORLD_TOOLS],
     availableBuildingKinds: ['futuristicCastle','tree','rock','mountain'],
+    availableUnits: [],
+    availableWeapons: [],
   },
 };
 
@@ -76,4 +82,20 @@ export function isToolAvailable(mode: GameMode, tool: ToolKind): boolean {
 
 export function isBuildingAvailable(mode: GameMode, kind: TileKind): boolean {
   return GAME_MODE_CONFIG[mode].availableBuildingKinds.includes(kind);
+}
+
+export function isMedievalMode(mode: GameMode): boolean {
+  return mode === 'medieval';
+}
+
+export function isModernMode(mode: GameMode): boolean {
+  return mode === 'modern';
+}
+
+export function isUnitAvailable(mode: GameMode, unit: string): boolean {
+  return GAME_MODE_CONFIG[mode].availableUnits.includes(unit);
+}
+
+export function isWeaponAvailable(mode: GameMode, weapon: string): boolean {
+  return GAME_MODE_CONFIG[mode].availableWeapons.includes(weapon);
 }
