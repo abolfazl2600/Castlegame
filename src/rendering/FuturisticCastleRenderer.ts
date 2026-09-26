@@ -70,10 +70,18 @@ export class FuturisticCastleRenderer {
     const wallH = 5.8;
     const wallT = 1.65;
 
-    addBox(outer * 2, wallH, wallT, metal, 0, wallH / 2, -outer);
-    addBox(outer * 2, wallH, wallT, metal, 0, wallH / 2, outer);
-    addBox(wallT, wallH, outer * 2, metal, -outer, wallH / 2, 0);
-    addBox(wallT, wallH, outer * 2, metal, outer, wallH / 2, 0);
+    const northWall = architecture.ConcreteWallSegment(outer * 2, wallH, wallT);
+    northWall.position.z = -outer;
+    group.add(northWall);
+    const southWall = architecture.ConcreteWallSegment(outer * 2, wallH, wallT);
+    southWall.position.z = outer;
+    group.add(southWall);
+    const westWall = architecture.ConcreteWallSegment(wallT, wallH, outer * 2);
+    westWall.position.x = -outer;
+    group.add(westWall);
+    const eastWall = architecture.ConcreteWallSegment(wallT, wallH, outer * 2);
+    eastWall.position.x = outer;
+    group.add(eastWall);
 
     for (let i = -3; i <= 3; i += 1) {
       const offset = i * 4.25;
