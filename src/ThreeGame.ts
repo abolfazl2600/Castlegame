@@ -15,6 +15,7 @@ import { getGameModeDefinition, isBuildingAvailable, isGameMode, isToolAvailable
 import type { SettingsStore } from './settings/SettingsStore';
 import { applyGraphicsSettings, applyInputSettings } from './settings/SettingsSubsystems';
 import { FuturisticCastleRenderer } from './rendering/FuturisticCastleRenderer';
+import { AudioManager } from './audio/AudioManager';
 import { audioEvents } from './audio/AudioEventBus';
 import type {
   AccessKind,
