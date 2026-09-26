@@ -42,6 +42,8 @@ export interface BattleSetup {
   defenderModernSoldiers: number;
 }
 
+import type { BattleObjectiveRuntimeState, BattleScenario } from './objectives/BattleObjectiveTypes';
+
 export interface BattleResult {
   winner: Faction | 'none';
   attackersRemaining: number;
@@ -49,7 +51,11 @@ export interface BattleResult {
   attackersKilled: number;
   defendersKilled: number;
   durationSeconds: number;
+  reason?: 'objective_completed' | 'objective_failed' | 'elimination' | 'capture' | 'no_attackers';
+  completedObjectives?: string[];
+  failedObjectives?: string[];
 }
+
 
 export interface BattleStatus {
   mode: 'idle' | 'running' | 'paused' | 'finished';
@@ -60,4 +66,9 @@ export interface BattleStatus {
   attackersAlive: number;
   defendersAlive: number;
   result?: BattleResult;
+  objectives?: BattleObjectiveRuntimeState[];
+}
+
+export interface BattleScenarioSetup {
+  readonly scenario?: BattleScenario;
 }
