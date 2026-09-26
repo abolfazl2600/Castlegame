@@ -12,14 +12,15 @@ export class SettingsUI {
   ) {
     this.panel = this.createPanel();
     document.body.appendChild(this.panel);
-    const settingsButton = document.getElementById('settings-button');
-    if (settingsButton instanceof HTMLButtonElement) {
-      settingsButton.onclick = (event) => {
-        event.preventDefault();
-        event.stopImmediatePropagation();
-        this.open();
-      };
-    }
+    document.addEventListener('click', (event) => {
+      const target = event.target instanceof Element
+        ? event.target.closest<HTMLButtonElement>('#settings-button')
+        : null;
+      if (!target) return;
+      event.preventDefault();
+      event.stopPropagation();
+      this.open();
+    });
     this.store.subscribe((settings) => this.render(settings));
     this.bindSystemActionReturns();
   }
