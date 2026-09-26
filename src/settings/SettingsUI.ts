@@ -3,7 +3,6 @@ import type { SettingsData } from './SettingsModel';
 
 export class SettingsUI {
   private readonly panel: HTMLElement;
-  private readonly unsubscribe: () => void;
 
   constructor(
     private readonly store: SettingsStore,
@@ -12,7 +11,7 @@ export class SettingsUI {
     this.panel = this.createPanel();
     document.body.appendChild(this.panel);
     document.getElementById('settings-button')?.addEventListener('click', () => this.open());
-    this.unsubscribe = this.store.subscribe((settings) => this.render(settings));
+    this.store.subscribe((settings) => this.render(settings));
   }
 
   open(): void {
