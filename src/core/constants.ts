@@ -5,5 +5,5 @@ export const WORLD_WIDTH = WORLD_COLS * TILE_SIZE;
 export const WORLD_HEIGHT = WORLD_ROWS * TILE_SIZE;
 
 export const SAVE_KEY = 'castle-role-save-v1';
-export const SAVE_VERSION = 8;
+export const SAVE_VERSION = 9;
 export const CASTLE_DETAIL_VERSION = 1;
