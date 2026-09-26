@@ -1007,3 +1007,366 @@ kbd { min-width: 23px; text-align: center; padding: 3px 5px; border-radius: 6px;
 .terrain-template-card {
   border-color: rgba(116, 194, 143, .14);
 }
+
+
+/* Compact play-area optimization */
+html, body, #app {
+  min-height: 0;
+}
+
+#app {
+  grid-template-rows: 54px minmax(0, 1fr);
+  padding: 6px;
+  gap: 6px;
+}
+
+.topbar {
+  min-height: 0;
+  padding: 0 12px;
+  border-radius: 13px;
+}
+
+.eyebrow {
+  font-size: 8px;
+  letter-spacing: .22em;
+}
+
+h1 {
+  font-size: 18px;
+}
+
+.status-group {
+  gap: 4px;
+}
+
+.status-pill {
+  padding: 5px 8px;
+  font-size: 9px;
+}
+
+.secondary-button,
+.danger-button {
+  padding: 5px 8px;
+  border-radius: 8px;
+  font-size: 10px;
+}
+
+#game-shell {
+  border-radius: 16px;
+}
+
+.toolbar {
+  left: 9px;
+  top: 9px;
+  width: 248px;
+  max-height: calc(100% - 18px);
+  gap: 4px;
+  padding: 8px;
+  border-radius: 13px;
+}
+
+.toolbar-title {
+  top: -8px;
+  margin: -8px -8px 0;
+  padding: 8px 10px 7px;
+}
+
+.toolbar-title span {
+  font-size: 11px;
+}
+
+.toolbar-title small {
+  display: none;
+}
+
+.toolbar-close {
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  font-size: 18px;
+}
+
+.tool-section-label {
+  margin: 4px 3px 0;
+  font-size: 7px;
+  letter-spacing: .13em;
+}
+
+.tool-button {
+  grid-template-columns: 28px minmax(0, 1fr) auto;
+  gap: 7px;
+  padding: 5px 6px;
+  min-height: 38px;
+  border-radius: 9px;
+}
+
+.tool-icon {
+  width: 28px;
+  height: 28px;
+  border-radius: 7px;
+  font-size: 15px;
+}
+
+.tool-copy {
+  gap: 0;
+}
+
+.tool-copy strong {
+  font-size: 10px;
+}
+
+.tool-copy small {
+  display: none;
+}
+
+.tool-button.is-selected .tool-copy small,
+.tool-button:focus-visible .tool-copy small {
+  display: block;
+  color: rgba(255,255,255,.58);
+  font-size: 8px;
+}
+
+kbd {
+  min-width: 20px;
+  padding: 2px 4px;
+  font-size: 8px;
+}
+
+.builder-settings {
+  gap: 5px;
+  margin-top: 4px;
+  padding: 7px;
+  border-radius: 10px;
+}
+
+.settings-title {
+  font-size: 8px;
+}
+
+.settings-row {
+  grid-template-columns: 64px minmax(0, 1fr);
+  gap: 6px;
+  font-size: 9px;
+}
+
+.settings-row select {
+  padding: 4px 6px;
+  border-radius: 7px;
+  font-size: 9px;
+}
+
+.settings-check {
+  gap: 6px;
+  font-size: 9px;
+}
+
+.settings-actions {
+  gap: 4px;
+}
+
+.settings-actions button,
+.move-pad button {
+  min-height: 28px;
+  padding: 5px 6px;
+  border-radius: 7px;
+  font-size: 8px;
+}
+
+.settings-hint {
+  display: none;
+}
+
+.builder-settings:hover .settings-hint,
+.builder-settings:focus-within .settings-hint {
+  display: block;
+}
+
+.range-wrap {
+  gap: 5px;
+  grid-template-columns: minmax(0, 1fr) 28px;
+}
+
+.range-wrap b {
+  font-size: 8px;
+}
+
+.move-pad {
+  gap: 4px;
+}
+
+.view-mode-switch {
+  right: 9px;
+  top: 9px;
+  gap: 2px;
+  padding: 3px;
+  border-radius: 10px;
+}
+
+.view-mode-button {
+  padding: 6px 8px;
+  border-radius: 7px;
+  font-size: 9px;
+}
+
+.camera-view-controls {
+  right: 9px;
+  top: 48px;
+  gap: 2px;
+  padding: 3px;
+  border-radius: 10px;
+}
+
+.camera-view-button {
+  padding: 5px 7px;
+  border-radius: 7px;
+  font-size: 8px;
+}
+
+.scene-badge {
+  right: 9px;
+  top: 86px;
+  padding: 6px 8px;
+  font-size: 7px;
+}
+
+.world-counters {
+  left: 9px;
+  bottom: 9px;
+  gap: 4px;
+}
+
+.world-counters span {
+  padding: 6px 8px;
+  font-size: 8px;
+}
+
+.battle-panel {
+  right: 9px;
+  bottom: 9px;
+  width: min(330px, calc(100% - 18px));
+  max-height: calc(100% - 92px);
+  gap: 8px;
+  padding: 10px;
+  border-radius: 13px;
+}
+
+.help-modal {
+  width: min(760px, calc(100% - 24px));
+  max-height: calc(100% - 24px);
+  padding: 15px;
+  border-radius: 15px;
+}
+
+@media (min-width: 761px) and (max-height: 800px) {
+  #app {
+    grid-template-rows: 48px minmax(0, 1fr);
+  }
+
+  .toolbar {
+    max-height: calc(100% - 14px);
+    top: 7px;
+    left: 7px;
+  }
+
+  .tool-button {
+    min-height: 34px;
+    padding-block: 4px;
+  }
+
+  .tool-icon {
+    width: 25px;
+    height: 25px;
+    font-size: 13px;
+  }
+
+  .builder-settings {
+    padding: 6px;
+    gap: 4px;
+  }
+
+  .settings-actions button,
+  .move-pad button {
+    min-height: 25px;
+  }
+}
+
+@media (max-width: 760px) {
+  #app {
+    grid-template-rows: 52px minmax(0, 1fr);
+    padding: 4px;
+    gap: 4px;
+  }
+
+  .topbar {
+    padding: 0 9px;
+    border-radius: 11px;
+  }
+
+  .toolbar {
+    width: min(78vw, 276px);
+    left: 6px;
+    top: 48px;
+    max-height: calc(100% - 54px);
+    padding: 7px;
+  }
+
+  .toolbar-open {
+    left: 7px;
+    top: 7px;
+    min-height: 34px;
+    padding: 7px 10px;
+    border-radius: 9px;
+    font-size: 10px;
+  }
+
+  .view-mode-switch {
+    top: 7px;
+    right: 7px;
+  }
+
+  .camera-view-controls {
+    top: 47px;
+    right: 7px;
+  }
+
+  .scene-badge {
+    top: 84px;
+    right: 7px;
+  }
+
+  .world-counters {
+    left: 7px;
+    bottom: 7px;
+  }
+}
+
+@media (max-width: 520px) {
+  .topbar h1 {
+    font-size: 15px;
+  }
+
+  .topbar .eyebrow {
+    display: none;
+  }
+
+  .secondary-button,
+  .danger-button {
+    padding: 5px 6px;
+    font-size: 9px;
+  }
+
+  .view-mode-button {
+    padding: 5px 7px;
+  }
+}
+
+/* Fullscreen should devote the entire viewport to the game shell. */
+:fullscreen #app {
+  grid-template-rows: 48px minmax(0, 1fr);
+  padding: 4px;
+  gap: 4px;
+}
+
+:fullscreen #game-shell {
+  border-radius: 12px;
+}
