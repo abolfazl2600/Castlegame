@@ -344,7 +344,7 @@ export class ThreeGame {
     this.root = root;
     this.settingsStore = settingsStore;
     this.audioManager = new AudioManager();
-    this.animationVisuals = new AnimationVisualSystem(this.battleLayer, this.camera);
+    this.animationVisuals = new AnimationVisualSystem(this.battleLayer);
     this.saveSystem = new SaveSystem({
       state: this.services.state,
       keepSystem: this.services.keepSystem,
