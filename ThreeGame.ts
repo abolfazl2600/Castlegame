@@ -201,7 +201,6 @@ const TOOL_GROUPS: Array<{ label: string; tools: ToolDefinition[] }> = [
       { id: 'lower', icon: '⬇️', label: 'Lower', detail: 'Lower terrain with brush', shortcut: 'J' },
       { id: 'flatten', icon: '▰', label: 'Flatten', detail: 'Level terrain to brush center', shortcut: 'B' },
       { id: 'smooth', icon: '〰️', label: 'Smooth', detail: 'Blend nearby terrain heights', shortcut: 'V' },
-      { id: 'dig', icon: '⛏️', label: 'Dig', detail: 'Excavate deep ground', shortcut: 'G' },
       { id: 'hill', icon: '⛰️', label: 'Create Hill', detail: 'Build a rounded hill', shortcut: 'H' },
       { id: 'cliff', icon: '🗻', label: 'Create Cliff', detail: 'Create a sharp raised plateau', shortcut: 'C' },
     ],
@@ -1110,7 +1109,7 @@ export class ThreeGame {
   }
 
   private isTerrainTool(tool: ToolKind): tool is TerrainToolKind {
-    return ['raise', 'lower', 'flatten', 'smooth', 'dig', 'hill', 'cliff'].includes(tool);
+    return ['raise', 'lower', 'flatten', 'smooth', 'hill', 'cliff'].includes(tool);
   }
 
   private gridToWorld(gx: number, gy: number): { x: number; z: number } {
@@ -5782,7 +5781,6 @@ export class ThreeGame {
 
       if (tool === 'raise') next = current + 0.32 * scaled;
       else if (tool === 'lower') next = current - 0.32 * scaled;
-      else if (tool === 'dig') next = current - 0.58 * scaled;
       else if (tool === 'flatten') {
         next = THREE.MathUtils.lerp(current, centerElevation, THREE.MathUtils.clamp(0.3 * this.brushStrength, 0, 1));
       } else if (tool === 'smooth') {
@@ -8014,7 +8012,6 @@ export class ThreeGame {
         j: 'lower',
         b: 'flatten',
         v: 'smooth',
-        g: 'dig',
         h: 'hill',
         c: 'cliff',
         x: 'erase',
