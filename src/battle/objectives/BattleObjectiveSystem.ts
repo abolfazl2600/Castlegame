@@ -1,4 +1,3 @@
-import type { BattleObjectiveEventBus } from './BattleObjectiveEvents';
 import { BattleObjectiveEventBus as EventBus } from './BattleObjectiveEvents';
 import { BattleObjectiveUI } from './BattleObjectiveUI';
 import { createDefaultBattleObjectiveRegistry, type BattleObjectiveHandler } from './BattleObjectiveRegistry';
@@ -240,10 +239,10 @@ export class BattleObjectiveSystem {
     const definitions = [...scenario.primaryObjectives, ...(scenario.secondaryObjectives ?? [])];
     const ids = new Set<string>();
     for (const definition of definitions) {
-      this.validateDefinition(definition, ids);
       if (ids.has(definition.id)) throw new Error(`Duplicate objective id: ${definition.id}`);
       ids.add(definition.id);
     }
+    for (const definition of definitions) this.validateDefinition(definition, ids);
 
     const visiting = new Set<string>();
     const visited = new Set<string>();
@@ -267,9 +266,5 @@ export class BattleObjectiveSystem {
         throw new Error(`Missing objective prerequisite: ${prerequisite}`);
       }
     }
-  }
-
-  private entityIdForDefinition(definition: BattleObjectiveDefinition): string | undefined {
-    return this.entityIdFor(definition);
   }
 }
