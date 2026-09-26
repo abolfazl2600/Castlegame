@@ -498,7 +498,8 @@ export class FarmLifeSystem {
         continue;
       }
 
-      const actionIndex = Math.floor((agent.anim + agent.id) / 2.6) % (atBarn ? 3 : 5);
+      const actionSeed = agent.id ?? Math.floor(agent.anim);
+      const actionIndex = Math.floor((agent.anim + actionSeed) / 2.6) % (atBarn ? 3 : 5);
       if (atBarn) {
         if (actionIndex === 0) {
           this.setFarmerAction(animation, 'feed', time);
