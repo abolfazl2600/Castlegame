@@ -1,5 +1,4 @@
-import type { GridCell, KeepState, TerrainKind, TileKind, TowerBridgeState, WallDirection } from '../core/types';
-import { WallSystem } from '../building/WallSystem';
+import type { GridCell, KeepState, TerrainKind, TileKind, TowerBridgeState } from '../core/types';
 import { ConnectedWallNetwork } from '../building/ConnectedWallNetwork';
 
 export interface NavPoint {
@@ -419,7 +418,14 @@ export class BattleNavigation {
     const result: Array<{ top: WallNavNode; ground: NavPoint }> = [];
 
     for (const node of nodes) {
-      if (node.kind !== 'stairTower') continue;
+      if (
+        node.kind !== 'stairTower' &&
+        node.kind !== 'tower' &&
+        node.kind !== 'gate' &&
+        !this.hasDedicatedWallAccess(node)
+      ) {
+        continue;
+      }
 
       const groundCandidates = [
         { x: node.x + 1, y: node.y },
@@ -439,6 +445,34 @@ export class BattleNavigation {
     }
 
     return result;
+  }
+
+  private hasDedicatedWallAccess(node: WallNavNode): boolean {
+    if (
+      node.kind !== 'wall1' &&
+      node.kind !== 'wall2' &&
+      node.kind !== 'wall3'
+    ) {
+      return false;
+    }
+
+    const candidates = [
+      { x: node.x + 1, y: node.y },
+      { x: node.x - 1, y: node.y },
+      { x: node.x, y: node.y + 1 },
+      { x: node.x, y: node.y - 1 },
+    ];
+
+    return candidates.some((point) => {
+      const cell = this.context.cellAt(point.x, point.y);
+      if (!cell) return false;
+      return (
+        cell.kind === 'stoneStairs' ||
+        cell.kind === 'woodenStairs' ||
+        cell.kind === 'ramp' ||
+        cell.kind === 'ladder'
+      );
+    });
   }
 
   private reconstruct(nodes: Map<string, SearchNode>, endKey: string): NavPoint[] {
