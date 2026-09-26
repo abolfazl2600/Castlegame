@@ -526,6 +526,76 @@ kbd { min-width: 23px; text-align: center; padding: 3px 5px; border-radius: 6px;
   text-transform: uppercase;
 }
 
+.settings-section {
+  overflow: hidden;
+  border: 1px solid rgba(118, 219, 255, .08);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, .018);
+}
+
+.settings-section-header {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
+  width: 100%;
+  gap: 8px;
+  padding: 8px 9px;
+  border: 0;
+  color: #8ee9ff;
+  background: transparent;
+  cursor: pointer;
+  text-align: left;
+}
+
+.settings-section-header:hover {
+  background: rgba(83, 199, 240, .07);
+}
+
+.settings-section-header:focus-visible {
+  outline: 2px solid rgba(102, 219, 255, .65);
+  outline-offset: -2px;
+}
+
+.settings-section-title {
+  min-width: 0;
+  overflow: hidden;
+  font-size: 9px;
+  font-weight: 900;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+}
+
+.settings-section-summary {
+  overflow: hidden;
+  max-width: 150px;
+  color: rgba(222, 243, 250, .55);
+  font-size: 8px;
+  font-weight: 700;
+  letter-spacing: .02em;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.settings-section-chevron {
+  color: rgba(142, 233, 255, .65);
+  font-size: 9px;
+  transition: transform .16s ease;
+}
+
+.settings-section.is-open .settings-section-chevron {
+  transform: rotate(90deg);
+}
+
+.settings-section-items {
+  display: none;
+  gap: 8px;
+  padding: 0 9px 9px;
+}
+
+.settings-section.is-open .settings-section-items {
+  display: grid;
+}
+
 .settings-row {
   display: grid;
   grid-template-columns: 78px minmax(0, 1fr);
