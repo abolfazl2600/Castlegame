@@ -70,7 +70,7 @@ const destroyBuildingHandler = (): BattleObjectiveHandler => ({
   },
 });
 
-const captureHandler = (kind: 'tower' | 'keep'): BattleObjectiveHandler => ({
+const captureHandler = (): BattleObjectiveHandler => ({
   evaluate: (definition, _runtime, context) => {
     if (definition.configuration?.useBattleCaptureProgress === true) {
       return { progress: context.captureProgress, target: 1, complete: context.captureProgress >= 1 };
@@ -214,13 +214,13 @@ const commanderHandler = (): BattleObjectiveHandler => ({
 export function createDefaultBattleObjectiveRegistry(): BattleObjectiveRegistry {
   const registry = new BattleObjectiveRegistry();
   registry.register('destroy_gate', destroyBuildingHandler);
-  registry.register('capture_tower', () => captureHandler('tower'));
+  registry.register('capture_tower', captureHandler);
   registry.register('breach_wall', breachWallHandler);
   registry.register('protect_commander', protectUnitHandler);
   registry.register('hold_position', holdPositionHandler);
   registry.register('escort_siege_weapon', escortHandler);
   registry.register('destroy_enemy_siege_equipment', destroyCountHandler);
-  registry.register('capture_keep', () => captureHandler('keep'));
+  registry.register('capture_keep', captureHandler);
   registry.register('survive', surviveHandler);
   registry.register('defeat_enemy_commander', commanderHandler);
   registry.register('protect_gate', protectBuildingHandler);
