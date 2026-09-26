@@ -1,5 +1,6 @@
+import type { GameMode } from '../core/GameModeSystem';
 export type Faction = 'attacker' | 'defender' | (string & {});
-export type UnitType = 'swordsman' | 'archer' | 'spearman' | 'crossbowman' | 'modernSoldier' | (string & {});
+export type UnitType = 'swordsman' | 'archer' | 'spearman' | 'crossbowman' | 'modernSoldier' | 'tank' | 'armoredVehicle' | 'missileVehicle' | (string & {});
 export type UnitState = 'forming' | 'moving' | 'guarding' | 'attacking' | 'dead';
 
 export interface BattleUnitStats {
@@ -26,11 +27,15 @@ export interface BattleUnit {
 }
 
 export interface BattleSetup {
+  gameMode?: GameMode;
   attackerSwordsmen: number;
   attackerArchers: number;
   attackerSpearmen: number;
   attackerCrossbowmen: number;
   attackerModernSoldiers: number;
+  attackerTanks: number;
+  attackerArmoredVehicles: number;
+  attackerMissileVehicles: number;
   defenderSwordsmen: number;
   defenderArchers: number;
   defenderSpearmen: number;
