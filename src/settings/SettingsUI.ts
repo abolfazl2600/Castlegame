@@ -24,6 +24,16 @@ export class SettingsUI {
     this.panel.hidden = true;
   }
 
+  appendSection(section: HTMLElement): void {
+    const scroll = this.panel.querySelector<HTMLElement>('.settings-scroll');
+    scroll?.appendChild(section);
+  }
+
+  scrollToSection(id: string): void {
+    const target = this.panel.querySelector<HTMLElement>(`#${id}`);
+    target?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+
   private createPanel(): HTMLElement {
     const panel = document.createElement('section');
     panel.id = 'settings-modal';
