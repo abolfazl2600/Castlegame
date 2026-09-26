@@ -5,6 +5,7 @@ import { WallSystem } from './WallSystem';
 export interface DefensiveNetworkContext {
   size: number;
   cellAt: (x: number, y: number) => GridCell | undefined;
+  elevationAt: (x: number, y: number) => number;
   fortificationTopAt: (x: number, y: number, cell: GridCell) => number;
 }
 
@@ -34,7 +35,7 @@ export class ConnectedWallNetwork {
       y,
       kind: cell.kind,
       worldY:
-        this.context.elevationAt?.(x, y) ??
+        this.context.elevationAt(x, y) +
         this.context.fortificationTopAt(x, y, cell),
     };
   }
