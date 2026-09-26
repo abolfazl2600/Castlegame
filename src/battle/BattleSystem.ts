@@ -1121,7 +1121,90 @@ export class BattleSystem {
       return;
     }
 
+    // Combat target chasing must use the same ground navigation graph as
+    // objective movement whenever a wall/building blocks the direct segment.
+    if (runtime.surface === 'ground') {
+      const targetGrid = this.worldToGrid(target);
+      const direction = new THREE.Vector3(
+        target.x - runtime.position.x,
+        0,
+        target.z - runtime.position.z,
+      );
+      const distance = direction.length();
+
+      if (distance > runtime.stats.attackRange * 0.9) {
+        direction.normalize();
+        const probeDistance = Math.min(
+          Math.max(this.world.tileSize * 0.55, 0.35),
+          distance,
+        );
+        const probe = runtime.position.clone().addScaledVector(direction, probeDistance);
+        const probeGrid = this.worldToGrid(probe);
+
+        if (!this.canTraverseGroundTransition(runtime.gridX, runtime.gridY, probeGrid)) {
+          const goal = this.navigation.isGroundWalkable(targetGrid.x, targetGrid.y)
+            ? targetGrid
+            : this.navigation.findNearestWalkable(targetGrid, 3);
+
+          if (goal) {
+            if (
+              runtime.repathTimer <= 0 ||
+              runtime.path.length === 0 ||
+              runtime.pathIndex >= runtime.path.length
+            ) {
+              const path = this.navigation.findPath(
+                { x: runtime.gridX, y: runtime.gridY },
+                goal,
+                false,
+              );
+              if (path.length > 1) {
+                runtime.path = path;
+                runtime.pathIndex = 1;
+                runtime.repathTimer = 0.4;
+              } else {
+                runtime.repathTimer = 0.2;
+              }
+            }
+
+            if (runtime.path.length > 1 && runtime.pathIndex < runtime.path.length) {
+              this.followGroundPath(runtime, delta, 'moving');
+              return;
+            }
+          }
+
+          runtime.moving = false;
+          return;
+        }
+      }
+    }
+
     this.moveTowardPoint(runtime, target, delta, runtime.stats.attackRange * 0.9);
+  }
+
+  private worldToGrid(position: THREE.Vector3): NavPoint {
+    return {
+      x: Math.floor(position.x / this.world.tileSize + this.world.size / 2),
+      y: Math.floor(position.z / this.world.tileSize + this.world.size / 2),
+    };
+  }
+
+  private canTraverseGroundTransition(
+    fromX: number,
+    fromY: number,
+    to: NavPoint,
+  ): boolean {
+    if (!this.navigation.isGroundWalkable(to.x, to.y)) return false;
+
+    const dx = to.x - fromX;
+    const dy = to.y - fromY;
+    if (Math.abs(dx) <= 1 && Math.abs(dy) <= 1 && dx !== 0 && dy !== 0) {
+      return (
+        this.navigation.isGroundWalkable(fromX + dx, fromY) &&
+        this.navigation.isGroundWalkable(fromX, fromY + dy)
+      );
+    }
+
+    return true;
   }
 
   private moveTowardPoint(
