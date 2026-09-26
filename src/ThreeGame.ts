@@ -2087,9 +2087,6 @@ export class ThreeGame {
     }
     else if (cell.kind === 'appleOrchard') this.orchardSystem.create(group, cell.level ?? 1, cell.x * 97 + cell.y * 53);
     else if (cell.kind === 'armyCamp') this.makeArmyCamp(group);
-    else if (cell.kind === 'marketStall' || cell.kind === 'smallMarket' || cell.kind === 'marketHall') {
-      this.makeMarketBuilding(group, cell.kind as MarketBuildingKind);
-    }
     else if (cell.kind === 'windmill') this.windmillSystem.create(group);
     else if (cell.kind === 'mine') this.makeMine(group);
     else if (cell.kind === 'mountain') this.makeMountain(group, cell.level ?? 1, cell.x, cell.y);
