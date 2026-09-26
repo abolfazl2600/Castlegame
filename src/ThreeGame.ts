@@ -5307,7 +5307,7 @@ export class ThreeGame {
 
   private applyTerrainBrush(center: GridPoint): void {
     const tool = this.selectedTool;
-    if (!this.isTerrainTool(tool)) return;
+    if (tool === null || !this.isTerrainTool(tool)) return;
     const points = this.brushPoints(center);
     const centerElevation = this.terrainElevation(center.x, center.y);
     const oldValues = new Map<string, number>();
@@ -5466,7 +5466,7 @@ export class ThreeGame {
         const cell = this.pickGridCell(event);
         if (cell && this.selectedTool !== null && this.selectedTool !== 'towerBridge') this.beginLongPress(event, cell);
 
-        if (this.isWallTool(this.selectedTool)) {
+        if (this.selectedTool !== null && this.isWallTool(this.selectedTool)) {
           if (!cell) return;
           this.wallDragStart = cell;
           this.wallDragEnd = cell;
@@ -5479,7 +5479,7 @@ export class ThreeGame {
           return;
         }
 
-        if (this.isRoadTool(this.selectedTool)) {
+        if (this.selectedTool !== null && this.isRoadTool(this.selectedTool)) {
           if (!cell) return;
           this.roadDragStart = cell;
           this.roadDragEnd = cell;
@@ -5505,7 +5505,7 @@ export class ThreeGame {
           return;
         }
 
-        if (this.isTerrainTool(this.selectedTool)) {
+        if (this.selectedTool !== null && this.isTerrainTool(this.selectedTool)) {
           if (!cell) return;
 
           this.terrainStrokeActive = true;
@@ -7173,7 +7173,7 @@ export class ThreeGame {
     const toolbar = get<HTMLElement>('toolbar');
 
     const noneHtml =
-      '<button class="tool-button tool-button-none" data-build-none="true" type="button" aria-pressed="true">' +
+      '<button class="tool-button tool-button-none is-selected" data-build-none="true" type="button" aria-pressed="true">' +
       '<span class="tool-icon">✕</span>' +
       '<span class="tool-copy"><strong>None</strong><small>No build tool · free camera / inspect</small></span>' +
       '<kbd>Esc</kbd></button>';
