@@ -2,6 +2,8 @@ import { ThreeGame } from './ThreeGame';
 import { MobileUI } from './ui/MobileUI';
 import { SettingsStore } from './settings/SettingsStore';
 import { SettingsUI } from './settings/SettingsUI';
+import { GameFlowController } from './core/GameFlowController';
+import './core/GameFlowController.css';
 import './style.css';
 
 const gameRoot = document.getElementById('game');
@@ -16,3 +18,5 @@ new SettingsUI(settingsStore, () => {
   settingsStore.resetLocalSave();
   window.location.reload();
 });
+
+new GameFlowController(game);
