@@ -26,6 +26,8 @@ export interface BattleWorldContext {
   keeps: () => KeepState[];
   towerBridges: () => TowerBridgeState[];
   setWallBattleVisibility: (x: number, y: number, visible: boolean) => void;
+  buildingDamageAt?: (x: number, y: number) => number;
+  setBuildingDamage?: (x: number, y: number, damageRatio: number) => void;
   gatePassable?: (x: number, y: number) => boolean;
 }
 
@@ -1671,15 +1673,24 @@ export class BattleSystem {
         visual.position.set(world.x, this.world.elevationAt(x, y), world.z);
         this.layer.add(visual);
 
+        const persistedDamage = THREE.MathUtils.clamp(this.world.buildingDamageAt?.(x, y) ?? 0, 0, 1);
+        const health = Math.max(0, maxHealth * (1 - persistedDamage));
+        const stage: WallDamageStage =
+          health <= 0 ? 'breached' :
+          health / maxHealth <= 0.14 ? 'partial' :
+          health / maxHealth <= 0.38 ? 'heavy' :
+          health / maxHealth <= 0.7 ? 'damaged' : 'healthy';
+
         this.wallStates.set(this.gridKey(x, y), {
           x,
           y,
           cell,
           maxHealth,
-          health: maxHealth,
-          stage: 'healthy',
+          health,
+          stage,
           visual,
         });
+        if (stage !== 'healthy') this.renderWallDamage(this.wallStates.get(this.gridKey(x, y))!);
       }
     }
 
@@ -2683,6 +2694,12 @@ export class BattleSystem {
       wall.stage = nextStage;
       this.renderWallDamage(wall);
     }
+
+    this.world.setBuildingDamage?.(
+      wall.x,
+      wall.y,
+      1 - wall.health / wall.maxHealth,
+    );
 
     if (nextStage !== 'breached') return;
 
