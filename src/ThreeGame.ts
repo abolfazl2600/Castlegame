@@ -13,6 +13,7 @@ import { MaritimeSystem } from './systems/MaritimeSystem';
 import type { GameMode } from './core/GameMode';
 import { getGameModeDefinition, isBuildingAvailable, isGameMode, isToolAvailable } from './core/GameMode';
 import { FuturisticCastleRenderer } from './rendering/FuturisticCastleRenderer';
+import { audioEvents } from './audio/AudioEventBus';
 import type {
   AccessKind,
   GridCell,
@@ -461,6 +462,7 @@ export class ThreeGame {
     this.setViewMode(hadSave ? 'world3d' : 'plan2d');
     this.updateGameModeUI();
     this.syncTemplateAvailability();
+    audioEvents.emit({ action: 'set_mode', mode: this.gameMode });
     if (!hadSave) {
       const modeModal = document.getElementById('game-mode-modal');
       if (modeModal) modeModal.hidden = false;
@@ -592,6 +594,7 @@ export class ThreeGame {
 
   private startNewGameWithMode(mode: GameMode): void {
     this.services.state.setGameMode(mode);
+    audioEvents.emit({ action: 'set_mode', mode });
     this.services.state.clear();
     this.services.keepSystem.clear();
     this.towerBridges.clear();
@@ -6785,6 +6788,7 @@ export class ThreeGame {
   }
 
   private finishBuild(): void {
+    audioEvents.emit({ action: 'play_sfx', assetId: 'building.place' });
     this.redraw();
     this.scheduleSave();
   }
@@ -9156,16 +9160,19 @@ export class ThreeGame {
     this.settlementLayer.visible = false;
     document.getElementById('game-shell')?.classList.add('battle-mode');
     this.services.gateSystem.setAttackState(true);
+    audioEvents.emit({ action: 'play_sfx', assetId: 'combat.battle-start' });
     this.battleSystem.start(this.battleSetup);
     this.setStatus('Battle started · Attackers are advancing on the castle');
   }
 
   private stopBattleFromUI(): void {
+    audioEvents.emit({ action: 'play_sfx', assetId: 'combat.battle-stop' });
     this.battleSystem.stop();
     this.setStatus('Battle stopped · press Start Battle to resume');
   }
 
   private resetBattleFromUI(): void {
+    audioEvents.emit({ action: 'play_sfx', assetId: 'combat.battle-reset' });
     this.services.gateSystem.setAttackState(false);
     this.battleSystem.reset();
     document.getElementById('game-shell')?.classList.remove('battle-mode');
@@ -9286,6 +9293,7 @@ export class ThreeGame {
     this.cancelLongPress();
     this.controls.enabled = true;
     this.selectedTool = tool;
+    if (tool) audioEvents.emit({ action: 'play_sfx', assetId: 'ui.tool-select' });
     document.querySelectorAll('[data-tool]').forEach((element) => {
       element.classList.toggle('is-selected', tool !== null && (element as HTMLElement).dataset.tool === tool);
     });
