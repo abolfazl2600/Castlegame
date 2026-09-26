@@ -2,7 +2,6 @@ import { APPLICATION_METADATA } from '../app/applicationMetadata';
 
 const SAVE_STORAGE_KEY = 'castle-role-save-v1';
 const SETTINGS_STORAGE_KEY = 'castle-role.settings.v2';
-const LEGACY_PRIVACY_STORAGE_KEY = 'castle-role:privacy-consent:v1';
 
 export interface PrivacyLegalActions {
   readonly resetSettings: () => void;
