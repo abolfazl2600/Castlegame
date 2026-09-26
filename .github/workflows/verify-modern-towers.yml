@@ -20,3 +20,5 @@ jobs:
           node-version: 22
       - run: npm install
       - run: npm run build
+
+# modern siege verification
