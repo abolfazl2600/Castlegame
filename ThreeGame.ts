@@ -343,6 +343,7 @@ export class ThreeGame {
   private loadedSaveVersion = 0;
   private lastFrameTime = 0;
   private cameraTransitionFrame: number | null = null;
+  private resizeObserver: ResizeObserver | null = null;
 
   constructor(root: HTMLElement, settingsStore: SettingsStore) {
     const hadSave = localStorage.getItem(SAVE_KEY) !== null;
@@ -530,7 +531,21 @@ export class ThreeGame {
     this.bindPointerInput();
     this.resize();
 
+    // The game shell is a responsive grid item. Observe it directly so the
+    // renderer cannot remain at a stale/zero-size framebuffer after the UI
+    // shell finishes layout or after responsive sidebar changes.
+    this.resizeObserver = new ResizeObserver(() => this.resize());
+    this.resizeObserver.observe(this.root);
+
     window.addEventListener('resize', () => this.resize());
+
+    // Force one post-layout resize/render before the animation loop. This
+    // prevents a blank WebGL canvas when the constructor runs before the
+    // game shell has received its final dimensions.
+    requestAnimationFrame(() => {
+      this.resize();
+      this.renderer.render(this.scene, this.camera);
+    });
     requestAnimationFrame((time) => this.animate(time));
   }
 
@@ -9755,8 +9770,9 @@ export class ThreeGame {
   }
 
   private resize(): void {
-    const width = Math.max(1, this.root.clientWidth);
-    const height = Math.max(1, this.root.clientHeight);
+    const rect = this.root.getBoundingClientRect();
+    const width = Math.max(1, Math.floor(rect.width || this.root.clientWidth));
+    const height = Math.max(1, Math.floor(rect.height || this.root.clientHeight));
     this.camera.aspect = width / height;
     this.camera.updateProjectionMatrix();
     this.renderer.setSize(width, height, false);
