@@ -7537,7 +7537,7 @@ export class ThreeGame {
 
     document.querySelectorAll<HTMLButtonElement>('[data-battle-field]').forEach((button) => {
       button.onclick = () => {
-        const field = button.dataset.battleField as keyof BattleSetup | undefined;
+        const field = button.dataset.battleField as Exclude<keyof BattleSetup, 'gameMode'> | undefined;
         const delta = Number(button.dataset.delta ?? 0);
         if (!field || !Number.isFinite(delta)) return;
         this.adjustBattleSetup(field, delta);
@@ -7546,7 +7546,7 @@ export class ThreeGame {
 
     document.querySelectorAll<HTMLInputElement>('[data-battle-input]').forEach((input) => {
       const apply = (): void => {
-        const field = input.dataset.battleInput as keyof BattleSetup | undefined;
+        const field = input.dataset.battleInput as Exclude<keyof BattleSetup, 'gameMode'> | undefined;
         if (!field) return;
         this.setBattleSetupValue(field, Number(input.value));
       };
@@ -9081,7 +9081,7 @@ export class ThreeGame {
     this.setStatus('Editable terrain template loaded: ' + template);
   }
 
-  private adjustBattleSetup(field: keyof BattleSetup, delta: number): void {
+  private adjustBattleSetup(field: Exclude<keyof BattleSetup, 'gameMode'>, delta: number): void {
     if (this.battleSystem.isActive()) {
       this.setStatus('Reset the current battle before changing army sizes');
       return;
@@ -9091,7 +9091,7 @@ export class ThreeGame {
   }
 
   private setBattleSetupValue(
-    field: keyof BattleSetup,
+    field: Exclude<keyof BattleSetup, 'gameMode'>,
     value: number,
   ): void {
     if (this.battleSystem.isActive()) {
@@ -9114,7 +9114,7 @@ export class ThreeGame {
   }
 
   private syncBattleSetupUI(): void {
-    const mappings: Array<[keyof BattleSetup, string]> = [
+    const mappings: Array<[Exclude<keyof BattleSetup, 'gameMode'>, string]> = [
       ['defenderSwordsmen', 'battle-defender-swordsmen'],
       ['defenderArchers', 'battle-defender-archers'],
       ['defenderSpearmen', 'battle-defender-spearmen'],
