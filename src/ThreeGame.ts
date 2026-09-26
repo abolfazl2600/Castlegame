@@ -305,6 +305,7 @@ export class ThreeGame {
   private loadedSaveVersion = 0;
   private lastFrameTime = 0;
   private cameraTransitionFrame: number | null = null;
+  private cameraTopViewActive = false;
 
   constructor(root: HTMLElement) {
     const hadSave = localStorage.getItem(SAVE_KEY) !== null;
@@ -1263,6 +1264,7 @@ export class ThreeGame {
         target.z + Math.sin(azimuth) * horizontalRadius,
       );
     }
+    this.cameraTopViewActive = view === 'top';
 
     const start = this.camera.position.clone();
     const duration = 280;
@@ -1319,7 +1321,9 @@ export class ThreeGame {
     this.settlementLayer.visible = !planMode && !this.battleSystem.isActive();
 
     if (planMode) {
-      this.camera.position.set(0, 118, 0.001);
+      this.cameraTopViewActive = false;
+      this.camera.up.set(0, 1, 0);
+      this.camera.position.set(0, 118, 0.001;
       this.controls.target.set(0, 0, 0);
       this.controls.enableRotate = false;
       this.controls.enablePan = true;
@@ -1327,6 +1331,8 @@ export class ThreeGame {
       this.controls.maxDistance = 155;
       this.setStatus('2D Plan mode · design first, then switch to 3D');
     } else {
+      this.cameraTopViewActive = false;
+      this.camera.up.set(0, 1, 0);
       this.camera.position.copy(this.saved3DCameraPosition);
       this.controls.target.copy(this.saved3DTarget);
       this.controls.enableRotate = true;
