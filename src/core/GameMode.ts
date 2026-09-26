@@ -22,7 +22,7 @@ const MEDIEVAL_BUILDINGS: readonly TileKind[] = [
   'wall1','wall2','wall3','gate','tower','stairTower',
   'road','dirtRoad','stoneRoad','smallDock','woodenPier','harbor','fishingDock',
   'cottage','house','manor','villa','farm','appleOrchard','armyCamp',
-  'marketStall','smallMarket','marketHall','windmill','mine','mountain','tree','rock','hut','moat',
+  'market','windmill','mine','mountain','tree','rock','hut','moat',
   'stoneStairs','woodenStairs','ramp','ladder',
 ];
 
@@ -37,7 +37,7 @@ export const GAME_MODE_CONFIG: Record<GameMode, GameModeDefinition> = {
     description: 'Stone fortifications, medieval buildings, soldiers, and siege systems.',
     toolGroups: [
       { label: 'Castle', toolIds: ['wall1','wall2','wall3','gate','tower','stairTower','towerBridge','keep','moat'] },
-      { label: 'Buildings', toolIds: ['cottage','house','manor','villa','marketStall','smallMarket','marketHall','farm','appleOrchard','windmill','mine','hut'] },
+      { label: 'Buildings', toolIds: ['cottage','house','manor','villa','market','farm','appleOrchard','windmill','mine','hut'] },
       { label: 'Defense', toolIds: ['wall1','wall2','wall3','gate','tower','towerBridge','keep','moat'] },
       { label: 'Military', toolIds: ['armyCamp'] },
       { label: 'Environment', toolIds: COMMON_WORLD_TOOLS },
