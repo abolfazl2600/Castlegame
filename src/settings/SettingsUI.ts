@@ -147,9 +147,6 @@ export class SettingsUI {
     return panel;
   }
 
-  private confirmDestructive(message: string): boolean {
-    return !this.store.get().interface.confirmDestructiveActions || window.confirm(message);
-  }
 
   private updateFromControl(input: HTMLInputElement | HTMLSelectElement): void {
     const key = input.dataset.setting;
