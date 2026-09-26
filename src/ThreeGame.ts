@@ -501,7 +501,7 @@ export class ThreeGame {
     return this.gameModeSystem.saveKey(SAVE_KEY, this.gameMode);
   }
 
-  private isModernTowerKind(kind: TileKind | ToolKind | undefined): kind is ModernTowerKind {
+  private isModernTowerKind(kind: TileKind | ToolKind | null | undefined): kind is ModernTowerKind {
     return kind !== undefined && MODERN_TOWER_KINDS.includes(kind as ModernTowerKind);
   }
 
