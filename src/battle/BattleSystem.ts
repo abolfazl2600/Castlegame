@@ -6,6 +6,7 @@ import { WallSystem } from '../building/WallSystem';
 import { FactionRelations } from './FactionRelations';
 import { BattleObjectiveSystem } from './objectives/BattleObjectiveSystem';
 import { DEFAULT_BATTLE_SCENARIO } from './objectives/BattleObjectiveDefinitions';
+import type { AnimationVisualSystem } from '../rendering/AnimationVisualSystem';
 import type { BattleScenario, ObjectiveBuildingSnapshot, ObjectivePositionSnapshot } from './objectives/BattleObjectiveTypes';
 import type {
   BattleResult,
@@ -381,6 +382,7 @@ export class BattleSystem {
     private readonly layer: THREE.Group,
     private readonly world: BattleWorldContext,
     private readonly onStatus: (status: BattleStatus) => void,
+    private readonly visuals?: AnimationVisualSystem,
   ) {
     this.navigation = new BattleNavigation({
       size: world.size,
@@ -411,6 +413,7 @@ export class BattleSystem {
 
   start(setup: BattleSetup, options: BattleStartOptions = {}): void {
     this.reset(false);
+    this.visuals?.clear();
     this.navigation.invalidate();
     this.clearSiegeState();
     this.mode = 'running';
@@ -518,6 +521,7 @@ export class BattleSystem {
 
     this.clearSiegeState();
     this.objectiveSystem.reset();
+    this.visuals?.clear();
 
     this.mode = 'idle';
     this.battleSpeed = DEFAULT_BATTLE_SPEED;
@@ -569,6 +573,7 @@ export class BattleSystem {
 
     this.updateWallWeapons(delta);
     this.updateProjectiles(delta);
+    this.visuals?.update(delta);
     this.updateCapture(delta);
     this.cleanupDead(delta);
     this.animateObjective(timeMs);
@@ -1280,6 +1285,7 @@ export class BattleSystem {
     this.updateStuckRecovery(runtime, delta);
 
     runtime.view.position.copy(runtime.position);
+    this.visuals?.syncUnit(runtime.data.id, runtime.data.state, runtime.moving, runtime.view);
     this.animateUnit(runtime);
   }
 
@@ -2961,6 +2967,9 @@ export class BattleSystem {
     if (wall.stage === 'breached') return;
 
     wall.health = Math.max(0, wall.health - amount);
+    const wallWorld = this.world.gridToWorld(wall.x, wall.y);
+    const wallVisualPosition = new THREE.Vector3(wallWorld.x, this.world.elevationAt(wall.x, wall.y) + this.world.fortificationTopAt(wall.x, wall.y, wall.cell) * 0.55, wallWorld.z);
+    this.visuals?.wallImpact(wallVisualPosition);
     const ratio = wall.health / wall.maxHealth;
     const nextStage: WallDamageStage =
       wall.health <= 0
@@ -2989,6 +2998,7 @@ export class BattleSystem {
     this.breachedWalls.add(this.gridKey(wall.x, wall.y));
     this.wallNodes.delete(this.gridKey(wall.x, wall.y));
     this.world.setWallBattleVisibility(wall.x, wall.y, false);
+    this.visuals?.wallDestroyed(wallVisualPosition);
     this.navigation.invalidate();
     this.objectiveSystem.emit({ type: 'WALL_BREACHED', entityId: this.gridKey(wall.x, wall.y) });
     this.reactDefendersToBreach(wall);
@@ -3448,6 +3458,7 @@ export class BattleSystem {
     attacker.attackApplied = false;
 
     // Damage remains on the existing combat cadence; the visual attack begins here.
+    this.visuals?.unitAttack(attacker.position, false);
     this.applyDamage(target, attacker.stats.attack);
   }
 
@@ -3467,6 +3478,9 @@ export class BattleSystem {
     arrow.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), direction);
     arrow.renderOrder = 20;
     this.layer.add(arrow);
+
+    this.visuals?.unitAttack(attacker.position, true);
+    this.visuals?.projectileSpawn(arrow.position, attacker.data.unitType === 'modernSoldier' ? 0x7bdff2 : 0xd9b66d);
 
     this.arrows.push({
       view: arrow,
@@ -3565,6 +3579,7 @@ export class BattleSystem {
       const distance = deltaVector.length();
 
       if (distance <= 0.48) {
+        this.visuals?.projectileImpact(targetPoint, false);
         this.applyDamage(target, arrow.damage);
         this.layer.remove(arrow.view);
         this.arrows.splice(i, 1);
@@ -3663,6 +3678,7 @@ export class BattleSystem {
 
     this.objectiveSystem.stop();
     this.clearSiegeState();
+    this.visuals?.battleResult(winner === 'attacker' ? 'victory' : 'defeat');
     this.emitStatus();
   }
 
@@ -3683,6 +3699,7 @@ export class BattleSystem {
     runtime.data.health = 0;
     runtime.data.state = 'dead';
     runtime.data.targetId = undefined;
+    this.visuals?.unitDeath(runtime.data.id, runtime.position);
     this.objectiveSystem.emit({ type: 'UNIT_KILLED', entityId: runtime.data.id, faction: runtime.data.faction });
     runtime.deathTime = 0;
 

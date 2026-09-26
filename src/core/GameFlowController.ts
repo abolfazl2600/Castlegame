@@ -253,6 +253,8 @@ export class GameFlowController {
 
   private render(status = this.game.getBattleStatus()): void {
     this.overlay.dataset.flowState = this.state;
+    this.overlay.classList.toggle('visual-victory', this.state === 'VICTORY');
+    this.overlay.classList.toggle('visual-defeat', this.state === 'DEFEAT');
     this.overlay.querySelectorAll<HTMLElement>('[data-flow-screen]').forEach((screen) => {
       screen.hidden = true;
     });

@@ -18,6 +18,7 @@ import { createSandboxDefinition } from './SandboxGameMode';
 import type { SettingsStore } from './settings/SettingsStore';
 import { applyGraphicsSettings, applyInputSettings, applySceneGraphicsSettings } from './settings/SettingsSubsystems';
 import { FuturisticCastleRenderer } from './rendering/FuturisticCastleRenderer';
+import { AnimationVisualSystem } from './rendering/AnimationVisualSystem';
 import { AudioManager } from './audio/AudioManager';
 import { audioEvents } from './audio/AudioEventBus';
 import type {
@@ -256,6 +257,7 @@ export class ThreeGame {
   private readonly environmentMaterials = new Map<string, THREE.MeshStandardMaterial>();
   private readonly buildObjectsByCell = new Map<string, THREE.Object3D>();
   private readonly battleSystem: BattleSystem;
+  private readonly animationVisuals: AnimationVisualSystem;
   private readonly groundHit = new THREE.Mesh(
     new THREE.PlaneGeometry(WORLD, WORLD),
     new THREE.MeshBasicMaterial({ visible: false }),
@@ -342,6 +344,7 @@ export class ThreeGame {
     this.root = root;
     this.settingsStore = settingsStore;
     this.audioManager = new AudioManager();
+    this.animationVisuals = new AnimationVisualSystem(this.battleLayer, this.camera);
     this.saveSystem = new SaveSystem({
       state: this.services.state,
       keepSystem: this.services.keepSystem,
@@ -394,6 +397,12 @@ export class ThreeGame {
       emissiveIntensity: 0.08,
     });
     const initialSettings = this.settingsStore.get();
+    this.animationVisuals.setConfig({
+      effectsEnabled: initialSettings.graphics.effectsEnabled,
+      quality: initialSettings.graphics.quality,
+      reducedMotion: initialSettings.interface.reducedMotion,
+      combatFeedback: initialSettings.gameplay.combatFeedback,
+    });
     applyGraphicsSettings(this.renderer, initialSettings);
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
@@ -418,6 +427,12 @@ export class ThreeGame {
     this.settingsStore.subscribe((settings) => {
       applyGraphicsSettings(this.renderer, settings);
       applySceneGraphicsSettings(this.scene, settings);
+      this.animationVisuals.setConfig({
+        effectsEnabled: settings.graphics.effectsEnabled,
+        quality: settings.graphics.quality,
+        reducedMotion: settings.interface.reducedMotion,
+        combatFeedback: settings.gameplay.combatFeedback,
+      });
       this.renderer.toneMappingExposure = settings.graphics.effectsEnabled ? 1.08 : 1;
       applyInputSettings(this.controls, settings);
       this.audioManager.setMasterVolume(settings.audio.masterVolume);
@@ -468,6 +483,7 @@ export class ThreeGame {
         wallWeaponVisuals: () => this.getWallWeaponVisuals(),
       },
       (status) => this.updateBattleUI(status),
+      this.animationVisuals,
     );
 
     this.registerBuiltInGameModes();
