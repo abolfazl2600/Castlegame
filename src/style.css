@@ -1437,3 +1437,77 @@ kbd {
 .mode-card strong { font-size:18px; }
 .mode-card small { color:rgba(226,241,244,.72); line-height:1.5; }
 @media (max-width:720px) { .mode-grid { grid-template-columns:1fr; } }
+
+/* -------------------------------------------------------------------------
+   Mobile UI foundation
+   Presentation-only layer. Application/game actions remain in ThreeGame.
+   ------------------------------------------------------------------------- */
+.mobile-ui { display: none; }
+
+@media (max-width: 760px) {
+  :root { --mobile-safe-top: env(safe-area-inset-top,0px); --mobile-safe-right: env(safe-area-inset-right,0px); --mobile-safe-bottom: env(safe-area-inset-bottom,0px); --mobile-safe-left: env(safe-area-inset-left,0px); --mobile-header-height:54px; --mobile-dock-height:66px; }
+  html,body,#app { width:100%; height:100%; min-height:100dvh; overflow:hidden; }
+  #app { display:block; position:relative; padding:0; }
+  .topbar { display:none; }
+  #game-shell { position:absolute; inset:0; width:100%; height:100%; min-height:0; border:0; border-radius:0; overflow:hidden; }
+  #game,#game canvas { width:100% !important; height:100% !important; min-width:0; min-height:0; display:block; }
+  #game canvas { touch-action:none; }
+  .mobile-ui { position:absolute; inset:0; z-index:30; display:block; pointer-events:none; font-size:12px; }
+  .mobile-header { position:absolute; top:0; left:0; right:0; min-height:calc(var(--mobile-header-height) + var(--mobile-safe-top)); padding:calc(var(--mobile-safe-top) + 6px) max(8px,var(--mobile-safe-right)) 6px max(8px,var(--mobile-safe-left)); display:flex; align-items:center; gap:8px; pointer-events:auto; background:linear-gradient(180deg,rgba(5,18,29,.94),rgba(5,18,29,.66) 76%,transparent); }
+  .mobile-brand { flex:0 0 auto; min-width:86px; display:grid; gap:2px; padding-left:3px; text-shadow:0 2px 8px rgba(0,0,0,.6); }
+  .mobile-brand strong { font-size:14px; line-height:1; letter-spacing:-.02em; }
+  .mobile-eyebrow { color:#7fe7ff; font-size:7px; font-weight:900; letter-spacing:.2em; }
+  .mobile-header-actions { min-width:0; flex:1 1 auto; display:flex; align-items:center; gap:5px; overflow-x:auto; scrollbar-width:none; overscroll-behavior-x:contain; }
+  .mobile-header-actions::-webkit-scrollbar { display:none; }
+  .mobile-action,.mobile-dock-button { -webkit-tap-highlight-color:transparent; touch-action:manipulation; user-select:none; }
+  .mobile-action { flex:0 0 auto; min-width:44px; min-height:44px; padding:7px 9px; border:1px solid rgba(255,255,255,.13); border-radius:12px; color:#f1fbff; background:rgba(7,25,39,.84); backdrop-filter:blur(14px); box-shadow:0 8px 24px rgba(0,0,0,.22); font-size:16px; font-weight:800; cursor:pointer; }
+  .mobile-mode-action { max-width:148px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:10px; }
+  .mobile-danger { color:#ffd7d2; border-color:rgba(255,140,130,.22); }
+  .mobile-bottom-dock { position:absolute; left:0; right:0; bottom:0; min-height:calc(var(--mobile-dock-height) + var(--mobile-safe-bottom)); padding:5px max(8px,var(--mobile-safe-right)) calc(5px + var(--mobile-safe-bottom)) max(8px,var(--mobile-safe-left)); display:grid; grid-template-columns:repeat(6,minmax(44px,1fr)); gap:5px; pointer-events:auto; background:linear-gradient(0deg,rgba(4,16,27,.97),rgba(4,16,27,.88) 72%,rgba(4,16,27,0)); backdrop-filter:blur(12px); }
+  .mobile-dock-button { min-width:44px; min-height:48px; display:grid; place-items:center; align-content:center; gap:2px; border:1px solid rgba(255,255,255,.1); border-radius:11px; color:#e8f8fc; background:rgba(255,255,255,.055); cursor:pointer; }
+  .mobile-dock-button span { font-size:16px; line-height:1; }
+  .mobile-dock-button small { font-size:8px; font-weight:850; letter-spacing:.04em; }
+  .mobile-status { position:absolute; left:max(8px,var(--mobile-safe-left)); bottom:calc(var(--mobile-dock-height) + var(--mobile-safe-bottom) + 8px); max-width:min(58vw,280px); min-height:30px; padding:6px 9px; display:flex; align-items:center; gap:6px; border:1px solid rgba(255,255,255,.1); border-radius:999px; color:rgba(238,250,255,.84); background:rgba(5,23,36,.78); backdrop-filter:blur(12px); box-shadow:0 8px 24px rgba(0,0,0,.2); overflow:hidden; pointer-events:none; font-size:8px; font-weight:800; white-space:nowrap; text-overflow:ellipsis; }
+  .mobile-status-dot { width:6px; height:6px; flex:0 0 auto; border-radius:50%; background:#63e6be; box-shadow:0 0 10px rgba(99,230,190,.7); }
+  .toolbar { left:max(8px,var(--mobile-safe-left)); right:max(8px,var(--mobile-safe-right)); top:auto; bottom:calc(var(--mobile-dock-height) + var(--mobile-safe-bottom) + 7px); width:auto; max-width:none; max-height:min(64dvh,640px); padding:8px; border-radius:17px; transform:translateY(0); box-shadow:0 22px 60px rgba(0,0,0,.48),inset 0 1px rgba(255,255,255,.05); }
+  .toolbar.is-collapsed { transform:translateY(calc(100% + 32px)); }
+  .toolbar-open { display:none !important; }
+  .toolbar-title { position:sticky; top:-8px; min-height:42px; }
+  .toolbar-close,.tool-category-header,.settings-actions button,.move-pad button { min-height:44px; }
+  .tool-button { min-height:48px; padding:7px; grid-template-columns:36px minmax(0,1fr) auto; }
+  .tool-icon { width:36px; height:36px; }
+  .tool-copy strong { font-size:12px; }
+  .tool-copy small { font-size:9px; }
+  kbd { min-width:30px; min-height:28px; display:grid; place-items:center; }
+  .builder-settings { padding:10px; gap:8px; }
+  .settings-row,.settings-check { font-size:10px; }
+  .settings-row select { min-height:42px; }
+  .range-wrap input[type=range] { min-height:32px; }
+  .view-mode-switch,.camera-view-controls,.scene-badge { display:none; }
+  .world-counters { left:max(8px,var(--mobile-safe-left)); right:auto; bottom:calc(var(--mobile-dock-height) + var(--mobile-safe-bottom) + 46px); max-width:calc(100% - 16px); }
+  .battle-panel { left:max(8px,var(--mobile-safe-left)); right:max(8px,var(--mobile-safe-right)); bottom:calc(var(--mobile-dock-height) + var(--mobile-safe-bottom) + 7px); width:auto; max-width:none; max-height:min(70dvh,680px); padding:12px; }
+  .battle-close,.battle-stepper button,.battle-actions button { min-width:44px; min-height:44px; }
+  .help-modal,.template-modal,.mode-modal { max-height:calc(100dvh - var(--mobile-safe-top) - var(--mobile-safe-bottom) - 16px); margin-top:var(--mobile-safe-top); margin-bottom:var(--mobile-safe-bottom); }
+  .modal-backdrop { padding:max(8px,var(--mobile-safe-top)) max(8px,var(--mobile-safe-right)) max(8px,var(--mobile-safe-bottom)) max(8px,var(--mobile-safe-left)); }
+  button,select,input[type=checkbox],input[type=range] { touch-action:manipulation; }
+}
+
+@media (max-width:760px) and (orientation:landscape) {
+  :root { --mobile-header-height:48px; --mobile-dock-height:58px; }
+  .mobile-brand { min-width:78px; }
+  .mobile-brand strong { font-size:12px; }
+  .mobile-eyebrow { display:none; }
+  .mobile-action { min-width:42px; min-height:42px; }
+  .mobile-dock-button { min-height:44px; }
+  .toolbar,.battle-panel { max-height:78dvh; }
+}
+
+@media (max-width:390px) {
+  .mobile-brand { min-width:72px; }
+  .mobile-brand strong { font-size:12px; }
+  .mobile-mode-action { max-width:112px; }
+  .mobile-header-actions { gap:4px; }
+  .mobile-action { min-width:44px; padding-inline:7px; }
+  .mobile-bottom-dock { gap:3px; padding-inline:max(5px,var(--mobile-safe-right)) max(5px,var(--mobile-safe-left)); }
+  .mobile-dock-button small { font-size:7px; }
+}
