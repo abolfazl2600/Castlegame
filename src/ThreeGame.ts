@@ -5,6 +5,7 @@ import { SaveSystem } from './core/SaveSystem';
 import type { GameState } from './state/GameState';
 import { SAVE_KEY, SAVE_VERSION, TILE_SIZE, WORLD_COLS } from './core/constants';
 import { WallSystem } from './building/WallSystem';
+import { WallDefenseSystem } from './building/WallDefenseSystem';
 import { KeepRenderer } from './rendering/KeepRenderer';
 import { MedievalMaterials } from './rendering/MedievalMaterials';
 import { BattleSystem } from './battle/BattleSystem';
@@ -452,6 +453,7 @@ export class ThreeGame {
         buildingDamageAt: (x, y) => this.services.state.getCell(x, y)?.damage ?? 0,
         setBuildingDamage: (x, y, damageRatio) => this.setBuildingDamage(x, y, damageRatio),
         gatePassable: (x, y) => this.services.gateSystem.isGatePassable(x, y),
+        wallWeaponVisuals: () => this.getWallWeaponVisuals(),
       },
       (status) => this.updateBattleUI(status),
     );
@@ -1153,24 +1155,6 @@ export class ThreeGame {
       if (object instanceof THREE.Mesh && object.userData.castleFlag) {
         this.animatedFlags.push(object);
       }
-    });
-  }
-
-  private getGeneratedWallAccess(): ReturnType<CastleAccessSystem['generate']> {
-    const cells = this.services.state.entries();
-    return this.castleAccessSystem.generate(cells, this.keepSystem.entries(), {
-      size: SIZE,
-      getCell: (x, y) => {
-        const cell = this.services.state.getCell(x, y);
-        return cell ? { x, y, ...cell } : undefined;
-      },
-      terrainBuildable: (x, y) => {
-        const terrain = this.terrainAt(x, y);
-        return terrain !== 'water' && terrain !== 'river';
-      },
-      isOccupied: (x, y) =>
-        Boolean(this.services.state.getCell(x, y)) ||
-        Boolean(this.keepSystem.findAtCell(x, y)),
     });
   }
 
