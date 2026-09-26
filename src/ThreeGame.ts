@@ -1996,7 +1996,7 @@ export class ThreeGame {
       group.rotation.y = (cell.rotation ?? 0) * Math.PI / 2;
     }
 
-    this.destructibleBuildingSystem.renderDamage(group, cell);
+    this.destructibleBuildingSystem.renderDamage(group, cell, cell.x, cell.y);
     return group;
   }
 
@@ -2026,7 +2026,7 @@ export class ThreeGame {
     const cell = this.state.getCell(x, y);
     if (!cell || !this.destructibleBuildingSystem.isDestructible(cell.kind)) return;
 
-    const nextDamage = this.destructibleBuildingSystem.setDamageRatio(cell, damageRatio);
+    const nextDamage = this.destructibleBuildingSystem.setDamageRatio(damageRatio);
     if (Math.abs((cell.damage ?? 0) - nextDamage) < 0.0001) return;
     this.state.updateCell(x, y, { damage: nextDamage });
   }
