@@ -64,12 +64,8 @@ export class SettingsUI {
       margin: '0',
       padding: '16px',
       boxSizing: 'border-box',
-      display: 'grid',
-      placeItems: 'center',
       zIndex: '9999',
       overflow: 'hidden',
-      visibility: 'visible',
-      opacity: '1',
       transform: 'none',
     });
     panel.innerHTML = `
