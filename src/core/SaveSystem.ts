@@ -568,9 +568,9 @@ export class SaveSystem {
       const raw = localStorage.getItem(SAVE_LEGACY_KEY);
       if (!raw) return;
       const parsed = JSON.parse(raw) as RawSave;
-      const data = parsed.data ?? {
+      const legacyData: SavedGame = {
         version: Number(parsed.version ?? 0),
-        gameMode: parsed.gameMode,
+        gameMode: isGameMode(parsed.gameMode) ? parsed.gameMode : undefined,
         updatedAt: Number(parsed.updatedAt ?? Date.now()),
         cells: parsed.cells ?? [],
         keeps: parsed.keeps ?? [],
@@ -581,6 +581,7 @@ export class SaveSystem {
         worldSeeded: parsed.worldSeeded,
         battleSetup: parsed.battleSetup,
       };
+      const data: SavedGame = parsed.data ?? legacyData;
       if (!Array.isArray(data.cells)) return;
       const now = Number(data.updatedAt) || Date.now();
       const metadata: SaveMetadata = {
@@ -679,9 +680,9 @@ function getGameVersion(): string | undefined {
     const module = globalThis as typeof globalThis & {
       __CASTLE_GAME_VERSION__?: string;
     };
-    return module.__CASTLE_GAME_VERSION__;
+    return module.__CASTLE_GAME_VERSION__ || APPLICATION_METADATA.version;
   } catch {
-    return undefined;
+    return APPLICATION_METADATA.version;
   }
 }
 
