@@ -255,18 +255,26 @@ export class SettingsUI {
   }
 
   private openSystemAction(action: string): void {
+    this.returnToSettingsAfterAction = true;
+    this.close();
+
+    if (action === 'help') {
+      document.dispatchEvent(new CustomEvent('castlegame:open-help'));
+      return;
+    }
+
     const targetIds: Record<string, string> = {
-      help: 'help-button',
       load: 'load-button',
       save: 'save-button',
       templates: 'templates-button',
     };
 
     const target = document.getElementById(targetIds[action] || '');
-    if (!(target instanceof HTMLButtonElement)) return;
+    if (!(target instanceof HTMLButtonElement)) {
+      this.restoreSettingsAfterSystemAction();
+      return;
+    }
 
-    this.returnToSettingsAfterAction = true;
-    this.close();
     target.click();
 
     // Save and Load complete immediately and do not expose a separate modal.
