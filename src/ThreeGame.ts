@@ -14,6 +14,7 @@ import { MaritimeSystem } from './systems/MaritimeSystem';
 import type { GameMode } from './core/GameMode';
 import { GAME_MODE_CONFIG, getGameModeDefinition, isBuildingAvailable, isGameMode, isToolAvailable } from './core/GameMode';
 import { GAME_MODE_REGISTRY } from './core/GameModeFoundation';
+import { createSurvivalDefinition } from './SurvivalGameMode';
 import type { SettingsStore } from './settings/SettingsStore';
 import { applyGraphicsSettings, applyInputSettings, applySceneGraphicsSettings } from './settings/SettingsSubsystems';
 import { FuturisticCastleRenderer } from './rendering/FuturisticCastleRenderer';
@@ -340,7 +341,6 @@ export class ThreeGame {
     const hadSave = localStorage.getItem(SAVE_KEY) !== null;
     this.root = root;
     this.settingsStore = settingsStore;
-    this.registerBuiltInGameModes();
     this.audioManager = new AudioManager();
     this.saveSystem = new SaveSystem({
       state: this.services.state,
@@ -469,6 +469,8 @@ export class ThreeGame {
       },
       (status) => this.updateBattleUI(status),
     );
+
+    this.registerBuiltInGameModes();
 
     this.groundHit.rotation.x = -Math.PI / 2;
     this.groundHit.position.y = 2.05;
@@ -632,6 +634,23 @@ export class ThreeGame {
         available: true,
         metadata: { source: 'existing-game-mode' },
       });
+    }
+
+    if (!GAME_MODE_REGISTRY.has('survival')) {
+      GAME_MODE_REGISTRY.register(
+        createSurvivalDefinition({
+          battleSystem: this.battleSystem,
+          getBattleSetup: () => this.battleSetup,
+          setStatus: (message) => this.setStatus(message),
+          setAttackState: (active) => this.services.gateSystem.setAttackState(active),
+          onDefeat: () => {
+            if (this.services.session.getStatus() === 'running' || this.services.session.getStatus() === 'paused') {
+              this.services.session.end();
+            }
+            this.setStatus('Survival defeated · the castle was captured');
+          },
+        }),
+      );
     }
   }
 
@@ -9423,6 +9442,7 @@ export class ThreeGame {
       this.updateSettlementAgents(deltaMs);
     }
     this.battleSystem.update(deltaMs, time);
+    this.services.session.update(deltaMs, time);
     this.updateLongPress(time);
     if (!settings.interface.reducedMotion && settings.graphics.effectsEnabled) {
       this.services.windmillSystem.update(deltaMs / 1000);
