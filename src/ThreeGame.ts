@@ -675,7 +675,8 @@ export class ThreeGame {
     session.cleanup();
 
     const selection = session.selectMode(modeId);
-    if (!selection.ok || !selection.mode) {
+    const selectedMode = session.getSelectedMode();
+    if (!selection.ok || !selectedMode) {
       this.setStatus('Game mode is unavailable');
       return;
     }
@@ -694,7 +695,7 @@ export class ThreeGame {
 
     const modeModal = document.getElementById('game-mode-modal');
     if (modeModal) modeModal.hidden = true;
-    this.setStatus('Game mode selected: ' + selection.mode.displayName);
+    this.setStatus('Game mode selected: ' + selectedMode.displayName);
   }
 
   private startNewGameWithMode(mode: GameMode): void {
@@ -705,7 +706,7 @@ export class ThreeGame {
     session.cleanup();
 
     const selection = session.selectMode(mode);
-    if (!selection.ok) {
+    if (!selection.ok || !session.getSelectedMode()) {
       this.setStatus('Selected game mode is unavailable');
       return;
     }
