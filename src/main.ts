@@ -1,5 +1,4 @@
 import { ThreeGame } from './ThreeGame';
-import { PrivacyLegalUI } from './core/PrivacyLegalUI';
 import { MobileUI } from './ui/MobileUI';
 import { SettingsStore } from './settings/SettingsStore';
 import { SettingsUI } from './settings/SettingsUI';
@@ -12,7 +11,6 @@ const settingsStore = new SettingsStore(localStorage, 'castle-role-save-v1');
 
 new ThreeGame(gameRoot, settingsStore);
 new MobileUI();
-new PrivacyLegalUI();
 
 new SettingsUI(settingsStore, () => {
   settingsStore.resetLocalSave();
