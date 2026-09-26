@@ -76,7 +76,6 @@ export class SettingsUI {
           <section>
             <h3>Controls</h3>
             <div class="settings-control-reference">
-              <span><kbd>W A S D</kbd> Build shortcuts are tool-specific and shown beside each tool.</span>
               <span><kbd>Esc</kbd> Clear the active build tool / close help.</span>
               <span><kbd>Ctrl/Cmd + Z</kbd> Undo</span>
               <span><kbd>Ctrl/Cmd + Y</kbd> Redo</span>
