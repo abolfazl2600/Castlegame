@@ -7622,13 +7622,13 @@ export class ThreeGame {
       noneHtml +
       toolHtml +
       '<div class="builder-settings">' +
-      '<section class="settings-section wall-settings-section' + (WALL_KINDS.includes(this.selectedTool as WallKind) ? ' is-open' : '') + '">' +
-      '<button class="settings-section-header" type="button" aria-expanded="' + (WALL_KINDS.includes(this.selectedTool as WallKind) ? 'true' : 'false') + '">' +
-      '<span class="settings-section-title">Wall Settings</span>' +
-      '<span id="wall-settings-summary" class="settings-section-summary">Medium · Battlement · No Walkway</span>' +
+      '<section class="settings-section build-settings-section">' +
+      '<button class="settings-section-header" type="button" aria-expanded="false">' +
+      '<span class="settings-section-title">Build Settings</span>' +
+      '<span id="build-settings-summary" class="settings-section-summary">Wall, castle, tower, keep, terrain & selection</span>' +
       '<span class="settings-section-chevron" aria-hidden="true">▶</span>' +
       '</button>' +
-      '<div class="settings-section-items">' +
+      '<div class="settings-section-items"><section class="settings-section wall-settings-section"><div class="settings-section-subtitle">Wall Settings</div>' +
       '<label class="settings-row"><span>Thickness</span><select id="wall-thickness">' +
       '<option value="thin">Thin</option><option value="medium" selected>Medium</option><option value="thick">Thick</option>' +
       '</select></label>' +
@@ -7644,7 +7644,8 @@ export class ThreeGame {
       '<label class="settings-row"><span>Tower Bridge</span><select id="tower-bridge-kind">' +
       '<option value="stone" selected>Stone Bridge</option><option value="wood">Wooden Bridge</option>' +
       '</select></label>' +
-      '<div class="settings-hint">Foundations, buttresses and machicolations are generated automatically from height, terrain and structure importance.</div>' +
+      '<div class="settings-hint">Foundations, buttresses and machicolations are generated automatically from height, terrain and structure importance.</div>'
+      '</section>' + +
       '<div class="settings-title">Tower Builder</div>' +
       '<label class="settings-row"><span>Base</span><select id="tower-shape">' +
       '<option value="square">Square Tower</option><option value="round" selected>Round Tower</option>' +
@@ -7683,7 +7684,8 @@ export class ThreeGame {
       '<div class="settings-actions"><button id="rotate-selected" type="button">↻ Rotate</button><button id="undo-button" type="button">Undo</button></div>' +
       '<div class="settings-actions"><button id="redo-button" type="button">Redo</button><button id="select-clear" type="button">Clear Select</button></div>' +
       '<div class="settings-hint">Walls: drag A→B. Terrain tools also support drag strokes. Ctrl+Z / Ctrl+Y undo and redo.</div>' +
-      '</div>';
+      '</div>' +
+      '</section>';
 
     const builderSettings = toolbar.querySelector<HTMLElement>('.builder-settings');
     if (builderSettings) builderSettings.hidden = this.gameMode === 'modern';
@@ -7718,12 +7720,12 @@ export class ThreeGame {
     get<HTMLButtonElement>('camera-45-button').onclick = () => this.setCameraView('45');
     get<HTMLButtonElement>('camera-top-button').onclick = () => this.setCameraView('top');
 
-    const wallSettingsSection = toolbar.querySelector<HTMLElement>('.wall-settings-section');
-    const wallSettingsHeader = toolbar.querySelector<HTMLButtonElement>('.settings-section-header');
-    wallSettingsHeader?.addEventListener('click', () => {
-      if (!wallSettingsSection || !wallSettingsHeader) return;
-      const open = wallSettingsSection.classList.toggle('is-open');
-      wallSettingsHeader.setAttribute('aria-expanded', String(open));
+    const buildSettingsSection = toolbar.querySelector<HTMLElement>('.build-settings-section');
+    const buildSettingsHeader = buildSettingsSection?.querySelector<HTMLButtonElement>('.settings-section-header');
+    buildSettingsHeader?.addEventListener('click', () => {
+      if (!buildSettingsSection || !buildSettingsHeader) return;
+      const open = buildSettingsSection.classList.toggle('is-open');
+      buildSettingsHeader.setAttribute('aria-expanded', String(open));
     });
 
     const wallThickness = get<HTMLSelectElement>('wall-thickness');
