@@ -49,6 +49,11 @@ export class DestructibleBuildingSystem {
       kind === 'wall1' ? 650 :
       kind === 'wall2' ? 430 :
       kind === 'tower' ? 900 :
+      kind === 'modernWatchtower' ? 760 :
+      kind === 'heavyDefenseTower' ? 1150 :
+      kind === 'missileDefenseTower' ? 980 :
+      kind === 'automatedTurretTower' ? 860 :
+      kind === 'radarTower' ? 720 :
       kind === 'gate' ? 620 :
       kind === 'stairTower' ? 680 :
       kind === 'manor' ? 520 :
