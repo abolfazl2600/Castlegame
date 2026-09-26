@@ -89,6 +89,8 @@ export interface GridCell {
   wallLinks?: WallDirection[];
   shipKind?: ShipKind;
   accessHeight?: number;
+  /** Persistent building damage ratio: 0 = healthy, 1 = destroyed. */
+  damage?: number;
 }
 
 export interface TowerBridgeState {
@@ -117,6 +119,7 @@ export interface SavedGame {
     wallLinks?: WallDirection[];
     shipKind?: ShipKind;
     accessHeight?: number;
+    damage?: number;
   }>;
   keeps?: KeepState[];
   stoneStyle?: StoneStyle;
