@@ -3,11 +3,590 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-    <meta name="theme-color" content="#111827" />
-    <title>Castlegame</title>
+    <meta name="theme-color" content="#07111c" />
+    <title>Castle Role — 3D Stronghold</title>
   </head>
   <body>
-    <div id="game"></div>
+    <div id="app">
+      <header class="topbar">
+        <div>
+          <div class="eyebrow">CASTLE ROLE · 3D</div>
+          <h1>Island Stronghold</h1>
+        </div>
+
+        <div class="status-group">
+          <span id="save-status" class="status-pill">3D Ready</span>
+          <button id="battle-button" class="secondary-button battle-button" type="button">Battle</button>
+          <button id="game-mode-button" class="secondary-button mode-button" type="button" aria-label="Current game mode: Medieval Castle">Mode: <span id="game-mode-label">Medieval Castle</span></button>
+          <button id="templates-button" class="secondary-button" type="button">Templates</button>
+          <button id="help-button" class="secondary-button" type="button">Help</button>
+          <button id="settings-button" class="secondary-button" type="button">Settings</button>
+          <button id="privacy-button" class="secondary-button" type="button">Privacy</button>
+          <button id="fullscreen-button" class="secondary-button" type="button">Fullscreen</button>
+          <button id="load-button" class="secondary-button" type="button">Load</button>
+          <button id="save-button" class="secondary-button" type="button">Save</button>
+          <button id="reset-button" class="danger-button" type="button">Reset</button>
+        </div>
+      </header>
+
+      <main id="game-shell">
+        <div id="game"></div>
+
+        <div class="view-mode-switch" role="group" aria-label="Castle view mode">
+          <button id="view-2d-button" class="view-mode-button" type="button" aria-pressed="false">2D Plan</button>
+          <button id="view-3d-button" class="view-mode-button is-active" type="button" aria-pressed="true">3D View</button>
+        </div>
+
+        <div class="camera-view-controls" role="group" aria-label="Camera view controls">
+          <button id="camera-45-button" class="camera-view-button" type="button" title="Set camera to 45 degree view">45° View</button>
+          <button id="camera-top-button" class="camera-view-button" type="button" title="Set camera to top-down view">Top View</button>
+        </div>
+
+        <button id="toolbar-open" class="toolbar-open" type="button" aria-controls="toolbar" aria-expanded="true">☰ Build</button>
+        <aside id="toolbar" class="toolbar" aria-label="Build tools"></aside>
+
+        <div class="world-counters" aria-label="Population counters">
+          <span id="city-population">Population: 0</span>
+          <span id="military-population">Army: 0</span>
+        </div>
+
+        <div id="long-press-indicator" class="long-press-indicator" hidden>
+          <span>REMOVE</span>
+        </div>
+
+        <div class="scene-badge"><span class="scene-dot"></span><span id="scene-badge">REAL-TIME 3D WORLD</span></div>
+
+        <aside id="battle-panel" class="battle-panel" aria-label="Battle Setup" hidden>
+          <div class="battle-panel-header">
+            <div>
+              <div class="eyebrow">CASTLE BATTLE</div>
+              <strong id="battle-mode-status">SETUP</strong>
+            </div>
+            <button id="battle-close" class="icon-button battle-close" type="button" aria-label="Close battle panel">×</button>
+          </div>
+
+          <div class="battle-live">
+            <span>Attackers alive <b id="battle-attacker-alive">0</b></span>
+            <span>Defenders alive <b id="battle-defender-alive">0</b></span>
+          </div>
+
+          <div class="battle-armies">
+            <section class="battle-faction battle-defenders">
+              <div class="battle-faction-title">
+                <span class="battle-color-dot defender-dot"></span>
+                <strong>DEFENDERS</strong>
+              </div>
+
+              <div class="battle-unit-row">
+                <span>Swordsman <small>balanced melee</small></span>
+                <div class="battle-stepper">
+                  <button type="button" data-battle-field="defenderSwordsmen" data-delta="-1">−</button>
+                  <input id="battle-defender-swordsmen" data-battle-input="defenderSwordsmen" type="number" min="0" max="120" step="1" value="10" inputmode="numeric" />
+                  <button type="button" data-battle-field="defenderSwordsmen" data-delta="1">+</button>
+                </div>
+              </div>
+
+              <div class="battle-unit-row">
+                <span>Spearman <small>longer melee reach</small></span>
+                <div class="battle-stepper">
+                  <button type="button" data-battle-field="defenderSpearmen" data-delta="-1">−</button>
+                  <input id="battle-defender-spearmen" data-battle-input="defenderSpearmen" type="number" min="0" max="120" step="1" value="8" inputmode="numeric" />
+                  <button type="button" data-battle-field="defenderSpearmen" data-delta="1">+</button>
+                </div>
+              </div>
+
+              <div class="battle-unit-row">
+                <span>Archer <small>fast ranged fire</small></span>
+                <div class="battle-stepper">
+                  <button type="button" data-battle-field="defenderArchers" data-delta="-1">−</button>
+                  <input id="battle-defender-archers" data-battle-input="defenderArchers" type="number" min="0" max="120" step="1" value="15" inputmode="numeric" />
+                  <button type="button" data-battle-field="defenderArchers" data-delta="1">+</button>
+                </div>
+              </div>
+
+              <div class="battle-unit-row">
+                <span>Crossbowman <small>slow heavy shot</small></span>
+                <div class="battle-stepper">
+                  <button type="button" data-battle-field="defenderCrossbowmen" data-delta="-1">−</button>
+                  <input id="battle-defender-crossbowmen" data-battle-input="defenderCrossbowmen" type="number" min="0" max="120" step="1" value="6" inputmode="numeric" />
+                  <button type="button" data-battle-field="defenderCrossbowmen" data-delta="1">+</button>
+                </div>
+              </div>
+            </section>
+
+            <section class="battle-faction battle-attackers">
+              <div class="battle-faction-title">
+                <span class="battle-color-dot attacker-dot"></span>
+                <strong>ATTACKERS</strong>
+              </div>
+
+              <div class="battle-unit-row">
+                <span>Swordsman <small>balanced assault</small></span>
+                <div class="battle-stepper">
+                  <button type="button" data-battle-field="attackerSwordsmen" data-delta="-1">−</button>
+                  <input id="battle-attacker-swordsmen" data-battle-input="attackerSwordsmen" type="number" min="0" max="120" step="1" value="30" inputmode="numeric" />
+                  <button type="button" data-battle-field="attackerSwordsmen" data-delta="1">+</button>
+                </div>
+              </div>
+
+              <div class="battle-unit-row">
+                <span>Spearman <small>formation assault</small></span>
+                <div class="battle-stepper">
+                  <button type="button" data-battle-field="attackerSpearmen" data-delta="-1">−</button>
+                  <input id="battle-attacker-spearmen" data-battle-input="attackerSpearmen" type="number" min="0" max="120" step="1" value="12" inputmode="numeric" />
+                  <button type="button" data-battle-field="attackerSpearmen" data-delta="1">+</button>
+                </div>
+              </div>
+
+              <div class="battle-unit-row">
+                <span>Archer <small>mobile ranged support</small></span>
+                <div class="battle-stepper">
+                  <button type="button" data-battle-field="attackerArchers" data-delta="-1">−</button>
+                  <input id="battle-attacker-archers" data-battle-input="attackerArchers" type="number" min="0" max="120" step="1" value="20" inputmode="numeric" />
+                  <button type="button" data-battle-field="attackerArchers" data-delta="1">+</button>
+                </div>
+              </div>
+
+              <div class="battle-unit-row">
+                <span>Crossbowman <small>armor-breaking ranged</small></span>
+                <div class="battle-stepper">
+                  <button type="button" data-battle-field="attackerCrossbowmen" data-delta="-1">−</button>
+                  <input id="battle-attacker-crossbowmen" data-battle-input="attackerCrossbowmen" type="number" min="0" max="120" step="1" value="8" inputmode="numeric" />
+                  <button type="button" data-battle-field="attackerCrossbowmen" data-delta="1">+</button>
+                </div>
+              </div>
+            </section>
+          </div>
+
+          <div class="battle-capture">
+            <div id="battle-capture-label">Castle capture inactive</div>
+            <div class="battle-capture-track"><span id="battle-capture-fill"></span></div>
+          </div>
+
+          <div class="battle-actions">
+            <button id="battle-start" class="battle-primary" type="button">Start Battle</button>
+            <button id="battle-stop" type="button">Stop Battle</button>
+            <button id="battle-reset" type="button">Reset Battle</button>
+          </div>
+
+          <div id="battle-result" class="battle-result" hidden></div>
+          <p class="battle-hint">Type exact army sizes directly or use ±. Defender ground troops rally around an Army Camp when one exists. Wall damage now includes a partially collapsed stage before a full breach.</p>
+        </aside>
+
+        <div id="help-modal" class="modal-backdrop" hidden>
+          <section class="help-modal" role="dialog" aria-modal="true" aria-labelledby="help-title">
+            <div class="help-modal-header">
+              <div>
+                <div class="eyebrow">CASTLE ROLE · 3D</div>
+                <h2 id="help-title">Game Help</h2>
+              </div>
+              <button id="help-close-button" class="icon-button" type="button" aria-label="Close help">×</button>
+            </div>
+
+            <div class="help-grid">
+              <div class="help-section">
+                <strong>Castle Battle & Siege</strong>
+                <span>Army sizes can be typed directly or changed with ±. Swordsmen, Spearmen, Archers, and Crossbowmen have different health, reach, speed, damage, and firing cadence.</span>
+                <span>Attackers evaluate open entrances, breaches, ladders, wall height, and nearby defenders. Spearmen join melee assaults while Crossbowmen provide slower heavy ranged fire.</span>
+                <span>Wall damage now progresses through damaged, heavy, partially collapsed, and fully breached states before navigation opens through the wall.</span>
+                <span>Army Camps act as Defender ground rally points. Siege ladders, Wall Walk combat, breach response, and battle-only castle restoration remain active.</span>
+              </div>
+
+              <div class="help-section">
+                <strong>Living Settlement & Farms</strong>
+                <span>Residential cells contain denser medieval neighborhoods with 5–6 small homes, alleys, wells, fences, timber framing, windows, chimneys, and yard details.</span>
+                <span>Visible isometric-scale citizens are generated from housing and wander between homes, roads, farms, and village destinations.</span>
+                <span>Farmers are assigned to Farms, travel from nearby housing to their fields, work there for a period, then return home.</span>
+                <span>Farms now include crop beds, furrows, irrigation, shed, hay, scarecrow, field bridge, and fencing.</span>
+              </div>
+
+              <div class="help-section">
+                <strong>Water & Terrain Templates</strong>
+                <span>River tiles contain flowing water immediately wherever the River tool is used; they no longer require connection to another water source.</span>
+                <span>Natural trees, rocks, huts, and mountain props can be replaced directly by river water; constructed structures must still be removed first.</span>
+                <span>Terrain Templates provide editable Rolling Plains, Twin Rivers, Alpine Basin, Coastal Cliffs, Forest Highlands, Marsh Island, and Terraced Hills starts.</span>
+              </div>
+
+              <div class="help-section">
+                <strong>2D Plan → 3D Castle</strong>
+                <span>Use 2D Plan for a clean top-down layout of walls, towers, roads, terrain, houses, and the Keep.</span>
+                <span>All edits use the same game state, so switching to 3D View immediately shows the constructed result.</span>
+                <span>New saves open in 2D Plan; existing saves keep their normal 3D start.</span>
+              </div>
+
+              <div class="help-section">
+                <strong>Castle Architecture Expansion</strong>
+                <span>Walls and towers stay upright on uneven terrain; stepped foundations extend downward automatically instead of tilting the structure.</span>
+                <span>Stone Style changes the complete stone language between Limestone, Dark Stone, Sandstone, and Rough Frontier without rebuilding geometry.</span>
+                <span>Tower roofs include compatible Conical, Hipped, Pyramidal, Open Battlement, and Timber Roof silhouettes.</span>
+                <span>Buttresses and machicolations are generated contextually from wall height, thickness, connections, tower importance, and terrain.</span>
+              </div>
+
+              <div class="help-section">
+                <strong>Tower Bridges & Stair Towers</strong>
+                <span>D — Tower Bridge: select one main tower, then a compatible second tower. Hover shows a green/red bridge preview.</span>
+                <span>Choose Stone or Wooden bridge in Castle Architecture settings. Selecting an existing tower pair again removes its bridge.</span>
+                <span>E — Stair Tower: place beside a wall with Top Walkway enabled. It automatically matches the Wall Walk height and creates Ground ↕ Wall Walk access.</span>
+                <span>Tower Bridges and Stair Towers join the elevated battle navigation network, including siege movement after attackers gain wall access.</span>
+              </div>
+
+              <div class="help-section">
+                <strong>Design Philosophy</strong>
+                <span>You control major architecture: walls, towers, roof style, global stone style, Tower Bridges, and Stair Towers.</span>
+                <span>Foundations, buttress style/spacing, machicolations, masonry variation, openings, and structural supports remain automatic.</span>
+              </div>
+
+              <div class="help-section">
+                <strong>Modular Keep Builder</strong>
+                <span>P — Modular Keep.</span>
+                <span>Choose width, depth, floors, roof style, corner towers, battlements, position, and rotation.</span>
+                <span>Each floor is built as its own architectural level instead of stretching one model.</span>
+                <span>The Keep automatically generates entrance, defensive openings, upper windows, stairs, tower details, and flags.</span>
+              </div>
+
+              <div class="help-section">
+                <strong>Diagonal Walls</strong>
+                <span>Wall drag now snaps to the nearest 45° direction.</span>
+                <span>Supported directions cover all eight compass angles.</span>
+                <span>The cyan ghost preview shows the actual final path before placement.</span>
+                <span>Diagonal foundations, walkways, battlements, arrow slits, and terrain adaptation are generated automatically.</span>
+              </div>
+
+              <div class="help-section">
+                <strong>Automatic Corners</strong>
+                <span>Wall junctions are analyzed automatically.</span>
+                <span>Square, rounded, reinforced, turret, and buttressed corner solutions are selected from wall height, thickness, angle, and importance.</span>
+                <span>Straight-to-diagonal transitions retain continuous ramparts without a manual corner tool.</span>
+              </div>
+
+              <div class="help-section">
+                <strong>Automatic Castle Access</strong>
+                <span>Stairs, ladders, and ramps are no longer primary build-menu tools.</span>
+                <span>Wall networks with walkways receive deterministic access points where required.</span>
+                <span>Towers and gates are preferred access anchors; longer isolated walls receive additional access automatically.</span>
+                <span>Access is recalculated whenever the castle or terrain redraws after an architectural change.</span>
+              </div>
+
+              <div class="help-section">
+                <strong>Procedural Details</strong>
+                <span>Lower Keep floors favor arrow slits; upper floors receive more windows.</span>
+                <span>Wall arrow slits avoid important junctions and supports.</span>
+                <span>Flags are intentionally rare and animate subtly.</span>
+                <span>Generation is deterministic, so Save/Load reconstructs the same architectural details.</span>
+              </div>
+
+              <div class="help-section">
+                <strong>Mountains & Ranges</strong>
+                <span>Mountain creates a broad multi-level formation; repeated clicks grow ridges and peaks instead of a square raised tile.</span>
+                <span>Mountain Range (K) uses an A → B drag preview, then generates a varied ridge with secondary peaks, valleys, rocky slopes, foothills, and lower-slope trees.</span>
+                <span>Mountain forests thin out automatically as elevation and slope increase.</span>
+              </div>
+
+              <div class="help-section">
+                <strong>Terrain Editing</strong>
+                <span>Raise / Lower / Flatten / Smooth / Dig / Hill / Cliff remain available.</span>
+                <span>Keep foundations adapt to moderate elevation differences; excessively steep new Keep placements are rejected.</span>
+                <span>Walls follow edited slopes and automatic access is regenerated after terrain changes.</span>
+              </div>
+
+              <div class="help-section">
+                <strong>Walls & Towers</strong>
+                <span>1 / 2 / 3 — Stone / Wooden / Reinforced Wall.</span>
+                <span>Drag A → B to build a snapped straight or diagonal run.</span>
+                <span>Wall thickness, height, battlements, and walkway remain player-controlled.</span>
+                <span>Tower bases and roof/platform styles remain modular; defensive openings and occasional flags are automatic.</span>
+              </div>
+
+              <div class="help-section">
+                <strong>Undo / Redo</strong>
+                <span>Ctrl + Z — Undo · Ctrl + Y — Redo.</span>
+                <span>Keep placement/configuration, wall placement, wall height, terrain editing, Move, Rotate, Delete, and other major state changes use architectural snapshots.</span>
+                <span>Generated windows, slits, flags, and automatic access are regenerated from the restored parent state instead of becoming separate Undo steps.</span>
+              </div>
+
+              <div class="help-section">
+                <strong>World, Roads & Harbor</strong>
+                <span>The coast now reads as grass → coastal vegetation → beach/rock → wet shore → shallow water → deep ocean.</span>
+                <span>Beach width varies; rocky coast, small cliffs, driftwood, shells, stones, and foam are used selectively.</span>
+                <span>Road, Dirt Road, and Stone Road all support A → B drag preview and automatic intersections; roads crossing rivers render as bridges.</span>
+                <span>Harbor structures still validate coastline and automatically face open water.</span>
+              </div>
+
+              <div class="help-section">
+                <strong>Long-Press Remove & Population</strong>
+                <span>Hold directly on a removable object for about 3 seconds to remove it without selecting the Remove tool.</span>
+                <span>The circular red indicator shows hold progress; moving the pointer cancels it.</span>
+                <span>Population and Army are displayed separately. Army tracks the configured/living Defender force.</span>
+                <span>Long-press deletion is included in Undo history.</span>
+              </div>
+
+              <div class="help-section">
+                <strong>Camera & Mobile UI</strong>
+                <span>2D Plan locks the camera overhead; right drag pans and the wheel/pinch zooms.</span>
+                <span>3D View restores orbit camera controls.</span>
+                <span>The Build panel can be closed at any time and automatically collapses after choosing a tool on mobile.</span>
+              </div>
+            </div>
+          </section>
+        </div>
+
+        <div id="game-mode-modal" class="modal-backdrop" hidden>
+          <section class="help-modal mode-modal" role="dialog" aria-modal="true" aria-labelledby="game-mode-title">
+            <div class="help-modal-header">
+              <div>
+                <div class="eyebrow">CASTLE ROLE · GAME MODE</div>
+                <h2 id="game-mode-title">Choose Your Fortress Era</h2>
+              </div>
+            </div>
+            <p class="template-intro">Choose the architecture and gameplay family before starting a new game. Medieval and Modern/Futuristic content are isolated from each other.</p>
+            <div class="mode-grid">
+              <button class="mode-card" type="button" data-game-mode="medieval">
+                <span class="mode-card-icon">♜</span>
+                <strong>Medieval Castle</strong>
+                <small>Stone walls, medieval towers, gates, settlements, soldiers, and siege systems.</small>
+              </button>
+              <button class="mode-card" type="button" data-game-mode="modern">
+                <span class="mode-card-icon">◈</span>
+                <strong>Modern Fortress</strong>
+                <small>Reinforced futuristic fortress architecture and the modern systems currently implemented.</small>
+              </button>
+            </div>
+          </section>
+        </div>
+
+        <div id="templates-modal" class="modal-backdrop" hidden>
+          <section class="help-modal template-modal" role="dialog" aria-modal="true" aria-labelledby="templates-title">
+            <div class="help-modal-header">
+              <div>
+                <div class="eyebrow">STARTING WORLDS</div>
+                <h2 id="templates-title">Choose a Castle Template</h2>
+              </div>
+              <button id="templates-close-button" class="icon-button" type="button" aria-label="Close templates">×</button>
+            </div>
+
+            <p class="template-intro">Choose from 28 complete starting worlds or start with one of the editable terrain-only worlds. Every template becomes normal editable game state after loading.</p>
+
+            <div class="template-grid">
+              <button class="template-card" type="button" data-template="empty-land">
+                <span class="template-preview template-preview-blank">○</span>
+                <strong>Empty Land</strong>
+                <small>A clean buildable island for a castle from scratch.</small>
+              </button>
+
+              <button class="template-card" type="button" data-template="small-castle">
+                <span class="template-preview template-preview-castle">♜</span>
+                <strong>Small Castle</strong>
+                <small>Compact stone walls, four towers, gate, homes, road, and wall access.</small>
+              </button>
+
+              <button class="template-card" type="button" data-template="motte-bailey">
+                <span class="template-preview template-preview-motte">▲</span>
+                <strong>Motte &amp; Bailey</strong>
+                <small>A raised motte with a tall keep and wooden bailey defenses.</small>
+              </button>
+
+              <button class="template-card" type="button" data-template="river-castle">
+                <span class="template-preview template-preview-river">≈</span>
+                <strong>River Castle</strong>
+                <small>A fortified settlement beside a strong editable river channel.</small>
+              </button>
+
+              <button class="template-card" type="button" data-template="mountain-valley">
+                <span class="template-preview template-preview-motte">⛰</span>
+                <strong>Mountain Valley</strong>
+                <small>Mountain ranges, forested foothills, a river, and a broad protected central valley.</small>
+              </button>
+
+              <button class="template-card" type="button" data-template="coastal-kingdom">
+                <span class="template-preview template-preview-river">⚓</span>
+                <strong>Coastal Kingdom</strong>
+                <small>Wide beaches, harbor-friendly coast, inland woods, hills, and open castle land.</small>
+              </button>
+
+              <button class="template-card" type="button" data-template="highland-river">
+                <span class="template-preview template-preview-motte">≈▲</span>
+                <strong>Highland River</strong>
+                <small>A rugged highland ridge with a descending river, forests, rocks, and a buildable shelf.</small>
+              </button>
+
+              <button class="template-card" type="button" data-template="grand-citadel">
+                <span class="template-preview template-preview-castle">♜+</span>
+                <strong>Grand Citadel</strong>
+                <small>Limestone capital with thick Wall Walks, advanced roofs, Stair Tower, Keep, farms, and stone roads.</small>
+              </button>
+
+              <button class="template-card" type="button" data-template="dark-fortress">
+                <span class="template-preview template-preview-castle">◆</span>
+                <strong>Dark Fortress</strong>
+                <small>Dark-stone reinforced stronghold with high walls, machicolation-ready towers, moat, and defensive Keep.</small>
+              </button>
+
+              <button class="template-card" type="button" data-template="sandstone-oasis">
+                <span class="template-preview template-preview-river">☀</span>
+                <strong>Sandstone Oasis</strong>
+                <small>Thin sandstone defenses, oasis river, farms, conical roofs, hipped roofs, and a light open Keep.</small>
+              </button>
+
+              <button class="template-card" type="button" data-template="frontier-outpost">
+                <span class="template-preview template-preview-motte">⌂</span>
+                <strong>Frontier Outpost</strong>
+                <small>Rough frontier stone, timber walls, Timber Roof towers, dirt roads, huts, farm, and Stair Tower access.</small>
+              </button>
+
+              <button class="template-card" type="button" data-template="bridge-stronghold">
+                <span class="template-preview template-preview-castle">═♜═</span>
+                <strong>Bridge Stronghold</strong>
+                <small>Six towers connected by both Stone and Wooden Tower Bridges inside a protected outer fortress.</small>
+              </button>
+
+              <button class="template-card" type="button" data-template="siege-academy">
+                <span class="template-preview template-preview-castle">⚔</span>
+                <strong>Siege Academy</strong>
+                <small>A battle-test castle with moat, Wall Walks, Stair Tower, stairs, ramp, ladder, gate, and heavy defenses.</small>
+              </button>
+
+              <button class="template-card" type="button" data-template="harbor-capital">
+                <span class="template-preview template-preview-river">⚓+</span>
+                <strong>Harbor Capital</strong>
+                <small>All four harbor structures with fishing, trading, and transport ships plus a dense coastal settlement.</small>
+              </button>
+
+              <button class="template-card" type="button" data-template="mountain-fortress">
+                <span class="template-preview template-preview-motte">▲♜</span>
+                <strong>Mountain Fortress</strong>
+                <small>Rough-stone highland castle demonstrating steep terrain, stepped foundations, mine, rocks, and cliff-like plateaus.</small>
+              </button>
+
+              <button class="template-card" type="button" data-template="royal-city">
+                <span class="template-preview template-preview-castle">♛</span>
+                <strong>Royal City</strong>
+                <small>Sandstone walled city with Cottage, House, Manor, Villa, farms, and all three road families.</small>
+              </button>
+
+              <button class="template-card" type="button" data-template="architecture-gallery">
+                <span class="template-preview template-preview-castle">▦</span>
+                <strong>Architecture Gallery</strong>
+                <small>Every tower base, every modern roof mode, legacy top variants, all Keep roof styles, wall materials, bridge types, and terrain forms.</small>
+              </button>
+
+              <button class="template-card" type="button" data-template="river-port-fort">
+                <span class="template-preview template-preview-river">⚓≈</span>
+                <strong>River Port Fort</strong>
+                <small>River-side fort, farms, settlement blocks, Wall Walk access, fishing docks, and flowing water.</small>
+              </button>
+
+              <button class="template-card" type="button" data-template="farming-duchy">
+                <span class="template-preview template-preview-farm">🌾</span>
+                <strong>Farming Duchy</strong>
+                <small>A farm-heavy sandstone duchy with villages, road network, fields, and visible farmer activity.</small>
+              </button>
+
+              <button class="template-card" type="button" data-template="twin-keep">
+                <span class="template-preview template-preview-castle">♜♜</span>
+                <strong>Twin Keep</strong>
+                <small>Two high Keeps, reinforced defenses, a tower bridge, Stair Tower access, and an Army Camp.</small>
+              </button>
+
+              <button class="template-card" type="button" data-template="border-march">
+                <span class="template-preview template-preview-motte">│⌂</span>
+                <strong>Border March</strong>
+                <small>Long timber frontier wall, watch towers, Army Camp, farm, huts, dirt road, and woodland frontier.</small>
+              </button>
+
+              <button class="template-card" type="button" data-template="forest-citadel">
+                <span class="template-preview template-preview-motte">🌲♜</span>
+                <strong>Forest Citadel</strong>
+                <small>A strong stone citadel surrounded by dense forest with open internal settlement land.</small>
+              </button>
+
+              <button class="template-card" type="button" data-template="cliff-watch">
+                <span class="template-preview template-preview-mountain">▰▲</span>
+                <strong>Cliff Watch</strong>
+                <small>Dark-stone fortress across stepped high ground, cliff-like shelves, watch towers, and military camp.</small>
+              </button>
+
+              <button class="template-card" type="button" data-template="moat-palace">
+                <span class="template-preview template-preview-river">◇</span>
+                <strong>Moat Palace</strong>
+                <small>Sandstone palace fortress surrounded by defensive moat lines, towers, Wall Walks, and stone approach.</small>
+              </button>
+
+              <button class="template-card" type="button" data-template="merchant-republic">
+                <span class="template-preview template-preview-castle">⚖</span>
+                <strong>Merchant Republic</strong>
+                <small>Dense residential districts, mixed roads, farms, walls, Keep, and a compact coastal trading quarter.</small>
+              </button>
+
+              <button class="template-card" type="button" data-template="war-camp">
+                <span class="template-preview template-preview-motte">⛺</span>
+                <strong>War Camp</strong>
+                <small>Four large Army Camps, timber enclosure, barrack-like huts, farms, command Keep, and field roads.</small>
+              </button>
+
+              <button class="template-card" type="button" data-template="futuristic-castle">
+                <span class="template-preview template-preview-castle">◈</span>
+                <strong>Futuristic Castle</strong>
+                <small>Year 3000 fortress with massive armored walls, command center, observation towers, energy details, and integrated automated gun turrets.</small>
+              </button>
+
+              <button class="template-card" type="button" data-template="island-monastery">
+                <span class="template-preview template-preview-river">☩</span>
+                <strong>Island Monastery</strong>
+                <small>Quiet elevated island enclosure with light defenses, cottages, farms, trees, and a fishing dock.</small>
+              </button>
+
+              <div class="template-section-heading">
+                <strong>Editable Terrain Templates</strong>
+                <small>Terrain-only starting worlds. Every tile remains editable with Raise, Lower, Smooth, River, Land, Hill, Cliff, and normal building tools.</small>
+              </div>
+
+              <button class="template-card terrain-template-card" type="button" data-terrain-template="rolling-plains">
+                <span class="template-preview template-preview-blank">〰</span>
+                <strong>Rolling Plains</strong>
+                <small>Open construction land with broad gentle hills and scattered trees.</small>
+              </button>
+
+              <button class="template-card terrain-template-card" type="button" data-terrain-template="twin-rivers">
+                <span class="template-preview template-preview-river">≈≈</span>
+                <strong>Twin Rivers</strong>
+                <small>Two independent flowing rivers crossing otherwise open buildable land.</small>
+              </button>
+
+              <button class="template-card terrain-template-card" type="button" data-terrain-template="alpine-basin">
+                <span class="template-preview template-preview-mountain">△</span>
+                <strong>Alpine Basin</strong>
+                <small>Mountain ranges on three sides with an editable central basin for a highland castle.</small>
+              </button>
+
+              <button class="template-card terrain-template-card" type="button" data-terrain-template="coastal-cliffs">
+                <span class="template-preview template-preview-mountain">▰≈</span>
+                <strong>Coastal Cliffs</strong>
+                <small>Raised rocky coast, lower central ground, cliff shelves, and exposed stone areas.</small>
+              </button>
+
+              <button class="template-card terrain-template-card" type="button" data-terrain-template="forest-highlands">
+                <span class="template-preview template-preview-motte">🌲▲</span>
+                <strong>Forest Highlands</strong>
+                <small>Uneven wooded highland terrain with a large central clearing.</small>
+              </button>
+
+              <button class="template-card terrain-template-card" type="button" data-terrain-template="marsh-island">
+                <span class="template-preview template-preview-river">≈☘</span>
+                <strong>Marsh Island</strong>
+                <small>Very low terrain with isolated self-contained water channels and sparse trees.</small>
+              </button>
+
+              <button class="template-card terrain-template-card" type="button" data-terrain-template="terraced-hills">
+                <span class="template-preview template-preview-motte">▤</span>
+                <strong>Terraced Hills</strong>
+                <small>Concentric stepped elevations for hill forts, mountain settlements, and tiered castles.</small>
+              </button>
+            </div>
+          </section>
+        </div>
+      </main>
+    </div>
+
     <script type="module" src="/main.ts"></script>
   </body>
 </html>
