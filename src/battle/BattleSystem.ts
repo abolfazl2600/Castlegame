@@ -1,7 +1,8 @@
 import * as THREE from 'three';
 import type { GridCell, KeepState, TerrainKind, TileKind, TowerBridgeState } from '../core/types';
 import { BattleNavigation, type NavPoint, type WallNavNode } from './BattleNavigation';
-import { WallDefenseSystem, type WallWeaponPosition } from '../building/WallDefenseSystem';
+import type { WallDirection } from '../core/types';
+import { WallSystem } from '../building/WallSystem';
 import { FactionRelations } from './FactionRelations';
 import { BattleObjectiveSystem } from './objectives/BattleObjectiveSystem';
 import { DEFAULT_BATTLE_SCENARIO } from './objectives/BattleObjectiveDefinitions';
@@ -118,6 +119,13 @@ interface WallSides {
   inside: NavPoint;
 }
 
+interface WallWeaponPosition {
+  x: number;
+  y: number;
+  direction: WallDirection;
+  range: number;
+}
+
 interface ArrowProjectile {
   view: THREE.Mesh;
   targetId: string;
@@ -214,6 +222,80 @@ export const UNIT_COMBAT_STATS: Readonly<Record<CoreUnitType, BattleUnitStats>> 
 };
 
 export class BattleSystem {
+  /**
+   * Canonical deterministic wall-defense weapon placement.
+   * BattleSystem owns both placement and runtime wall-defense behavior.
+   */
+  static wallWeaponPositions(
+    size: number,
+    cellAt: (x: number, y: number) => GridCell | undefined,
+  ): WallWeaponPosition[] {
+    const candidates: WallWeaponPosition[] = [];
+
+    for (let y = 0; y < size; y += 1) {
+      for (let x = 0; x < size; x += 1) {
+        const cell = cellAt(x, y);
+        if (!cell || !this.isSuitableWall(cell)) continue;
+
+        const direction = this.weaponDirection(x, y, cell, cellAt);
+        if (!direction) continue;
+
+        candidates.push({ x, y, direction, range: 14 });
+      }
+    }
+
+    const selected: WallWeaponPosition[] = [];
+    for (const candidate of candidates) {
+      if ((candidate.x * 17 + candidate.y * 31) % 5 !== 0) continue;
+      const tooClose = selected.some(
+        (item) => Math.hypot(item.x - candidate.x, item.y - candidate.y) < 4.5,
+      );
+      if (tooClose) continue;
+      selected.push(candidate);
+    }
+
+    if (selected.length === 0 && candidates.length > 0) {
+      selected.push(candidates[Math.floor(candidates.length / 2)]);
+    }
+
+    return selected;
+  }
+
+  private static isSuitableWall(cell: GridCell): boolean {
+    return (
+      (cell.kind === 'wall1' || cell.kind === 'wall2' || cell.kind === 'wall3') &&
+      cell.walkway === true
+    );
+  }
+
+  private static weaponDirection(
+    x: number,
+    y: number,
+    cell: GridCell,
+    cellAt: (x: number, y: number) => GridCell | undefined,
+  ): WallDirection | null {
+    const links = cell.wallLinks ?? [];
+    const horizontal = links.includes('E') || links.includes('W');
+    const vertical = links.includes('N') || links.includes('S');
+
+    const preferred: WallDirection[] = horizontal && !vertical
+      ? ((x + y) % 2 === 0 ? ['N', 'S'] : ['S', 'N'])
+      : vertical && !horizontal
+        ? ((x + y) % 2 === 0 ? ['E', 'W'] : ['W', 'E'])
+        : ['N', 'E', 'S', 'W'];
+
+    for (const direction of preferred) {
+      const vector = WallSystem.vector(direction);
+      const adjacent = cellAt(x + vector.x, y + vector.y);
+      if (!adjacent || adjacent.kind === 'gate' || adjacent.kind === 'tower') {
+        return direction;
+      }
+    }
+
+    return preferred[0] ?? null;
+  }
+
+
   private readonly navigation: BattleNavigation;
   private readonly relations = new FactionRelations();
   private readonly units = new Map<string, UnitRuntime>();
@@ -3399,7 +3481,7 @@ export class BattleSystem {
   }
 
   private initializeWallWeapons(): void {
-    this.wallWeapons = WallDefenseSystem.positions(
+    this.wallWeapons = BattleSystem.wallWeaponPositions(
       this.world.size,
       (x, y) => this.world.cellAt(x, y),
     );
