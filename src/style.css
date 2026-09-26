@@ -1682,6 +1682,209 @@ kbd {
 
 
 
+
+/* Privacy & Legal inside the central Settings system */
+.settings-privacy-section {
+  display: grid;
+  gap: 12px;
+  padding: 14px;
+  border: 1px solid rgba(126,225,255,.13);
+  border-radius: 13px;
+  background: rgba(255,255,255,.02);
+  scroll-margin-top: 12px;
+}
+
+.privacy-section-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.privacy-section-heading h3 {
+  margin: 3px 0 0;
+}
+
+.privacy-build-badge {
+  padding: 5px 8px;
+  border: 1px solid rgba(126,225,255,.16);
+  border-radius: 999px;
+  color: rgba(157,238,255,.8);
+  background: rgba(83,199,240,.06);
+  font-size: 9px;
+  font-weight: 800;
+}
+
+.privacy-subnav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.privacy-subnav button {
+  min-height: 30px;
+  padding: 6px 8px;
+  border: 1px solid rgba(255,255,255,.09);
+  border-radius: 8px;
+  color: rgba(238,251,255,.82);
+  background: rgba(255,255,255,.04);
+  cursor: pointer;
+  font-size: 9px;
+}
+
+.privacy-subnav button:hover {
+  border-color: rgba(112,220,255,.28);
+  background: rgba(83,199,240,.08);
+}
+
+.privacy-content {
+  display: grid;
+  gap: 10px;
+}
+
+.privacy-document {
+  display: grid;
+  gap: 8px;
+  padding: 13px;
+  border: 1px solid rgba(255,255,255,.07);
+  border-radius: 11px;
+  background: rgba(4,16,27,.35);
+  scroll-margin-top: 12px;
+}
+
+.privacy-document h4 {
+  margin: 0;
+  color: #eefbff;
+  font-size: 14px;
+}
+
+.privacy-document h5 {
+  margin: 6px 0 0;
+  color: #9deeff;
+  font-size: 10px;
+  letter-spacing: .05em;
+  text-transform: uppercase;
+}
+
+.privacy-document p,
+.privacy-document li {
+  margin: 0;
+  color: rgba(232,246,251,.72);
+  font-size: 10px;
+  line-height: 1.65;
+}
+
+.privacy-document ul,
+.privacy-document ol {
+  margin: 0;
+  padding-left: 18px;
+  display: grid;
+  gap: 5px;
+}
+
+.privacy-document code {
+  color: #b9f1ff;
+  font-size: .92em;
+}
+
+.privacy-data-card,
+.privacy-danger-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px;
+  border: 1px solid rgba(126,225,255,.09);
+  border-radius: 9px;
+  background: rgba(255,255,255,.025);
+}
+
+.privacy-data-card {
+  display: grid;
+  justify-content: stretch;
+  gap: 3px;
+}
+
+.privacy-data-card strong,
+.privacy-danger-card strong {
+  color: #eefbff;
+  font-size: 11px;
+}
+
+.privacy-data-card span,
+.privacy-danger-card span {
+  color: rgba(232,246,251,.66);
+  font-size: 9px;
+  line-height: 1.5;
+}
+
+.privacy-data-card small {
+  color: rgba(232,246,251,.48);
+  font-size: 9px;
+  line-height: 1.5;
+}
+
+.privacy-danger-card {
+  border-color: rgba(255,170,160,.1);
+}
+
+.privacy-danger-card > div {
+  display: grid;
+  gap: 4px;
+}
+
+.privacy-danger-card button {
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+
+.privacy-about-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 7px;
+}
+
+.privacy-about-grid > div {
+  display: grid;
+  gap: 3px;
+  padding: 9px;
+  border-radius: 8px;
+  background: rgba(255,255,255,.035);
+}
+
+.privacy-about-grid span {
+  color: rgba(232,246,251,.45);
+  font-size: 8px;
+  text-transform: uppercase;
+  letter-spacing: .08em;
+}
+
+.privacy-about-grid strong {
+  color: rgba(238,251,255,.82);
+  font-size: 10px;
+}
+
+.privacy-note,
+.settings-section-note {
+  color: rgba(232,246,251,.48) !important;
+  font-size: 9px !important;
+}
+
+@media (max-width: 560px) {
+  .privacy-danger-card {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .privacy-danger-card button {
+    width: 100%;
+  }
+
+  .privacy-about-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
 /* Central Settings System */
 :root { --castle-ui-scale: 1; }
 #app { font-size: calc(1em * var(--castle-ui-scale)); }
