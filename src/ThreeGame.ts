@@ -7144,7 +7144,7 @@ export class ThreeGame {
       '</button>' +
       '<div class="tool-category-items">' +
       '<div class="builder-settings">' +
-      '<div class="settings-title">Wall Settings</div> +
+      '<div class="settings-title">Wall Settings</div>' +
       '<label class="settings-row"><span>Thickness</span><select id="wall-thickness">' +
       '<option value="thin">Thin</option><option value="medium" selected>Medium</option><option value="thick">Thick</option>' +
       '</select></label>' +
