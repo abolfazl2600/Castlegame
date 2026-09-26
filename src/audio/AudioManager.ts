@@ -11,6 +11,7 @@ const DEFAULT_SETTINGS: AudioSettings = {
 };
 
 const clamp01 = (value: number): number => Math.min(1, Math.max(0, value));
+const MAX_TOTAL_SFX_VOICES = 12;
 
 export class AudioManager {
   private readonly registry = createAudioAssetRegistry();
@@ -157,6 +158,15 @@ export class AudioManager {
 
     while (active.length >= maxVoices) {
       const oldest = active.shift();
+      oldest?.pause();
+      if (oldest) oldest.currentTime = 0;
+    }
+
+    const allActive = Array.from(this.sfxVoices.values())
+      .flat()
+      .filter((voice) => !voice.paused && !voice.ended);
+    while (allActive.length >= MAX_TOTAL_SFX_VOICES) {
+      const oldest = allActive.shift();
       oldest?.pause();
       if (oldest) oldest.currentTime = 0;
     }
