@@ -363,8 +363,6 @@ export class BattleSystem {
       this.layer.remove(runtime.view);
     }
     this.units.clear();
-    this.wallWeapons = [];
-    this.wallWeaponTimers.clear();
 
     for (const arrow of this.arrows) {
       this.layer.remove(arrow.view);
