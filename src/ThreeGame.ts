@@ -501,6 +501,7 @@ export class ThreeGame {
     this.syncTemplateAvailability();
     audioEvents.emit({ action: 'set_mode', mode: this.gameMode });
     if (!hadSave) {
+      this.renderGameModeSelection();
       const modeModal = document.getElementById('game-mode-modal');
       if (modeModal) modeModal.hidden = false;
     }
