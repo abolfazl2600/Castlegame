@@ -278,7 +278,7 @@ export class ThreeGame {
   private readonly oceanWaterMaterial: THREE.MeshStandardMaterial;
   private readonly shallowWaterMaterial: THREE.MeshStandardMaterial;
 
-  private selectedTool: ToolKind = 'wall1';
+  private selectedTool: ToolKind | null = null;
   private selectedCell: GridPoint | null = null;
   private viewMode: ViewMode = 'world3d';
   private toolbarOpen = window.innerWidth > 760;
@@ -5464,7 +5464,7 @@ export class ThreeGame {
         if (this.battleSystem.isActive()) return;
 
         const cell = this.pickGridCell(event);
-        if (cell && this.selectedTool !== 'towerBridge') this.beginLongPress(event, cell);
+        if (cell && this.selectedTool !== null && this.selectedTool !== 'towerBridge') this.beginLongPress(event, cell);
 
         if (this.isWallTool(this.selectedTool)) {
           if (!cell) return;
@@ -6353,6 +6353,16 @@ export class ThreeGame {
     const overrideKey = this.key(gx, gy);
     const keepAtPoint = this.keepSystem.findAtCell(gx, gy);
 
+    if (this.selectedTool === null) {
+      if (keepAtPoint) {
+        this.selectKeep(keepAtPoint);
+      } else {
+        this.selectedKeepId = null;
+        this.setStatus(current ? `Selected: ${current}` : 'No Build Tool Selected');
+      }
+      return;
+    }
+
     if (this.selectedTool === 'erase') {
       if (keepAtPoint) {
         this.recordHistory();
@@ -7162,6 +7172,12 @@ export class ThreeGame {
     const get = <T extends HTMLElement>(id: string): T => document.getElementById(id) as T;
     const toolbar = get<HTMLElement>('toolbar');
 
+    const noneHtml =
+      '<button class="tool-button tool-button-none" data-build-none="true" type="button" aria-pressed="true">' +
+      '<span class="tool-icon">✕</span>' +
+      '<span class="tool-copy"><strong>None</strong><small>No build tool · free camera / inspect</small></span>' +
+      '<kbd>Esc</kbd></button>';
+
     const toolHtml = TOOL_GROUPS.map((group, index) => {
       const isDefaultOpen = index === 0;
       const buttons = group.tools
@@ -7275,6 +7291,8 @@ export class ThreeGame {
         header.setAttribute('aria-expanded', String(open));
       };
     });
+
+    get<HTMLButtonElement>('[data-build-none]').onclick = () => this.selectTool(null);
 
     toolbar.querySelectorAll<HTMLButtonElement>('[data-tool]').forEach((button) => {
       button.onclick = () => {
@@ -7586,9 +7604,7 @@ export class ThreeGame {
       if (event.key === 'Escape') {
         help.hidden = true;
         templates.hidden = true;
-        this.towerBridgeStart = null;
-        this.towerBridgeHover = null;
-        this.clearGroup(this.wallPreviewLayer);
+        this.selectTool(null);
       }
     });
   }
@@ -9192,7 +9208,7 @@ export class ThreeGame {
       's</span>';
   }
 
-  private selectTool(tool: ToolKind): void {
+  private selectTool(tool: ToolKind | null): void {
     if (this.battleSystem.isActive()) {
       this.setStatus('Reset Battle before returning to construction');
       return;
@@ -9204,23 +9220,26 @@ export class ThreeGame {
       this.clearGroup(this.wallPreviewLayer);
     }
 
+    this.wallDragStart = null;
+    this.wallDragEnd = null;
+    this.roadDragStart = null;
+    this.roadDragEnd = null;
+    this.mountainRangeStart = null;
+    this.mountainRangeEnd = null;
+    this.terrainStrokeActive = false;
+    this.terrainStrokeSnapshot = null;
+    this.lastTerrainBrushKey = '';
+    this.pointerStart = null;
+    this.cancelLongPress();
+    this.controls.enabled = true;
     this.selectedTool = tool;
-    const toolbar = document.getElementById('toolbar');
-    if (toolbar) {
-      toolbar.querySelectorAll<HTMLButtonElement>('[data-tool]').forEach((button) => {
-        button.classList.toggle('is-selected', button.dataset.tool === tool);
-      });
-      const selectedButton = toolbar.querySelector<HTMLButtonElement>('[data-tool="' + tool + '"]');
-      const category = selectedButton?.closest<HTMLElement>('.tool-category');
-      if (category) {
-        category.classList.add('is-open');
-        category.querySelector<HTMLButtonElement>('.tool-category-header')?.setAttribute('aria-expanded', 'true');
-      }
-    }
     document.querySelectorAll('[data-tool]').forEach((element) => {
-      element.classList.toggle('is-selected', (element as HTMLElement).dataset.tool === tool);
+      element.classList.toggle('is-selected', tool !== null && (element as HTMLElement).dataset.tool === tool);
     });
-    this.setStatus('Selected: ' + tool);
+    const noneButton = document.querySelector('[data-build-none]');
+    noneButton?.classList.toggle('is-selected', tool === null);
+    noneButton?.setAttribute('aria-pressed', String(tool === null));
+    this.setStatus(tool === null ? 'No Build Tool Selected · free camera / inspect' : 'Selected: ' + tool);
   }
 
   private setStatus(text: string): void {
