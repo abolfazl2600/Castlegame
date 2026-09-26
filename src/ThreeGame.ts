@@ -6048,6 +6048,7 @@ export class ThreeGame {
         const x = gx + ox;
         const y = gy + oy;
         if (x < 1 || y < 1 || x >= SIZE - 1 || y >= SIZE - 1) continue;
+        if (!this.isWithinTerritory(x, y)) continue;
 
         const distance = Math.hypot(ox, oy);
         if (distance > radius) continue;
@@ -6210,6 +6211,7 @@ export class ThreeGame {
           const x = ridge.x + ox;
           const y = ridge.y + oy;
           if (x < 1 || y < 1 || x >= SIZE - 1 || y >= SIZE - 1) continue;
+          if (!this.isWithinTerritory(x, y)) continue;
 
           const distance = Math.hypot(ox, oy);
           if (distance > influenceRadius) continue;
