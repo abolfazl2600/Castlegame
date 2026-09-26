@@ -19,14 +19,9 @@ import type {
   SavedGame,
   SaveMetadata,
   SaveRecord,
-  ShipKind,
   StoneStyle,
   TerrainOverrideKind,
   TowerBridgeState,
-  TowerShape,
-  TowerTop,
-  WallDirection,
-  WallThickness,
 } from './types';
 
 type SaveTarget = number | 'quick' | 'autosave';
