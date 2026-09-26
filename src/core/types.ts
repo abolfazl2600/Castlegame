@@ -1,3 +1,5 @@
+import type { GameMode } from './GameMode';
+
 export type WallKind = 'wall1' | 'wall2' | 'wall3';
 export type RoadKind = 'road' | 'dirtRoad' | 'stoneRoad';
 export type HarborKind = 'smallDock' | 'woodenPier' | 'harbor' | 'fishingDock';
@@ -104,6 +106,7 @@ export interface TowerBridgeState {
 
 export interface SavedGame {
   version: number;
+  gameMode?: GameMode;
   updatedAt: number;
   cells: Array<{
     x: number;
