@@ -15,6 +15,7 @@ import type { GameMode } from './core/GameMode';
 import { GAME_MODE_CONFIG, getGameModeDefinition, isBuildingAvailable, isGameMode, isToolAvailable } from './core/GameMode';
 import { GAME_MODE_REGISTRY } from './core/GameModeFoundation';
 import { createSurvivalDefinition } from './SurvivalGameMode';
+import { createSandboxDefinition } from './SandboxGameMode';
 import type { SettingsStore } from './settings/SettingsStore';
 import { applyGraphicsSettings, applyInputSettings, applySceneGraphicsSettings } from './settings/SettingsSubsystems';
 import { FuturisticCastleRenderer } from './rendering/FuturisticCastleRenderer';
@@ -654,6 +655,18 @@ export class ThreeGame {
         }),
       );
     }
+
+    if (!GAME_MODE_REGISTRY.has('sandbox')) {
+      GAME_MODE_REGISTRY.register(
+        createSandboxDefinition({
+          resetWorld: () => {
+            this.resetWorldForMode('sandbox');
+            this.save(false);
+          },
+          setStatus: (message) => this.setStatus(message),
+        }),
+      );
+    }
   }
 
   private renderGameModeSelection(): void {
@@ -719,25 +732,7 @@ export class ThreeGame {
     this.setStatus('Game mode selected: ' + selectedMode.displayName);
   }
 
-  private startNewGameWithMode(mode: GameMode): void {
-    const session = this.services.session;
-    if (session.getStatus() === 'running' || session.getStatus() === 'paused') {
-      session.end();
-    }
-    session.cleanup();
-
-    const selection = session.selectMode(mode);
-    if (!selection.ok || !session.getSelectedMode()) {
-      this.setStatus('Selected game mode is unavailable');
-      return;
-    }
-
-    const initialized = session.initialize();
-    if (!initialized.ok) {
-      this.setStatus('Game mode could not be initialized');
-      return;
-    }
-
+  private resetWorldForMode(mode: GameMode): void {
     this.services.state.setGameMode(mode);
     audioEvents.emit({ action: 'set_mode', mode });
     this.services.state.clear();
@@ -757,7 +752,7 @@ export class ThreeGame {
     this.workers.length = 0;
     this.settlementAgents.length = 0;
     this.nextSettlementAgentId = 1;
-    this.battleSystem.stop();
+    this.battleSystem.reset(false);
     this.undoStack.length = 0;
     this.redoStack.length = 0;
     this.worldSeeded = false;
@@ -768,7 +763,28 @@ export class ThreeGame {
     this.syncTemplateAvailability();
     this.refreshBuildPanelForMode();
     this.redraw();
+  }
 
+  private startNewGameWithMode(mode: GameMode): void {
+    const session = this.services.session;
+    if (session.getStatus() === 'running' || session.getStatus() === 'paused') {
+      session.end();
+    }
+    session.cleanup();
+
+    const selection = session.selectMode(mode);
+    if (!selection.ok || !session.getSelectedMode()) {
+      this.setStatus('Selected game mode is unavailable');
+      return;
+    }
+
+    const initialized = session.initialize();
+    if (!initialized.ok) {
+      this.setStatus('Game mode could not be initialized');
+      return;
+    }
+
+    this.resetWorldForMode(mode);
     const started = session.start();
     if (!started.ok) {
       this.setStatus('Game mode could not be started');
