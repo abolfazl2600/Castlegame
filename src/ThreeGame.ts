@@ -448,7 +448,7 @@ export class ThreeGame {
       this.save(false);
     }
 
-    this.createWorkers();
+    if (this.gameMode === 'medieval') this.createWorkers();
     this.redraw();
     this.bindUI();
     // Keep the construction tool initialized during world creation/redraw, then enter the neutral mode only after UI binding.
@@ -502,6 +502,8 @@ export class ThreeGame {
     const config = getGameModeDefinition(this.gameMode);
     if (label) label.textContent = config.label;
     if (button) button.setAttribute('aria-label', 'Current game mode: ' + config.label);
+    const battleButton = document.getElementById('battle-button');
+    if (battleButton) battleButton.hidden = this.gameMode === 'modern';
   }
 
   private syncTemplateAvailability(): void {
@@ -598,6 +600,12 @@ export class ThreeGame {
     this.terrainOverrides.clear();
     this.elevationOverrides.clear();
     this.moatTasks.clear();
+    this.clearGroup(this.workerLayer);
+    this.clearGroup(this.settlementLayer);
+    this.workers.length = 0;
+    this.settlementAgents.length = 0;
+    this.nextSettlementAgentId = 1;
+    this.battleSystem.stop();
     this.undoStack.length = 0;
     this.redoStack.length = 0;
     this.worldSeeded = false;
@@ -946,7 +954,7 @@ export class ThreeGame {
         }
 
         if (terrain === 'plains') {
-          if (h1 % 31 === 5 && x > 3 && y > 3) {
+          if (this.gameMode === 'medieval' && h1 % 31 === 5 && x > 3 && y > 3) {
             this.state.setCell(x, y, 'hut', 1);
           } else if (h1 % 23 === 7 && h2 % 3 !== 0) {
             this.state.setCell(x, y, 'tree', 1 + (h2 % 2));
