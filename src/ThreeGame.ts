@@ -141,7 +141,7 @@ interface HistorySnapshot {
 
 const TOOL_GROUPS: Array<{ label: string; tools: ToolDefinition[] }> = [
   {
-    label: 'Advanced Walls',
+    label: 'Castle & Defense',
     tools: [
       { id: 'wall1', icon: '🪨', label: 'Stone Wall', detail: 'Drag A → B · stack floors', shortcut: '1' },
       { id: 'wall2', icon: '🪵', label: 'Wooden Wall', detail: 'Drag A → B · timber defense', shortcut: '2' },
@@ -155,26 +155,66 @@ const TOOL_GROUPS: Array<{ label: string; tools: ToolDefinition[] }> = [
     ],
   },
   {
-    label: 'Settlement',
+    label: 'Residential',
     tools: [
-      { id: 'road', icon: '🛣️', label: 'Road', detail: 'Drag A → B · standard road', shortcut: '6' },
-      { id: 'dirtRoad', icon: '🟫', label: 'Dirt Road', detail: 'Drag A → B · village track', shortcut: 'I' },
-      { id: 'stoneRoad', icon: '◼️', label: 'Stone Road', detail: 'Drag A → B · paved route', shortcut: 'O' },
       { id: 'cottage', icon: '🏠', label: 'Cottage Cluster', detail: '3 small cottages + village props', shortcut: '7' },
       { id: 'house', icon: '🏡', label: 'House Cluster', detail: '4 connected village homes', shortcut: '8' },
       { id: 'manor', icon: '🏯', label: 'Manor Court', detail: 'Main hall + service houses', shortcut: '9' },
       { id: 'villa', icon: '🏘️', label: 'Villa Quarter', detail: '3 detailed homes + courtyard', shortcut: '0' },
+      { id: 'hut', icon: '🛖', label: 'Hut', detail: 'Small rustic shelter', shortcut: '-' },
+    ],
+  },
+  {
+    label: 'Economy',
+    tools: [
+      { id: 'marketStall', icon: '🪵', label: 'Market Stall', detail: 'Timber stall · counter · crates & goods', shortcut: '-' },
+      { id: 'smallMarket', icon: '🏪', label: 'Small Market', detail: 'Covered market · multiple vendor stands', shortcut: '-' },
+      { id: 'marketHall', icon: '🏛️', label: 'Market Hall', detail: 'Large trading hall · stalls & storage', shortcut: '-' },
+      { id: 'mine', icon: '⛏️', label: 'Mine', detail: 'Natural or built mountain', shortcut: 'M' },
+    ],
+  },
+  {
+    label: 'Agriculture',
+    tools: [
       { id: 'farm', icon: '🌾', label: 'Farm', detail: 'Cultivated crop field', shortcut: 'F' },
       { id: 'appleOrchard', icon: '🍎', label: 'Apple Orchard', detail: 'Procedural apple trees · orchard plot', shortcut: 'Y' },
       { id: 'windmill', icon: '⚙️', label: 'Medieval Windmill', detail: 'Four-sail working mill · continuous rotation', shortcut: 'W' },
     ],
   },
   {
-    label: 'Market & Commerce',
+    label: 'Roads & Access',
     tools: [
-      { id: 'marketStall', icon: '🪵', label: 'Market Stall', detail: 'Timber stall · counter · crates & goods', shortcut: '-' },
-      { id: 'smallMarket', icon: '🏪', label: 'Small Market', detail: 'Covered market · multiple vendor stands', shortcut: '-' },
-      { id: 'marketHall', icon: '🏛️', label: 'Market Hall', detail: 'Large trading hall · stalls & storage', shortcut: '-' },
+      { id: 'road', icon: '🛣️', label: 'Road', detail: 'Drag A → B · standard road', shortcut: '6' },
+      { id: 'dirtRoad', icon: '🟫', label: 'Dirt Road', detail: 'Drag A → B · village track', shortcut: 'I' },
+      { id: 'stoneRoad', icon: '◼️', label: 'Stone Road', detail: 'Drag A → B · paved route', shortcut: 'O' },
+      { id: 'stoneStairs', icon: '🪜', label: 'Stone Stairs', detail: 'Connect different elevations', shortcut: '-' },
+      { id: 'woodenStairs', icon: '🪵', label: 'Wooden Stairs', detail: 'Simple elevation access', shortcut: '-' },
+      { id: 'ramp', icon: '↗️', label: 'Ramp', detail: 'Walkable sloped access', shortcut: '-' },
+      { id: 'ladder', icon: '🪜', label: 'Ladder', detail: 'Compact vertical access', shortcut: '-' },
+    ],
+  },
+  {
+    label: 'Terrain',
+    tools: [
+      { id: 'mountain', icon: '⛰️', label: 'Mountain', detail: 'Repeated clicks grow natural peaks', shortcut: 'N' },
+      { id: 'mountainRange', icon: '🏔️', label: 'Mountain Range', detail: 'Drag A → B · ridge + foothills', shortcut: 'K' },
+      { id: 'river', icon: '🌊', label: 'River', detail: 'Carve connected flowing water', shortcut: 'R' },
+      { id: 'land', icon: '🌱', label: 'Land', detail: 'Fill water into buildable land', shortcut: 'L' },
+      { id: 'raise', icon: '⬆️', label: 'Raise', detail: 'Raise terrain with brush', shortcut: 'U' },
+      { id: 'lower', icon: '⬇️', label: 'Lower', detail: 'Lower terrain with brush', shortcut: 'J' },
+      { id: 'flatten', icon: '▰', label: 'Flatten', detail: 'Level terrain to brush center', shortcut: 'B' },
+      { id: 'smooth', icon: '〰️', label: 'Smooth', detail: 'Blend nearby terrain heights', shortcut: 'V' },
+      { id: 'dig', icon: '⛏️', label: 'Dig', detail: 'Excavate deep ground', shortcut: 'G' },
+      { id: 'hill', icon: '⛰️', label: 'Create Hill', detail: 'Build a rounded hill', shortcut: 'H' },
+      { id: 'cliff', icon: '🗻', label: 'Create Cliff', detail: 'Create a sharp raised plateau', shortcut: 'C' },
+    ],
+  },
+  {
+    label: 'Environment',
+    tools: [
+      { id: 'tree', icon: '🌲', label: 'Tree', detail: 'Plant a detailed tree', shortcut: 'T' },
+      { id: 'rock', icon: '🪨', label: 'Rock', detail: 'Place a natural rock', shortcut: '-' },
+      { id: 'erase', icon: '⌫', label: 'Remove', detail: 'Trees, rocks, huts & builds', shortcut: 'X' },
     ],
   },
   {
@@ -192,28 +232,7 @@ const TOOL_GROUPS: Array<{ label: string; tools: ToolDefinition[] }> = [
       { id: 'fishingDock', icon: '🎣', label: 'Fishing Dock', detail: 'Coast only · fishing gear', shortcut: '-' },
     ],
   },
-  {
-    label: 'Nature & Resources',
-    tools: [
-      { id: 'tree', icon: '🌲', label: 'Tree', detail: 'Plant a detailed tree', shortcut: 'T' },
-      { id: 'mountain', icon: '⛰️', label: 'Mountain', detail: 'Repeated clicks grow natural peaks', shortcut: 'N' },
-      { id: 'mountainRange', icon: '🏔️', label: 'Mountain Range', detail: 'Drag A → B · ridge + foothills', shortcut: 'K' },
-      { id: 'mine', icon: '⛏️', label: 'Mine', detail: 'Natural or built mountain', shortcut: 'M' },
-      { id: 'river', icon: '🌊', label: 'River', detail: 'Carve connected flowing water', shortcut: 'R' },
-      { id: 'land', icon: '🌱', label: 'Land', detail: 'Fill water into buildable land', shortcut: 'L' },
-      { id: 'raise', icon: '⬆️', label: 'Raise', detail: 'Raise terrain with brush', shortcut: 'U' },
-      { id: 'lower', icon: '⬇️', label: 'Lower', detail: 'Lower terrain with brush', shortcut: 'J' },
-      { id: 'flatten', icon: '▰', label: 'Flatten', detail: 'Level terrain to brush center', shortcut: 'B' },
-      { id: 'smooth', icon: '〰️', label: 'Smooth', detail: 'Blend nearby terrain heights', shortcut: 'V' },
-      { id: 'dig', icon: '⛏️', label: 'Dig', detail: 'Excavate deep ground', shortcut: 'G' },
-      { id: 'hill', icon: '⛰️', label: 'Create Hill', detail: 'Build a rounded hill', shortcut: 'H' },
-      { id: 'cliff', icon: '🗻', label: 'Create Cliff', detail: 'Create a sharp raised plateau', shortcut: 'C' },
-      { id: 'erase', icon: '⌫', label: 'Remove', detail: 'Trees, rocks, huts & builds', shortcut: 'X' },
-    ],
-  },
-];
-
-export class ThreeGame {
+]; {
   private readonly root: HTMLElement;
   private readonly scene = new THREE.Scene();
   private readonly camera = new THREE.PerspectiveCamera(48, 1, 0.1, 700);
@@ -7148,12 +7167,13 @@ export class ThreeGame {
     const get = <T extends HTMLElement>(id: string): T => document.getElementById(id) as T;
     const toolbar = get<HTMLElement>('toolbar');
 
-    const toolHtml = TOOL_GROUPS.map((group) => {
+    const toolHtml = TOOL_GROUPS.map((group, index) => {
+      const isDefaultOpen = index === 0;
       const buttons = group.tools
         .map(
           (tool) =>
             '<button class="tool-button' +
-            (tool.id === 'wall1' ? ' is-selected' : '') +
+            (tool.id === this.selectedTool ? ' is-selected' : '') +
             '" data-tool="' +
             tool.id +
             '">' +
@@ -7171,7 +7191,25 @@ export class ThreeGame {
         )
         .join('');
 
-      return '<div class="tool-section-label">' + group.label + '</div>' + buttons;
+      return (
+        '<section class="tool-category' +
+        (isDefaultOpen ? ' is-open' : '') +
+        '" data-category="' +
+        group.label +
+        '">' +
+        '<button class="tool-category-header" type="button" aria-expanded="' +
+        (isDefaultOpen ? 'true' : 'false') +
+        '">' +
+        '<span>' +
+        group.label +
+        '</span>' +
+        '<span class="tool-category-chevron" aria-hidden="true">▶</span>' +
+        '</button>' +
+        '<div class="tool-category-items">' +
+        buttons +
+        '</div>' +
+        '</section>'
+      );
     }).join('');
 
     toolbar.innerHTML =
@@ -7234,8 +7272,32 @@ export class ThreeGame {
       '<div class="settings-hint">Walls: drag A→B. Terrain tools also support drag strokes. Ctrl+Z / Ctrl+Y undo and redo.</div>' +
       '</div>';
 
+    toolbar.querySelectorAll<HTMLButtonElement>('.tool-category-header').forEach((header) => {
+      header.onclick = () => {
+        const category = header.closest<HTMLElement>('.tool-category');
+        if (!category) return;
+        const open = category.classList.toggle('is-open');
+        header.setAttribute('aria-expanded', String(open));
+      };
+    });
+
+    const ensureSelectedToolVisible = (): void => {
+      const selectedButton = toolbar.querySelector<HTMLButtonElement>(
+        '[data-tool="' + this.selectedTool + '"]',
+      );
+      if (!selectedButton) return;
+      const category = selectedButton.closest<HTMLElement>('.tool-category');
+      if (!category) return;
+      category.classList.add('is-open');
+      const header = category.querySelector<HTMLButtonElement>('.tool-category-header');
+      if (header) header.setAttribute('aria-expanded', 'true');
+    };
+
     toolbar.querySelectorAll<HTMLButtonElement>('[data-tool]').forEach((button) => {
       button.onclick = () => {
+        toolbar.querySelectorAll<HTMLButtonElement>('[data-tool]').forEach((item) => {
+          item.classList.toggle('is-selected', item === button);
+        });
         this.selectTool(button.dataset.tool as ToolKind);
         if (window.matchMedia('(max-width: 760px)').matches) {
           this.setToolbarOpen(false);
@@ -9160,6 +9222,18 @@ export class ThreeGame {
     }
 
     this.selectedTool = tool;
+    const toolbar = document.getElementById('toolbar');
+    if (toolbar) {
+      toolbar.querySelectorAll<HTMLButtonElement>('[data-tool]').forEach((button) => {
+        button.classList.toggle('is-selected', button.dataset.tool === tool);
+      });
+      const selectedButton = toolbar.querySelector<HTMLButtonElement>('[data-tool="' + tool + '"]');
+      const category = selectedButton?.closest<HTMLElement>('.tool-category');
+      if (category) {
+        category.classList.add('is-open');
+        category.querySelector<HTMLButtonElement>('.tool-category-header')?.setAttribute('aria-expanded', 'true');
+      }
+    }
     document.querySelectorAll('[data-tool]').forEach((element) => {
       element.classList.toggle('is-selected', (element as HTMLElement).dataset.tool === tool);
     });
