@@ -1922,37 +1922,36 @@ kbd {
 /* Central Settings System */
 :root { --castle-ui-scale: 1; }
 #app { font-size: calc(1em * var(--castle-ui-scale)); }
-.settings-modal { position:fixed; inset:0; z-index:200; display:grid; place-items:center; padding:16px; background:rgba(2,9,15,.72); backdrop-filter:blur(10px); }
-.settings-modal[hidden] { display:none !important; }
 
-/* Settings is a true viewport-level overlay. */
-html body #settings-modal.settings-modal {
-  position: fixed !important;
-  inset: 0 !important;
-  width: 100vw !important;
-  height: 100vh !important;
-  min-width: 0 !important;
-  min-height: 0 !important;
-  max-width: none !important;
-  max-height: none !important;
-  display: grid !important;
-  place-items: center !important;
-  margin: 0 !important;
-  padding: 16px !important;
-  z-index: 9999 !important;
-  overflow: hidden !important;
-  background: rgba(2, 9, 15, .72) !important;
-  backdrop-filter: blur(10px) !important;
-  transform: none !important;
+.settings-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 9998;
+  background: rgba(2, 9, 15, .62);
+  backdrop-filter: blur(6px);
 }
-
-/* The hidden attribute must win over the viewport-overlay rule above. */
-html body #settings-modal.settings-modal[hidden] {
+.settings-backdrop[hidden] {
   display: none !important;
-  visibility: hidden !important;
-  opacity: 0 !important;
-  pointer-events: none !important;
 }
+
+.settings-modal {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  width: min(620px, calc(100vw - 32px));
+  height: min(760px, calc(100vh - 32px));
+  max-width: 620px;
+  max-height: calc(100vh - 32px);
+  transform: translate(-50%, -50%);
+  z-index: 9999;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+}
+.settings-modal[hidden] {
+  display: none !important;
+}
+
 .settings-card { width:min(620px,100%); max-height:min(760px,calc(100vh - 32px)); overflow:hidden; display:grid; grid-template-rows:auto minmax(0,1fr); border:1px solid rgba(126,225,255,.18); border-radius:18px; color:#eefbff; background:linear-gradient(180deg,rgba(10,27,40,.98),rgba(5,16,25,.98)); box-shadow:0 24px 80px rgba(0,0,0,.5); }
 .settings-header { display:flex; align-items:center; justify-content:space-between; padding:18px 20px; border-bottom:1px solid rgba(255,255,255,.07); }
 .settings-header h2 { margin:3px 0 0; font-size:22px; }
