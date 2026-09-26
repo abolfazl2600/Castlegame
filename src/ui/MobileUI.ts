@@ -38,6 +38,7 @@ export class MobileUI {
           <button type="button" data-mobile-proxy="battle-button" class="mobile-action" aria-label="Battle">⚔️</button>
           <button type="button" data-mobile-proxy="templates-button" class="mobile-action" aria-label="Templates">▦</button>
           <button type="button" data-mobile-proxy="help-button" class="mobile-action" aria-label="Help">?</button>
+          <button type="button" data-mobile-proxy="settings-button" class="mobile-action" aria-label="Settings">⚙</button>
           <button type="button" data-mobile-proxy="fullscreen-button" class="mobile-action" aria-label="Fullscreen">⛶</button>
           <button type="button" data-mobile-proxy="load-button" class="mobile-action" aria-label="Load">↥</button>
           <button type="button" data-mobile-proxy="save-button" class="mobile-action" aria-label="Save">↧</button>
