@@ -15,7 +15,6 @@ interface GateRuntime {
 export class GateSystem {
   private readonly gates = new Map<string, GateRuntime>();
   private attackActive = false;
-  private readonly navigationChanged?: () => void;
   private readonly guardBody = new THREE.MeshStandardMaterial({
     color: 0x4d5660,
     roughness: 0.88,
@@ -30,9 +29,7 @@ export class GateSystem {
     roughness: 0.9,
   });
 
-  constructor(navigationChanged?: () => void) {
-    this.navigationChanged = navigationChanged;
-  }
+  constructor() {}
 
   clear(): void {
     this.gates.clear();
@@ -78,7 +75,6 @@ export class GateSystem {
       gate.state = active ? 'closing' : 'opening';
     }
 
-    this.navigationChanged?.();
   }
 
   isGatePassable(x: number, y: number): boolean {
@@ -101,16 +97,14 @@ export class GateSystem {
         if (gate.progress >= 1) {
           gate.state = 'closed';
           gate.door.position.y = -3.25;
-          this.navigationChanged?.();
-        }
+              }
       } else if (!gate.targetClosed && gate.progress > 0) {
         gate.progress = Math.max(0, gate.progress - step);
         gate.door.position.y = -this.easeInOut(gate.progress) * 3.25;
         if (gate.progress <= 0) {
           gate.state = 'open';
           gate.door.position.y = 0;
-          this.navigationChanged?.();
-        }
+              }
       }
 
       for (const guard of gate.guards) {

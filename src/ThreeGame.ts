@@ -226,7 +226,7 @@ export class ThreeGame {
   private readonly keepSystem = new KeepSystem();
   private readonly wallCornerSystem = new WallCornerSystem();
   private readonly castleAccessSystem = new CastleAccessSystem();
-  private readonly gateSystem = new GateSystem(() => this.battleSystem?.isRunning());
+  private readonly gateSystem = new GateSystem();
   private readonly populationSystem = new PopulationSystem();
   private readonly windmillSystem = new WindmillSystem();
   private readonly orchardSystem = new OrchardSystem();
