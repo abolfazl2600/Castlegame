@@ -1981,6 +1981,38 @@ html[data-high-contrast] .settings-card { border-color:rgba(255,255,255,.42); }
 @media (max-width:560px) { .settings-modal { padding:8px; } .settings-card { max-height:calc(100vh - 16px); border-radius:14px; } .settings-scroll { padding:10px; } .settings-scroll label { grid-template-columns:1fr; gap:6px; } .settings-scroll label:has(input[type="checkbox"]) { grid-template-columns:1fr auto; } }
 
 
+.settings-system-actions-section {
+  border-color: rgba(126,225,255,.18) !important;
+  background: linear-gradient(145deg, rgba(83,199,240,.055), rgba(255,255,255,.025)) !important;
+}
+
+.settings-section-heading-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.settings-section-eyebrow {
+  display: block;
+  margin-bottom: 3px;
+  color: rgba(142,233,255,.62);
+  font-size: 8px;
+  font-weight: 900;
+  letter-spacing: .16em;
+}
+
+.settings-section-badge {
+  padding: 4px 7px;
+  border: 1px solid rgba(126,225,255,.18);
+  border-radius: 999px;
+  color: rgba(157,238,255,.76);
+  background: rgba(83,199,240,.06);
+  font-size: 8px;
+  font-weight: 850;
+  letter-spacing: .08em;
+}
+
 .settings-system-actions {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -1988,14 +2020,14 @@ html[data-high-contrast] .settings-card { border-color:rgba(255,255,255,.42); }
 }
 
 .settings-system-actions button {
-  min-height: 42px;
-  display: flex;
+  min-height: 62px;
+  display: grid;
+  grid-template-columns: 34px minmax(0,1fr) auto;
   align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  padding: 9px 11px;
+  gap: 9px;
+  padding: 10px 11px;
   border: 1px solid rgba(255,255,255,.1);
-  border-radius: 10px;
+  border-radius: 11px;
   color: #eefbff;
   background: rgba(255,255,255,.045);
   cursor: pointer;
@@ -2004,11 +2036,41 @@ html[data-high-contrast] .settings-card { border-color:rgba(255,255,255,.42); }
 
 .settings-system-actions button:hover,
 .settings-system-actions button:focus-visible {
-  border-color: rgba(112,220,255,.3);
+  border-color: rgba(112,220,255,.34);
   background: rgba(83,199,240,.1);
+  outline: none;
 }
 
-.settings-system-actions button span {
+.settings-action-icon {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 9px;
+  color: #9deeff;
+  background: rgba(83,199,240,.09);
+  border: 1px solid rgba(126,225,255,.12);
+  font-size: 15px;
+  font-weight: 900;
+}
+
+.settings-action-copy {
+  min-width: 0;
+  display: grid;
+  gap: 2px;
+}
+
+.settings-action-copy strong {
+  font-size: 11px;
+}
+
+.settings-action-copy small {
+  color: rgba(232,246,251,.5);
+  font-size: 8px;
+  line-height: 1.3;
+}
+
+.settings-system-actions button > span:last-child {
   color: rgba(157,238,255,.72);
   font-size: 16px;
 }
@@ -2023,7 +2085,7 @@ html[data-high-contrast] .settings-card { border-color:rgba(255,255,255,.42); }
   }
 
   .settings-system-actions button {
-    min-height: 46px;
+    min-height: 58px;
   }
 }
 
