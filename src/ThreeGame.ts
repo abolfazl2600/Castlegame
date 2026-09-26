@@ -517,6 +517,8 @@ export class ThreeGame {
     document.querySelectorAll<HTMLElement>('.modern-only').forEach((element) => {
       element.hidden = this.gameMode !== 'Modern';
     });
+    const toolbarMode = document.querySelector<HTMLElement>('.toolbar-title small');
+    if (toolbarMode) toolbarMode.textContent = this.gameMode + ' architecture';
   }
 
   private switchGameMode(nextMode: GameMode): void {
@@ -2154,6 +2156,7 @@ export class ThreeGame {
 
   private makeBuilding(cell: ReturnType<GameState['entries']>[number], floodedMoats: Set<string>): THREE.Group {
     const group = new THREE.Group();
+    if (this.gameMode === 'Medieval' && this.isModernTowerKind(cell.kind)) return group;
     const position = this.gridToWorld(cell.x, cell.y);
     group.position.set(position.x, this.terrainElevation(cell.x, cell.y), position.z);
 
@@ -2224,10 +2227,6 @@ export class ThreeGame {
 
   private isWallFamily(kind: TileKind | undefined): boolean {
     return kind === 'wall1' || kind === 'wall2' || kind === 'wall3' || kind === 'gate' || kind === 'tower';
-  }
-
-  private isFortificationKind(kind: TileKind | undefined): boolean {
-    return this.isWallFamily(kind) || this.isModernTowerKind(kind);
   }
 
   private isRoadFamily(kind: TileKind | undefined): boolean {
