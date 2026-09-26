@@ -146,13 +146,20 @@ export interface BattleStartOptions {
   readonly attackerSpawnBatchSize?: number;
 }
 
+export function getUnitCombatStats(unitType: UnitType): BattleUnitStats | undefined {
+  if (!(unitType in UNIT_COMBAT_STATS)) return undefined;
+  return UNIT_COMBAT_STATS[unitType as CoreUnitType];
+}
+
 const BATTLE_SPEED_LEVELS = [0.5, 1, 1.5, 2, 3] as const;
 const DEFAULT_BATTLE_SPEED = 1;
 
-const UNIT_STATS: Record<CoreUnitType, BattleUnitStats> = {
+export const UNIT_COMBAT_STATS: Readonly<Record<CoreUnitType, BattleUnitStats>> = {
   swordsman: {
     maxHealth: 110,
-    damage: 19,
+    attack: 20,
+    defense: 24,
+    damage: 20,
     attackRange: 1.25,
     attackCooldown: 0.82,
     moveSpeed: 3.1,
@@ -160,7 +167,9 @@ const UNIT_STATS: Record<CoreUnitType, BattleUnitStats> = {
   },
   archer: {
     maxHealth: 76,
-    damage: 13,
+    attack: 14,
+    defense: 10,
+    damage: 14,
     attackRange: 13,
     attackCooldown: 1.55,
     moveSpeed: 2.55,
@@ -168,7 +177,9 @@ const UNIT_STATS: Record<CoreUnitType, BattleUnitStats> = {
   },
   spearman: {
     maxHealth: 104,
-    damage: 17,
+    attack: 18,
+    defense: 30,
+    damage: 18,
     attackRange: 1.85,
     attackCooldown: 0.94,
     moveSpeed: 2.85,
@@ -176,7 +187,9 @@ const UNIT_STATS: Record<CoreUnitType, BattleUnitStats> = {
   },
   crossbowman: {
     maxHealth: 88,
-    damage: 24,
+    attack: 25,
+    defense: 14,
+    damage: 25,
     attackRange: 11.5,
     attackCooldown: 2.05,
     moveSpeed: 2.3,
@@ -184,7 +197,9 @@ const UNIT_STATS: Record<CoreUnitType, BattleUnitStats> = {
   },
   modernSoldier: {
     maxHealth: 96,
-    damage: 22,
+    attack: 23,
+    defense: 22,
+    damage: 23,
     attackRange: 15.5,
     attackCooldown: 0.72,
     moveSpeed: 3.0,
@@ -814,7 +829,7 @@ export class BattleSystem {
     gridY: number,
     surface: 'ground' | 'wall',
   ): UnitRuntime {
-    const stats = UNIT_STATS[unitType];
+    const stats = UNIT_COMBAT_STATS[unitType];
     const id = `${faction}-${unitType}-${this.units.size + 1}-${Math.floor(position.x * 31 + position.z * 17)}`;
     const view = this.createUnitView(faction, unitType);
     view.position.copy(position);
@@ -826,6 +841,8 @@ export class BattleSystem {
       unitType,
       health: stats.maxHealth,
       maxHealth: stats.maxHealth,
+      attack: stats.attack,
+      defense: stats.defense,
       damage: stats.damage,
       attackRange: stats.attackRange,
       attackCooldown: stats.attackCooldown,
@@ -2494,7 +2511,7 @@ export class BattleSystem {
         this.faceTarget(runtime, new THREE.Vector3(wallWorld.x, attackPoint.y, wallWorld.z));
         if (runtime.attackTimer <= 0) {
           runtime.attackTimer = runtime.stats.attackCooldown * 1.1;
-          this.damageWall(wall, runtime.stats.damage * 1.45);
+          this.damageWall(wall, runtime.stats.attack * 1.45);
         }
       } else {
         this.moveTowardPoint(runtime, attackPoint, delta, 0.32);
@@ -3337,7 +3354,7 @@ export class BattleSystem {
     attacker.attackApplied = false;
 
     // Damage remains on the existing combat cadence; the visual attack begins here.
-    this.applyDamage(target, attacker.stats.damage);
+    this.applyDamage(target, attacker.stats.attack);
   }
 
   private fireArrow(attacker: UnitRuntime, target: UnitRuntime): void {
@@ -3360,7 +3377,7 @@ export class BattleSystem {
     this.arrows.push({
       view: arrow,
       targetId: target.data.id,
-      damage: attacker.stats.damage,
+      damage: attacker.stats.attack,
       speed: attacker.data.unitType === 'crossbowman' ? 23 : 18,
       life: 3.2,
     });
@@ -3425,7 +3442,13 @@ export class BattleSystem {
 
   private applyDamage(target: UnitRuntime, amount: number): void {
     if (target.data.state === 'dead') return;
-    target.data.health = Math.max(0, target.data.health - amount);
+
+    // Preserve the existing damage pipeline while making the new Defense stat
+    // the single mitigation point for unit damage. Higher Defense reduces
+    // incoming damage without creating a second combat calculation system.
+    const mitigation = 100 / (100 + Math.max(0, target.stats.defense));
+    const effectiveDamage = Math.max(0, amount * mitigation);
+    target.data.health = Math.max(0, target.data.health - effectiveDamage);
     target.hitReaction = Math.max(target.hitReaction, 0.18);
     if (target.data.health <= 0) this.killUnit(target);
   }
