@@ -628,7 +628,7 @@ export class ThreeGame {
 
   private registerBuiltInGameModes(): void {
     for (const definition of Object.values(GAME_MODE_CONFIG)) {
-      if (definition.id === 'survival') continue;
+      if (definition.id === 'survival' || definition.id === 'sandbox') continue;
       if (GAME_MODE_REGISTRY.has(definition.id)) continue;
       GAME_MODE_REGISTRY.register({
         id: definition.id,
