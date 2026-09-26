@@ -12,7 +12,8 @@ import { BattleSystem } from './battle/BattleSystem';
 import type { BattleSetup, BattleStatus } from './battle/types';
 import { MaritimeSystem } from './systems/MaritimeSystem';
 import type { GameMode } from './core/GameMode';
-import { getGameModeDefinition, isBuildingAvailable, isGameMode, isToolAvailable } from './core/GameMode';
+import { GAME_MODE_CONFIG, getGameModeDefinition, isBuildingAvailable, isGameMode, isToolAvailable } from './core/GameMode';
+import { GAME_MODE_REGISTRY } from './core/GameModeFoundation';
 import type { SettingsStore } from './settings/SettingsStore';
 import { applyGraphicsSettings, applyInputSettings, applySceneGraphicsSettings } from './settings/SettingsSubsystems';
 import { FuturisticCastleRenderer } from './rendering/FuturisticCastleRenderer';
@@ -339,6 +340,7 @@ export class ThreeGame {
     const hadSave = localStorage.getItem(SAVE_KEY) !== null;
     this.root = root;
     this.settingsStore = settingsStore;
+    this.registerBuiltInGameModes();
     this.audioManager = new AudioManager();
     this.saveSystem = new SaveSystem({
       state: this.services.state,
@@ -473,6 +475,12 @@ export class ThreeGame {
     this.scene.add(this.groundHit);
 
     this.load();
+    const loadedMode = this.gameMode;
+    const loadedSelection = this.services.session.selectMode(loadedMode);
+    if (loadedSelection.ok) {
+      const loadedInitialization = this.services.session.initialize();
+      if (loadedInitialization.ok) this.services.session.start();
+    }
     if (!this.worldSeeded || this.loadedSaveVersion < SAVE_VERSION) {
       this.seedNaturalProps();
       this.worldSeeded = true;
@@ -614,12 +622,65 @@ export class ThreeGame {
     noneButton?.setAttribute('aria-pressed', String(this.selectedTool === null));
   }
 
+  private registerBuiltInGameModes(): void {
+    for (const definition of Object.values(GAME_MODE_CONFIG)) {
+      if (GAME_MODE_REGISTRY.has(definition.id)) continue;
+      GAME_MODE_REGISTRY.register({
+        id: definition.id,
+        displayName: definition.label,
+        description: definition.description,
+        available: true,
+        metadata: { source: 'existing-game-mode' },
+      });
+    }
+  }
+
+  private renderGameModeSelection(): void {
+    const grid = document.querySelector<HTMLElement>('#game-mode-modal .mode-grid');
+    if (!grid) return;
+
+    const modes = GAME_MODE_REGISTRY.getAll().filter((mode) => mode.available);
+    grid.innerHTML = modes.map((mode) =>
+      '<button class="mode-card" type="button" data-game-mode="' + mode.id + '">' +
+      '<span class="mode-card-icon">♜</span>' +
+      '<strong>' + mode.displayName + '</strong>' +
+      '<small>' + mode.description + '</small>' +
+      '</button>',
+    ).join('');
+
+    grid.querySelectorAll<HTMLButtonElement>('[data-game-mode]').forEach((button) => {
+      button.onclick = () => {
+        const requested = button.dataset.gameMode;
+        if (requested && isGameMode(requested)) this.startNewGameWithMode(requested);
+      };
+    });
+  }
+
   private openGameModeSelector(): void {
+    this.renderGameModeSelection();
     const modal = document.getElementById('game-mode-modal');
     if (modal) modal.hidden = false;
   }
 
   private startNewGameWithMode(mode: GameMode): void {
+    const session = this.services.session;
+    if (session.getStatus() === 'running' || session.getStatus() === 'paused') {
+      session.end();
+    }
+    session.cleanup();
+
+    const selection = session.selectMode(mode);
+    if (!selection.ok) {
+      this.setStatus('Selected game mode is unavailable');
+      return;
+    }
+
+    const initialized = session.initialize();
+    if (!initialized.ok) {
+      this.setStatus('Game mode could not be initialized');
+      return;
+    }
+
     this.services.state.setGameMode(mode);
     audioEvents.emit({ action: 'set_mode', mode });
     this.services.state.clear();
@@ -650,6 +711,13 @@ export class ThreeGame {
     this.syncTemplateAvailability();
     this.refreshBuildPanelForMode();
     this.redraw();
+
+    const started = session.start();
+    if (!started.ok) {
+      this.setStatus('Game mode could not be started');
+      return;
+    }
+
     this.save(false);
     const modeModal = document.getElementById('game-mode-modal');
     if (modeModal) modeModal.hidden = true;
@@ -7208,6 +7276,7 @@ export class ThreeGame {
   private bindUI(): void {
     const get = <T extends HTMLElement>(id: string): T => document.getElementById(id) as T;
     const toolbar = get<HTMLElement>('toolbar');
+    this.renderGameModeSelection();
 
     const noneHtml =
       '<button class="tool-button tool-button-none is-selected" data-build-none="true" type="button" aria-pressed="true">' +
@@ -7522,12 +7591,7 @@ export class ThreeGame {
       const confirmRequired = this.settingsStore.get().interface.confirmDestructiveActions;
       if (!confirmRequired || confirm('Start a new game and choose a game mode? Current changes will be replaced.')) this.openGameModeSelector();
     };
-    document.querySelectorAll<HTMLButtonElement>('[data-game-mode]').forEach((button) => {
-      button.onclick = () => {
-        const requested = button.dataset.gameMode;
-        if (isGameMode(requested)) this.startNewGameWithMode(requested);
-      };
-    });
+
     get<HTMLButtonElement>('templates-close-button').onclick = () => {
       templates.hidden = true;
     };
