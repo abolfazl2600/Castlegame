@@ -14,10 +14,11 @@ export class SettingsUI {
     document.body.appendChild(this.panel);
     const settingsButton = document.getElementById('settings-button');
     if (settingsButton instanceof HTMLButtonElement) {
-      settingsButton.onclick = (event) => {
+      settingsButton.addEventListener('click', (event) => {
         event.preventDefault();
+        event.stopPropagation();
         this.open();
-      };
+      });
     }
     this.store.subscribe((settings) => this.render(settings));
     this.bindSystemActionReturns();
