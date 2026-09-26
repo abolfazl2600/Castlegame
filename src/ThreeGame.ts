@@ -17,6 +17,9 @@ import { PopulationSystem } from './systems/PopulationSystem';
 import { MaritimeSystem } from './systems/MaritimeSystem';
 import { WindmillSystem } from './systems/WindmillSystem';
 import { OrchardSystem } from './systems/OrchardSystem';
+import type { GameMode } from './core/GameMode';
+import { getGameModeDefinition, isBuildingAvailable, isGameMode, isToolAvailable } from './core/GameMode';
+import { FuturisticCastleRenderer } from './rendering/FuturisticCastleRenderer';
 import type {
   AccessKind,
   GridCell,
@@ -83,6 +86,7 @@ const BUILDING_KINDS: TileKind[] = [
   'woodenStairs',
   'ramp',
   'ladder',
+  'futuristicCastle',
 ];
 
 type ViewMode = 'plan2d' | 'world3d';
@@ -249,6 +253,7 @@ export class ThreeGame {
   private readonly detailGenerator = new CastleDetailGenerator();
   private readonly medievalMaterials = new MedievalMaterials();
   private readonly keepRenderer = new KeepRenderer(this.detailGenerator, this.medievalMaterials);
+  private readonly futuristicCastleRenderer = new FuturisticCastleRenderer();
   private readonly terrainOverrides = new Map<string, TerrainOverrideKind>();
   private readonly elevationOverrides = new Map<string, number>();
   private readonly raycaster = new THREE.Raycaster();
@@ -340,6 +345,7 @@ export class ThreeGame {
   private saveTimer: number | null = null;
   private worldSeeded = false;
   private loadedSaveVersion = 0;
+  private modeSelectionPending = false;
   private lastFrameTime = 0;
   private cameraTransitionFrame: number | null = null;
 
@@ -450,9 +456,12 @@ export class ThreeGame {
     this.selectTool(null);
     this.setToolbarOpen(this.toolbarOpen);
     this.setViewMode(hadSave ? 'world3d' : 'plan2d');
+    this.updateGameModeUI();
+    this.syncTemplateAvailability();
     if (!hadSave) {
-      const templates = document.getElementById('templates-modal');
-      if (templates) templates.hidden = false;
+      const modeModal = document.getElementById('game-mode-modal');
+      if (modeModal) modeModal.hidden = false;
+      this.modeSelectionPending = true;
     }
     this.bindPointerInput();
     this.resize();
@@ -475,6 +484,73 @@ export class ThreeGame {
 
   private isHarborTool(tool: ToolKind): tool is HarborKind {
     return HARBOR_KINDS.includes(tool as HarborKind);
+  }
+
+  private get gameMode(): GameMode {
+    return this.state.getGameMode();
+  }
+
+  private isToolAvailable(tool: ToolKind): boolean {
+    return isToolAvailable(this.gameMode, tool);
+  }
+
+  private isBuildingAvailable(kind: TileKind): boolean {
+    return isBuildingAvailable(this.gameMode, kind);
+  }
+
+  private updateGameModeUI(): void {
+    const label = document.getElementById('game-mode-label');
+    const button = document.getElementById('game-mode-button');
+    const config = getGameModeDefinition(this.gameMode);
+    if (label) label.textContent = config.label;
+    if (button) button.setAttribute('aria-label', 'Current game mode: ' + config.label);
+  }
+
+  private syncTemplateAvailability(): void {
+    document.querySelectorAll<HTMLButtonElement>('[data-template]').forEach((button) => {
+      const template = button.dataset.template;
+      button.hidden = this.gameMode === 'modern'
+        ? template !== 'futuristic-castle'
+        : template === 'futuristic-castle';
+    });
+  }
+
+  private openGameModeSelector(): void {
+    const modal = document.getElementById('game-mode-modal');
+    if (modal) modal.hidden = false;
+  }
+
+  private startNewGameWithMode(mode: GameMode): void {
+    this.state.setGameMode(mode);
+    this.state.clear();
+    this.keepSystem.clear();
+    this.towerBridges.clear();
+    this.nextTowerBridgeId = 1;
+    this.towerBridgeStart = null;
+    this.towerBridgeHover = null;
+    this.clearGroup(this.wallPreviewLayer);
+    this.selectedCell = null;
+    this.selectedKeepId = null;
+    this.terrainOverrides.clear();
+    this.elevationOverrides.clear();
+    this.moatTasks.clear();
+    this.undoStack.length = 0;
+    this.redoStack.length = 0;
+    this.worldSeeded = false;
+    this.seedNaturalProps();
+    this.worldSeeded = true;
+    this.selectedTool = null;
+    this.modeSelectionPending = false;
+    this.updateGameModeUI();
+    this.syncTemplateAvailability();
+    this.redraw();
+    this.save(false);
+    const modeModal = document.getElementById('game-mode-modal');
+    if (modeModal) modeModal.hidden = true;
+    const templates = document.getElementById('templates-modal');
+    if (templates) templates.hidden = false;
+    this.selectTool(null);
+    this.setStatus('Mode selected: ' + getGameModeDefinition(mode).label);
   }
 
   private createRiverTexture(): THREE.CanvasTexture {
@@ -1995,6 +2071,7 @@ export class ThreeGame {
     }
     else if (cell.kind === 'appleOrchard') this.orchardSystem.create(group, cell.level ?? 1, cell.x * 97 + cell.y * 53);
     else if (cell.kind === 'armyCamp') this.makeArmyCamp(group);
+    else if (cell.kind === 'futuristicCastle') group.add(this.futuristicCastleRenderer.render(cell.x * 97 + cell.y * 53));
     else if (cell.kind === 'windmill') this.windmillSystem.create(group);
     else if (cell.kind === 'mine') this.makeMine(group);
     else if (cell.kind === 'mountain') this.makeMountain(group, cell.level ?? 1, cell.x, cell.y);
@@ -6599,6 +6676,10 @@ export class ThreeGame {
     }
 
     const selectedTile = this.selectedTool as TileKind;
+    if (!this.isBuildingAvailable(selectedTile)) {
+      this.setStatus('This building is unavailable in ' + getGameModeDefinition(this.gameMode).label);
+      return;
+    }
     const selectedFortification = selectedTile === 'gate';
     const currentFortification = current ? this.isWallFamily(current) : false;
 
@@ -7042,6 +7123,7 @@ export class ThreeGame {
 
     const data: SavedGame = {
       version: SAVE_VERSION,
+      gameMode: this.gameMode,
       updatedAt: Date.now(),
       cells: this.state.entries(),
       keeps: this.keepSystem.entries(),
@@ -7063,6 +7145,7 @@ export class ThreeGame {
     try {
       const data = JSON.parse(raw) as {
         version?: number;
+        gameMode?: unknown;
         cells?: Array<{
           x: number;
           y: number;
@@ -7087,13 +7170,20 @@ export class ThreeGame {
         worldSeeded?: boolean;
       };
 
+      const loadedMode: GameMode = isGameMode(data.gameMode) ? data.gameMode : 'medieval';
+      this.state.setGameMode(loadedMode);
       const cells: Array<ReturnType<GameState['entries']>[number]> = [];
+      let skippedIncompatible = false;
 
       for (const cell of data.cells ?? []) {
         if (cell.x < 0 || cell.y < 0 || cell.x >= SIZE || cell.y >= SIZE) continue;
 
         const migration = this.migrateKind(cell.kind, cell.level ?? 1);
         if (!migration) continue;
+        if (!this.isBuildingAvailable(migration.kind)) {
+          skippedIncompatible = true;
+          continue;
+        }
 
         cells.push({
           x: cell.x,
@@ -7155,7 +7245,9 @@ export class ThreeGame {
 
       this.worldSeeded = Boolean(data.worldSeeded);
       this.loadedSaveVersion = Math.max(0, Math.floor(data.version ?? 0));
-      this.setStatus('Loaded');
+      this.updateGameModeUI();
+      this.syncTemplateAvailability();
+      this.setStatus(skippedIncompatible ? 'Loaded · incompatible mode content skipped' : 'Loaded');
     } catch {
       this.setStatus('Could not load save');
     }
@@ -7180,9 +7272,13 @@ export class ThreeGame {
       '<span class="tool-copy"><strong>None</strong><small>No build tool · free camera / inspect</small></span>' +
       '<kbd>Esc</kbd></button>';
 
-    const toolHtml = TOOL_GROUPS.map((group, index) => {
+    const modeConfig = getGameModeDefinition(this.gameMode);
+    const toolDefinitions = new Map(TOOL_GROUPS.flatMap((group) => group.tools.map((tool) => [tool.id, tool] as const)));
+    const toolHtml = modeConfig.toolGroups.map((group, index) => {
       const isDefaultOpen = index === 0;
-      const buttons = group.tools
+      const buttons = group.toolIds
+        .map((toolId) => toolDefinitions.get(toolId))
+        .filter((tool): tool is ToolDefinition => Boolean(tool))
         .map(
           (tool) =>
             '<button class="tool-button' +
@@ -7473,8 +7569,18 @@ export class ThreeGame {
       help.hidden = true;
     };
     get<HTMLButtonElement>('templates-button').onclick = () => {
+      this.syncTemplateAvailability();
       templates.hidden = false;
     };
+    get<HTMLButtonElement>('game-mode-button').onclick = () => {
+      if (confirm('Start a new game and choose a game mode? Current changes will be replaced.')) this.openGameModeSelector();
+    };
+    document.querySelectorAll<HTMLButtonElement>('[data-game-mode]').forEach((button) => {
+      button.onclick = () => {
+        const requested = button.dataset.gameMode;
+        if (isGameMode(requested)) this.startNewGameWithMode(requested);
+      };
+    });
     get<HTMLButtonElement>('templates-close-button').onclick = () => {
       templates.hidden = true;
     };
@@ -7507,7 +7613,9 @@ export class ThreeGame {
       this.redraw();
     };
     get<HTMLButtonElement>('reset-button').onclick = () => {
-      if (confirm('Reset the entire island?')) {
+      if (confirm('Reset the entire island and choose a game mode?')) {
+        this.openGameModeSelector();
+        return;
         this.recordHistory();
         this.state.clear();
         this.keepSystem.clear();
@@ -7872,6 +7980,14 @@ export class ThreeGame {
   }
 
   private applyTemplate(template: string): void {
+    if (template === 'futuristic-castle' && this.gameMode !== 'modern') {
+      this.setStatus('Futuristic Castle is only available in Modern Mode');
+      return;
+    }
+    if (template !== 'futuristic-castle' && this.gameMode === 'modern') {
+      this.setStatus('Medieval templates are unavailable in Modern Mode');
+      return;
+    }
     this.recordHistory();
     this.state.clear();
     this.keepSystem.clear();
@@ -8021,7 +8137,11 @@ export class ThreeGame {
 
     if (template !== 'empty-land') this.seedNaturalProps();
 
-    if (template === 'empty-land') {
+    if (template === 'futuristic-castle') {
+      this.stoneStyle = 'darkStone';
+      prepareArea(center - 10, center - 10, center + 10, center + 10, 0.05);
+      place(center, center, 'futuristicCastle');
+    } else if (template === 'empty-land') {
       for (let y = 0; y < SIZE; y += 1) {
         for (let x = 0; x < SIZE; x += 1) {
           if (this.baseTerrainAt(x, y) !== 'water') {
@@ -9212,6 +9332,10 @@ export class ThreeGame {
   }
 
   private selectTool(tool: ToolKind | null): void {
+    if (tool !== null && !this.isToolAvailable(tool)) {
+      this.setStatus('Tool unavailable in ' + getGameModeDefinition(this.gameMode).label);
+      return;
+    }
     if (this.battleSystem.isActive()) {
       this.setStatus('Reset Battle before returning to construction');
       return;
