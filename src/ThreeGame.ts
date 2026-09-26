@@ -1,22 +1,14 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-import { GameState } from './state/GameState';
+import { createGameDomainServices } from './core/GameDomainServices';
+import { SaveSystem } from './core/SaveSystem';
 import { SAVE_KEY, SAVE_VERSION, TILE_SIZE, WORLD_COLS } from './core/constants';
-import { KeepSystem } from './building/KeepSystem';
 import { WallSystem } from './building/WallSystem';
-import { WallCornerSystem } from './building/WallCornerSystem';
-import { CastleAccessSystem } from './building/CastleAccessSystem';
-import { GateSystem } from './building/GateSystem';
-import { DestructibleBuildingSystem } from './building/DestructibleBuildingSystem';
-import { CastleDetailGenerator } from './building/CastleDetailGenerator';
 import { KeepRenderer } from './rendering/KeepRenderer';
 import { MedievalMaterials } from './rendering/MedievalMaterials';
 import { BattleSystem } from './battle/BattleSystem';
 import type { BattleSetup, BattleStatus } from './battle/types';
-import { PopulationSystem } from './systems/PopulationSystem';
 import { MaritimeSystem } from './systems/MaritimeSystem';
-import { WindmillSystem } from './systems/WindmillSystem';
-import { OrchardSystem } from './systems/OrchardSystem';
 import type { GameMode } from './core/GameMode';
 import { getGameModeDefinition, isBuildingAvailable, isGameMode, isToolAvailable } from './core/GameMode';
 import { FuturisticCastleRenderer } from './rendering/FuturisticCastleRenderer';
@@ -32,7 +24,6 @@ import type {
   TowerBridgeKind,
   TowerBridgeState,
   KeepState,
-  SavedGame,
   TerrainKind,
   TerrainOverrideKind,
   TerrainToolKind,
@@ -237,23 +228,16 @@ export class ThreeGame {
   private readonly camera = new THREE.PerspectiveCamera(48, 1, 0.1, 700);
   private readonly renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
   private readonly controls: OrbitControls;
-  private readonly state = new GameState();
-  private readonly keepSystem = new KeepSystem();
-  private readonly wallCornerSystem = new WallCornerSystem();
-  private readonly castleAccessSystem = new CastleAccessSystem();
-  private readonly gateSystem = new GateSystem();
-  private readonly destructibleBuildingSystem = new DestructibleBuildingSystem();
-  private readonly populationSystem = new PopulationSystem();
-  private readonly windmillSystem = new WindmillSystem();
-  private readonly orchardSystem = new OrchardSystem();
+  /** Domain state and gameplay services are composed here, away from rendering/UI concerns. */
+  private readonly services = createGameDomainServices();
   private readonly maritimeSystem = new MaritimeSystem({
     size: SIZE,
     terrainAt: (x, y) => this.terrainAt(x, y),
   });
-  private readonly detailGenerator = new CastleDetailGenerator();
-  private readonly medievalMaterials = new MedievalMaterials();
-  private readonly keepRenderer = new KeepRenderer(this.detailGenerator, this.medievalMaterials);
+    private readonly medievalMaterials = new MedievalMaterials();
+  private readonly keepRenderer = new KeepRenderer(this.services.detailGenerator, this.medievalMaterials);
   private readonly futuristicCastleRenderer = new FuturisticCastleRenderer();
+  private saveSystem!: SaveSystem;
   private readonly terrainOverrides = new Map<string, TerrainOverrideKind>();
   private readonly elevationOverrides = new Map<string, number>();
   private readonly raycaster = new THREE.Raycaster();
@@ -351,6 +335,25 @@ export class ThreeGame {
   constructor(root: HTMLElement) {
     const hadSave = localStorage.getItem(SAVE_KEY) !== null;
     this.root = root;
+    this.saveSystem = new SaveSystem({
+      state: this.services.state,
+      keepSystem: this.services.keepSystem,
+      terrainOverrides: this.terrainOverrides,
+      elevationOverrides: this.elevationOverrides,
+      towerBridges: this.towerBridges,
+      getGameMode: () => this.gameMode,
+      getStoneStyle: () => this.stoneStyle,
+      getWorldSeeded: () => this.worldSeeded,
+      setWorldSeeded: (value) => { this.worldSeeded = value; },
+      setLoadedSaveVersion: (value) => { this.loadedSaveVersion = value; },
+      setStoneStyle: (value) => { this.stoneStyle = value; },
+      migrateKind: (kind, level) => this.migrateKind(kind, level),
+      isBuildingAvailable: (kind) => this.isBuildingAvailable(kind as TileKind),
+      key: (x, y) => this.key(x, y),
+      updateGameModeUI: () => this.updateGameModeUI(),
+      syncTemplateAvailability: () => this.syncTemplateAvailability(),
+      setStatus: (message) => this.setStatus(message),
+    });
     this.riverTexture = this.createRiverTexture();
     this.oceanTexture = this.createOceanTexture();
     this.riverWaterMaterial = new THREE.MeshStandardMaterial({
@@ -424,14 +427,14 @@ export class ThreeGame {
         terrainAt: (x, y) => this.terrainAt(x, y),
         elevationAt: (x, y) => this.terrainElevation(x, y),
         kindAt: (x, y) => this.kindAt(x, y),
-        cellAt: (x, y) => this.state.getCell(x, y),
+        cellAt: (x, y) => this.services.state.getCell(x, y),
         fortificationTopAt: (_x, _y, cell) => this.fortificationTopLocal(cell),
-        keeps: () => this.keepSystem.entries(),
+        keeps: () => this.services.keepSystem.entries(),
         towerBridges: () => Array.from(this.towerBridges.values()).map((bridge) => ({ ...bridge })),
         setWallBattleVisibility: (x, y, visible) => this.setBattleWallVisibility(x, y, visible),
-        buildingDamageAt: (x, y) => this.state.getCell(x, y)?.damage ?? 0,
+        buildingDamageAt: (x, y) => this.services.state.getCell(x, y)?.damage ?? 0,
         setBuildingDamage: (x, y, damageRatio) => this.setBuildingDamage(x, y, damageRatio),
-        gatePassable: (x, y) => this.gateSystem.isGatePassable(x, y),
+        gatePassable: (x, y) => this.services.gateSystem.isGatePassable(x, y),
       },
       (status) => this.updateBattleUI(status),
     );
@@ -485,7 +488,7 @@ export class ThreeGame {
   }
 
   private get gameMode(): GameMode {
-    return this.state.getGameMode();
+    return this.services.state.getGameMode();
   }
 
   private isToolAvailable(tool: ToolKind): boolean {
@@ -587,9 +590,9 @@ export class ThreeGame {
   }
 
   private startNewGameWithMode(mode: GameMode): void {
-    this.state.setGameMode(mode);
-    this.state.clear();
-    this.keepSystem.clear();
+    this.services.state.setGameMode(mode);
+    this.services.state.clear();
+    this.services.keepSystem.clear();
     this.towerBridges.clear();
     this.nextTowerBridgeId = 1;
     this.towerBridgeStart = null;
@@ -926,7 +929,7 @@ export class ThreeGame {
   private seedNaturalProps(): void {
     for (let y = 0; y < SIZE; y += 1) {
       for (let x = 0; x < SIZE; x += 1) {
-        if (this.state.getCell(x, y)) continue;
+        if (this.services.state.getCell(x, y)) continue;
 
         const terrain = this.baseTerrainAt(x, y);
         const h1 = Math.abs((x * 92821 + y * 68917 + x * y * 137) % 997);
@@ -935,31 +938,31 @@ export class ThreeGame {
         if (terrain === 'forest') {
           const clearing = ((x - 5) * (x - 5) + (y - 12) * (y - 12)) < 7;
           if (!clearing && h1 % 5 !== 0) {
-            this.state.setCell(x, y, 'tree', 1 + (h2 % 3));
+            this.services.state.setCell(x, y, 'tree', 1 + (h2 % 3));
           } else if (h2 % 9 === 0) {
-            this.state.setCell(x, y, 'rock', 1);
+            this.services.state.setCell(x, y, 'rock', 1);
           }
           continue;
         }
 
         if (terrain === 'shore') {
-          if (h2 % 8 === 0) this.state.setCell(x, y, 'rock', 1 + (h1 % 2));
-          else if (h2 % 11 === 0) this.state.setCell(x, y, 'tree', 1);
+          if (h2 % 8 === 0) this.services.state.setCell(x, y, 'rock', 1 + (h1 % 2));
+          else if (h2 % 11 === 0) this.services.state.setCell(x, y, 'tree', 1);
           continue;
         }
 
         if (terrain === 'mountain') {
-          if (h2 % 4 === 0) this.state.setCell(x, y, 'rock', 1 + (h1 % 3));
+          if (h2 % 4 === 0) this.services.state.setCell(x, y, 'rock', 1 + (h1 % 3));
           continue;
         }
 
         if (terrain === 'plains') {
           if (this.gameMode === 'medieval' && h1 % 31 === 5 && x > 3 && y > 3) {
-            this.state.setCell(x, y, 'hut', 1);
+            this.services.state.setCell(x, y, 'hut', 1);
           } else if (h1 % 23 === 7 && h2 % 3 !== 0) {
-            this.state.setCell(x, y, 'tree', 1 + (h2 % 2));
+            this.services.state.setCell(x, y, 'tree', 1 + (h2 % 2));
           } else if (h1 % 41 === 3) {
-            this.state.setCell(x, y, 'rock', 1);
+            this.services.state.setCell(x, y, 'rock', 1);
           }
         }
       }
@@ -1034,14 +1037,14 @@ export class ThreeGame {
   private redraw(): void {
     this.clearGroup(this.terrainLayer);
     this.clearGroup(this.buildLayer);
-    this.gateSystem.clear();
-    this.windmillSystem.clear();
+    this.services.gateSystem.clear();
+    this.services.windmillSystem.clear();
     this.buildObjectsByCell.clear();
     this.clearGroup(this.planLayer);
     this.renderTerrain();
 
     const floodedMoats = this.computeFloodedMoats();
-    const cells = this.state.entries();
+    const cells = this.services.state.entries();
 
     for (const cell of cells) {
       const building = this.makeBuilding(cell, floodedMoats);
@@ -1051,7 +1054,7 @@ export class ThreeGame {
       this.buildLayer.add(building);
     }
 
-    for (const keep of this.keepSystem.entries()) {
+    for (const keep of this.services.keepSystem.entries()) {
       this.buildLayer.add(
         this.keepRenderer.render(keep, {
           tileSize: TILE,
@@ -1068,13 +1071,13 @@ export class ThreeGame {
       this.buildLayer.add(this.makeTowerBridge(bridge));
     }
 
-    const generatedAccess = this.castleAccessSystem.generate(
+    const generatedAccess = this.services.castleAccessSystem.generate(
       cells,
-      this.keepSystem.entries(),
+      this.services.keepSystem.entries(),
       {
         size: SIZE,
         getCell: (x, y) => {
-          const cell = this.state.getCell(x, y);
+          const cell = this.services.state.getCell(x, y);
           return cell ? { x, y, ...cell } : undefined;
         },
         terrainBuildable: (x, y) => {
@@ -1082,8 +1085,8 @@ export class ThreeGame {
           return terrain !== 'water' && terrain !== 'river';
         },
         isOccupied: (x, y) =>
-          Boolean(this.state.getCell(x, y)) ||
-          Boolean(this.keepSystem.findAtCell(x, y)),
+          Boolean(this.services.state.getCell(x, y)) ||
+          Boolean(this.services.keepSystem.findAtCell(x, y)),
       },
     );
 
@@ -1366,7 +1369,7 @@ export class ThreeGame {
       );
     }
 
-    for (const keep of this.keepSystem.entries()) {
+    for (const keep of this.services.keepSystem.entries()) {
       const rotated = keep.rotation % 2 !== 0;
       const widthCells = rotated ? keep.depth : keep.width;
       const depthCells = rotated ? keep.width : keep.depth;
@@ -1598,7 +1601,7 @@ export class ThreeGame {
           this.renderElevationPatch(group, elevation);
         }
 
-        const occupying = this.state.getCell(x, y)?.kind;
+        const occupying = this.services.state.getCell(x, y)?.kind;
         const hidesMountain =
           occupying !== undefined &&
           (this.isWallFamily(occupying) || occupying === 'mine' || occupying === 'tower' || occupying === 'gate');
@@ -2141,10 +2144,10 @@ export class ThreeGame {
     else if (cell.kind === 'marketStall' || cell.kind === 'smallMarket' || cell.kind === 'marketHall') {
       this.makeMarketBuilding(group, cell.kind as MarketBuildingKind);
     }
-    else if (cell.kind === 'appleOrchard') this.orchardSystem.create(group, cell.level ?? 1, cell.x * 97 + cell.y * 53);
+    else if (cell.kind === 'appleOrchard') this.services.orchardSystem.create(group, cell.level ?? 1, cell.x * 97 + cell.y * 53);
     else if (cell.kind === 'armyCamp') this.makeArmyCamp(group);
     else if (cell.kind === 'futuristicCastle') group.add(this.futuristicCastleRenderer.render(cell.x * 97 + cell.y * 53));
-    else if (cell.kind === 'windmill') this.windmillSystem.create(group);
+    else if (cell.kind === 'windmill') this.services.windmillSystem.create(group);
     else if (cell.kind === 'mine') this.makeMine(group);
     else if (cell.kind === 'mountain') this.makeMountain(group, cell.level ?? 1, cell.x, cell.y);
     else if (cell.kind === 'tree') this.makeTree(group, cell.level ?? 1);
@@ -2161,7 +2164,7 @@ export class ThreeGame {
       group.rotation.y = (cell.rotation ?? 0) * Math.PI / 2;
     }
 
-    this.destructibleBuildingSystem.renderDamage(group, cell, cell.x, cell.y);
+    this.services.destructibleBuildingSystem.renderDamage(group, cell, cell.x, cell.y);
     return group;
   }
 
@@ -2184,16 +2187,16 @@ export class ThreeGame {
   }
 
   private kindAt(x: number, y: number): TileKind | undefined {
-    return this.state.getCell(x, y)?.kind;
+    return this.services.state.getCell(x, y)?.kind;
   }
 
   private setBuildingDamage(x: number, y: number, damageRatio: number): void {
-    const cell = this.state.getCell(x, y);
-    if (!cell || !this.destructibleBuildingSystem.isDestructible(cell.kind)) return;
+    const cell = this.services.state.getCell(x, y);
+    if (!cell || !this.services.destructibleBuildingSystem.isDestructible(cell.kind)) return;
 
-    const nextDamage = this.destructibleBuildingSystem.setDamageRatio(damageRatio);
+    const nextDamage = this.services.destructibleBuildingSystem.setDamageRatio(damageRatio);
     if (Math.abs((cell.damage ?? 0) - nextDamage) < 0.0001) return;
-    this.state.updateCell(x, y, { damage: nextDamage });
+    this.services.state.updateCell(x, y, { damage: nextDamage });
   }
 
   private isWallFamily(kind: TileKind | undefined): boolean {
@@ -2561,7 +2564,7 @@ export class ThreeGame {
     let junctionThickness = thickness;
     for (const direction of links) {
       const vector = WallSystem.vector(direction);
-      const neighbor = this.state.getCell(gx + vector.x, gy + vector.y);
+      const neighbor = this.services.state.getCell(gx + vector.x, gy + vector.y);
       if (neighbor && WALL_KINDS.includes(neighbor.kind as WallKind)) {
         junctionThickness = Math.max(
           junctionThickness,
@@ -2661,7 +2664,7 @@ export class ThreeGame {
     } else {
       for (const direction of links) {
         const vector = WallSystem.vector(direction);
-        const neighbor = this.state.getCell(gx + vector.x, gy + vector.y);
+        const neighbor = this.services.state.getCell(gx + vector.x, gy + vector.y);
         if (!neighbor || !this.isWallFamily(neighbor.kind)) continue;
 
         const elevationDelta =
@@ -2690,7 +2693,7 @@ export class ThreeGame {
       }
     }
 
-    const corner = this.wallCornerSystem.analyze(cell, links, gx, gy);
+    const corner = this.services.wallCornerSystem.analyze(cell, links, gx, gy);
     if (corner) {
       this.addAutomaticCorner(
         group,
@@ -3468,7 +3471,7 @@ export class ThreeGame {
 
     if (vertical) core.rotation.y = Math.PI / 2;
     group.add(core);
-    this.gateSystem.registerGate(gx, gy, group, door, vertical);
+    this.services.gateSystem.registerGate(gx, gy, group, door, vertical);
 
     const specs = [
       { dx: -1, dy: 0, axis: 'x' as const, sign: -1 },
@@ -3691,7 +3694,7 @@ export class ThreeGame {
     for (const candidate of candidates) {
       const wx = gx + candidate.dx;
       const wy = gy + candidate.dy;
-      const wall = this.state.getCell(wx, wy);
+      const wall = this.services.state.getCell(wx, wy);
       if (!wall || !WALL_KINDS.includes(wall.kind as WallKind)) continue;
       if (wall.walkway !== true) continue;
 
@@ -3836,8 +3839,8 @@ export class ThreeGame {
     a: GridPoint,
     b: GridPoint,
   ): { valid: boolean; reason?: string } {
-    const cellA = this.state.getCell(a.x, a.y);
-    const cellB = this.state.getCell(b.x, b.y);
+    const cellA = this.services.state.getCell(a.x, a.y);
+    const cellB = this.services.state.getCell(b.x, b.y);
     if (cellA?.kind !== 'tower' || cellB?.kind !== 'tower') {
       return { valid: false, reason: 'Tower Bridge requires two main towers' };
     }
@@ -3871,11 +3874,11 @@ export class ThreeGame {
     for (let i = 1; i < steps; i += 1) {
       const x = Math.round(a.x + (dx * i) / steps);
       const y = Math.round(a.y + (dy * i) / steps);
-      if (this.keepSystem.findAtCell(x, y)) {
+      if (this.services.keepSystem.findAtCell(x, y)) {
         return { valid: false, reason: 'Bridge path crosses the Keep' };
       }
 
-      const cell = this.state.getCell(x, y);
+      const cell = this.services.state.getCell(x, y);
       if (
         cell &&
         cell.kind !== 'road' &&
@@ -3891,7 +3894,7 @@ export class ThreeGame {
   }
 
   private handleTowerBridgeClick(point: GridPoint): void {
-    const cell = this.state.getCell(point.x, point.y);
+    const cell = this.services.state.getCell(point.x, point.y);
     if (cell?.kind !== 'tower') {
       this.setStatus('Tower Bridge: select a main tower platform');
       return;
@@ -3960,8 +3963,8 @@ export class ThreeGame {
   ): void {
     this.clearGroup(this.wallPreviewLayer);
     const validation = this.validateTowerBridge(a, b);
-    const cellA = this.state.getCell(a.x, a.y);
-    const cellB = this.state.getCell(b.x, b.y);
+    const cellA = this.services.state.getCell(a.x, a.y);
+    const cellB = this.services.state.getCell(b.x, b.y);
     if (cellA?.kind !== 'tower' || cellB?.kind !== 'tower') return;
 
     const aw = this.gridToWorld(a.x, a.y);
@@ -4021,8 +4024,8 @@ export class ThreeGame {
 
   private makeTowerBridge(bridge: TowerBridgeState): THREE.Group {
     const group = new THREE.Group();
-    const aCell = this.state.getCell(bridge.ax, bridge.ay);
-    const bCell = this.state.getCell(bridge.bx, bridge.by);
+    const aCell = this.services.state.getCell(bridge.ax, bridge.ay);
+    const bCell = this.services.state.getCell(bridge.bx, bridge.by);
     if (aCell?.kind !== 'tower' || bCell?.kind !== 'tower') return group;
 
     const aw = this.gridToWorld(bridge.ax, bridge.ay);
@@ -4554,7 +4557,7 @@ export class ThreeGame {
     ];
 
     for (const candidate of candidates) {
-      const neighbor = this.state.getCell(gx + candidate.dx, gy + candidate.dy);
+      const neighbor = this.services.state.getCell(gx + candidate.dx, gy + candidate.dy);
       if (!neighbor || !this.isWallFamily(neighbor.kind)) continue;
 
       const targetWorldTop =
@@ -4573,7 +4576,7 @@ export class ThreeGame {
 
   private accessRiseForRotation(gx: number, gy: number, rotation: number): number {
     const direction = this.accessDirection(rotation);
-    const neighbor = this.state.getCell(gx + direction.dx, gy + direction.dy);
+    const neighbor = this.services.state.getCell(gx + direction.dx, gy + direction.dy);
 
     if (neighbor && this.isWallFamily(neighbor.kind)) {
       const targetWorldTop =
@@ -5303,7 +5306,7 @@ export class ThreeGame {
     const flooded = new Set<string>();
     const queue: GridPoint[] = [];
 
-    for (const cell of this.state.entries()) {
+    for (const cell of this.services.state.entries()) {
       if (cell.kind !== 'moat') continue;
 
       const neighbors = [
@@ -5344,11 +5347,11 @@ export class ThreeGame {
 
   private captureSnapshot(): HistorySnapshot {
     return {
-      cells: this.state.entries().map((cell) => ({
+      cells: this.services.state.entries().map((cell) => ({
         ...cell,
         wallLinks: cell.wallLinks ? [...cell.wallLinks] : undefined,
       })),
-      keeps: this.keepSystem.entries(),
+      keeps: this.services.keepSystem.entries(),
       terrain: Array.from(this.terrainOverrides.entries()),
       elevations: Array.from(this.elevationOverrides.entries()),
       stoneStyle: this.stoneStyle,
@@ -5367,8 +5370,8 @@ export class ThreeGame {
   }
 
   private restoreSnapshot(snapshot: HistorySnapshot): void {
-    this.state.replace(snapshot.cells);
-    this.keepSystem.replace(snapshot.keeps ?? []);
+    this.services.state.replace(snapshot.cells);
+    this.services.keepSystem.replace(snapshot.keeps ?? []);
     this.stoneStyle = snapshot.stoneStyle ?? 'limestone';
     this.towerBridges.clear();
     for (const bridge of snapshot.towerBridges ?? []) {
@@ -5508,7 +5511,7 @@ export class ThreeGame {
 
   private moveSelected(dx: number, dy: number): void {
     if (this.selectedKeepId !== null) {
-      const keep = this.keepSystem.get(this.selectedKeepId);
+      const keep = this.services.keepSystem.get(this.selectedKeepId);
       if (!keep) return;
 
       const draft = {
@@ -5529,7 +5532,7 @@ export class ThreeGame {
       }
 
       this.recordHistory();
-      const updated = this.keepSystem.update(keep.id, { x: draft.x, y: draft.y });
+      const updated = this.services.keepSystem.update(keep.id, { x: draft.x, y: draft.y });
       if (updated) {
         this.selectKeep(updated);
         this.redraw();
@@ -5544,7 +5547,7 @@ export class ThreeGame {
       return;
     }
 
-    const source = this.state.getCell(this.selectedCell.x, this.selectedCell.y);
+    const source = this.services.state.getCell(this.selectedCell.x, this.selectedCell.y);
     if (!source) {
       this.setStatus('Selected tile has no structure');
       return;
@@ -5552,7 +5555,7 @@ export class ThreeGame {
 
     const nx = this.selectedCell.x + dx;
     const ny = this.selectedCell.y + dy;
-    if (nx < 0 || ny < 0 || nx >= SIZE || ny >= SIZE || this.state.getCell(nx, ny)) {
+    if (nx < 0 || ny < 0 || nx >= SIZE || ny >= SIZE || this.services.state.getCell(nx, ny)) {
       this.setStatus('Cannot move there');
       return;
     }
@@ -5570,8 +5573,8 @@ export class ThreeGame {
     if (source.kind === 'tower') this.removeTowerBridgesAt(sourceX, sourceY);
 
     const { kind, level, ...options } = source;
-    this.state.removeCell(sourceX, sourceY);
-    this.state.setCell(nx, ny, kind, level ?? 1, options);
+    this.services.state.removeCell(sourceX, sourceY);
+    this.services.state.setCell(nx, ny, kind, level ?? 1, options);
     this.selectedCell = { x: nx, y: ny };
 
     this.redraw();
@@ -5590,14 +5593,14 @@ export class ThreeGame {
       return;
     }
 
-    const cell = this.state.getCell(this.selectedCell.x, this.selectedCell.y);
+    const cell = this.services.state.getCell(this.selectedCell.x, this.selectedCell.y);
     if (!cell) {
       this.setStatus('Selected tile has no structure');
       return;
     }
 
     this.recordHistory();
-    this.state.updateCell(this.selectedCell.x, this.selectedCell.y, {
+    this.services.state.updateCell(this.selectedCell.x, this.selectedCell.y, {
       rotation: ((cell.rotation ?? 0) + 1) % 4,
     });
     this.redraw();
@@ -5715,7 +5718,7 @@ export class ThreeGame {
             (cell.x !== this.towerBridgeHover?.x || cell.y !== this.towerBridgeHover?.y)
           ) {
             this.towerBridgeHover = cell;
-            if (this.state.getCell(cell.x, cell.y)?.kind === 'tower') {
+            if (this.services.state.getCell(cell.x, cell.y)?.kind === 'tower') {
               this.renderTowerBridgePreview(this.towerBridgeStart, cell);
             } else {
               this.clearGroup(this.wallPreviewLayer);
@@ -5882,8 +5885,8 @@ export class ThreeGame {
 
   private beginLongPress(event: PointerEvent, cell: GridPoint): void {
     const removable =
-      Boolean(this.state.getCell(cell.x, cell.y)) ||
-      Boolean(this.keepSystem.findAtCell(cell.x, cell.y));
+      Boolean(this.services.state.getCell(cell.x, cell.y)) ||
+      Boolean(this.services.keepSystem.findAtCell(cell.x, cell.y));
 
     if (!removable) {
       this.cancelLongPress();
@@ -5956,19 +5959,19 @@ export class ThreeGame {
   }
 
   private performLongPressRemoval(point: GridPoint): void {
-    const keep = this.keepSystem.findAtCell(point.x, point.y);
-    const cell = this.state.getCell(point.x, point.y);
+    const keep = this.services.keepSystem.findAtCell(point.x, point.y);
+    const cell = this.services.state.getCell(point.x, point.y);
     if (!keep && !cell) return;
 
     this.recordHistory();
 
     if (keep) {
-      this.keepSystem.remove(keep.id);
+      this.services.keepSystem.remove(keep.id);
       if (this.selectedKeepId === keep.id) this.selectedKeepId = null;
       this.setStatus('Long-press removal · Keep removed · Undo available');
     } else if (cell) {
       if (cell.kind === 'tower') this.removeTowerBridgesAt(point.x, point.y);
-      this.state.removeCell(point.x, point.y);
+      this.services.state.removeCell(point.x, point.y);
       this.setStatus('Long-press removal · object removed · Undo available');
     }
 
@@ -6075,14 +6078,14 @@ export class ThreeGame {
 
     for (const point of path) {
       const terrain = this.terrainAt(point.x, point.y);
-      const current = this.state.getCell(point.x, point.y);
+      const current = this.services.state.getCell(point.x, point.y);
 
       if (current && !this.isRoadFamily(current.kind)) continue;
       if (terrain === 'water' || terrain === 'mountain') {
         continue;
       }
 
-      this.state.setCell(point.x, point.y, roadKind, 1);
+      this.services.state.setCell(point.x, point.y, roadKind, 1);
       changed += 1;
     }
 
@@ -6114,9 +6117,9 @@ export class ThreeGame {
 
         const terrain = this.terrainAt(x, y);
         if (terrain === 'water' || terrain === 'river') continue;
-        if (this.keepSystem.findAtCell(x, y)) continue;
+        if (this.services.keepSystem.findAtCell(x, y)) continue;
 
-        const existing = this.state.getCell(x, y);
+        const existing = this.services.state.getCell(x, y);
         if (
           existing &&
           existing.kind !== 'mountain' &&
@@ -6141,7 +6144,7 @@ export class ThreeGame {
           existing?.kind === 'tree' &&
           (target > 1.75 || distance < 0.95)
         ) {
-          this.state.removeCell(x, y);
+          this.services.state.removeCell(x, y);
         }
       }
     }
@@ -6270,9 +6273,9 @@ export class ThreeGame {
 
           const terrain = this.terrainAt(x, y);
           if (terrain === 'water' || terrain === 'river') continue;
-          if (this.keepSystem.findAtCell(x, y)) continue;
+          if (this.services.keepSystem.findAtCell(x, y)) continue;
 
-          const cell = this.state.getCell(x, y);
+          const cell = this.services.state.getCell(x, y);
           const natural =
             !cell ||
             cell.kind === 'tree' ||
@@ -6303,34 +6306,34 @@ export class ThreeGame {
           }
 
           if (distance <= 0.72) {
-            if (cell && cell.kind !== 'mountain') this.state.removeCell(x, y);
+            if (cell && cell.kind !== 'mountain') this.services.state.removeCell(x, y);
             const level = THREE.MathUtils.clamp(
               2 + Math.round(peakPulse + (ridgeHash % 3)),
               2,
               6,
             );
-            this.state.setCell(x, y, 'mountain', level);
+            this.services.state.setCell(x, y, 'mountain', level);
             changed = true;
           } else if (distance <= 1.55) {
             if (cell && cell.kind !== 'mountain' && replaceNaturalProps) {
-              this.state.removeCell(x, y);
+              this.services.state.removeCell(x, y);
             }
             const detailHash = Math.abs((x * 41 + y * 71 + i * 23) % 13);
-            if (!this.state.getCell(x, y) && detailHash === 2) {
-              this.state.setCell(x, y, 'rock', 1 + (ridgeHash % 2));
+            if (!this.services.state.getCell(x, y) && detailHash === 2) {
+              this.services.state.setCell(x, y, 'rock', 1 + (ridgeHash % 2));
             } else if (
-              !this.state.getCell(x, y) &&
+              !this.services.state.getCell(x, y) &&
               targetElevation < 1.55 &&
               (detailHash === 5 || detailHash === 9)
             ) {
-              this.state.setCell(x, y, 'tree', 1 + (detailHash % 2));
+              this.services.state.setCell(x, y, 'tree', 1 + (detailHash % 2));
             }
           } else if (
-            !this.state.getCell(x, y) &&
+            !this.services.state.getCell(x, y) &&
             targetElevation < 1.1 &&
             (ridgeHash + x + y) % 17 === 0
           ) {
-            this.state.setCell(x, y, 'tree', 1);
+            this.services.state.setCell(x, y, 'tree', 1);
           }
         }
       }
@@ -6409,17 +6412,17 @@ export class ThreeGame {
         next.y - current.y,
       );
       const opposite = WallSystem.opposite(direction);
-      const currentCell = this.state.getCell(current.x, current.y);
-      const nextCell = this.state.getCell(next.x, next.y);
+      const currentCell = this.services.state.getCell(current.x, current.y);
+      const nextCell = this.services.state.getCell(next.x, next.y);
 
       if (currentCell && this.isWallFamily(currentCell.kind)) {
-        this.state.updateCell(current.x, current.y, {
+        this.services.state.updateCell(current.x, current.y, {
           wallLinks: WallSystem.addLink(currentCell, direction),
         });
       }
 
       if (nextCell && this.isWallFamily(nextCell.kind)) {
-        this.state.updateCell(next.x, next.y, {
+        this.services.state.updateCell(next.x, next.y, {
           wallLinks: WallSystem.addLink(nextCell, opposite),
         });
       }
@@ -6435,14 +6438,14 @@ export class ThreeGame {
 
     for (const point of path) {
       const terrain = this.terrainAt(point.x, point.y);
-      const cell = this.state.getCell(point.x, point.y);
+      const cell = this.services.state.getCell(point.x, point.y);
 
       if (single && cell?.kind === wallKind) {
         const nextLevel = decrease
           ? Math.max(1, (cell.level ?? 1) - 1)
           : (cell.level ?? 1) + 1;
 
-        this.state.updateCell(point.x, point.y, {
+        this.services.state.updateCell(point.x, point.y, {
           level: nextLevel,
           thickness: this.wallThickness,
           battlement: this.wallBattlement,
@@ -6460,7 +6463,7 @@ export class ThreeGame {
       if (cell && !WALL_KINDS.includes(cell.kind as WallKind)) continue;
       if (!cell && !this.canBuildFortificationOnTerrain(terrain)) continue;
 
-      this.state.setCell(point.x, point.y, wallKind, cell?.level ?? 1, {
+      this.services.state.setCell(point.x, point.y, wallKind, cell?.level ?? 1, {
         thickness: this.wallThickness,
         battlement: this.wallBattlement,
         walkway: this.wallWalkway,
@@ -6498,11 +6501,11 @@ export class ThreeGame {
     const gy = point.y;
     this.selectedCell = point;
 
-    const cell = this.state.getCell(gx, gy);
+    const cell = this.services.state.getCell(gx, gy);
     const current = cell?.kind;
     const terrain = this.terrainAt(gx, gy);
     const overrideKey = this.key(gx, gy);
-    const keepAtPoint = this.keepSystem.findAtCell(gx, gy);
+    const keepAtPoint = this.services.keepSystem.findAtCell(gx, gy);
 
     if (this.selectedTool === null) {
       if (keepAtPoint) {
@@ -6517,7 +6520,7 @@ export class ThreeGame {
     if (this.selectedTool === 'erase') {
       if (keepAtPoint) {
         this.recordHistory();
-        this.keepSystem.remove(keepAtPoint.id);
+        this.services.keepSystem.remove(keepAtPoint.id);
         if (this.selectedKeepId === keepAtPoint.id) this.selectedKeepId = null;
         this.finishBuild();
         this.setStatus('Keep removed');
@@ -6526,7 +6529,7 @@ export class ThreeGame {
       if (current) {
         this.recordHistory();
         if (current === 'tower') this.removeTowerBridgesAt(gx, gy);
-        this.state.removeCell(gx, gy);
+        this.services.state.removeCell(gx, gy);
         this.finishBuild();
         return;
       }
@@ -6571,7 +6574,7 @@ export class ThreeGame {
         }
 
         this.recordHistory();
-        if (removableNatural) this.state.removeCell(gx, gy);
+        if (removableNatural) this.services.state.removeCell(gx, gy);
         this.terrainOverrides.set(overrideKey, 'river');
         this.finishBuild();
         this.setStatus('River water created · no source connection required');
@@ -6602,7 +6605,7 @@ export class ThreeGame {
       }
 
       this.recordHistory();
-      this.state.setCell(gx, gy, this.selectedTool, 1, {
+      this.services.state.setCell(gx, gy, this.selectedTool, 1, {
         rotation: direction.rotation,
         shipKind: this.maritimeSystem.defaultShip(this.selectedTool) ?? undefined,
       });
@@ -6624,7 +6627,7 @@ export class ThreeGame {
       if (current === 'mountain') {
         this.recordHistory();
         const nextLevel = (cell?.level ?? 1) + 1;
-        this.state.setLevel(gx, gy, nextLevel);
+        this.services.state.setLevel(gx, gy, nextLevel);
         this.shapeMountainFootprint(gx, gy, nextLevel);
         this.finishBuild();
         return;
@@ -6632,7 +6635,7 @@ export class ThreeGame {
 
       if (!current && (terrain === 'plains' || terrain === 'shore' || terrain === 'forest')) {
         this.recordHistory();
-        this.state.setCell(gx, gy, 'mountain', 1);
+        this.services.state.setCell(gx, gy, 'mountain', 1);
         this.shapeMountainFootprint(gx, gy, 1);
         this.finishBuild();
       }
@@ -6642,14 +6645,14 @@ export class ThreeGame {
     if (this.selectedTool === 'mine') {
       if (current === 'mountain') {
         this.recordHistory();
-        this.state.setCell(gx, gy, 'mine', 1);
+        this.services.state.setCell(gx, gy, 'mine', 1);
         this.finishBuild();
         return;
       }
 
       if (!current && terrain === 'mountain') {
         this.recordHistory();
-        this.state.setCell(gx, gy, 'mine', 1);
+        this.services.state.setCell(gx, gy, 'mine', 1);
         this.finishBuild();
       }
       return;
@@ -6665,7 +6668,7 @@ export class ThreeGame {
           return;
         }
         this.recordHistory();
-        this.state.setCell(gx, gy, 'appleOrchard', nextSize);
+        this.services.state.setCell(gx, gy, 'appleOrchard', nextSize);
         this.finishBuild();
         this.setStatus(`Apple Orchard size: ${nextSize}`);
         return;
@@ -6673,7 +6676,7 @@ export class ThreeGame {
       if (!current && terrain === 'plains') {
         this.recordHistory();
         const size = 1 + ((gx * 7 + gy * 11) % 3);
-        this.state.setCell(gx, gy, 'appleOrchard', size);
+        this.services.state.setCell(gx, gy, 'appleOrchard', size);
         this.finishBuild();
         this.setStatus(`Apple Orchard placed · size ${size}`);
       }
@@ -6683,7 +6686,7 @@ export class ThreeGame {
     if (this.selectedTool === 'tree') {
       if (!current && (terrain === 'plains' || terrain === 'shore' || terrain === 'forest')) {
         this.recordHistory();
-        this.state.setCell(gx, gy, 'tree', 1 + ((gx + gy) % 3));
+        this.services.state.setCell(gx, gy, 'tree', 1 + ((gx + gy) % 3));
         this.finishBuild();
       }
       return;
@@ -6706,7 +6709,7 @@ export class ThreeGame {
       }
 
       this.recordHistory();
-      this.state.setCell(gx, gy, 'stairTower', 1, {
+      this.services.state.setCell(gx, gy, 'stairTower', 1, {
         rotation: snap.rotation,
         accessHeight: snap.accessHeight,
       });
@@ -6724,7 +6727,7 @@ export class ThreeGame {
         this.recordHistory();
         const compatibleTop = this.compatibleTowerTop(this.towerShape, this.towerTop);
         this.towerTop = compatibleTop;
-        this.state.updateCell(gx, gy, {
+        this.services.state.updateCell(gx, gy, {
           level: nextLevel,
           towerShape: this.towerShape,
           towerTop: compatibleTop,
@@ -6739,7 +6742,7 @@ export class ThreeGame {
       this.recordHistory();
       const compatibleTop = this.compatibleTowerTop(this.towerShape, this.towerTop);
       this.towerTop = compatibleTop;
-      this.state.setCell(gx, gy, 'tower', cell?.level ?? 1, {
+      this.services.state.setCell(gx, gy, 'tower', cell?.level ?? 1, {
         towerShape: this.towerShape,
         towerTop: compatibleTop,
       });
@@ -6758,7 +6761,7 @@ export class ThreeGame {
     if (current) {
       if (selectedFortification && currentFortification) {
         this.recordHistory();
-        this.state.setCell(gx, gy, selectedTile, cell?.level ?? 1);
+        this.services.state.setCell(gx, gy, selectedTile, cell?.level ?? 1);
         this.finishBuild();
       }
       return;
@@ -6766,7 +6769,7 @@ export class ThreeGame {
 
     if (!this.canBuildOnTerrain(this.selectedTool, terrain)) return;
     this.recordHistory();
-    this.state.setCell(gx, gy, selectedTile, 1);
+    this.services.state.setCell(gx, gy, selectedTile, 1);
     this.finishBuild();
   }
 
@@ -7001,7 +7004,7 @@ export class ThreeGame {
   }
 
   private chooseCitizenDestination(agent: SettlementAgent): GridPoint {
-    const candidates = this.state.entries()
+    const candidates = this.services.state.entries()
       .filter((cell) =>
         ROAD_KINDS.includes(cell.kind as RoadKind) ||
         cell.kind === 'cottage' ||
@@ -7105,7 +7108,7 @@ export class ThreeGame {
       battleStatus.mode === 'finished'
         ? battleStatus.defendersAlive
         : configuredMilitary;
-    const groups = this.populationSystem.calculate(this.state.entries(), military);
+    const groups = this.services.populationSystem.calculate(this.services.state.entries(), military);
 
     const population = document.getElementById('city-population');
     const army = document.getElementById('military-population');
@@ -7143,7 +7146,7 @@ export class ThreeGame {
 
       if (task.progressMs >= 1800) {
         this.recordHistory();
-        this.state.setCell(task.x, task.y, 'moat', 1);
+        this.services.state.setCell(task.x, task.y, 'moat', 1);
         this.moatTasks.delete(worker.taskKey);
         worker.taskKey = undefined;
         this.redraw();
@@ -7182,147 +7185,12 @@ export class ThreeGame {
     }, 450);
   }
 
-  private save(updateStatus = true): void {
-    const terrain = Array.from(this.terrainOverrides.entries()).map(([key, kind]) => {
-      const [x, y] = key.split(',').map(Number);
-      return { x, y, kind };
-    });
-
-    const elevations = Array.from(this.elevationOverrides.entries()).map(([key, value]) => {
-      const [x, y] = key.split(',').map(Number);
-      return { x, y, value };
-    });
-
-    const data: SavedGame = {
-      version: SAVE_VERSION,
-      gameMode: this.gameMode,
-      updatedAt: Date.now(),
-      cells: this.state.entries(),
-      keeps: this.keepSystem.entries(),
-      stoneStyle: this.stoneStyle,
-      towerBridges: Array.from(this.towerBridges.values()).map((bridge) => ({ ...bridge })),
-      terrain,
-      elevations,
-      worldSeeded: this.worldSeeded,
-    };
-
-    localStorage.setItem(SAVE_KEY, JSON.stringify(data));
-    if (updateStatus) this.setStatus('Saved');
+    private save(updateStatus = true): void {
+    this.saveSystem.save(updateStatus);
   }
 
-  private load(): void {
-    const raw = localStorage.getItem(SAVE_KEY);
-    if (!raw) return;
-
-    try {
-      const data = JSON.parse(raw) as {
-        version?: number;
-        gameMode?: unknown;
-        cells?: Array<{
-          x: number;
-          y: number;
-          kind: string;
-          level?: number;
-          thickness?: WallThickness;
-          battlement?: boolean;
-          walkway?: boolean;
-          towerShape?: TowerShape;
-          towerTop?: TowerTop;
-          rotation?: number;
-          wallLinks?: WallDirection[];
-          shipKind?: ShipKind;
-          accessHeight?: number;
-          damage?: number;
-        }>;
-        keeps?: KeepState[];
-        stoneStyle?: StoneStyle;
-        towerBridges?: TowerBridgeState[];
-        terrain?: Array<{ x: number; y: number; kind: TerrainOverrideKind }>;
-        elevations?: Array<{ x: number; y: number; value: number }>;
-        worldSeeded?: boolean;
-      };
-
-      const loadedMode: GameMode = isGameMode(data.gameMode) ? data.gameMode : 'medieval';
-      this.state.setGameMode(loadedMode);
-      const cells: Array<ReturnType<GameState['entries']>[number]> = [];
-      let skippedIncompatible = false;
-
-      for (const cell of data.cells ?? []) {
-        if (cell.x < 0 || cell.y < 0 || cell.x >= SIZE || cell.y >= SIZE) continue;
-
-        const migration = this.migrateKind(cell.kind, cell.level ?? 1);
-        if (!migration) continue;
-        if (!this.isBuildingAvailable(migration.kind)) {
-          skippedIncompatible = true;
-          continue;
-        }
-
-        cells.push({
-          x: cell.x,
-          y: cell.y,
-          kind: migration.kind,
-          level: migration.level,
-          thickness: cell.thickness,
-          battlement: cell.battlement,
-          walkway: cell.walkway,
-          towerShape: cell.towerShape,
-          towerTop: cell.towerTop,
-          rotation: cell.rotation,
-          wallLinks: cell.wallLinks,
-          shipKind: cell.shipKind,
-          accessHeight: cell.accessHeight,
-          damage: THREE.MathUtils.clamp(cell.damage ?? 0, 0, 1),
-        });
-      }
-
-      this.state.replace(cells);
-      this.keepSystem.replace(data.keeps ?? []);
-      this.stoneStyle =
-        data.stoneStyle === 'darkStone' ||
-        data.stoneStyle === 'sandstone' ||
-        data.stoneStyle === 'frontier'
-          ? data.stoneStyle
-          : 'limestone';
-      this.towerBridges.clear();
-      for (const bridge of data.towerBridges ?? []) {
-        if (
-          !Number.isInteger(bridge.id) ||
-          !Number.isInteger(bridge.ax) ||
-          !Number.isInteger(bridge.ay) ||
-          !Number.isInteger(bridge.bx) ||
-          !Number.isInteger(bridge.by)
-        ) continue;
-        if (bridge.kind !== 'stone' && bridge.kind !== 'wood') continue;
-        this.towerBridges.set(bridge.id, { ...bridge });
-      }
-      this.nextTowerBridgeId =
-        Math.max(0, ...Array.from(this.towerBridges.keys())) + 1;
-      this.terrainOverrides.clear();
-      this.elevationOverrides.clear();
-
-      for (const terrainCell of data.terrain ?? []) {
-        if (terrainCell.x < 0 || terrainCell.y < 0 || terrainCell.x >= SIZE || terrainCell.y >= SIZE) continue;
-        if (terrainCell.kind !== 'plains' && terrainCell.kind !== 'river') continue;
-        this.terrainOverrides.set(this.key(terrainCell.x, terrainCell.y), terrainCell.kind);
-      }
-
-      for (const elevationCell of data.elevations ?? []) {
-        if (elevationCell.x < 0 || elevationCell.y < 0 || elevationCell.x >= SIZE || elevationCell.y >= SIZE) continue;
-        if (!Number.isFinite(elevationCell.value)) continue;
-        this.elevationOverrides.set(
-          this.key(elevationCell.x, elevationCell.y),
-          THREE.MathUtils.clamp(elevationCell.value, -6, 6),
-        );
-      }
-
-      this.worldSeeded = Boolean(data.worldSeeded);
-      this.loadedSaveVersion = Math.max(0, Math.floor(data.version ?? 0));
-      this.updateGameModeUI();
-      this.syncTemplateAvailability();
-      this.setStatus(skippedIncompatible ? 'Loaded · incompatible mode content skipped' : 'Loaded');
-    } catch {
-      this.setStatus('Could not load save');
-    }
+    private load(): void {
+    this.saveSystem.load();
   }
 
   private migrateKind(kind: string, level: number): { kind: TileKind; level: number } | null {
@@ -7779,11 +7647,11 @@ export class ThreeGame {
 
   private applyWallSettingsToSelected(): void {
     if (!this.selectedCell) return;
-    const cell = this.state.getCell(this.selectedCell.x, this.selectedCell.y);
+    const cell = this.services.state.getCell(this.selectedCell.x, this.selectedCell.y);
     if (!cell || !WALL_KINDS.includes(cell.kind as WallKind)) return;
 
     this.recordHistory();
-    this.state.updateCell(this.selectedCell.x, this.selectedCell.y, {
+    this.services.state.updateCell(this.selectedCell.x, this.selectedCell.y, {
       thickness: this.wallThickness,
       battlement: this.wallBattlement,
       walkway: this.wallWalkway,
@@ -7808,7 +7676,7 @@ export class ThreeGame {
 
   private applyTowerSettingsToSelected(): void {
     if (!this.selectedCell) return;
-    const cell = this.state.getCell(this.selectedCell.x, this.selectedCell.y);
+    const cell = this.services.state.getCell(this.selectedCell.x, this.selectedCell.y);
     if (!cell || cell.kind !== 'tower') return;
 
     const compatibleTop = this.compatibleTowerTop(this.towerShape, this.towerTop);
@@ -7817,7 +7685,7 @@ export class ThreeGame {
     if (topSelect) topSelect.value = compatibleTop;
 
     this.recordHistory();
-    this.state.updateCell(this.selectedCell.x, this.selectedCell.y, {
+    this.services.state.updateCell(this.selectedCell.x, this.selectedCell.y, {
       towerShape: this.towerShape,
       towerTop: compatibleTop,
     });
@@ -7858,19 +7726,19 @@ export class ThreeGame {
     draft: Omit<KeepState, 'id' | 'seed'>,
     ignoreKeepId?: number,
   ): { valid: boolean; reason?: string } {
-    return this.keepSystem.validate(
+    return this.services.keepSystem.validate(
       draft,
       SIZE,
       (x, y) => this.terrainAt(x, y),
       (x, y) => this.terrainElevation(x, y),
-      (x, y) => Boolean(this.state.getCell(x, y)),
+      (x, y) => Boolean(this.services.state.getCell(x, y)),
       ignoreKeepId,
     );
   }
 
   private applyKeepSettingsToSelected(): void {
     if (this.selectedKeepId === null) return;
-    const keep = this.keepSystem.get(this.selectedKeepId);
+    const keep = this.services.keepSystem.get(this.selectedKeepId);
     if (!keep) return;
 
     const draft = {
@@ -7893,7 +7761,7 @@ export class ThreeGame {
     }
 
     this.recordHistory();
-    const updated = this.keepSystem.update(keep.id, draft);
+    const updated = this.services.keepSystem.update(keep.id, draft);
     if (updated) {
       this.selectKeep(updated);
       this.redraw();
@@ -7910,12 +7778,12 @@ export class ThreeGame {
       return;
     }
 
-    const keep = this.keepSystem.get(this.selectedKeepId);
+    const keep = this.services.keepSystem.get(this.selectedKeepId);
     if (!keep) return;
 
     this.keepFloors = Math.max(1, keep.floors + delta);
     this.recordHistory();
-    const updated = this.keepSystem.update(keep.id, { floors: this.keepFloors });
+    const updated = this.services.keepSystem.update(keep.id, { floors: this.keepFloors });
     if (updated) {
       this.selectKeep(updated);
       this.redraw();
@@ -7931,7 +7799,7 @@ export class ThreeGame {
       return;
     }
 
-    const keep = this.keepSystem.get(this.selectedKeepId);
+    const keep = this.services.keepSystem.get(this.selectedKeepId);
     if (!keep) return;
 
     const nextRotation = (keep.rotation + 1) % 4;
@@ -7953,7 +7821,7 @@ export class ThreeGame {
     }
 
     this.recordHistory();
-    const updated = this.keepSystem.update(keep.id, { rotation: nextRotation });
+    const updated = this.services.keepSystem.update(keep.id, { rotation: nextRotation });
     if (updated) {
       this.selectKeep(updated);
       this.redraw();
@@ -7968,7 +7836,7 @@ export class ThreeGame {
     }
 
     this.recordHistory();
-    this.keepSystem.remove(this.selectedKeepId);
+    this.services.keepSystem.remove(this.selectedKeepId);
     this.selectedKeepId = null;
     this.redraw();
     this.scheduleSave();
@@ -7976,7 +7844,7 @@ export class ThreeGame {
   }
 
   private placeKeep(gx: number, gy: number): void {
-    const existing = this.keepSystem.findAtCell(gx, gy);
+    const existing = this.services.keepSystem.findAtCell(gx, gy);
     if (existing) {
       this.selectKeep(existing);
       return;
@@ -8001,7 +7869,7 @@ export class ThreeGame {
     }
 
     this.recordHistory();
-    const keep = this.keepSystem.add(draft);
+    const keep = this.services.keepSystem.add(draft);
     this.selectKeep(keep);
     this.redraw();
     this.scheduleSave();
@@ -8019,14 +7887,14 @@ export class ThreeGame {
       return;
     }
 
-    const cell = this.state.getCell(this.selectedCell.x, this.selectedCell.y);
+    const cell = this.services.state.getCell(this.selectedCell.x, this.selectedCell.y);
     if (!cell || (!WALL_KINDS.includes(cell.kind as WallKind) && cell.kind !== 'tower')) {
       this.setStatus('Selected tile is not a wall or tower');
       return;
     }
 
     this.recordHistory();
-    this.state.setLevel(
+    this.services.state.setLevel(
       this.selectedCell.x,
       this.selectedCell.y,
       Math.max(1, (cell.level ?? 1) + delta),
@@ -8046,8 +7914,8 @@ export class ThreeGame {
       return;
     }
     this.recordHistory();
-    this.state.clear();
-    this.keepSystem.clear();
+    this.services.state.clear();
+    this.services.keepSystem.clear();
     this.towerBridges.clear();
     this.nextTowerBridgeId = 1;
     this.towerBridgeStart = null;
@@ -8067,7 +7935,7 @@ export class ThreeGame {
       level = 1,
       options: Partial<GridCell> = {},
     ): void => {
-      this.state.setCell(x, y, kind, level, options);
+      this.services.state.setCell(x, y, kind, level, options);
     };
 
     const placeKeepTemplate = (
@@ -8093,11 +7961,11 @@ export class ThreeGame {
         battlements,
       };
 
-      for (const footprintCell of this.keepSystem.footprint(draft)) {
-        this.state.removeCell(footprintCell.x, footprintCell.y);
+      for (const footprintCell of this.services.keepSystem.footprint(draft)) {
+        this.services.state.removeCell(footprintCell.x, footprintCell.y);
       }
 
-      this.keepSystem.add(draft);
+      this.services.keepSystem.add(draft);
     };
 
     const prepareArea = (
@@ -8109,7 +7977,7 @@ export class ThreeGame {
     ): void => {
       for (let y = Math.max(0, minY); y <= Math.min(SIZE - 1, maxY); y += 1) {
         for (let x = Math.max(0, minX); x <= Math.min(SIZE - 1, maxX); x += 1) {
-          this.state.removeCell(x, y);
+          this.services.state.removeCell(x, y);
           this.terrainOverrides.set(this.key(x, y), 'plains');
           this.setAbsoluteElevation(x, y, elevation);
         }
@@ -8170,7 +8038,7 @@ export class ThreeGame {
       const candidates: Array<{ point: GridPoint; rotation: number; score: number }> = [];
       for (let y = 1; y < SIZE - 1; y += 1) {
         for (let x = 1; x < SIZE - 1; x += 1) {
-          if (this.state.getCell(x, y) || this.keepSystem.findAtCell(x, y)) continue;
+          if (this.services.state.getCell(x, y) || this.services.keepSystem.findAtCell(x, y)) continue;
           const coast = this.maritimeSystem.canPlace(kind, x, y);
           if (!coast) continue;
           candidates.push({
@@ -8184,7 +8052,7 @@ export class ThreeGame {
       const choice = candidates[0];
       if (!choice) return null;
 
-      this.state.removeCell(choice.point.x, choice.point.y);
+      this.services.state.removeCell(choice.point.x, choice.point.y);
       place(choice.point.x, choice.point.y, kind, 1, {
         rotation: choice.rotation,
         shipKind,
@@ -8304,7 +8172,7 @@ export class ThreeGame {
 
       for (let y = 4; y < SIZE - 3; y += 1) {
         for (let x = center - 3; x <= center + 3; x += 1) {
-          const existing = this.state.getCell(x, y);
+          const existing = this.services.state.getCell(x, y);
           if (
             existing &&
             (existing.kind === 'tree' ||
@@ -8312,7 +8180,7 @@ export class ThreeGame {
               existing.kind === 'hut' ||
               existing.kind === 'mountain')
           ) {
-            this.state.removeCell(x, y);
+            this.services.state.removeCell(x, y);
           }
           this.terrainOverrides.set(this.key(x, y), 'plains');
           this.setAbsoluteElevation(x, y, 0.12 + Math.sin((x + y) * 0.4) * 0.08);
@@ -8321,14 +8189,14 @@ export class ThreeGame {
 
       for (let y = 3; y < SIZE - 2; y += 1) {
         const x = center + Math.round(Math.sin(y * 0.52) * 0.7);
-        this.state.removeCell(x, y);
+        this.services.state.removeCell(x, y);
         this.terrainOverrides.set(this.key(x, y), 'river');
         this.setAbsoluteElevation(x, y, Math.max(0, 0.55 - y * 0.018));
       }
 
       for (let y = 5; y < SIZE - 4; y += 2) {
         for (const x of [center - 5, center + 5]) {
-          if (!this.state.getCell(x, y) && this.terrainAt(x, y) !== 'river') {
+          if (!this.services.state.getCell(x, y) && this.terrainAt(x, y) !== 'river') {
             place(x, y, 'tree', 1 + ((x + y) % 3));
           }
         }
@@ -8337,14 +8205,14 @@ export class ThreeGame {
       for (let y = center - 5; y <= center + 5; y += 1) {
         for (let x = center - 4; x <= center + 4; x += 1) {
           if (x < 0 || y < 0 || x >= SIZE || y >= SIZE) continue;
-          const existing = this.state.getCell(x, y);
+          const existing = this.services.state.getCell(x, y);
           if (
             existing &&
             (existing.kind === 'tree' ||
               existing.kind === 'rock' ||
               existing.kind === 'hut')
           ) {
-            this.state.removeCell(x, y);
+            this.services.state.removeCell(x, y);
           }
           if (this.baseTerrainAt(x, y) !== 'water') {
             this.terrainOverrides.set(this.key(x, y), 'plains');
@@ -8356,14 +8224,14 @@ export class ThreeGame {
       for (let y = 3; y < SIZE - 3; y += 1) {
         for (let x = center + 5; x < SIZE; x += 1) {
           if (this.baseTerrainAt(x, y) !== 'shore') continue;
-          const existing = this.state.getCell(x, y);
+          const existing = this.services.state.getCell(x, y);
           if (
             existing &&
             (existing.kind === 'tree' ||
               existing.kind === 'rock' ||
               existing.kind === 'hut')
           ) {
-            this.state.removeCell(x, y);
+            this.services.state.removeCell(x, y);
           }
           this.elevationOverrides.delete(this.key(x, y));
         }
@@ -8371,7 +8239,7 @@ export class ThreeGame {
 
       for (let y = 4; y <= center + 3; y += 2) {
         for (let x = 3; x <= center - 4; x += 2) {
-          if (!this.state.getCell(x, y) && this.terrainAt(x, y) !== 'water') {
+          if (!this.services.state.getCell(x, y) && this.terrainAt(x, y) !== 'water') {
             if ((x + y) % 3 !== 0) place(x, y, 'tree', 1 + ((x * 3 + y) % 3));
           }
         }
@@ -8409,7 +8277,7 @@ export class ThreeGame {
           2 +
           Math.round(Math.sin(y * 0.58 + 0.7) * 1.1 - t * 2.1);
 
-        this.state.removeCell(x, y);
+        this.services.state.removeCell(x, y);
         this.terrainOverrides.set(this.key(x, y), 'river');
         this.setAbsoluteElevation(
           x,
@@ -8418,7 +8286,7 @@ export class ThreeGame {
         );
 
         if (x + 1 < SIZE && y < center + 1 && y % 3 === 0) {
-          this.state.removeCell(x + 1, y);
+          this.services.state.removeCell(x + 1, y);
           this.terrainOverrides.set(this.key(x + 1, y), 'river');
           this.setAbsoluteElevation(x + 1, y, Math.max(0, 2.3 * (1 - t)));
         }
@@ -8426,7 +8294,7 @@ export class ThreeGame {
 
       for (let y = center + 2; y <= center + 6; y += 1) {
         for (let x = center - 5; x <= center - 1; x += 1) {
-          const existing = this.state.getCell(x, y);
+          const existing = this.services.state.getCell(x, y);
           if (
             existing &&
             (existing.kind === 'tree' ||
@@ -8434,7 +8302,7 @@ export class ThreeGame {
               existing.kind === 'hut' ||
               existing.kind === 'mountain')
           ) {
-            this.state.removeCell(x, y);
+            this.services.state.removeCell(x, y);
           }
           this.terrainOverrides.set(this.key(x, y), 'plains');
           this.setAbsoluteElevation(x, y, 0.62 + Math.sin((x + y) * 0.5) * 0.12);
@@ -8444,7 +8312,7 @@ export class ThreeGame {
       for (let y = 8; y < SIZE - 4; y += 2) {
         for (const x of [4, 6, SIZE - 6, SIZE - 4]) {
           if (
-            !this.state.getCell(x, y) &&
+            !this.services.state.getCell(x, y) &&
             this.terrainAt(x, y) !== 'water' &&
             this.terrainAt(x, y) !== 'river'
           ) {
@@ -8547,7 +8415,7 @@ export class ThreeGame {
       place(center + 2, center + 2, 'farm');
       place(center + 3, center - 2, 'hut');
       for (let x = center - 4; x <= center + 3; x += 1) {
-        if (!this.state.getCell(x, center + 3)) place(x, center + 3, 'dirtRoad');
+        if (!this.services.state.getCell(x, center + 3)) place(x, center + 3, 'dirtRoad');
       }
     } else if (template === 'frontier-outpost') {
       this.stoneStyle = 'frontier';
@@ -8650,7 +8518,7 @@ export class ThreeGame {
         (point): point is GridPoint => point !== null,
       );
       for (const point of portPoints) {
-        this.state.removeCell(point.x - 1, point.y);
+        this.services.state.removeCell(point.x - 1, point.y);
         if (this.terrainAt(point.x - 1, point.y) !== 'water') {
           place(point.x - 1, point.y, 'stoneRoad');
         }
@@ -8663,10 +8531,10 @@ export class ThreeGame {
       place(center + 2, center + 3, 'house');
       place(center + 3, center - 2, 'cottage');
       for (let x = center - 6; x <= center + 4; x += 1) {
-        if (!this.state.getCell(x, center + 1)) place(x, center + 1, 'stoneRoad');
+        if (!this.services.state.getCell(x, center + 1)) place(x, center + 1, 'stoneRoad');
       }
       for (let y = center - 4; y <= center + 5; y += 1) {
-        if (!this.state.getCell(center, y)) place(center, y, 'road');
+        if (!this.services.state.getCell(center, y)) place(center, y, 'road');
       }
     } else if (template === 'mountain-fortress') {
       this.stoneStyle = 'frontier';
@@ -8732,13 +8600,13 @@ export class ThreeGame {
       place(center + 4, center + 5, 'farm');
 
       for (let x = center - 7; x <= center + 7; x += 1) {
-        if (!this.state.getCell(x, center + 3)) place(x, center + 3, 'road');
+        if (!this.services.state.getCell(x, center + 3)) place(x, center + 3, 'road');
       }
       for (let y = center - 5; y <= center + 6; y += 1) {
-        if (!this.state.getCell(center, y)) place(center, y, 'stoneRoad');
+        if (!this.services.state.getCell(center, y)) place(center, y, 'stoneRoad');
       }
       for (let y = center - 5; y <= center + 5; y += 1) {
-        if (!this.state.getCell(center - 3, y)) place(center - 3, y, 'dirtRoad');
+        if (!this.services.state.getCell(center - 3, y)) place(center - 3, y, 'dirtRoad');
       }
     } else if (template === 'architecture-gallery') {
       this.stoneStyle = 'limestone';
@@ -8823,10 +8691,10 @@ export class ThreeGame {
 
       for (let y = 2; y < SIZE - 2; y += 1) {
         const x = center + 4 + Math.round(Math.sin(y * 0.48) * 0.8);
-        this.state.removeCell(x, y);
+        this.services.state.removeCell(x, y);
         this.terrainOverrides.set(this.key(x, y), 'river');
         if (y > center - 3 && y < center + 4) {
-          this.state.removeCell(x + 1, y);
+          this.services.state.removeCell(x + 1, y);
           this.terrainOverrides.set(this.key(x + 1, y), 'river');
         }
       }
@@ -8874,10 +8742,10 @@ export class ThreeGame {
       for (const [x, y] of farms) place(x, y, 'farm');
 
       for (let x = center - 9; x <= center + 9; x += 1) {
-        if (!this.state.getCell(x, center + 5)) place(x, center + 5, 'dirtRoad');
+        if (!this.services.state.getCell(x, center + 5)) place(x, center + 5, 'dirtRoad');
       }
       for (let y = center - 7; y <= center + 7; y += 1) {
-        if (!this.state.getCell(center, y)) place(center, y, 'road');
+        if (!this.services.state.getCell(center, y)) place(center, y, 'road');
       }
     } else if (template === 'twin-keep') {
       this.stoneStyle = 'darkStone';
@@ -8899,7 +8767,7 @@ export class ThreeGame {
       addTemplateBridge(t1,t2,'stone');
       addTemplateStairTower(center - 8, center);
       place(center, center + 2, 'armyCamp');
-      for (let y=center+1;y<center+6;y+=1) if(!this.state.getCell(center,y)) place(center,y,'stoneRoad');
+      for (let y=center+1;y<center+6;y+=1) if(!this.services.state.getCell(center,y)) place(center,y,'stoneRoad');
     } else if (template === 'border-march') {
       this.stoneStyle = 'frontier';
       prepareArea(center - 11, center - 9, center + 11, center + 9, 0.1);
@@ -8916,10 +8784,10 @@ export class ThreeGame {
       place(center+3,center+2,'farm');
       place(center,center+3,'hut');
       place(center+5,center+4,'cottage');
-      for(let x=center-6;x<=center+7;x+=1) if(!this.state.getCell(x,center+2)) place(x,center+2,'dirtRoad');
+      for(let x=center-6;x<=center+7;x+=1) if(!this.services.state.getCell(x,center+2)) place(x,center+2,'dirtRoad');
 
       for(let y=center-8;y<=center+8;y+=2) {
-        if(!this.state.getCell(center+8,y)) place(center+8,y,'tree',1+(y%3+3)%3);
+        if(!this.services.state.getCell(center+8,y)) place(center+8,y,'tree',1+(y%3+3)%3);
       }
     } else if (template === 'forest-citadel') {
       this.stoneStyle = 'limestone';
@@ -8928,7 +8796,7 @@ export class ThreeGame {
       for(let y=2;y<SIZE-2;y+=1){
         for(let x=2;x<SIZE-2;x+=1){
           const d=Math.hypot(x-center,y-center);
-          if(d>7.5 && (x*17+y*29)%4!==0 && !this.state.getCell(x,y)) place(x,y,'tree',1+Math.abs((x+y)%3));
+          if(d>7.5 && (x*17+y*29)%4!==0 && !this.services.state.getCell(x,y)) place(x,y,'tree',1+Math.abs((x+y)%3));
         }
       }
 
@@ -8965,7 +8833,7 @@ export class ThreeGame {
       placeKeepTemplate(center+4,center-1,2,3,5,'defensivePlatform',true);
       addTemplateStairTower(center+2,center);
       place(center-3,center+1,'armyCamp');
-      for(let y=center-2;y<=center+4;y+=1) if(!this.state.getCell(center,y)) place(center,y,'stoneRoad');
+      for(let y=center-2;y<=center+4;y+=1) if(!this.services.state.getCell(center,y)) place(center,y,'stoneRoad');
     } else if (template === 'moat-palace') {
       this.stoneStyle = 'sandstone';
       prepareArea(center - 11, center - 9, center + 11, center + 9, 0.05);
@@ -8984,7 +8852,7 @@ export class ThreeGame {
         if(Math.abs(x-center)>1){place(x,center-7,'moat');place(x,center+7,'moat');}
       }
       for(let y=center-6;y<=center+6;y+=1){place(center-8,y,'moat');place(center+8,y,'moat');}
-      for(let y=center-1;y<=center+6;y+=1) if(!this.state.getCell(center,y)) place(center,y,'stoneRoad');
+      for(let y=center-1;y<=center+6;y+=1) if(!this.services.state.getCell(center,y)) place(center,y,'stoneRoad');
       addTemplateStairTower(center-5,center);
     } else if (template === 'merchant-republic') {
       this.stoneStyle = 'limestone';
@@ -9003,8 +8871,8 @@ export class ThreeGame {
       for(const [x,y,k] of districts) place(x,y,k);
       place(center-7,center+5,'farm');
       place(center+7,center+5,'farm');
-      for(let x=center-8;x<=center+8;x+=1) if(!this.state.getCell(x,center+1)) place(x,center+1,'stoneRoad');
-      for(let y=center-6;y<=center+6;y+=1) if(!this.state.getCell(center,y)) place(center,y,'road');
+      for(let x=center-8;x<=center+8;x+=1) if(!this.services.state.getCell(x,center+1)) place(x,center+1,'stoneRoad');
+      for(let y=center-6;y<=center+6;y+=1) if(!this.services.state.getCell(center,y)) place(center,y,'road');
       placeHarborTemplate('smallDock','fishingBoat',SIZE-5,center+5);
     } else if (template === 'war-camp') {
       this.stoneStyle = 'frontier';
@@ -9025,8 +8893,8 @@ export class ThreeGame {
       place(center-6,center+4,'farm');
       place(center+6,center+4,'farm');
       placeKeepTemplate(center,center-1,2,2,2,'flatBattlement',false);
-      for(let x=center-7;x<=center+7;x+=1) if(!this.state.getCell(x,center+3)) place(x,center+3,'dirtRoad');
-      for(let y=center-5;y<=center+5;y+=1) if(!this.state.getCell(center,y)) place(center,y,'road');
+      for(let x=center-7;x<=center+7;x+=1) if(!this.services.state.getCell(x,center+3)) place(x,center+3,'dirtRoad');
+      for(let y=center-5;y<=center+5;y+=1) if(!this.services.state.getCell(center,y)) place(center,y,'road');
     } else if (template === 'island-monastery') {
       this.stoneStyle = 'limestone';
       prepareArea(center-8,center-8,center+8,center+8,0.32);
@@ -9065,8 +8933,8 @@ export class ThreeGame {
 
   private applyTerrainTemplate(template: string): void {
     this.recordHistory();
-    this.state.clear();
-    this.keepSystem.clear();
+    this.services.state.clear();
+    this.services.keepSystem.clear();
     this.towerBridges.clear();
     this.nextTowerBridgeId = 1;
     this.towerBridgeStart = null;
@@ -9084,7 +8952,7 @@ export class ThreeGame {
       if (x < 0 || y < 0 || x >= SIZE || y >= SIZE) return;
       const terrain = this.terrainAt(x, y);
       if (terrain === 'water' || terrain === 'river') return;
-      if (!this.state.getCell(x, y)) this.state.setCell(x, y, kind, level);
+      if (!this.services.state.getCell(x, y)) this.services.state.setCell(x, y, kind, level);
     };
 
     const flattenLand = (): void => {
@@ -9132,7 +9000,7 @@ export class ThreeGame {
       this.applyMountainRange({ x: 5, y: 4 }, { x: SIZE - 6, y: 3 }, true);
       for (let y = center - 5; y <= center + 6; y += 1) {
         for (let x = center - 5; x <= center + 5; x += 1) {
-          this.state.removeCell(x, y);
+          this.services.state.removeCell(x, y);
           this.terrainOverrides.set(this.key(x, y), 'plains');
           this.setAbsoluteElevation(x, y, 0.35 + Math.hypot(x-center,y-center)*0.025);
         }
@@ -9171,7 +9039,7 @@ export class ThreeGame {
           const wet =
             Math.sin(x*0.7)+Math.cos(y*0.63)+Math.sin((x-y)*0.32) > 1.35;
           if (wet && Math.hypot(x-center,y-center)>3.5) {
-            this.state.removeCell(x,y);
+            this.services.state.removeCell(x,y);
             this.terrainOverrides.set(this.key(x,y),'river');
           } else if ((x*31+y*17)%13===0) {
             addProp(x,y,'tree',1);
@@ -9286,7 +9154,7 @@ export class ThreeGame {
     this.workerLayer.visible = false;
     this.settlementLayer.visible = false;
     document.getElementById('game-shell')?.classList.add('battle-mode');
-    this.gateSystem.setAttackState(true);
+    this.services.gateSystem.setAttackState(true);
     this.battleSystem.start(this.battleSetup);
     this.setStatus('Battle started · Attackers are advancing on the castle');
   }
@@ -9297,7 +9165,7 @@ export class ThreeGame {
   }
 
   private resetBattleFromUI(): void {
-    this.gateSystem.setAttackState(false);
+    this.services.gateSystem.setAttackState(false);
     this.battleSystem.reset();
     document.getElementById('game-shell')?.classList.remove('battle-mode');
     this.workerLayer.visible = this.viewMode === 'world3d';
@@ -9448,7 +9316,7 @@ export class ThreeGame {
       this.updateSettlementAgents(deltaMs);
     }
     this.battleSystem.update(deltaMs, time);
-    this.windmillSystem.update(deltaMs / 1000);
+    this.services.windmillSystem.update(deltaMs / 1000);
     this.updateLongPress(time);
     this.riverTexture.offset.y -= deltaMs * 0.00032;
     this.riverTexture.offset.x += deltaMs * 0.000035;
