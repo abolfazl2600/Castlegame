@@ -65,7 +65,7 @@ export type TileKind =
   | 'futuristicCastle';
 
 export type ToolKind =
-  | TileKind
+  | Exclude<TileKind, 'stairTower'>
   | 'keep'
   | 'towerBridge'
   | 'mountainRange'
