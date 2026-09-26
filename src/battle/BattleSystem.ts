@@ -1691,6 +1691,11 @@ export class BattleSystem {
           visual,
         });
         if (stage !== 'healthy') this.renderWallDamage(this.wallStates.get(this.gridKey(x, y))!);
+        if (stage === 'breached') {
+          this.breachedWalls.add(this.gridKey(x, y));
+          this.wallNodes.delete(this.gridKey(x, y));
+          this.world.setWallBattleVisibility(x, y, false);
+        }
       }
     }
 
