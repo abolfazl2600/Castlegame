@@ -1945,3 +1945,49 @@ html[data-high-contrast] .settings-card { border-color:rgba(255,255,255,.42); }
 .battle-panel.settings-no-combat-feedback .battle-result {
   display: none;
 }
+
+
+/* Survival mode HUD */
+#survival-hud {
+  position: fixed;
+  top: 18px;
+  right: 18px;
+  z-index: 80;
+  min-width: 170px;
+  padding: 12px 14px;
+  border: 1px solid rgba(255, 215, 119, 0.32);
+  border-radius: 12px;
+  background: rgba(20, 25, 27, 0.86);
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.24);
+  color: #f4f0e8;
+  backdrop-filter: blur(10px);
+  pointer-events: none;
+}
+#survival-hud .survival-hud-title {
+  margin-bottom: 8px;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.18em;
+  color: #ffd477;
+}
+#survival-hud .survival-hud-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 18px;
+  font-size: 12px;
+  line-height: 1.7;
+}
+#survival-hud .survival-hud-row span {
+  opacity: 0.68;
+}
+#survival-hud .survival-hud-row strong {
+  font-variant-numeric: tabular-nums;
+}
+@media (max-width: 760px) {
+  #survival-hud {
+    top: 10px;
+    right: 10px;
+    min-width: 145px;
+    padding: 9px 11px;
+  }
+}
