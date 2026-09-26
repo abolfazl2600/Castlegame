@@ -16,6 +16,13 @@ export function bindAudioSettingsUI(audioManager: AudioManager): void {
     master.value = String(settings.masterVolume);
     music.value = String(settings.musicVolume);
     sfx.value = String(settings.sfxVolume);
+    const percent = (value: number): string => Math.round(value * 100) + '%';
+    const masterOutput = document.getElementById('audio-master-output');
+    const musicOutput = document.getElementById('audio-music-output');
+    const sfxOutput = document.getElementById('audio-sfx-output');
+    if (masterOutput) masterOutput.textContent = percent(settings.masterVolume);
+    if (musicOutput) musicOutput.textContent = percent(settings.musicVolume);
+    if (sfxOutput) sfxOutput.textContent = percent(settings.sfxVolume);
     mute.textContent = settings.muted ? 'Muted' : 'Sound On';
     mute.setAttribute('aria-pressed', String(settings.muted));
   };
