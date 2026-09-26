@@ -49,6 +49,7 @@ export interface BattleResult {
 
 export interface BattleStatus {
   mode: 'idle' | 'running' | 'paused' | 'finished';
+  battleSpeed: number;
   captureProgress: number;
   captureSeconds: number;
   captureRequiredSeconds: number;
