@@ -151,7 +151,7 @@ export class PrivacyLegalUI {
           <div class="privacy-about-grid">
             <div><span>Game</span><strong>Castle Role</strong></div>
             <div><span>Version</span><strong>0.2.0</strong></div>
-            <div><span>Save format</span><strong>v\${SAVE_VERSION}</strong></div>
+            <div><span>Save format</span><strong>v${SAVE_VERSION}</strong></div>
             <div><span>Technology</span><strong>Three.js · TypeScript · Vite</strong></div>
           </div>
           <p>Castle Role is a browser-based 3D stronghold builder with editable terrain, settlement, castle architecture, and battle systems.</p>
