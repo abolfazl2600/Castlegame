@@ -214,7 +214,7 @@ export class SaveSystem {
     backdrop.addEventListener('click', (event) => {
       if (event.target === backdrop) backdrop.hidden = true;
       const target = event.target as HTMLElement;
-      const action = target.dataset.saveAction;
+      const action = target.dataset.saveAction ?? (target.dataset.saveClose !== undefined ? "close" : undefined);
       const targetValue = target.dataset.saveTarget;
       if (!action) return;
 
