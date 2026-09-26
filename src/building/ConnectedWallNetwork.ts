@@ -149,7 +149,6 @@ export class ConnectedWallNetwork {
   private isAccessNode(kind: TileKind): boolean {
     return (
       kind === 'tower' ||
-      kind === 'stairTower' ||
       kind === 'gate'
     );
   }
