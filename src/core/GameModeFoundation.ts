@@ -7,13 +7,13 @@ export interface GameModeLifecycleContext {
 }
 
 export interface GameModeLifecycle {
-  initialize(context: GameModeLifecycleContext): void | Promise<void>;
-  start(context: GameModeLifecycleContext): void | Promise<void>;
-  pause(context: GameModeLifecycleContext): void | Promise<void>;
-  resume(context: GameModeLifecycleContext): void | Promise<void>;
-  restart(context: GameModeLifecycleContext): void | Promise<void>;
-  end(context: GameModeLifecycleContext): void | Promise<void>;
-  cleanup(context: GameModeLifecycleContext): void | Promise<void>;
+  initialize(context: GameModeLifecycleContext): void;
+  start(context: GameModeLifecycleContext): void;
+  pause(context: GameModeLifecycleContext): void;
+  resume(context: GameModeLifecycleContext): void;
+  restart(context: GameModeLifecycleContext): void;
+  end(context: GameModeLifecycleContext): void;
+  cleanup(context: GameModeLifecycleContext): void;
 }
 
 export interface GameModeDefinition {
