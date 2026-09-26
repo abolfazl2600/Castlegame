@@ -427,7 +427,7 @@ export class SaveSystem {
       terrain,
       elevations,
       worldSeeded: this.host.getWorldSeeded(),
-      battleSetup: this.host.getBattleSetup ? { ...this.host.getBattleSetup() } : undefined,
+      battleSetup: this.host.getBattleSetup ? { ...this.host.getBattleSetup() } : readBattleSetupFromDom(),
     };
   }
 
@@ -516,7 +516,11 @@ export class SaveSystem {
 
     this.host.setWorldSeeded(Boolean(data.worldSeeded));
     this.host.setLoadedSaveVersion(Math.max(0, Math.floor(data.version ?? 0)));
-    if (data.battleSetup) this.host.setBattleSetup?.(normalizeBattleSetup(data.battleSetup));
+    if (data.battleSetup) {
+      const normalizedBattleSetup = normalizeBattleSetup(data.battleSetup);
+      this.host.setBattleSetup?.(normalizedBattleSetup);
+      restoreBattleSetupToDom(normalizedBattleSetup);
+    }
     this.host.updateGameModeUI();
     this.host.syncTemplateAvailability();
   }
@@ -585,7 +589,7 @@ export class SaveSystem {
         summary: { buildings: data.cells.length, keeps: data.keeps?.length ?? 0, terrainChanges: data.terrain?.length ?? 0, elevations: data.elevations?.length ?? 0 },
       };
       this.writeRaw('autosave', { metadata, data });
-      localStorage.removeItem(SAVE_LEGACY_KEY);
+      localStorage.setItem(SAVE_LEGACY_KEY, 'migrated');
     } catch {
       // A malformed legacy save is ignored; it must never prevent a new game.
     }
@@ -689,4 +693,37 @@ function escapeHtml(value: string): string {
     '"': '&quot;',
     "'": '&#039;',
   }[char] ?? char));
+}
+
+
+function readBattleSetupFromDom(): SavedBattleSetup | undefined {
+  if (typeof document === 'undefined') return undefined;
+  const fields: Array<keyof SavedBattleSetup> = [
+    'attackerSwordsmen', 'attackerArchers', 'attackerSpearmen', 'attackerCrossbowmen',
+    'attackerModernSoldiers', 'defenderSwordsmen', 'defenderArchers', 'defenderSpearmen',
+    'defenderCrossbowmen', 'defenderModernSoldiers',
+  ];
+  const result = {} as SavedBattleSetup;
+  let found = false;
+  for (const field of fields) {
+    const input = document.querySelector<HTMLInputElement>(`[data-battle-input="${field}"]`);
+    if (!input) continue;
+    found = true;
+    result[field] = clamp(Math.floor(Number(input.value) || 0), 0, 120);
+  }
+  return found ? result : undefined;
+}
+
+function restoreBattleSetupToDom(setup: SavedBattleSetup): void {
+  if (typeof document === 'undefined') return;
+  const restore = (): void => {
+    for (const [field, value] of Object.entries(setup) as Array<[keyof SavedBattleSetup, number]>) {
+      const input = document.querySelector<HTMLInputElement>(`[data-battle-input="${field}"]`);
+      if (!input) continue;
+      input.value = String(value);
+      input.dispatchEvent(new Event('change', { bubbles: true }));
+    }
+  };
+  if (document.querySelector('[data-battle-input]')) restore();
+  else queueMicrotask(restore);
 }
