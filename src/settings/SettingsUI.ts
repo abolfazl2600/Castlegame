@@ -4,13 +4,16 @@ import type { SettingsData } from './SettingsModel';
 
 export class SettingsUI {
   private readonly panel: HTMLElement;
+  private readonly backdrop: HTMLElement;
   private returnToSettingsAfterAction = false;
 
   constructor(
     private readonly store: SettingsStore,
     private readonly onResetSave: () => void,
   ) {
+    this.backdrop = this.createBackdrop();
     this.panel = this.createPanel();
+    document.body.appendChild(this.backdrop);
     document.body.appendChild(this.panel);
     const settingsButton = document.getElementById('settings-button');
     if (settingsButton instanceof HTMLButtonElement) {
@@ -24,7 +27,8 @@ export class SettingsUI {
   }
 
   open(): void {
-    this.panel.removeAttribute('hidden');
+    this.backdrop.hidden = false;
+    this.backdrop.setAttribute('aria-hidden', 'false');
     this.panel.hidden = false;
     this.panel.setAttribute('aria-hidden', 'false');
     this.panel.querySelector<HTMLElement>('[data-settings-autofocus]')?.focus();
@@ -33,6 +37,8 @@ export class SettingsUI {
   close(): void {
     this.panel.hidden = true;
     this.panel.setAttribute('aria-hidden', 'true');
+    this.backdrop.hidden = true;
+    this.backdrop.setAttribute('aria-hidden', 'true');
   }
 
   appendSection(section: HTMLElement): void {
@@ -45,29 +51,22 @@ export class SettingsUI {
     target?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
 
+  private createBackdrop(): HTMLElement {
+    const backdrop = document.createElement('div');
+    backdrop.id = 'settings-backdrop';
+    backdrop.className = 'settings-backdrop';
+    backdrop.hidden = true;
+    backdrop.setAttribute('aria-hidden', 'true');
+    backdrop.addEventListener('click', () => this.close());
+    return backdrop;
+  }
+
   private createPanel(): HTMLElement {
     const panel = document.createElement('section');
     panel.id = 'settings-modal';
     panel.className = 'settings-modal';
     panel.hidden = true;
-
-    // Keep the settings overlay independent from the page/game layout.
-    // This is intentionally enforced on the element so stale/partial CSS bundles
-    // cannot place the modal in normal document flow below the game.
-    Object.assign(panel.style, {
-      position: 'fixed',
-      inset: '0',
-      width: '100vw',
-      height: '100vh',
-      minWidth: '0',
-      minHeight: '0',
-      margin: '0',
-      padding: '16px',
-      boxSizing: 'border-box',
-      zIndex: '9999',
-      overflow: 'hidden',
-      transform: 'none',
-    });
+    panel.setAttribute('aria-hidden', 'true');
     panel.innerHTML = `
       <div class="settings-card" role="dialog" aria-modal="true" aria-labelledby="settings-title">
         <header class="settings-header">
