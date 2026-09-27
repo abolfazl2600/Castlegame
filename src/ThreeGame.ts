@@ -464,7 +464,6 @@ export class ThreeGame {
         towerBridges: () => Array.from(this.towerBridges.values()).map((bridge) => ({ ...bridge })),
         setWallBattleVisibility: (x, y, visible) => this.setBattleWallVisibility(x, y, visible),
         buildingDamageAt: (x, y) => this.services.state.getCell(x, y)?.damage ?? 0,
-        setBuildingDamage: (x, y, damageRatio) => this.setBuildingDamage(x, y, damageRatio),
         gatePassable: (x, y) => this.services.gateSystem.isGatePassable(x, y),
         wallWeaponVisuals: () => this.getWallWeaponVisuals(),
       },
@@ -2397,15 +2396,6 @@ export class ThreeGame {
 
   private kindAt(x: number, y: number): TileKind | undefined {
     return this.services.state.getCell(x, y)?.kind;
-  }
-
-  private setBuildingDamage(x: number, y: number, damageRatio: number): void {
-    const cell = this.services.state.getCell(x, y);
-    if (!cell || !this.services.destructibleBuildingSystem.isDestructible(cell.kind)) return;
-
-    const nextDamage = this.services.destructibleBuildingSystem.setDamageRatio(damageRatio);
-    if (Math.abs((cell.damage ?? 0) - nextDamage) < 0.0001) return;
-    this.services.state.updateCell(x, y, { damage: nextDamage });
   }
 
   private isWallFamily(kind: TileKind | undefined): boolean {
@@ -9663,10 +9653,6 @@ export class ThreeGame {
   }
 
   private updateBattleUI(status: BattleStatus): void {
-    if (status.mode === 'finished') {
-      this.redraw();
-      this.save(false);
-    }
     const panel = document.getElementById('battle-panel');
     const mode = document.getElementById('battle-mode-status');
     const attackerAlive = document.getElementById('battle-attacker-alive');

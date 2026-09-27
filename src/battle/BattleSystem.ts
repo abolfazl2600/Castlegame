@@ -32,7 +32,6 @@ export interface BattleWorldContext {
   towerBridges: () => TowerBridgeState[];
   setWallBattleVisibility: (x: number, y: number, visible: boolean) => void;
   buildingDamageAt?: (x: number, y: number) => number;
-  setBuildingDamage?: (x: number, y: number, damageRatio: number) => void;
   gatePassable?: (x: number, y: number) => boolean;
   generatedAccess?: () => Array<{ x: number; y: number; kind: TileKind; rotation: number; targetX: number; targetY: number }>;
   wallWeaponVisuals?: () => THREE.Object3D[];
@@ -90,6 +89,8 @@ interface WallBattleState {
   cell: GridCell;
   maxHealth: number;
   health: number;
+  initialPersistentDamage: number;
+  battleDamage: number;
   stage: WallDamageStage;
   visual: THREE.Group;
 }
@@ -158,6 +159,11 @@ export interface BattleStartOptions {
   readonly attackerSpawnInterval?: number;
   readonly attackerSpawnBatchSize?: number;
   readonly scenario?: BattleScenario;
+  /**
+   * Keeps battle-only wall damage across consecutive BattleSystem.start() calls.
+   * Intended for multi-wave sessions such as Survival; never writes to GameState.
+   */
+  readonly preserveSessionWallDamage?: boolean;
 }
 
 export function getUnitCombatStats(unitType: UnitType): BattleUnitStats | undefined {
@@ -360,6 +366,8 @@ export class BattleSystem {
   private globalDecisionTimer = 0;
   private finalResult: BattleResult | undefined;
   private readonly wallStates = new Map<string, WallBattleState>();
+  private readonly sessionWallDamage = new Map<string, number>();
+  private preserveSessionWallDamage = false;
   private readonly wallNodes = new Map<string, WallNavNode>();
   private readonly breachedWalls = new Set<string>();
   private readonly ladders = new Map<string, SiegeLadder>();
@@ -410,9 +418,8 @@ export class BattleSystem {
   }
 
   start(setup: BattleSetup, options: BattleStartOptions = {}): void {
-    this.reset(false);
-    this.navigation.invalidate();
-    this.clearSiegeState();
+    const preserveSessionWallDamage = options.preserveSessionWallDamage === true;
+    this.resetRuntime(false, preserveSessionWallDamage);
     this.mode = 'running';
     this.battleSpeed = DEFAULT_BATTLE_SPEED;
     this.captureSeconds = 0;
@@ -498,6 +505,10 @@ export class BattleSystem {
   }
 
   reset(emit = true): void {
+    this.resetRuntime(emit, false);
+  }
+
+  private resetRuntime(emit: boolean, preserveSessionWallDamage: boolean): void {
     for (const runtime of this.units.values()) {
       this.layer.remove(runtime.view);
     }
@@ -532,6 +543,9 @@ export class BattleSystem {
     this.attackerSpawnInterval = 0;
     this.attackerSpawnTimer = 0;
     this.attackerSpawnBatchSize = 1;
+
+    if (!preserveSessionWallDamage) this.sessionWallDamage.clear();
+    this.preserveSessionWallDamage = preserveSessionWallDamage;
 
     if (emit) this.emitStatus();
   }
@@ -1949,20 +1963,37 @@ export class BattleSystem {
         visual.position.set(world.x, this.world.elevationAt(x, y), world.z);
         this.layer.add(visual);
 
-        const persistedDamage = THREE.MathUtils.clamp(this.world.buildingDamageAt?.(x, y) ?? 0, 0, 1);
-        const health = Math.max(0, maxHealth * (1 - persistedDamage));
+        const initialPersistentDamage = THREE.MathUtils.clamp(
+          this.world.buildingDamageAt?.(x, y) ?? 0,
+          0,
+          1,
+        );
+        const key = this.gridKey(x, y);
+        const battleDamage = this.preserveSessionWallDamage
+          ? THREE.MathUtils.clamp(
+              this.sessionWallDamage.get(key) ?? 0,
+              0,
+              1 - initialPersistentDamage,
+            )
+          : 0;
+        const health = Math.max(
+          0,
+          maxHealth * (1 - initialPersistentDamage - battleDamage),
+        );
         const stage: WallDamageStage =
           health <= 0 ? 'breached' :
           health / maxHealth <= 0.14 ? 'partial' :
           health / maxHealth <= 0.38 ? 'heavy' :
           health / maxHealth <= 0.7 ? 'damaged' : 'healthy';
 
-        this.wallStates.set(this.gridKey(x, y), {
+        this.wallStates.set(key, {
           x,
           y,
           cell,
           maxHealth,
           health,
+          initialPersistentDamage,
+          battleDamage,
           stage,
           visual,
         });
@@ -1978,6 +2009,10 @@ export class BattleSystem {
     for (const node of this.navigation.wallPlatformNodes()) {
       this.wallNodes.set(this.gridKey(node.x, node.y), node);
     }
+    for (const key of this.breachedWalls) {
+      this.wallNodes.delete(key);
+    }
+    if (this.breachedWalls.size > 0) this.navigation.invalidate();
   }
 
   private wallMaxHealth(cell: GridCell): number {
@@ -2978,11 +3013,18 @@ export class BattleSystem {
       this.renderWallDamage(wall);
     }
 
-    this.world.setBuildingDamage?.(
-      wall.x,
-      wall.y,
-      1 - wall.health / wall.maxHealth,
+    wall.battleDamage = THREE.MathUtils.clamp(
+      1 - wall.initialPersistentDamage - wall.health / wall.maxHealth,
+      0,
+      1 - wall.initialPersistentDamage,
     );
+    if (this.preserveSessionWallDamage) {
+      if (wall.battleDamage > 0) {
+        this.sessionWallDamage.set(this.gridKey(wall.x, wall.y), wall.battleDamage);
+      } else {
+        this.sessionWallDamage.delete(this.gridKey(wall.x, wall.y));
+      }
+    }
 
     if (nextStage !== 'breached') return;
 
@@ -3497,8 +3539,8 @@ export class BattleSystem {
       const key = this.gridKey(weapon.x, weapon.y);
       const nextTimer = Math.max(0, (this.wallWeaponTimers.get(key) ?? 0) - delta);
       this.wallWeaponTimers.set(key, nextTimer);
-      const damage = this.world.buildingDamageAt?.(weapon.x, weapon.y) ?? 0;
-      if (damage >= 0.96) continue;
+      const wallState = this.wallStates.get(key);
+      if (!wallState || wallState.stage === 'breached') continue;
 
       const cell = this.world.cellAt(weapon.x, weapon.y);
       if (!cell) continue;

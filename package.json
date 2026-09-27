@@ -5,8 +5,9 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc --noEmit && vite build",
-    "preview": "vite preview"
+    "build": "npm run test:battle-state-boundary && tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "test:battle-state-boundary": "node scripts/test-battle-state-boundary.mjs"
   },
   "dependencies": {
     "three": "^0.180.0"
