@@ -90,6 +90,28 @@ const ARMY_CAMP_LEVELS = [
 ] as const;
 const ARMY_CAMP_MAX_LEVEL = ARMY_CAMP_LEVELS.length;
 
+type AgricultureUpgradeKind = 'farm' | 'cowBarn';
+interface AgricultureUpgradeLevel {
+  level: 1 | 2 | 3 | 4;
+  name: string;
+  description: string;
+}
+const AGRICULTURE_UPGRADE_LEVELS: Record<AgricultureUpgradeKind, readonly AgricultureUpgradeLevel[]> = {
+  farm: [
+    { level: 1, name: 'Smallholding', description: 'A working crop field with a compact shed, irrigation ditch, tools, and basic storage.' },
+    { level: 2, name: 'Irrigated Farm', description: 'Improved irrigation, extra field infrastructure, and covered working space increase the farmstead scale.' },
+    { level: 3, name: 'Prosperous Farmstead', description: 'A larger granary, expanded storage, and stronger field organization mark a mature farm.' },
+    { level: 4, name: 'Manorial Farm', description: 'Stone-backed storage, upgraded granary buildings, and a formal farm entrance create an elite estate farm.' },
+  ],
+  cowBarn: [
+    { level: 1, name: 'Cattle Shed', description: 'A modest cattle barn with a fenced yard, trough, hay, and a small herd.' },
+    { level: 2, name: 'Reinforced Barn', description: 'A larger timber barn, improved feeding area, and expanded hay storage support more livestock.' },
+    { level: 3, name: 'Expanded Stockyard', description: 'A substantial barn complex with stone foundations, covered pens, and a larger herd.' },
+    { level: 4, name: 'Royal Stockyard', description: 'A prestigious fortified stockyard with a grand barn, silo, formal gate, and premium livestock facilities.' },
+  ],
+};
+const AGRICULTURE_MAX_LEVEL = 4;
+
 const BUILDING_KINDS: TileKind[] = [
   'wall1',
   'wall2',
@@ -244,8 +266,8 @@ const TOOL_GROUPS: Array<{ label: string; tools: ToolDefinition[] }> = [
   {
     label: 'Agriculture',
     tools: [
-      { id: 'farm', icon: '🌾', label: 'Farm', detail: 'Cultivated crop field', shortcut: 'F' },
-      { id: 'cowBarn', icon: '🐄', label: 'Cow Barn', detail: 'Medieval cattle barn · fenced livestock yard', shortcut: '-' },
+      { id: 'farm', icon: '🌾', label: 'Farm', detail: 'Upgradeable crop farm · 4 visual levels', shortcut: 'F' },
+      { id: 'cowBarn', icon: '🐄', label: 'Cow Barn', detail: 'Upgradeable cattle farm · 4 visual levels', shortcut: '-' },
       { id: 'appleOrchard', icon: '🍎', label: 'Apple Orchard', detail: 'Procedural apple trees · orchard plot', shortcut: 'Y' },
       { id: 'windmill', icon: '⚙️', label: 'Medieval Windmill', detail: 'Four-sail working mill · continuous rotation', shortcut: 'W' },
     ],
@@ -3057,7 +3079,8 @@ export class ThreeGame {
     } else if (cell.kind === 'gate') this.makeGate(group, cell.x, cell.y, cell);
     else if (cell.kind === 'tower') this.makeTower(group, cell.x, cell.y, cell);
 
-    else if (cell.kind === 'farm') this.makeFarm(group);
+    else if (cell.kind === 'farm') this.makeFarm(group, Math.max(1, Math.min(AGRICULTURE_MAX_LEVEL, cell.level ?? 1)));
+    else if (cell.kind === 'cowBarn') this.makeCowBarn(group, Math.max(1, Math.min(AGRICULTURE_MAX_LEVEL, cell.level ?? 1)), cell.x, cell.y);
     else if (cell.kind === 'appleOrchard') this.services.orchardSystem.create(group, cell.level ?? 1, cell.x * 97 + cell.y * 53);
     else if (cell.kind === 'armyCamp') this.makeArmyCamp(group, Math.max(1, Math.min(ARMY_CAMP_MAX_LEVEL, cell.level ?? 1)));
     else if (cell.kind === 'market') this.makeMarketBuilding(group, cell.x, cell.y);
@@ -3073,7 +3096,7 @@ export class ThreeGame {
     else if (['stoneStairs', 'woodenStairs', 'ramp', 'ladder'].includes(cell.kind)) {
       this.makeAccess(group, cell.kind as AccessKind, cell.x, cell.y, cell);
     } else if (cell.kind === 'cottage' || cell.kind === 'house' ||
-      cell.kind === 'manor' || cell.kind === 'villa' || cell.kind === 'cowBarn') {
+      cell.kind === 'manor' || cell.kind === 'villa') {
       this.makeHouse(group, cell.kind, cell.x, cell.y);
     }
 
@@ -8927,6 +8950,9 @@ export class ThreeGame {
     if (kind === 'mountain2') return { kind: 'mountain', level: 2 };
     if (kind === 'mountain3') return { kind: 'mountain', level: 3 };
     if (kind === 'armyCamp') return { kind: 'armyCamp', level: Math.max(1, Math.min(ARMY_CAMP_MAX_LEVEL, level)) };
+    if (kind === 'farm' || kind === 'cowBarn') {
+      return { kind, level: Math.max(1, Math.min(AGRICULTURE_MAX_LEVEL, level)) };
+    }
     if (!BUILDING_KINDS.includes(kind as TileKind)) return null;
     return { kind: kind as TileKind, level: Math.max(1, level) };
   }
