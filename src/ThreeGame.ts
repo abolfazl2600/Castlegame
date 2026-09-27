@@ -82,6 +82,14 @@ const PLAYABLE_LAYOUT_TEMPLATES: Readonly<Record<string, { layoutId: MapLayoutId
   'split-isles': { layoutId: 'twin-isles', seed: 5503 },
   'carcassonne': { layoutId: 'mainland', seed: 5601 },
 };
+const ARMY_CAMP_LEVELS = [
+  { level: 1, name: 'Field Camp', description: 'A basic tent camp with a fire, supplies, and a small weapon rack.' },
+  { level: 2, name: 'Reinforced Camp', description: 'Larger tents, siege stores, reinforced equipment racks, and stronger field organization.' },
+  { level: 3, name: 'Command Camp', description: 'A dedicated command pavilion with map tables, twin standards, and expanded armory support.' },
+  { level: 4, name: 'Royal War Camp', description: 'A fortified semi-permanent base with a command hall, guard posts, medical support, and logistics.' },
+] as const;
+const ARMY_CAMP_MAX_LEVEL = ARMY_CAMP_LEVELS.length;
+
 const BUILDING_KINDS: TileKind[] = [
   'wall1',
   'wall2',
@@ -276,7 +284,7 @@ const TOOL_GROUPS: Array<{ label: string; tools: ToolDefinition[] }> = [
   {
     label: 'Military',
     tools: [
-      { id: 'armyCamp', icon: '⛺', label: 'Army Camp', detail: 'Large command tent · defender rally point', shortcut: 'A' },
+      { id: 'armyCamp', icon: '⛺', label: 'Army Camp', detail: 'Upgradeable military base · 4 visual levels', shortcut: 'A' },
     ],
   },
   {
@@ -1167,6 +1175,7 @@ export class ThreeGame {
     }
 
     this.filterBuildTools();
+    this.syncArmyCampUpgradeUI();
     for (const extension of this.extensions) extension.onBuildPanelRefreshed?.();
   }
 
@@ -1935,6 +1944,7 @@ export class ThreeGame {
     this.renderMinimap();
     this.reconcileSettlementAgents(cells);
     this.updatePopulationUI();
+    this.syncArmyCampUpgradeUI();
 
     this.animatedFlags = [];
     this.buildLayer.traverse((object) => {
@@ -3044,7 +3054,7 @@ export class ThreeGame {
 
     else if (cell.kind === 'farm') this.makeFarm(group);
     else if (cell.kind === 'appleOrchard') this.services.orchardSystem.create(group, cell.level ?? 1, cell.x * 97 + cell.y * 53);
-    else if (cell.kind === 'armyCamp') this.makeArmyCamp(group, Math.max(1, Math.min(5, cell.level ?? 1)));
+    else if (cell.kind === 'armyCamp') this.makeArmyCamp(group, Math.max(1, Math.min(ARMY_CAMP_MAX_LEVEL, cell.level ?? 1)));
     else if (cell.kind === 'market') this.makeMarketBuilding(group, cell.x, cell.y);
     else if (cell.kind === 'basilica') group.add(this.basilicaRenderer.render(this.stoneStyle, cell.x, cell.y));
     else if (cell.kind === 'futuristicCastle') group.add(this.futuristicCastleRenderer.render(cell.x * 97 + cell.y * 53));
@@ -6207,12 +6217,11 @@ export class ThreeGame {
     return group;
   }
 
-  private makeArmyCamp(group: THREE.Group, variantLevel = 1): THREE.Group {
-    type CampVariant = 'standard' | 'siege' | 'command' | 'logistics' | 'medical';
+  private makeArmyCamp(group: THREE.Group, level = 1): THREE.Group {
+    type CampVariant = 'field' | 'reinforced' | 'command' | 'fortified';
 
-    const variant = (['standard', 'siege', 'command', 'logistics', 'medical'] as CampVariant[])[
-      Math.max(0, Math.min(4, Math.floor(variantLevel) - 1))
-    ];
+    const normalizedLevel = Math.max(1, Math.min(ARMY_CAMP_MAX_LEVEL, Math.floor(level)));
+    const variant = (['field', 'reinforced', 'command', 'fortified'] as CampVariant[])[normalizedLevel - 1];
 
     const canvas = this.environmentMaterial('army-canvas', 0x9b7653, 0.96);
     const canvasDark = this.environmentMaterial('army-canvas-dark', 0x6f5039, 1);
@@ -6226,6 +6235,8 @@ export class ThreeGame {
     const medical = this.environmentMaterial('army-medical-canvas', 0xd6d0bd, 0.92);
     const medicalRed = this.environmentMaterial('army-medical-mark', 0x9b3f3f, 0.9);
     const darkWood = this.environmentMaterial('army-camp-dark-wood', 0x493426, 1);
+    const fortifiedStone = this.environmentMaterial('army-camp-fortified-stone', 0x8d927f, 1);
+    const royalCloth = this.environmentMaterial('army-camp-royal-cloth', 0x7043a5, 0.92);
 
     const addBox = (w: number, h: number, d: number, material: THREE.Material, x: number, y: number, z: number): THREE.Mesh =>
       this.addBox(group, w, h, d, material, x, y, z);
@@ -6320,16 +6331,16 @@ export class ThreeGame {
     };
 
     addBox(
-      variant === 'siege' ? 5.8 : variant === 'logistics' ? 6.2 : variant === 'medical' ? 5.6 : 5.0,
+      variant === 'reinforced' ? 5.8 : variant === 'command' ? 6.0 : variant === 'fortified' ? 6.4 : 5.0,
       0.06,
-      variant === 'siege' ? 5.8 : variant === 'logistics' ? 5.6 : variant === 'medical' ? 5.4 : 5.0,
+      variant === 'reinforced' ? 5.8 : variant === 'command' ? 5.8 : variant === 'fortified' ? 6.2 : 5.0,
       ground,
       0,
       2.22,
       0,
     );
 
-    if (variant === 'standard') {
+    if (variant === 'field') {
       addTent(0, -0.55, 1.15);
       addTent(-1.25, 1.2, 0.58, canvasLight, canvas);
       addTent(1.3, 1.15, 0.58, canvasLight, canvas);
@@ -6338,7 +6349,7 @@ export class ThreeGame {
       addWeaponRack(1.25, 0.25);
       addFire(0.7, 1.05);
       addBanner(1.72, -0.92);
-    } else if (variant === 'siege') {
+    } else if (variant === 'reinforced') {
       addTent(0, -0.9, 1.45, canvas, darkWood);
       addTent(-2.0, 1.05, 0.75, canvasLight, canvasDark);
       addTent(2.0, 1.05, 0.75, canvasLight, canvasDark);
@@ -6381,40 +6392,52 @@ export class ThreeGame {
       addWeaponRack(1.55, 1.35, 0.8);
       addFire(0, 1.35, 0.7);
       addBanner(0, 1.72, 1.15, canvasDark);
-    } else if (variant === 'logistics') {
-      addTent(-1.75, -0.9, 0.92);
-      addTent(1.75, -0.9, 0.92);
-      addTent(0, 1.35, 0.78, canvasLight, canvas);
-      addWagon(-1.25, 0.55, 0.9);
-      addWagon(1.25, 0.55, 0.9);
-      addCrate(-2.0, 1.55, 1.2);
-      addCrate(2.0, 1.55, 1.2);
-      addCrate(0, 0.1, 1.35);
-      addFire(0, -0.05, 0.7);
-      addBanner(0, -1.75, 1.0);
-      // Covered storage rack.
-      addBox(2.35, 0.1, 0.1, wood, 0, 3.08, 1.95);
-      addBox(0.1, 0.95, 0.1, wood, -1.05, 2.62, 1.95);
-      addBox(0.1, 0.95, 0.1, wood, 1.05, 2.62, 1.95);
     } else {
-      addMedicalTent(-1.65, -0.85, 1.0);
-      addMedicalTent(1.65, -0.85, 1.0);
-      addTent(0, 1.28, 0.78, canvasLight, canvas);
-      addBox(1.5, 0.16, 0.62, darkWood, 0, 2.55, 0.95);
-      addBox(0.12, 0.7, 0.12, wood, -0.58, 2.84, 0.95);
-      addBox(0.12, 0.7, 0.12, wood, 0.58, 2.84, 0.95);
-      addCrate(-2.0, 1.35);
-      addCrate(2.0, 1.35);
-      addFire(0, -0.05, 0.65);
-      addBanner(0, -1.72, 0.9, medicalRed);
-      // Rest benches.
-      addBox(1.45, 0.12, 0.28, wood, -1.8, 2.47, 1.55);
-      addBox(1.45, 0.12, 0.28, wood, 1.8, 2.47, 1.55);
+      // Level 4 becomes a visibly more permanent military base instead of
+      // another lateral tent variant: stone foundation, timber command hall,
+      // guard posts, logistics, medical support, and a royal standard.
+      addBox(3.15, 0.34, 2.35, fortifiedStone, 0, 2.42, -0.62);
+      addBox(2.82, 1.45, 2.08, darkWood, 0, 3.25, -0.62);
+      const commandRoof = new THREE.Mesh(new THREE.ConeGeometry(2.05, 1.18, 4), royalCloth);
+      commandRoof.rotation.y = Math.PI / 4;
+      commandRoof.scale.z = 0.72;
+      commandRoof.position.set(0, 4.62, -0.62);
+      commandRoof.castShadow = true;
+      commandRoof.receiveShadow = true;
+      group.add(commandRoof);
+
+      for (const x of [-2.55, 2.55]) {
+        addBox(0.62, 0.28, 0.62, fortifiedStone, x, 2.38, -1.9);
+        addBox(0.48, 1.55, 0.48, darkWood, x, 3.18, -1.9);
+        const postRoof = new THREE.Mesh(new THREE.ConeGeometry(0.58, 0.72, 4), canvasDark);
+        postRoof.rotation.y = Math.PI / 4;
+        postRoof.position.set(x, 4.28, -1.9);
+        postRoof.castShadow = true;
+        group.add(postRoof);
+      }
+
+      addMedicalTent(-2.05, 1.35, 0.72);
+      addTent(2.05, 1.35, 0.72, canvasLight, canvasDark);
+      addWagon(2.0, 0.1, 0.82);
+      addCrate(-1.55, 0.0, 1.1);
+      addCrate(1.25, 0.15, 1.0);
+      addWeaponRack(-1.75, -0.2, 1.0);
+      addWeaponRack(1.72, -0.2, 1.0);
+      addFire(0, 1.35, 0.72);
+      addBanner(0, -2.25, 1.35, royalCloth);
+      addBanner(-2.65, 1.95, 0.82, medicalRed);
+
+      // Low palisade segments make the final silhouette read as fortified.
+      for (const x of [-2.7, -1.8, -0.9, 0.9, 1.8, 2.7]) {
+        addBox(0.11, 1.05, 0.11, wood, x, 2.78, 2.65);
+      }
+      addBox(2.0, 0.12, 0.12, wood, -1.85, 3.1, 2.65);
+      addBox(2.0, 0.12, 0.12, wood, 1.85, 3.1, 2.65);
     }
 
     group.userData.armyCamp = true;
     group.userData.armyCampVariant = variant;
-    group.userData.armyCampVariantLevel = Math.max(1, Math.min(5, Math.floor(variantLevel)));
+    group.userData.armyCampLevel = normalizedLevel;
     return group;
   }
 
@@ -7785,6 +7808,7 @@ export class ThreeGame {
 
     const cell = this.services.state.getCell(gx, gy);
     const current = cell?.kind;
+    this.syncArmyCampUpgradeUI();
     const terrain = this.terrainAt(gx, gy);
     const overrideKey = this.key(gx, gy);
     const keepAtPoint = this.services.keepSystem.findAtCell(gx, gy);
@@ -7794,7 +7818,7 @@ export class ThreeGame {
         this.selectKeep(keepAtPoint);
       } else {
         this.selectedKeepId = null;
-        this.setStatus(current ? `Selected: ${current}` : 'No Build Tool Selected');
+        this.setStatus(current ? `Selected: ${current}` : 'Inspect mode · click a structure');
       }
       return;
     }
@@ -8897,6 +8921,7 @@ export class ThreeGame {
     if (kind === 'mountain1') return { kind: 'mountain', level: 1 };
     if (kind === 'mountain2') return { kind: 'mountain', level: 2 };
     if (kind === 'mountain3') return { kind: 'mountain', level: 3 };
+    if (kind === 'armyCamp') return { kind: 'armyCamp', level: Math.max(1, Math.min(ARMY_CAMP_MAX_LEVEL, level)) };
     if (!BUILDING_KINDS.includes(kind as TileKind)) return null;
     return { kind: kind as TileKind, level: Math.max(1, level) };
   }
@@ -8929,6 +8954,12 @@ export class ThreeGame {
       '<div id="build-search-empty" class="build-search-empty" hidden>No tools match that search.</div>' +
       '<div class="build-tool-sections"></div>' +
       '<div class="builder-settings">' +
+      '<section id="army-camp-upgrade-card" class="army-camp-upgrade-card" aria-label="Selected Army Camp upgrade" hidden>' +
+      '<div class="army-camp-upgrade-heading"><div><span class="eyebrow">SELECTED MILITARY BUILDING</span><strong id="army-camp-upgrade-name">Army Camp · Level 1</strong></div><span id="army-camp-upgrade-badge">1 / 4</span></div>' +
+      '<div class="army-camp-level-track" aria-hidden="true"><span data-camp-level="1"></span><span data-camp-level="2"></span><span data-camp-level="3"></span><span data-camp-level="4"></span></div>' +
+      '<small id="army-camp-upgrade-description">Select an Army Camp to inspect its level.</small>' +
+      '<button id="army-camp-upgrade-button" class="army-camp-upgrade-button" type="button">Upgrade to Level 2</button>' +
+      '</section>' +
       '<section class="settings-section build-settings-section">' +
       '<button class="settings-section-header" type="button" aria-expanded="false">' +
       '<span class="settings-section-title">Tool Options</span>' +
@@ -9166,11 +9197,13 @@ export class ThreeGame {
     get<HTMLButtonElement>('move-down').onclick = () => this.moveSelected(0, 1);
     get<HTMLButtonElement>('move-right').onclick = () => this.moveSelected(1, 0);
     get<HTMLButtonElement>('rotate-selected').onclick = () => this.rotateSelected();
+    get<HTMLButtonElement>('army-camp-upgrade-button').onclick = () => this.upgradeSelectedArmyCamp();
     get<HTMLButtonElement>('undo-button').onclick = () => this.undo();
     get<HTMLButtonElement>('redo-button').onclick = () => this.redo();
     get<HTMLButtonElement>('select-clear').onclick = () => {
       this.selectedCell = null;
       this.selectedKeepId = null;
+      this.syncArmyCampUpgradeUI();
       this.setStatus('Selection cleared');
     };
 
@@ -9381,12 +9414,6 @@ export class ThreeGame {
         x: 'erase',
       };
 
-      if (event.shiftKey && key === 'a') {
-        event.preventDefault();
-        this.cycleSelectedArmyCampVariant();
-        return;
-      }
-
       const selected = shortcutMap[key];
       if (selected) this.selectTool(selected);
       if (event.key === '[') this.adjustSelectedHeight(-1);
@@ -9463,6 +9490,7 @@ export class ThreeGame {
   private selectKeep(keep: KeepState): void {
     this.selectedKeepId = keep.id;
     this.selectedCell = null;
+    this.syncArmyCampUpgradeUI();
     this.keepWidth = keep.width;
     this.keepDepth = keep.depth;
     this.keepFloors = keep.floors;
@@ -9643,28 +9671,83 @@ export class ThreeGame {
     this.setStatus(`Keep built · ${keep.width}×${keep.depth} · ${keep.floors} floors · details generated automatically`);
   }
 
-  private armyCampVariantName(level: number): string {
-    return ['Standard Army Camp', 'Siege Camp', 'Command Camp', 'Logistics / Supply Camp', 'Medical / Support Camp'][
-      Math.max(0, Math.min(4, Math.floor(level) - 1))
-    ];
+  private armyCampLevelDefinition(level: number): (typeof ARMY_CAMP_LEVELS)[number] {
+    const normalized = Math.max(1, Math.min(ARMY_CAMP_MAX_LEVEL, Math.floor(level)));
+    return ARMY_CAMP_LEVELS[normalized - 1];
   }
 
-  private cycleSelectedArmyCampVariant(): void {
+  private syncArmyCampUpgradeUI(): void {
+    const card = document.getElementById('army-camp-upgrade-card');
+    if (!card) return;
+
+    const cell = this.selectedCell
+      ? this.services.state.getCell(this.selectedCell.x, this.selectedCell.y)
+      : undefined;
+    const selectedCamp = cell?.kind === 'armyCamp' ? cell : undefined;
+    card.hidden = !selectedCamp;
+    if (!selectedCamp) return;
+
+    const level = Math.max(1, Math.min(ARMY_CAMP_MAX_LEVEL, selectedCamp.level ?? 1));
+    const definition = this.armyCampLevelDefinition(level);
+    const next = level < ARMY_CAMP_MAX_LEVEL ? this.armyCampLevelDefinition(level + 1) : undefined;
+    const name = document.getElementById('army-camp-upgrade-name');
+    const badge = document.getElementById('army-camp-upgrade-badge');
+    const description = document.getElementById('army-camp-upgrade-description');
+    const button = document.getElementById('army-camp-upgrade-button') as HTMLButtonElement | null;
+
+    if (name) name.textContent = `${definition.name} · Level ${level}`;
+    if (badge) badge.textContent = `${level} / ${ARMY_CAMP_MAX_LEVEL}`;
+    if (description) {
+      description.textContent = next
+        ? `${definition.description} Next: ${next.name}.`
+        : `${definition.description} Maximum building level reached.`;
+    }
+    card.querySelectorAll<HTMLElement>('[data-camp-level]').forEach((step) => {
+      const stepLevel = Number(step.dataset.campLevel ?? 0);
+      step.classList.toggle('is-complete', stepLevel <= level);
+      step.classList.toggle('is-current', stepLevel === level);
+    });
+    if (button) {
+      button.disabled = !next || this.battleSystem.isActive();
+      button.textContent = next ? `Upgrade to Level ${next.level} · ${next.name}` : 'Maximum Level';
+    }
+  }
+
+  private upgradeSelectedArmyCamp(): void {
+    if (this.battleSystem.isActive()) {
+      this.setStatus('Finish or reset the battle before upgrading the Army Camp');
+      return;
+    }
     if (!this.selectedCell) {
       this.setStatus('Select an Army Camp first');
       return;
     }
+
     const cell = this.services.state.getCell(this.selectedCell.x, this.selectedCell.y);
     if (!cell || cell.kind !== 'armyCamp') {
       this.setStatus('Select an Army Camp first');
+      this.syncArmyCampUpgradeUI();
       return;
     }
+
+    const currentLevel = Math.max(1, Math.min(ARMY_CAMP_MAX_LEVEL, cell.level ?? 1));
+    if (currentLevel >= ARMY_CAMP_MAX_LEVEL) {
+      this.setStatus('Army Camp is already at Level 4');
+      this.syncArmyCampUpgradeUI();
+      return;
+    }
+
+    const nextLevel = currentLevel + 1;
     this.recordHistory();
-    const nextLevel = (Math.max(1, Math.min(5, cell.level ?? 1)) % 5) + 1;
     this.services.state.setLevel(this.selectedCell.x, this.selectedCell.y, nextLevel);
+    if (nextLevel > this.militaryTier) {
+      this.militaryTier = normalizeMilitaryTier(nextLevel);
+      this.syncMilitaryUI();
+      this.syncBattleCombatStatsUI();
+    }
     this.redraw();
     this.scheduleSave();
-    this.setStatus(`Army Camp variant: ${this.armyCampVariantName(nextLevel)}`);
+    this.setStatus(`Army Camp upgraded to Level ${nextLevel} · ${this.armyCampLevelDefinition(nextLevel).name}`);
   }
 
   private adjustSelectedHeight(delta: number): void {
@@ -9679,20 +9762,19 @@ export class ThreeGame {
     }
 
     const cell = this.services.state.getCell(this.selectedCell.x, this.selectedCell.y);
-    const isCamp = cell?.kind === 'armyCamp';
-    if (!cell || (!WALL_KINDS.includes(cell.kind as WallKind) && cell.kind !== 'tower' && !isCamp)) {
-      this.setStatus('Selected tile is not a wall, tower, or army camp');
+    if (!cell || (!WALL_KINDS.includes(cell.kind as WallKind) && cell.kind !== 'tower')) {
+      this.setStatus(cell?.kind === 'armyCamp'
+        ? 'Use the Army Camp Upgrade button in Build Settings'
+        : 'Selected tile is not a wall or tower');
       return;
     }
 
     this.recordHistory();
-    const nextLevel = Math.max(1, isCamp ? Math.min(5, (cell.level ?? 1) + delta) : (cell.level ?? 1) + delta);
+    const nextLevel = Math.max(1, (cell.level ?? 1) + delta);
     this.services.state.setLevel(this.selectedCell.x, this.selectedCell.y, nextLevel);
     this.redraw();
     this.scheduleSave();
-    this.setStatus(isCamp
-      ? `Army Camp variant: ${this.armyCampVariantName(nextLevel)}`
-      : `Height level: ${nextLevel}`);
+    this.setStatus(`Height level: ${nextLevel}`);
   }
 
   private applyTemplate(template: string): void {
@@ -11409,8 +11491,8 @@ export class ThreeGame {
     if (tier) tier.textContent = `Tier ${this.militaryTier}`;
     if (name) name.textContent = current.name;
     if (tech) tech.textContent = `${current.technology}. Defenders +${Math.round((current.unitHealthMultiplier - 1) * 100)}% health, +${Math.round((current.unitDefenseMultiplier - 1) * 100)}% defense, +${Math.round((current.unitDamageMultiplier - 1) * 100)}% damage, +${Math.round((current.unitMoveSpeedMultiplier - 1) * 100)}% movement; walls +${Math.round((current.wallHealthMultiplier - 1) * 100)}% health; wall weapons +${Math.round((current.weaponDamageMultiplier - 1) * 100)}% damage and +${Math.round((current.weaponRangeMultiplier - 1) * 100)}% range.`;
-    if (nextText) nextText.textContent = next ? `Next: Tier ${next.tier} · ${next.name} · ${next.technology}` : 'Maximum tier reached';
-    if (button) { button.disabled = !next || this.battleSystem.isActive(); button.textContent = next ? `Unlock Tier ${next.tier}` : 'Fully upgraded'; }
+    if (nextText) nextText.textContent = next ? `Next: upgrade an Army Camp to Level ${next.tier} in the Build panel · ${next.name}` : 'Maximum tier reached';
+    if (button) { button.hidden = true; button.disabled = true; }
     this.syncMilitaryMissileUI();
   }
 

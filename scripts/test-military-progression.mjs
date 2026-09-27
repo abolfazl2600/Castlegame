@@ -3,11 +3,10 @@ import { readFile } from 'node:fs/promises';
 
 const source = await readFile(new URL('../src/battle/MilitaryProgression.ts', import.meta.url), 'utf8');
 
-assert.match(source, /export type MilitaryTier = 1 \\| 2 \\| 3 \\| 4/);
-assert.match(source, /name: 'Militia Garrison'/);
-assert.match(source, /name: 'Professional Guard'/);
-assert.match(source, /name: 'Royal Army'/);
-assert.match(source, /name: 'Elite War Command'/);
+assert.ok(source.includes('export type MilitaryTier = 1 | 2 | 3 | 4'));
+for (const name of ['Field Camp', 'Reinforced Camp', 'Command Camp', 'Royal War Camp']) {
+  assert.ok(source.includes(`name: '${name}'`), `Missing military level: ${name}`);
+}
 
 const multiplierNames = [
   'unitHealthMultiplier',
@@ -35,9 +34,9 @@ for (let index = 1; index < cooldowns.length; index += 1) {
   assert.ok(cooldowns[index] <= cooldowns[index - 1], 'higher levels must not fire wall weapons more slowly');
 }
 
-assert.match(source, /attack: Math\\.round\\(base\\.attack \\* definition\\.unitDamageMultiplier\\)/);
-assert.match(source, /damage: Math\\.round\\(base\\.damage \\* definition\\.unitDamageMultiplier\\)/);
-assert.match(source, /moveSpeed: Number/);
-assert.match(source, /scanRange: Number/);
+assert.ok(source.includes('attack: Math.round(base.attack * definition.unitDamageMultiplier)'));
+assert.ok(source.includes('damage: Math.round(base.damage * definition.unitDamageMultiplier)'));
+assert.ok(source.includes('moveSpeed: Number'));
+assert.ok(source.includes('scanRange: Number'));
 
-console.log('Military progression has four increasingly advanced levels.');
+console.log('Military progression follows the four Army Camp building levels.');
