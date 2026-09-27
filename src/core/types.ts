@@ -59,6 +59,7 @@ export type TileKind =
   | 'appleOrchard'
   | 'armyCamp'
   | 'market'
+  | 'basilica'
   | 'windmill'
   | 'mine'
   | 'mountain'

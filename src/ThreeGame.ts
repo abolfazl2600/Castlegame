@@ -6,8 +6,10 @@ import type { GameExtension } from './core/GameExtension';
 import type { GameState } from './state/GameState';
 import { SAVE_KEY, SAVE_VERSION, TILE_SIZE, WORLD_COLS } from './core/constants';
 import { WallSystem } from './building/WallSystem';
+import { rasterizeWallPath } from './building/WallPath';
 import type { GeneratedAccess } from './building/CastleAccessSystem';
 import { KeepRenderer } from './rendering/KeepRenderer';
+import { BasilicaRenderer } from './rendering/BasilicaRenderer';
 import { MedievalMaterials } from './rendering/MedievalMaterials';
 import { CASTLE_ARCHITECTURE_STYLE } from './rendering/CastleArchitectureStyle';
 import { WORLD_STYLE, styleTone } from './rendering/WorldStyle';
@@ -78,6 +80,7 @@ const PLAYABLE_LAYOUT_TEMPLATES: Readonly<Record<string, { layoutId: MapLayoutId
   'mainland-frontier': { layoutId: 'mainland', seed: 5501 },
   'coastal-peninsula': { layoutId: 'peninsula', seed: 5502 },
   'split-isles': { layoutId: 'twin-isles', seed: 5503 },
+  'carcassonne': { layoutId: 'mainland', seed: 5601 },
 };
 const BUILDING_KINDS: TileKind[] = [
   'wall1',
@@ -101,6 +104,7 @@ const BUILDING_KINDS: TileKind[] = [
   'appleOrchard',
   'armyCamp',
   'market',
+  'basilica',
   'windmill',
   'mine',
   'mountain',
@@ -226,6 +230,7 @@ const TOOL_GROUPS: Array<{ label: string; tools: ToolDefinition[] }> = [
     label: 'Economy',
     tools: [
       { id: 'market', icon: '🏪', label: 'Market', detail: 'Large medieval marketplace · tents · stalls · shops', shortcut: '-' },
+      { id: 'basilica', icon: '⛪', label: 'Basilica', detail: 'Large stone church landmark · nave · transept · tower', shortcut: '-' },
     ],
   },
   {
@@ -312,6 +317,7 @@ export class ThreeGame {
   });
     private readonly medievalMaterials = new MedievalMaterials();
   private readonly keepRenderer = new KeepRenderer(this.services.detailGenerator, this.medievalMaterials);
+  private readonly basilicaRenderer = new BasilicaRenderer(this.medievalMaterials);
   private readonly futuristicCastleRenderer = new FuturisticCastleRenderer();
   private saveSystem!: SaveSystem;
   private readonly terrainOverrides = new Map<string, TerrainOverrideKind>();
@@ -1892,6 +1898,7 @@ export class ThreeGame {
         let tileColor = terrainColors[this.terrainAt(x, y)];
         if (kind === 'tree') tileColor = palette.foliageDark;
         else if (kind === 'farm' || kind === 'appleOrchard') tileColor = palette.soil;
+        else if (kind === 'basilica') tileColor = SETTLEMENT_STYLE.stone;
         else if (kind && ROAD_KINDS.includes(kind as RoadKind)) tileColor = kind === 'stoneRoad' ? 0xc8c9b2 : 0x8f7151;
         else if (kind === 'gate' || kind === 'tower' || WALL_KINDS.includes(kind as WallKind)) tileColor = 0xc8c9b2;
         else if (kind && kind !== 'rock' && kind !== 'mountain') tileColor = 0xc96b3e;
@@ -2089,6 +2096,7 @@ export class ThreeGame {
       farm: 0xc2ad54,
       appleOrchard: 0x9c6d3e,
       armyCamp: 0x8f6b4d,
+      basilica: 0xd8d2bd,
       mine: 0x665f59,
       mountain: 0x71675f,
       tree: 0x356c43,
@@ -2167,6 +2175,7 @@ export class ThreeGame {
         cell.kind === 'road' ? 2.0 :
         cell.kind === 'tree' || cell.kind === 'rock' ? 1.25 :
         cell.kind === 'farm' || cell.kind === 'appleOrchard' || cell.kind === 'armyCamp' ? 3.5 :
+        cell.kind === 'basilica' ? 3.4 :
         cell.kind === 'moat' ? 3.65 :
         2.7;
 
@@ -2967,6 +2976,7 @@ export class ThreeGame {
     else if (cell.kind === 'appleOrchard') this.services.orchardSystem.create(group, cell.level ?? 1, cell.x * 97 + cell.y * 53);
     else if (cell.kind === 'armyCamp') this.makeArmyCamp(group, Math.max(1, Math.min(5, cell.level ?? 1)));
     else if (cell.kind === 'market') this.makeMarketBuilding(group, cell.x, cell.y);
+    else if (cell.kind === 'basilica') group.add(this.basilicaRenderer.render(this.stoneStyle, cell.x, cell.y));
     else if (cell.kind === 'futuristicCastle') group.add(this.futuristicCastleRenderer.render(cell.x * 97 + cell.y * 53));
     else if (cell.kind === 'windmill') this.services.windmillSystem.create(group);
     else if (cell.kind === 'mine') this.makeMine(group);
@@ -9797,6 +9807,21 @@ export class ThreeGame {
       }
     };
 
+    const placeWallPath = (
+      vertices: readonly GridPoint[],
+      kind: WallKind,
+      level: number,
+      options: Partial<GridCell>,
+      closed = false,
+    ): GridPoint[] => {
+      const path = rasterizeWallPath(vertices, closed);
+      for (const point of path) {
+        if (point.x < 0 || point.y < 0 || point.x >= SIZE || point.y >= SIZE) continue;
+        place(point.x, point.y, kind, level, options);
+      }
+      return path;
+    };
+
     const addTemplateBridge = (
       a: GridPoint,
       b: GridPoint,
@@ -10735,6 +10760,135 @@ export class ThreeGame {
       placeKeepTemplate(center,center-1,2,2,2,'flatBattlement',false);
       for(let x=center-7;x<=center+7;x+=1) if(!this.services.state.getCell(x,center+3)) place(x,center+3,'dirtRoad');
       for(let y=center-5;y<=center+5;y+=1) if(!this.services.state.getCell(center,y)) place(center,y,'road');
+    } else if (template === 'carcassonne') {
+      // Present-day fortified city after the Viollet-le-Duc restoration campaign:
+      // two concentric enclosures, dense round towers, Narbonnaise/Aude gates,
+      // the western Château Comtal and Saint-Nazaire basilica on the raised cité.
+      for (let y = 0; y < SIZE; y += 1) {
+        for (let x = 0; x < SIZE; x += 1) {
+          this.services.state.removeCell(x, y);
+          this.terrainOverrides.set(this.key(x, y), 'plains');
+          const dx = (x - center) / 9.4;
+          const dy = (y - center) / 10.4;
+          const radial = Math.hypot(dx, dy);
+          const plateau = radial < 0.72
+            ? 1.75 + (0.72 - radial) * 0.55
+            : Math.max(0.08, 1.75 - (radial - 0.72) * 3.1);
+          const westApproach = x <= 4 ? Math.max(0.04, plateau * 0.38) : plateau;
+          this.setAbsoluteElevation(x, y, westApproach);
+        }
+      }
+
+      // The Aude runs below the western escarpment.
+      for (let y = 0; y < SIZE; y += 1) {
+        const riverX = 1 + Math.round((Math.sin(y * 0.34 + 0.8) + 1) * 0.5);
+        for (const x of [riverX, riverX + 1]) {
+          this.services.state.removeCell(x, y);
+          this.terrainOverrides.set(this.key(x, y), 'river');
+          this.setAbsoluteElevation(x, y, 0);
+        }
+      }
+
+      const outerRampart: GridPoint[] = [
+        { x: 6, y: 3 }, { x: 11, y: 2 }, { x: 15, y: 3 },
+        { x: 18, y: 6 }, { x: 19, y: 11 }, { x: 17, y: 15 },
+        { x: 14, y: 18 }, { x: 9, y: 19 }, { x: 5, y: 17 },
+        { x: 3, y: 14 }, { x: 3, y: 9 }, { x: 4, y: 6 },
+      ];
+      const innerRampart: GridPoint[] = [
+        { x: 8, y: 5 }, { x: 11, y: 4 }, { x: 14, y: 5 },
+        { x: 16, y: 7 }, { x: 17, y: 11 }, { x: 15, y: 14 },
+        { x: 13, y: 16 }, { x: 9, y: 16 }, { x: 6, y: 14 },
+        { x: 5, y: 11 }, { x: 5, y: 8 }, { x: 7, y: 6 },
+      ];
+
+      placeWallPath(outerRampart, 'wall1', 2, {
+        battlement: true,
+        walkway: true,
+        thickness: 'medium',
+      }, true);
+      placeWallPath(innerRampart, 'wall1', 3, {
+        battlement: true,
+        walkway: true,
+        thickness: 'thick',
+      }, true);
+
+      const outerTowers: GridPoint[] = [
+        { x: 6, y: 3 }, { x: 11, y: 2 }, { x: 15, y: 3 },
+        { x: 18, y: 6 }, { x: 19, y: 11 }, { x: 17, y: 15 },
+        { x: 14, y: 18 }, { x: 9, y: 19 }, { x: 5, y: 17 },
+        { x: 3, y: 14 }, { x: 3, y: 9 }, { x: 4, y: 6 },
+      ];
+      const innerTowers: GridPoint[] = [
+        { x: 8, y: 5 }, { x: 11, y: 4 }, { x: 14, y: 5 },
+        { x: 16, y: 7 }, { x: 17, y: 11 }, { x: 15, y: 14 },
+        { x: 13, y: 16 }, { x: 9, y: 16 }, { x: 6, y: 14 },
+        { x: 5, y: 11 }, { x: 5, y: 8 }, { x: 7, y: 6 },
+      ];
+      for (const [index, point] of outerTowers.entries()) {
+        place(point.x, point.y, 'tower', 2 + (index % 4 === 0 ? 1 : 0), {
+          towerShape: 'round',
+          towerTop: index % 5 === 0 ? 'openBattlement' : 'conical',
+        });
+      }
+      for (const [index, point] of innerTowers.entries()) {
+        place(point.x, point.y, 'tower', 3 + (index % 5 === 0 ? 1 : 0), {
+          towerShape: index === 1 ? 'square' : 'round',
+          towerTop: index === 1 ? 'hipped' : 'conical',
+        });
+      }
+
+      // Porte Narbonnaise: twin-tower eastern entrance through both enclosures.
+      place(19, 9, 'gate', 2);
+      place(17, 9, 'gate', 3);
+      place(18, 8, 'tower', 4, { towerShape: 'round', towerTop: 'conical' });
+      place(18, 10, 'tower', 4, { towerShape: 'round', towerTop: 'conical' });
+
+      // Porte d'Aude descends toward the river on the western/south-west side.
+      place(3, 13, 'gate', 2);
+      place(6, 13, 'gate', 3);
+      place(4, 12, 'tower', 3, { towerShape: 'round', towerTop: 'conical' });
+      place(5, 15, 'tower', 3, { towerShape: 'round', towerTop: 'conical' });
+
+      // Château Comtal occupies the western sector of the inner enclosure.
+      placeKeepTemplate(8, 10, 3, 3, 4, 'towered', true, 0, true);
+
+      // Saint-Nazaire uses a dedicated landmark renderer, not a generic house.
+      place(13, 12, 'basilica', 2, { rotation: 1 });
+
+      const cityBuildings: Array<[number, number, TileKind, number]> = [
+        [10, 7, 'manor', 1], [12, 7, 'house', 1], [14, 8, 'cottage', 1],
+        [11, 10, 'market', 1], [14, 10, 'house', 1], [10, 13, 'villa', 1],
+        [11, 14, 'house', 1], [14, 14, 'cottage', 1], [8, 14, 'cottage', 1],
+      ];
+      for (const [x, y, kind, level] of cityBuildings) {
+        if (!this.services.state.getCell(x, y) && !this.services.keepSystem.findAtCell(x, y)) {
+          place(x, y, kind, level);
+        }
+      }
+
+      const roadPaths: GridPoint[][] = [
+        [{ x: 19, y: 9 }, { x: 15, y: 9 }, { x: 11, y: 10 }, { x: 8, y: 10 }],
+        [{ x: 12, y: 5 }, { x: 12, y: 10 }, { x: 13, y: 12 }, { x: 13, y: 15 }],
+        [{ x: 3, y: 13 }, { x: 6, y: 13 }, { x: 9, y: 12 }, { x: 11, y: 10 }],
+      ];
+      for (const route of roadPaths) {
+        for (const point of rasterizeWallPath(route)) {
+          if (!this.services.state.getCell(point.x, point.y) && !this.services.keepSystem.findAtCell(point.x, point.y)) {
+            place(point.x, point.y, 'stoneRoad');
+          }
+        }
+      }
+
+      // Sparse approach vegetation keeps the fortified hill silhouette readable.
+      for (const point of [
+        { x: 5, y: 4 }, { x: 17, y: 4 }, { x: 20, y: 15 },
+        { x: 7, y: 20 }, { x: 16, y: 19 }, { x: 4, y: 18 },
+      ]) {
+        if (!this.services.state.getCell(point.x, point.y) && this.terrainAt(point.x, point.y) !== 'river') {
+          place(point.x, point.y, 'tree', 2);
+        }
+      }
     } else if (template === 'island-monastery') {
       prepareArea(center-8,center-8,center+8,center+8,0.32);
 
