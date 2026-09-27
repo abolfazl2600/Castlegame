@@ -1,7 +1,8 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { createGameDomainServices } from './core/GameDomainServices';
-import { SaveSystem } from './core/SaveSystem';
+import { SaveSystem, type SaveStorage } from './core/SaveSystem';
+import type { GameExtension } from './core/GameExtension';
 import type { GameState } from './state/GameState';
 import { SAVE_KEY, SAVE_VERSION, TILE_SIZE, WORLD_COLS } from './core/constants';
 import { WallSystem } from './building/WallSystem';
@@ -252,6 +253,17 @@ const TOOL_GROUPS: Array<{ label: string; tools: ToolDefinition[] }> = [
 ];
 
 export class ThreeGame {
+  private readonly extensions = new Set<GameExtension>();
+
+  registerExtension(extension: GameExtension): () => void {
+    this.extensions.add(extension);
+    extension.onBuildPanelRefreshed?.();
+    this.redraw();
+    return () => {
+      this.extensions.delete(extension);
+      this.redraw();
+    };
+  }
   private readonly root: HTMLElement;
   private readonly scene = new THREE.Scene();
   private readonly camera = new THREE.PerspectiveCamera(48, 1, 0.1, 700);
@@ -367,8 +379,8 @@ export class ThreeGame {
   private lastFrameTime = 0;
   private cameraTransitionFrame: number | null = null;
 
-  constructor(root: HTMLElement, settingsStore: SettingsStore) {
-    const hadSave = localStorage.getItem(SAVE_KEY) !== null;
+  constructor(root: HTMLElement, settingsStore: SettingsStore, storage: SaveStorage = localStorage) {
+    const hadSave = storage.getItem(SAVE_KEY) !== null;
     this.root = root;
     this.settingsStore = settingsStore;
     this.audioManager = new AudioManager();
@@ -391,7 +403,7 @@ export class ThreeGame {
       prepareForLoad: () => this.clearSettlementAgents(),
       afterLoad: () => this.normalizeRiverElevations(),
       setStatus: (message) => this.setStatus(message),
-    });
+    }, storage);
     this.riverTexture = this.createRiverTexture();
     this.oceanTexture = this.createOceanTexture();
     this.riverWaterMaterial = new THREE.MeshStandardMaterial({
@@ -663,6 +675,7 @@ export class ThreeGame {
 
     noneButton?.classList.toggle('is-selected', this.selectedTool === null);
     noneButton?.setAttribute('aria-pressed', String(this.selectedTool === null));
+    for (const extension of this.extensions) extension.onBuildPanelRefreshed?.();
   }
 
   private registerBuiltInGameModes(): void {
@@ -2430,6 +2443,10 @@ export class ThreeGame {
   }
 
   private makeBuilding(cell: ReturnType<GameState['entries']>[number], floodedMoats: Set<string>): THREE.Group {
+    for (const extension of this.extensions) {
+      const building = extension.createBuilding?.(cell);
+      if (building) return building;
+    }
     const group = new THREE.Group();
     const position = this.gridToWorld(cell.x, cell.y);
     group.position.set(position.x, this.terrainElevation(cell.x, cell.y), position.z);
@@ -7679,6 +7696,7 @@ export class ThreeGame {
 
     group.scale.setScalar(0.92);
     group.userData.settlementRole = role;
+    for (const extension of this.extensions) extension.decoratePerson?.(group, role, seed);
     return group;
   }
 
@@ -10206,6 +10224,7 @@ export class ThreeGame {
     noneButton?.classList.toggle('is-selected', tool === null);
     noneButton?.setAttribute('aria-pressed', String(tool === null));
     this.setStatus(tool === null ? 'No Build Tool Selected · free camera / inspect' : 'Selected: ' + tool);
+    for (const extension of this.extensions) extension.onToolSelected?.(tool);
   }
 
   private setStatus(text: string): void {
@@ -10229,6 +10248,7 @@ export class ThreeGame {
     if (!this.battleSystem.isActive()) {
       this.updateWorkers(deltaMs);
       this.updateSettlementAgents(deltaMs);
+      for (const extension of this.extensions) extension.updateSettlement?.(deltaMs);
     }
     this.battleSystem.update(deltaMs, time);
     this.services.session.update(deltaMs, time);

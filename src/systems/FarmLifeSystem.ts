@@ -1,31 +1,18 @@
 import * as THREE from 'three';
+import type { GameExtension } from '../core/GameExtension';
 
 const COW_BARN_LEVEL = 99;
 
 type GameRuntime = {
-  renderer: THREE.WebGLRenderer;
+  registerExtension(extension: GameExtension): () => void;
   buildLayer: THREE.Group;
-  settlementLayer: THREE.Group;
   services: {
     state: {
       getCell(x: number, y: number): { kind: string; level?: number } | undefined;
-      setCell(x: number, y: number, kind: string, level?: number): void;
-      entries(): Array<{ x: number; y: number; kind: string; level?: number }>;
     };
   };
-  selectedCell: { x: number; y: number } | null;
-  selectedTool: unknown;
-  gameMode: string;
-  recordHistory(): void;
-  redraw(): void;
-  scheduleSave(): void;
-  setStatus(message: string): void;
-  pickGridCell(event: PointerEvent): { x: number; y: number } | null;
   gridToWorld(x: number, y: number): { x: number; z: number };
-  terrainAt(x: number, y: number): string;
   terrainElevation(x: number, y: number): number;
-  selectTool(tool: unknown): void;
-  setToolbarOpen(open: boolean): void;
 };
 
 interface CowState {
@@ -38,226 +25,61 @@ interface CowState {
 }
 
 export class FarmLifeSystem {
-  private static installed = false;
   private readonly game: GameRuntime;
-  private active = false;
 
   constructor(game: unknown) {
     this.game = game as GameRuntime;
-    this.install();
-  }
-
-  private install(): void {
-    if (FarmLifeSystem.installed) return;
-    FarmLifeSystem.installed = true;
-
-    this.patchBuildingRenderer();
-    this.patchSettlementPerson();
-    this.patchSettlementUpdate();
-    this.patchToolSelection();
-    this.patchBuildPanelRefresh();
-    this.installBuildTool();
-    this.installInputBridge();
-  }
-
-  private patchBuildingRenderer(): void {
-    const prototype = Object.getPrototypeOf(this.game) as Record<string, unknown>;
-    const original = prototype.makeBuilding as Function | undefined;
-    if (!original) return;
-
-    const system = this;
-    prototype.makeBuilding = function (
-      this: GameRuntime,
-      cell: { x: number; y: number; kind: string; level?: number },
-      floodedMoats: Set<string>,
-    ): THREE.Group {
-      if (cell.kind === 'cowBarn' || (cell.kind === 'farm' && cell.level === COW_BARN_LEVEL)) {
-        return system.makeCowBarn(this, cell.x, cell.y);
-      }
-      return original.call(this, cell, floodedMoats);
-    };
-  }
-
-  private patchSettlementPerson(): void {
-    const prototype = Object.getPrototypeOf(this.game) as Record<string, unknown>;
-    const original = prototype.createSettlementPerson as Function | undefined;
-    if (!original) return;
-
-    prototype.createSettlementPerson = function (
-      this: GameRuntime,
-      role: 'citizen' | 'farmer',
-      seed: number,
-    ): THREE.Group {
-      const group = original.call(this, role, seed) as THREE.Group;
-      if (role !== 'farmer') return group;
-
-      const armMaterial = new THREE.MeshStandardMaterial({ color: 0x6b6240, roughness: 0.96 });
-      const basketMaterial = new THREE.MeshStandardMaterial({ color: 0x8a5f36, roughness: 1 });
-
-      const arms: THREE.Mesh[] = [];
-      for (const side of [-1, 1]) {
-        const arm = new THREE.Mesh(
-          new THREE.CylinderGeometry(0.028, 0.038, 0.34, 5),
-          armMaterial,
-        );
-        arm.position.set(side * 0.16, 0.58, 0.02);
-        arm.rotation.z = side * 0.18;
-        arm.castShadow = true;
-        group.add(arm);
-        arms.push(arm);
-      }
-
-      const basket = new THREE.Group();
-      const body = new THREE.Mesh(
-        new THREE.BoxGeometry(0.24, 0.16, 0.2),
-        basketMaterial,
-      );
-      body.position.y = 0.06;
-      basket.add(body);
-      basket.visible = false;
-      basket.position.set(0, 0.55, 0.16);
-      group.add(basket);
-
-      group.userData.farmerAnimation = {
-        arms,
-        tool: group.children[6] as THREE.Object3D | undefined,
-        legs: [group.children[2], group.children[3]] as THREE.Object3D[],
-        body: group.children[0] as THREE.Object3D,
-        head: group.children[1] as THREE.Object3D,
-        basket,
-      };
-      return group;
-    };
-  }
-
-  private patchSettlementUpdate(): void {
-    const prototype = Object.getPrototypeOf(this.game) as Record<string, unknown>;
-    const original = prototype.updateSettlementAgents as Function | undefined;
-    if (!original) return;
-
-    const system = this;
-    prototype.updateSettlementAgents = function (this: GameRuntime, deltaMs: number): void {
-      original.call(this, deltaMs);
-      system.updateCows(deltaMs);
-      system.updateFarmers(deltaMs);
-    };
-  }
-
-  private patchToolSelection(): void {
-    const prototype = Object.getPrototypeOf(this.game) as Record<string, unknown>;
-    const original = prototype.selectTool as Function | undefined;
-    if (!original) return;
-
-    const system = this;
-    prototype.selectTool = function (this: GameRuntime, tool: unknown): void {
-      if (tool !== null) system.active = false;
-      original.call(this, tool);
-      system.syncToolButton();
-    };
-  }
-
-  private patchBuildPanelRefresh(): void {
-    const prototype = Object.getPrototypeOf(this.game) as Record<string, unknown>;
-    const original = prototype.refreshBuildPanelForMode as Function | undefined;
-    if (!original) return;
-
-    const system = this;
-    prototype.refreshBuildPanelForMode = function (this: GameRuntime): void {
-      original.call(this);
-      system.updateToolVisibility();
-    };
-  }
-
-  private installBuildTool(): void {
-    const toolbar = document.getElementById('toolbar');
-    if (!toolbar) return;
-
-    const agriculture = toolbar.querySelector<HTMLElement>('.tool-category[data-category="Agriculture"] .tool-category-items');
-    if (!agriculture || agriculture.querySelector('[data-cow-barn]')) return;
-
-    const button = document.createElement('button');
-    button.className = 'tool-button';
-    button.type = 'button';
-    button.dataset.cowBarn = 'true';
-    button.innerHTML =
-      '<span class="tool-icon">🐄</span>' +
-      '<span class="tool-copy"><strong>Cow Barn</strong><small>Medieval cattle barn · fenced yard · livestock</small></span>' +
-      '<kbd>—</kbd>';
-
-    button.addEventListener('click', () => {
-      this.active = true;
-      this.game.selectTool(null);
-      this.syncToolButton();
-      this.game.setStatus('Cow Barn selected · place on open plains');
-      if (window.matchMedia('(max-width: 760px)').matches) this.game.setToolbarOpen(false);
+    this.game.registerExtension({
+      createBuilding: (cell) =>
+        cell.kind === 'cowBarn' || (cell.kind === 'farm' && cell.level === COW_BARN_LEVEL)
+          ? this.makeCowBarn(this.game, cell.x, cell.y)
+          : undefined,
+      decoratePerson: (group, role) => {
+        if (role === 'farmer') this.decorateFarmer(group);
+      },
+      updateSettlement: (deltaMs) => {
+        this.updateCows(deltaMs);
+        this.updateFarmers(deltaMs);
+      },
     });
-
-    agriculture.appendChild(button);
-    this.updateToolVisibility();
   }
 
-  private installInputBridge(): void {
-    const canvas = this.game.renderer.domElement;
+  private decorateFarmer(group: THREE.Group): void {
+    const armMaterial = new THREE.MeshStandardMaterial({ color: 0x6b6240, roughness: 0.96 });
+    const basketMaterial = new THREE.MeshStandardMaterial({ color: 0x8a5f36, roughness: 1 });
 
-    canvas.addEventListener('pointerup', (event) => {
-      if (!this.active || event.button !== 0) return;
+    const arms: THREE.Mesh[] = [];
+    for (const side of [-1, 1]) {
+      const arm = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.028, 0.038, 0.34, 5),
+        armMaterial,
+      );
+      arm.position.set(side * 0.16, 0.58, 0.02);
+      arm.rotation.z = side * 0.18;
+      arm.castShadow = true;
+      group.add(arm);
+      arms.push(arm);
+    }
 
-      const point = this.game.pickGridCell(event);
-      if (!point) return;
+    const basket = new THREE.Group();
+    const body = new THREE.Mesh(
+      new THREE.BoxGeometry(0.24, 0.16, 0.2),
+      basketMaterial,
+    );
+    body.position.y = 0.06;
+    basket.add(body);
+    basket.visible = false;
+    basket.position.set(0, 0.55, 0.16);
+    group.add(basket);
 
-      const cell = this.game.services.state.getCell(point.x, point.y);
-      if (cell?.kind === 'cowBarn' || (cell?.kind === 'farm' && cell.level === COW_BARN_LEVEL)) {
-        this.game.selectedCell = point;
-        this.game.setStatus('Selected: Cow Barn');
-        event.preventDefault();
-        event.stopImmediatePropagation();
-        return;
-      }
-
-      if (cell) {
-        this.game.setStatus('Cow Barn requires an empty tile');
-        event.preventDefault();
-        event.stopImmediatePropagation();
-        return;
-      }
-
-      const terrain = this.game.terrainAt(point.x, point.y);
-      if (terrain !== 'plains') {
-        this.game.setStatus('Cow Barn requires open plains');
-        event.preventDefault();
-        event.stopImmediatePropagation();
-        return;
-      }
-
-      this.game.recordHistory();
-      this.game.services.state.setCell(point.x, point.y, 'farm', COW_BARN_LEVEL);
-      this.game.selectedCell = point;
-      this.game.redraw();
-      this.game.scheduleSave();
-      this.game.setStatus('Cow Barn placed · livestock yard active');
-      event.preventDefault();
-      event.stopImmediatePropagation();
-    }, true);
-
-    document.addEventListener('keydown', (event) => {
-      if (event.key === 'Escape') {
-        this.active = false;
-        this.syncToolButton();
-      }
-    }, true);
-  }
-
-  private updateToolVisibility(): void {
-    const button = document.querySelector<HTMLElement>('[data-cow-barn]');
-    if (!button) return;
-    button.hidden = this.game.gameMode === 'modern';
-    if (button.hidden) this.active = false;
-    this.syncToolButton();
-  }
-
-  private syncToolButton(): void {
-    const button = document.querySelector<HTMLElement>('[data-cow-barn]');
-    button?.classList.toggle('is-selected', this.active);
+    group.userData.farmerAnimation = {
+      arms,
+      tool: group.children[6] as THREE.Object3D | undefined,
+      legs: [group.children[2], group.children[3]] as THREE.Object3D[],
+      body: group.children[0] as THREE.Object3D,
+      head: group.children[1] as THREE.Object3D,
+      basket,
+    };
   }
 
   private makeCowBarn(game: GameRuntime, gx: number, gy: number): THREE.Group {
