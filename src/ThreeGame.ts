@@ -30,6 +30,7 @@ import type { SettingsStore } from './settings/SettingsStore';
 import { applyGraphicsSettings, applyInputSettings, applySceneGraphicsSettings } from './settings/SettingsSubsystems';
 import { FuturisticCastleRenderer } from './rendering/FuturisticCastleRenderer';
 import { getStructureFootprint } from './building/StructureFootprints';
+import { MAP_LAYOUTS, normalizeMapLayoutId, terrainForMapLayout } from './world/MapLayouts';
 import { AudioManager } from './audio/AudioManager';
 import { audioEvents } from './audio/AudioEventBus';
 import { registerSystemAction } from './app/applicationActions';
@@ -45,6 +46,7 @@ import type {
   GridCell,
   HarborKind,
   KeepRoofStyle,
+  MapLayoutId,
   RoadKind,
   ShipKind,
   StoneStyle,
@@ -166,6 +168,7 @@ interface SettlementAgentSpec {
 }
 
 interface HistorySnapshot {
+  mapLayoutId: MapLayoutId;
   cells: ReturnType<GameState['entries']>;
   keeps: KeepState[];
   terrain: Array<[string, TerrainOverrideKind]>;
@@ -306,6 +309,7 @@ export class ThreeGame {
   private readonly elevationOverrides = new Map<string, number>();
   private readonly raycaster = new THREE.Raycaster();
   private readonly pointer = new THREE.Vector2();
+  private readonly worldLayoutLayer = new THREE.Group();
   private readonly terrainLayer = new THREE.Group();
   private readonly buildLayer = new THREE.Group();
   private readonly planLayer = new THREE.Group();
@@ -336,6 +340,8 @@ export class ThreeGame {
   private readonly oceanWaterMaterial: THREE.MeshStandardMaterial;
   private readonly shallowWaterMaterial: THREE.MeshStandardMaterial;
 
+  private mapLayoutId: MapLayoutId = 'island';
+  private pendingNewGameMode: GameMode | null = null;
   private selectedTool: ToolKind | null = 'wall1';
   private selectedCell: GridPoint | null = null;
   private viewMode: ViewMode = 'world3d';
@@ -424,6 +430,8 @@ export class ThreeGame {
       elevationOverrides: this.elevationOverrides,
       towerBridges: this.towerBridges,
       getGameMode: () => this.gameMode,
+      getMapLayoutId: () => this.mapLayoutId,
+      setMapLayoutId: (value) => this.setMapLayoutId(value),
       getStoneStyle: () => this.stoneStyle,
       getWorldSeeded: () => this.worldSeeded,
       getBattleSetup: () => this.battleSetup,
@@ -438,7 +446,10 @@ export class ThreeGame {
       key: (x, y) => this.key(x, y),
       syncModeDependentUI: () => this.syncModeDependentUI(),
       prepareForLoad: () => this.clearSettlementAgents(),
-      afterLoad: () => this.normalizeRiverElevations(),
+      afterLoad: () => {
+        this.rebuildWorldLayoutSurface();
+        this.normalizeRiverElevations();
+      },
       setStatus: (message) => this.setStatus(message),
     }, storage);
     this.riverTexture = this.createRiverTexture();
@@ -612,6 +623,16 @@ export class ThreeGame {
 
   private get gameMode(): GameMode {
     return this.services.state.getGameMode();
+  }
+
+  private setMapLayoutId(value: MapLayoutId): void {
+    const next = normalizeMapLayoutId(value);
+    const changed = next !== this.mapLayoutId;
+    this.mapLayoutId = next;
+    if (changed && this.worldLayoutLayer.parent) {
+      this.rebuildWorldLayoutSurface();
+    }
+    this.syncTemplateAvailability();
   }
 
   private isToolAvailable(tool: ToolKind): boolean {
@@ -935,6 +956,14 @@ export class ThreeGame {
       button.hidden = this.gameMode === 'modern'
         ? template !== 'futuristic-castle'
         : template === 'futuristic-castle';
+
+      const layoutRestricted =
+        this.mapLayoutId !== 'island' &&
+        template !== 'empty-land';
+      button.disabled = layoutRestricted;
+      button.title = layoutRestricted
+        ? 'This complete castle template currently requires Classic Island. Terrain-only templates work with every map layout.'
+        : '';
     });
   }
 
@@ -1082,45 +1111,61 @@ export class ThreeGame {
   }
 
   private openGameModeSelector(): void {
+    this.pendingNewGameMode = null;
+    const layoutModal = document.getElementById('map-layout-modal');
+    if (layoutModal) layoutModal.hidden = true;
     this.renderGameModeSelection();
     const modal = document.getElementById('game-mode-modal');
     if (modal) modal.hidden = false;
   }
 
   private handleGameModeSelection(modeId: string): void {
-    if (isGameMode(modeId)) {
-      this.startNewGameWithMode(modeId);
-      return;
-    }
-
-    const session = this.services.session;
-    if (session.getStatus() === 'running' || session.getStatus() === 'paused') {
-      session.end();
-    }
-    session.cleanup();
-
-    const selection = session.selectMode(modeId);
-    const selectedMode = session.getSelectedMode();
-    if (!selection.ok || !selectedMode) {
+    if (!isGameMode(modeId)) {
       this.setStatus('Game mode is unavailable');
       return;
     }
 
-    const initialized = session.initialize();
-    if (!initialized.ok) {
-      this.setStatus('Game mode could not be initialized');
-      return;
-    }
+    this.openMapLayoutSelector(modeId);
+  }
 
-    const started = session.start();
-    if (!started.ok) {
-      this.setStatus('Game mode could not be started');
-      return;
-    }
-
+  private openMapLayoutSelector(mode: GameMode): void {
+    this.pendingNewGameMode = mode;
     const modeModal = document.getElementById('game-mode-modal');
     if (modeModal) modeModal.hidden = true;
-    this.setStatus('Game mode selected: ' + selectedMode.displayName);
+
+    const modal = document.getElementById('map-layout-modal');
+    const grid = document.getElementById('map-layout-grid');
+    if (!modal || !grid) {
+      this.startNewGameWithMode(mode, this.mapLayoutId);
+      return;
+    }
+
+    grid.innerHTML = MAP_LAYOUTS.map((layout) =>
+      '<button class="map-layout-card' +
+      (layout.id === this.mapLayoutId ? ' is-selected' : '') +
+      '" type="button" data-map-layout="' + layout.id + '">' +
+      '<span class="map-layout-preview map-layout-preview-' + layout.id + '">' + layout.preview + '</span>' +
+      '<strong>' + layout.label + '</strong>' +
+      '<small>' + layout.description + '</small>' +
+      '</button>',
+    ).join('');
+
+    grid.querySelectorAll<HTMLButtonElement>('[data-map-layout]').forEach((button) => {
+      button.onclick = () => {
+        const layoutId = normalizeMapLayoutId(button.dataset.mapLayout);
+        this.startNewGameWithMode(mode, layoutId);
+      };
+    });
+
+    const back = document.getElementById('map-layout-back-button') as HTMLButtonElement | null;
+    if (back) {
+      back.onclick = () => {
+        modal.hidden = true;
+        this.openGameModeSelector();
+      };
+    }
+
+    modal.hidden = false;
   }
 
   private resetWorldForMode(mode: GameMode): void {
@@ -1147,6 +1192,7 @@ export class ThreeGame {
     this.undoStack.length = 0;
     this.redoStack.length = 0;
     this.worldSeeded = false;
+    this.rebuildWorldLayoutSurface();
     this.seedNaturalProps();
     this.worldSeeded = true;
     this.selectedTool = null;
@@ -1154,7 +1200,7 @@ export class ThreeGame {
     this.redraw();
   }
 
-  private startNewGameWithMode(mode: GameMode): void {
+  private startNewGameWithMode(mode: GameMode, layoutId: MapLayoutId = this.mapLayoutId): void {
     const session = this.services.session;
     if (session.getStatus() === 'running' || session.getStatus() === 'paused') {
       session.end();
@@ -1183,10 +1229,14 @@ export class ThreeGame {
     this.save(false);
     const modeModal = document.getElementById('game-mode-modal');
     if (modeModal) modeModal.hidden = true;
+    const layoutModal = document.getElementById('map-layout-modal');
+    if (layoutModal) layoutModal.hidden = true;
+    this.pendingNewGameMode = null;
     const templates = document.getElementById('templates-modal');
     if (templates) templates.hidden = false;
     this.selectTool(null);
-    this.setStatus('Mode selected: ' + getGameModeDefinition(mode).label);
+    const layout = MAP_LAYOUTS.find((item) => item.id === this.mapLayoutId);
+    this.setStatus('Mode selected: ' + getGameModeDefinition(mode).label + ' · ' + (layout?.label ?? 'Classic Island'));
   }
 
   private createRiverTexture(): THREE.CanvasTexture {
@@ -1319,8 +1369,11 @@ export class ThreeGame {
     deepWater.userData.waterLayer = 'deep';
     this.scene.add(deepWater);
 
+    // A continuous shallow-water shelf sits below every possible layout.
+    // The authoritative land surface is rebuilt from the same tile generator
+    // used by terrain, selection and navigation.
     const shallowWater = new THREE.Mesh(
-      new THREE.RingGeometry(WORLD * 0.43, WORLD * 0.65, 112),
+      new THREE.CircleGeometry(WORLD * 0.69, 112),
       this.shallowWaterMaterial,
     );
     shallowWater.rotation.x = -Math.PI / 2;
@@ -1329,33 +1382,8 @@ export class ThreeGame {
     shallowWater.userData.waterLayer = 'shallow';
     this.scene.add(shallowWater);
 
-    const islandGeometry = this.createIrregularIslandGeometry(
-      WORLD * 0.49,
-      WORLD * 0.55,
-      2.6,
-      112,
-    );
-    const island = new THREE.Mesh(
-      islandGeometry,
-      new THREE.MeshStandardMaterial({ color: WORLD_STYLE.palette.soil, roughness: 1 }),
-    );
-    island.receiveShadow = true;
-    island.castShadow = true;
-    this.scene.add(island);
-
-    const grassGeometry = this.createIrregularIslandGeometry(
-      WORLD * 0.46,
-      WORLD * 0.49,
-      1.2,
-      112,
-    );
-    const grass = new THREE.Mesh(
-      grassGeometry,
-      new THREE.MeshStandardMaterial({ color: WORLD_STYLE.palette.grassSunlit, roughness: 0.94 }),
-    );
-    grass.position.y = 1.55;
-    grass.receiveShadow = true;
-    this.scene.add(grass);
+    this.scene.add(this.worldLayoutLayer);
+    this.rebuildWorldLayoutSurface();
 
     const grid = new THREE.GridHelper(WORLD, SIZE, 0xe8f7ff, 0x7eb8bd);
     grid.position.y = 2.18;
@@ -1364,95 +1392,79 @@ export class ThreeGame {
     this.scene.add(grid);
   }
 
-  private createIrregularIslandGeometry(
-    topRadius: number,
-    bottomRadius: number,
-    height: number,
-    segments: number,
-  ): THREE.CylinderGeometry {
-    const geometry = new THREE.CylinderGeometry(
-      topRadius,
-      bottomRadius,
-      height,
-      segments,
-      1,
-      false,
-    );
-    const position = geometry.attributes.position;
+  private rebuildWorldLayoutSurface(): void {
+    this.clearGroup(this.worldLayoutLayer);
 
-    for (let i = 0; i < position.count; i += 1) {
-      const x = position.getX(i);
-      const z = position.getZ(i);
-      const radius = Math.hypot(x, z);
-      if (radius < 0.01) continue;
+    const land: GridPoint[] = [];
+    const grass: GridPoint[] = [];
+    const shore: GridPoint[] = [];
 
-      const angle = Math.atan2(z, x);
-      const variation =
-        1 +
-        Math.sin(angle * 5 + 0.7) * 0.022 +
-        Math.cos(angle * 9 - 1.1) * 0.014 +
-        Math.sin(angle * 13 + 2.4) * 0.009;
-      position.setX(i, x * variation);
-      position.setZ(i, z * variation);
+    for (let y = 0; y < SIZE; y += 1) {
+      for (let x = 0; x < SIZE; x += 1) {
+        const terrain = this.baseTerrainAt(x, y);
+        if (terrain === 'water' || terrain === 'river') continue;
+        land.push({ x, y });
+        if (terrain === 'shore') shore.push({ x, y });
+        else grass.push({ x, y });
+      }
     }
 
-    position.needsUpdate = true;
-    geometry.computeVertexNormals();
-    return geometry;
+    const soilMaterial = this.environmentMaterial('layout-soil', WORLD_STYLE.palette.soil, 1);
+    const grassMaterial = this.environmentMaterial('layout-grass', WORLD_STYLE.palette.grassSunlit, 0.94);
+    const shoreMaterial = this.environmentMaterial('layout-shore', 0xb8a878, 0.98);
+    const matrix = new THREE.Matrix4();
+
+    if (land.length > 0) {
+      const soil = new THREE.InstancedMesh(
+        new THREE.BoxGeometry(TILE * 1.015, 1.55, TILE * 1.015),
+        soilMaterial,
+        land.length,
+      );
+      land.forEach((point, index) => {
+        const world = this.gridToWorld(point.x, point.y);
+        matrix.makeTranslation(world.x, 1.31, world.z);
+        soil.setMatrixAt(index, matrix);
+      });
+      soil.instanceMatrix.needsUpdate = true;
+      soil.receiveShadow = true;
+      this.worldLayoutLayer.add(soil);
+    }
+
+    if (grass.length > 0) {
+      const top = new THREE.InstancedMesh(
+        new THREE.BoxGeometry(TILE * 1.012, 0.16, TILE * 1.012),
+        grassMaterial,
+        grass.length,
+      );
+      grass.forEach((point, index) => {
+        const world = this.gridToWorld(point.x, point.y);
+        matrix.makeTranslation(world.x, 2.125, world.z);
+        top.setMatrixAt(index, matrix);
+      });
+      top.instanceMatrix.needsUpdate = true;
+      top.receiveShadow = true;
+      this.worldLayoutLayer.add(top);
+    }
+
+    if (shore.length > 0) {
+      const top = new THREE.InstancedMesh(
+        new THREE.BoxGeometry(TILE * 1.012, 0.12, TILE * 1.012),
+        shoreMaterial,
+        shore.length,
+      );
+      shore.forEach((point, index) => {
+        const world = this.gridToWorld(point.x, point.y);
+        matrix.makeTranslation(world.x, 2.105, world.z);
+        top.setMatrixAt(index, matrix);
+      });
+      top.instanceMatrix.needsUpdate = true;
+      top.receiveShadow = true;
+      this.worldLayoutLayer.add(top);
+    }
   }
 
   private baseTerrainAt(x: number, y: number): TerrainKind {
-    if (x < 0 || y < 0 || x >= SIZE || y >= SIZE) return 'water';
-
-    const nx = (x + 0.5) / SIZE - 0.5;
-    const ny = (y + 0.5) / SIZE - 0.5;
-    const radial = Math.sqrt(nx * nx * 0.94 + ny * ny * 1.04);
-    const coastNoise =
-      Math.sin(x * 0.73 + y * 0.19) * 0.018 +
-      Math.cos(y * 0.61 - x * 0.17) * 0.022 +
-      Math.sin((x + y) * 0.31) * 0.014 +
-      Math.cos((x - y) * 0.24) * 0.011;
-    const islandValue = 0.43 - radial + coastNoise;
-
-    if (islandValue < -0.035) return 'water';
-    if (islandValue < 0.02) return 'shore';
-
-    const riverCenter =
-      SIZE * 0.48 +
-      Math.sin(y * 0.54) * 1.18 +
-      Math.sin(y * 0.18 + 1.2) * 0.42;
-    const riverWidth =
-      0.48 +
-      (Math.sin(y * 0.37 + 0.8) + 1) * 0.16 +
-      (y > SIZE * 0.62 ? 0.12 : 0);
-    if (
-      y > 2 &&
-      y < SIZE - 2 &&
-      Math.abs(x - riverCenter) < riverWidth &&
-      islandValue > 0.055
-    ) {
-      return 'river';
-    }
-
-    const rockyNoise =
-      Math.sin(x * 0.47 + y * 0.22) +
-      Math.cos(y * 0.53 - x * 0.18);
-    const mountainZone =
-      (x > SIZE * 0.61 && y < SIZE * 0.43) ||
-      (x > SIZE * 0.7 && y > SIZE * 0.46 && y < SIZE * 0.7);
-    if (mountainZone && rockyNoise > 0.48) return 'mountain';
-
-    const forestNoise =
-      Math.sin(x * 0.61) +
-      Math.cos(y * 0.49) +
-      Math.sin((x + y) * 0.33);
-    const denseForest =
-      (x < SIZE * 0.37 && y > SIZE * 0.35) ||
-      (x > SIZE * 0.62 && y > SIZE * 0.56) ||
-      (x < SIZE * 0.28 && y < SIZE * 0.34);
-    if (denseForest && forestNoise > -0.25) return 'forest';
-
-    return 'plains';
+    return terrainForMapLayout(this.mapLayoutId, x, y, SIZE);
   }
 
   private terrainAt(x: number, y: number): TerrainKind {
@@ -6344,6 +6356,7 @@ export class ThreeGame {
 
   private captureSnapshot(): HistorySnapshot {
     return {
+      mapLayoutId: this.mapLayoutId,
       cells: this.services.state.entries().map((cell) => ({
         ...cell,
         wallLinks: cell.wallLinks ? [...cell.wallLinks] : undefined,
@@ -6368,6 +6381,7 @@ export class ThreeGame {
   }
 
   private restoreSnapshot(snapshot: HistorySnapshot): void {
+    this.setMapLayoutId(snapshot.mapLayoutId ?? 'island');
     this.services.state.replace(snapshot.cells);
     this.services.keepSystem.replace(snapshot.keeps ?? []);
     this.stoneStyle = snapshot.stoneStyle ?? 'limestone';
@@ -9064,7 +9078,7 @@ export class ThreeGame {
     };
     get<HTMLButtonElement>('reset-button').onclick = () => {
       const confirmRequired = this.settingsStore.get().interface.confirmDestructiveActions;
-      if (!confirmRequired || confirm('Reset the entire island and choose a game mode?')) {
+      if (!confirmRequired || confirm('Reset the entire world and choose a game mode?')) {
         this.openGameModeSelector();
       }
     };
@@ -9154,6 +9168,8 @@ export class ThreeGame {
       if (event.key === 'Escape') {
         help.hidden = true;
         templates.hidden = true;
+        const layoutModal = document.getElementById('map-layout-modal');
+        if (layoutModal) layoutModal.hidden = true;
         if (this.godModeOpen) this.closeGodMode();
         this.selectTool(null);
       }
@@ -9453,6 +9469,10 @@ export class ThreeGame {
   }
 
   private applyTemplate(template: string): void {
+    if (this.mapLayoutId !== 'island' && template !== 'empty-land') {
+      this.setStatus('Castle templates currently require Classic Island. Terrain templates remain available on this layout.');
+      return;
+    }
     if (template === 'futuristic-castle' && this.gameMode !== 'modern') {
       this.setStatus('Futuristic Castle is only available in Modern Mode');
       return;
