@@ -76,5 +76,5 @@ lines.push(
   '',
 );
 
-await writeFile(outputPath, lines.filter((line) => line !== '').join('\n').replace(/\n{3,}/g, '\n\n') + '\n');
+await writeFile(outputPath, lines.join('\n').replace(/\n{3,}/g, '\n\n') + '\n');
 console.log(`Wrote visual baseline summary to ${outputPath}`);
