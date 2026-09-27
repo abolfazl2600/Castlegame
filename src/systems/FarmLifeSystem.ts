@@ -4,30 +4,15 @@ import type { GameExtension } from '../core/GameExtension';
 const COW_BARN_LEVEL = 99;
 
 type GameRuntime = {
-  renderer: THREE.WebGLRenderer;
   registerExtension(extension: GameExtension): () => void;
   buildLayer: THREE.Group;
-  settlementLayer: THREE.Group;
   services: {
     state: {
       getCell(x: number, y: number): { kind: string; level?: number } | undefined;
-      setCell(x: number, y: number, kind: string, level?: number): void;
-      entries(): Array<{ x: number; y: number; kind: string; level?: number }>;
     };
   };
-  selectedCell: { x: number; y: number } | null;
-  selectedTool: unknown;
-  gameMode: string;
-  recordHistory(): void;
-  redraw(): void;
-  scheduleSave(): void;
-  setStatus(message: string): void;
-  pickGridCell(event: PointerEvent): { x: number; y: number } | null;
   gridToWorld(x: number, y: number): { x: number; z: number };
-  terrainAt(x: number, y: number): string;
   terrainElevation(x: number, y: number): number;
-  selectTool(tool: unknown): void;
-  setToolbarOpen(open: boolean): void;
 };
 
 interface CowState {
@@ -41,12 +26,9 @@ interface CowState {
 
 export class FarmLifeSystem {
   private readonly game: GameRuntime;
-  private active = false;
 
   constructor(game: unknown) {
     this.game = game as GameRuntime;
-    this.installBuildTool();
-    this.installInputBridge();
     this.game.registerExtension({
       createBuilding: (cell) =>
         cell.kind === 'cowBarn' || (cell.kind === 'farm' && cell.level === COW_BARN_LEVEL)
@@ -58,14 +40,6 @@ export class FarmLifeSystem {
       updateSettlement: (deltaMs) => {
         this.updateCows(deltaMs);
         this.updateFarmers(deltaMs);
-      },
-      onToolSelected: (tool) => {
-        if (tool !== null) this.active = false;
-        this.syncToolButton();
-      },
-      onBuildPanelRefreshed: () => {
-        this.installBuildTool();
-        this.updateToolVisibility();
       },
     });
   }
@@ -106,99 +80,6 @@ export class FarmLifeSystem {
       head: group.children[1] as THREE.Object3D,
       basket,
     };
-  }
-
-  private installBuildTool(): void {
-    const toolbar = document.getElementById('toolbar');
-    if (!toolbar) return;
-
-    const agriculture = toolbar.querySelector<HTMLElement>('.tool-category[data-category="Agriculture"] .tool-category-items');
-    if (!agriculture || agriculture.querySelector('[data-cow-barn]')) return;
-
-    const button = document.createElement('button');
-    button.className = 'tool-button';
-    button.type = 'button';
-    button.dataset.cowBarn = 'true';
-    button.innerHTML =
-      '<span class="tool-icon">🐄</span>' +
-      '<span class="tool-copy"><strong>Cow Barn</strong><small>Medieval cattle barn · fenced yard · livestock</small></span>' +
-      '<kbd>—</kbd>';
-
-    button.addEventListener('click', () => {
-      this.active = true;
-      this.game.selectTool(null);
-      this.syncToolButton();
-      this.game.setStatus('Cow Barn selected · place on open plains');
-      if (window.matchMedia('(max-width: 760px)').matches) this.game.setToolbarOpen(false);
-    });
-
-    agriculture.appendChild(button);
-    this.updateToolVisibility();
-  }
-
-  private installInputBridge(): void {
-    const canvas = this.game.renderer.domElement;
-
-    canvas.addEventListener('pointerup', (event) => {
-      if (!this.active || event.button !== 0) return;
-
-      const point = this.game.pickGridCell(event);
-      if (!point) return;
-
-      const cell = this.game.services.state.getCell(point.x, point.y);
-      if (cell?.kind === 'cowBarn' || (cell?.kind === 'farm' && cell.level === COW_BARN_LEVEL)) {
-        this.game.selectedCell = point;
-        this.game.setStatus('Selected: Cow Barn');
-        event.preventDefault();
-        event.stopImmediatePropagation();
-        return;
-      }
-
-      if (cell) {
-        this.game.setStatus('Cow Barn requires an empty tile');
-        event.preventDefault();
-        event.stopImmediatePropagation();
-        return;
-      }
-
-      const terrain = this.game.terrainAt(point.x, point.y);
-      if (terrain !== 'plains') {
-        this.game.setStatus('Cow Barn requires open plains');
-        event.preventDefault();
-        event.stopImmediatePropagation();
-        return;
-      }
-
-      this.game.recordHistory();
-      this.game.services.state.setCell(point.x, point.y, 'farm', COW_BARN_LEVEL);
-      this.game.selectedCell = point;
-      this.game.redraw();
-      this.game.scheduleSave();
-      this.game.setStatus('Cow Barn placed · livestock yard active');
-      event.preventDefault();
-      event.stopImmediatePropagation();
-    }, true);
-
-    document.addEventListener('keydown', (event) => {
-      if (event.key === 'Escape') {
-        this.active = false;
-        this.syncToolButton();
-      }
-    }, true);
-  }
-
-  private updateToolVisibility(): void {
-    const button = document.querySelector<HTMLElement>('[data-cow-barn]');
-    if (this.game.gameMode === 'modern') this.active = false;
-    if (!button) return;
-    button.hidden = this.game.gameMode === 'modern';
-    if (button.hidden) this.active = false;
-    this.syncToolButton();
-  }
-
-  private syncToolButton(): void {
-    const button = document.querySelector<HTMLElement>('[data-cow-barn]');
-    button?.classList.toggle('is-selected', this.active);
   }
 
   private makeCowBarn(game: GameRuntime, gx: number, gy: number): THREE.Group {
