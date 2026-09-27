@@ -1258,22 +1258,59 @@ export class BattleSystem {
       const distance = runtime.position.distanceTo(target.position);
 
       if (this.isRangedUnit(runtime.data.unitType)) {
-        if (distance <= runtime.stats.attackRange) {
+        const hasAttackVisibility = this.hasUnitAttackVisibility(runtime, target);
+        if (distance <= runtime.stats.attackRange && hasAttackVisibility) {
           runtime.data.state = 'attacking';
           if (runtime.attackTimer <= 0) this.fireArrow(runtime, target);
         } else if (runtime.surface === 'ground') {
-          this.moveTowardTarget(runtime, target.position, delta);
+          // Awareness is intentionally broader than attack visibility. A unit
+          // may know an enemy is behind a wall, but it must route to a valid
+          // crossing (or fall back to siege behavior) instead of firing
+          // through the fortification.
+          const stopDistance = hasAttackVisibility
+            ? runtime.stats.attackRange * 0.9
+            : Math.min(0.55, runtime.stats.attackRange * 0.35);
+          const moved = this.moveTowardTarget(
+            runtime,
+            target.position,
+            delta,
+            stopDistance,
+          );
+          if (!moved && runtime.data.faction === 'attacker') {
+            if (!this.updateSiegeGroundAttacker(runtime, delta)) {
+              this.followAttackerObjective(runtime, delta);
+            }
+          }
         } else if (runtime.surface === 'wall' && target.surface === 'wall') {
           this.moveAlongWallToward(runtime, target, delta);
         }
       } else {
         const verticalDifference = Math.abs(runtime.position.y - target.position.y);
-        if (distance <= runtime.stats.attackRange && verticalDifference <= 1.5) {
+        const hasAttackVisibility = this.hasUnitAttackVisibility(runtime, target);
+        if (
+          distance <= runtime.stats.attackRange &&
+          verticalDifference <= 1.5 &&
+          hasAttackVisibility
+        ) {
           runtime.data.state = 'attacking';
           if (runtime.attackTimer <= 0) this.meleeAttack(runtime, target);
         } else if (runtime.surface === 'ground') {
-          const attackPosition = this.meleeApproachPoint(runtime, target);
-          this.moveTowardTarget(runtime, attackPosition, delta);
+          const attackPosition = hasAttackVisibility
+            ? this.meleeApproachPoint(runtime, target)
+            : target.position;
+          const moved = this.moveTowardTarget(
+            runtime,
+            attackPosition,
+            delta,
+            hasAttackVisibility
+              ? runtime.stats.attackRange * 0.9
+              : 0.4,
+          );
+          if (!moved && runtime.data.faction === 'attacker') {
+            if (!this.updateSiegeGroundAttacker(runtime, delta)) {
+              this.followAttackerObjective(runtime, delta);
+            }
+          }
         } else if (runtime.surface === 'wall' && target.surface === 'wall') {
           this.moveAlongWallToward(runtime, target, delta);
         }
@@ -1774,7 +1811,12 @@ export class BattleSystem {
     runtime.data.state = 'moving';
   }
 
-  private moveTowardTarget(runtime: UnitRuntime, target: THREE.Vector3, delta: number): void {
+  private moveTowardTarget(
+    runtime: UnitRuntime,
+    target: THREE.Vector3,
+    delta: number,
+    stopDistance = runtime.stats.attackRange * 0.9,
+  ): boolean {
     const distanceFromHome =
       runtime.data.faction === 'defender'
         ? runtime.position.distanceTo(runtime.home)
@@ -1784,8 +1826,7 @@ export class BattleSystem {
       runtime.data.faction === 'defender' &&
       distanceFromHome > runtime.defenseRadius
     ) {
-      this.moveTowardPoint(runtime, runtime.home, delta, 0.35);
-      return;
+      return this.moveTowardPoint(runtime, runtime.home, delta, 0.35);
     }
 
     // Defenders must always use the validated ground graph while chasing.
@@ -1798,7 +1839,7 @@ export class BattleSystem {
 
       if (!goal) {
         runtime.moving = false;
-        return;
+        return false;
       }
 
       if (
@@ -1822,10 +1863,11 @@ export class BattleSystem {
 
       if (runtime.path.length > 1 && runtime.pathIndex < runtime.path.length) {
         this.followGroundPath(runtime, delta, 'moving');
-      } else {
-        runtime.moving = false;
+        return true;
       }
-      return;
+
+      runtime.moving = false;
+      return false;
     }
 
     // Combat target chasing must use the same ground navigation graph as
@@ -1839,7 +1881,7 @@ export class BattleSystem {
       );
       const distance = direction.length();
 
-      if (distance > runtime.stats.attackRange * 0.9) {
+      if (distance > stopDistance) {
         direction.normalize();
         const probeDistance = Math.min(
           Math.max(this.world.tileSize * 0.55, 0.35),
@@ -1875,17 +1917,17 @@ export class BattleSystem {
 
             if (runtime.path.length > 1 && runtime.pathIndex < runtime.path.length) {
               this.followGroundPath(runtime, delta, 'moving');
-              return;
+              return true;
             }
           }
 
           runtime.moving = false;
-          return;
+          return false;
         }
       }
     }
 
-    this.moveTowardPoint(runtime, target, delta, runtime.stats.attackRange * 0.9);
+    return this.moveTowardPoint(runtime, target, delta, stopDistance);
   }
 
   private worldToGrid(position: THREE.Vector3): NavPoint {
@@ -1893,6 +1935,90 @@ export class BattleSystem {
       x: Math.floor(position.x / this.world.tileSize + this.world.size / 2),
       y: Math.floor(position.z / this.world.tileSize + this.world.size / 2),
     };
+  }
+
+  private hasUnitAttackVisibility(
+    attacker: UnitRuntime,
+    target: UnitRuntime,
+  ): boolean {
+    const origin = attacker.position.clone();
+    origin.y += this.isRangedUnit(attacker.data.unitType) ? 0.95 : 0.58;
+    const destination = target.position.clone();
+    destination.y += 0.72;
+    return this.hasDirectAttackVisibility(origin, destination);
+  }
+
+  private hasDirectAttackVisibility(
+    origin: THREE.Vector3,
+    destination: THREE.Vector3,
+  ): boolean {
+    const start = this.worldToGrid(origin);
+    const end = this.worldToGrid(destination);
+    const planarDistance = Math.hypot(
+      destination.x - origin.x,
+      destination.z - origin.z,
+    );
+    const steps = Math.max(
+      1,
+      Math.ceil(planarDistance / Math.max(0.2, this.world.tileSize * 0.22)),
+    );
+    let lastKey = '';
+
+    for (let index = 1; index < steps; index += 1) {
+      const t = index / steps;
+      const sample = new THREE.Vector3(
+        THREE.MathUtils.lerp(origin.x, destination.x, t),
+        THREE.MathUtils.lerp(origin.y, destination.y, t),
+        THREE.MathUtils.lerp(origin.z, destination.z, t),
+      );
+      const grid = this.worldToGrid(sample);
+      const key = this.gridKey(grid.x, grid.y);
+
+      if (key === lastKey) continue;
+      lastKey = key;
+
+      if (
+        (grid.x === start.x && grid.y === start.y) ||
+        (grid.x === end.x && grid.y === end.y)
+      ) {
+        continue;
+      }
+
+      const kind = this.world.kindAt(grid.x, grid.y);
+      if (!this.isFortificationSightBlocker(kind, grid.x, grid.y)) continue;
+
+      const cell = this.world.cellAt(grid.x, grid.y);
+      const top = cell
+        ? this.world.elevationAt(grid.x, grid.y) +
+          this.world.fortificationTopAt(grid.x, grid.y, cell)
+        : this.world.elevationAt(grid.x, grid.y) + 4;
+
+      if (sample.y <= top + 0.16) return false;
+    }
+
+    return true;
+  }
+
+  private isFortificationSightBlocker(
+    kind: TileKind | undefined,
+    x: number,
+    y: number,
+  ): boolean {
+    if (!kind) return false;
+    if (this.breachedWalls.has(this.gridKey(x, y))) return false;
+
+    if (kind === 'gate') {
+      return this.world.gatePassable
+        ? !this.world.gatePassable(x, y)
+        : true;
+    }
+
+    return (
+      kind === 'wall1' ||
+      kind === 'wall2' ||
+      kind === 'wall3' ||
+      kind === 'tower'
+    );
   }
 
   private canTraverseGroundTransition(
@@ -3326,6 +3452,9 @@ export class BattleSystem {
   }
 
   private refreshTargets(): void {
+    // Target acquisition represents strategic awareness, not direct attack
+    // visibility. Do not filter hostile units by wall line-of-sight here;
+    // ranged attacks apply physical occlusion separately.
     const alive = Array.from(this.units.values()).filter(
       (runtime) => runtime.data.state !== 'dead',
     );
@@ -3500,6 +3629,8 @@ export class BattleSystem {
   }
 
   private fireArrow(attacker: UnitRuntime, target: UnitRuntime): void {
+    if (!this.hasUnitAttackVisibility(attacker, target)) return;
+
     attacker.attackTimer = attacker.stats.attackCooldown;
     attacker.attackProgress = 0;
     attacker.attackDuration = Math.max(0.24, Math.min(attacker.stats.attackCooldown * 0.46, 0.52));
@@ -3561,6 +3692,9 @@ export class BattleSystem {
         const distance = Math.hypot(candidate.position.x - origin.x, candidate.position.z - origin.z);
         const tier = militaryTierDefinition(this.militaryTier);
         if (distance > weapon.range * tier.weaponRangeMultiplier * this.world.tileSize) continue;
+        const targetPoint = candidate.position.clone();
+        targetPoint.y += 0.72;
+        if (!this.hasDirectAttackVisibility(origin, targetPoint)) continue;
         if (distance < bestDistance) { bestDistance = distance; target = candidate; }
       }
 
@@ -3611,6 +3745,15 @@ export class BattleSystem {
 
       const targetPoint = target.position.clone();
       targetPoint.y += 0.72;
+
+      // Projectiles do not home through a fortification if the target moves
+      // behind an intact wall after the shot was released.
+      if (!this.hasDirectAttackVisibility(arrow.view.position, targetPoint)) {
+        this.layer.remove(arrow.view);
+        this.arrows.splice(i, 1);
+        continue;
+      }
+
       const deltaVector = targetPoint.sub(arrow.view.position);
       const distance = deltaVector.length();
 

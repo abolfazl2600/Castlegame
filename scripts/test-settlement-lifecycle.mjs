@@ -25,6 +25,12 @@ assert.match(
   'Settlement agents must retain their intended destination for path invalidation.',
 );
 
+assert.match(
+  threeGame,
+  /interface WorkerAgent\s*\{[\s\S]*?path:\s*GridPoint\[\];[\s\S]*?repathMs:\s*number;/,
+  'Moat workers must retain a route and controlled repath timer.',
+);
+
 const redraw = between(
   threeGame,
   'private redraw(): void {',
@@ -97,6 +103,39 @@ assert.doesNotMatch(
   invalidation,
   /agent\.position\s*=|agent\.phase\s*=|agent\.waitMs\s*=/,
   'Path invalidation must not reset movement state.',
+);
+
+
+const blockedRules = between(
+  threeGame,
+  'private isSettlementBlocked(',
+  'private resolveSettlementDestination(',
+);
+assert.match(
+  blockedRules,
+  /cell\.kind === 'gate'[\s\S]*?gateSystem\.isGatePassable\(x, y\)/,
+  'Settlement navigation must treat an open gate as an explicit wall crossing.',
+);
+assert.match(
+  blockedRules,
+  /return !ROAD_KINDS\.includes/,
+  'Ordinary buildings and intact walls must remain blocked.',
+);
+
+const workerMovement = between(
+  threeGame,
+  'private moveWorker(',
+  'private scheduleSave(',
+);
+assert.match(
+  workerMovement,
+  /this\.findSettlementPath\(start, goal\)/,
+  'Moat workers must use the validated settlement path graph.',
+);
+assert.match(
+  workerMovement,
+  /worker\.repathMs\s*=\s*reachesGoal \? 300 : 650/,
+  'Unreachable worker routes must retry at a controlled cadence.',
 );
 
 const resetWorld = between(

@@ -1,9 +1,8 @@
 name: Deploy Castle Role to GitHub Pages
 
 on:
-  pull_request:
-    branches:
-      - main
+  # Temporarily disabled for pull requests.
+  # Re-enable the pull_request trigger when PR verification is needed again.
   push:
     branches:
       - main
