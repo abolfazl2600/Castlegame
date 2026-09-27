@@ -127,5 +127,6 @@ test('mobile build toolbar remains usable after a cross-mode runtime load', asyn
   await page.locator('#toolbar-open').evaluate((element) => {
     (element as HTMLButtonElement).click();
   });
-  await expect(page.locator('#toolbar')).toHaveClass(/is-open/);
+  await expect(page.locator('#toolbar-open')).toHaveAttribute('aria-expanded', 'true');
+  await expect(page.locator('#toolbar')).not.toHaveClass(/is-collapsed/);
 });
