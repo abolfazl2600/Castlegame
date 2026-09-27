@@ -385,8 +385,7 @@ export class ThreeGame {
       migrateKind: (kind, level) => this.migrateKind(kind, level),
       isBuildingAvailableForMode: (mode, kind) => isBuildingAvailable(mode, kind as TileKind),
       key: (x, y) => this.key(x, y),
-      updateGameModeUI: () => this.updateGameModeUI(),
-      syncTemplateAvailability: () => this.syncTemplateAvailability(),
+      syncModeDependentUI: () => this.syncModeDependentUI(),
       afterLoad: () => this.normalizeRiverElevations(),
       setStatus: (message) => this.setStatus(message),
     });
@@ -587,6 +586,16 @@ export class ThreeGame {
     });
   }
 
+  private syncModeDependentUI(): void {
+    if (this.selectedTool !== null && !this.isToolAvailable(this.selectedTool)) {
+      this.selectedTool = null;
+    }
+
+    this.updateGameModeUI();
+    this.syncTemplateAvailability();
+    this.refreshBuildPanelForMode();
+  }
+
   private refreshBuildPanelForMode(): void {
     const toolbar = document.getElementById('toolbar');
     if (!toolbar) return;
@@ -784,9 +793,7 @@ export class ThreeGame {
     this.seedNaturalProps();
     this.worldSeeded = true;
     this.selectedTool = null;
-    this.updateGameModeUI();
-    this.syncTemplateAvailability();
-    this.refreshBuildPanelForMode();
+    this.syncModeDependentUI();
     this.redraw();
   }
 

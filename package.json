@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "npm run test:battle-state-boundary && npm run test:castle-access-navigation && npm run test:settlement-lifecycle && npm run test:river-water-visibility && npm run test:build-tool-registry && npm run test:cross-mode-save-loading && npm run test:settings-bootstrap-order && tsc --noEmit && vite build",
+    "build": "npm run test:battle-state-boundary && npm run test:castle-access-navigation && npm run test:settlement-lifecycle && npm run test:river-water-visibility && npm run test:build-tool-registry && npm run test:cross-mode-save-loading && npm run test:settings-bootstrap-order && npm run test:save-mode-ui-sync && tsc --noEmit && vite build",
     "preview": "vite preview",
     "test:battle-state-boundary": "node scripts/test-battle-state-boundary.mjs",
     "test:castle-access-navigation": "node scripts/test-castle-access-navigation.mjs",
@@ -14,7 +14,8 @@
     "test:build-tool-registry": "node scripts/test-build-tool-registry.mjs",
     "test:cross-mode-save-loading": "node scripts/test-cross-mode-save-loading.mjs",
     "test:settings-bootstrap-order": "node scripts/test-settings-bootstrap-order.mjs",
-    "test:ui": "playwright test"
+    "test:ui": "playwright test",
+    "test:save-mode-ui-sync": "node scripts/test-save-mode-ui-sync.mjs"
   },
   "dependencies": {
     "three": "^0.180.0"

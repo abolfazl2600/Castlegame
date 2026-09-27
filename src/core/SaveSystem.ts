@@ -43,8 +43,7 @@ export interface SaveLoadHost {
   migrateKind(kind: string, level: number): { kind: string; level: number } | null;
   isBuildingAvailableForMode(mode: GameMode, kind: string): boolean;
   key(x: number, y: number): string;
-  updateGameModeUI(): void;
-  syncTemplateAvailability(): void;
+  syncModeDependentUI(): void;
   setStatus(message: string): void;
   prepareForLoad?(): void;
   afterLoad?(): void;
@@ -521,8 +520,7 @@ export class SaveSystem {
       this.host.setBattleSetup?.(normalizedBattleSetup);
       restoreBattleSetupToDom(normalizedBattleSetup);
     }
-    this.host.updateGameModeUI();
-    this.host.syncTemplateAvailability();
+    this.host.syncModeDependentUI();
   }
 
   private validateRecord(record: SaveRecord): { ok: true } | { ok: false; message: string } {

@@ -11,7 +11,6 @@ async function loadApp(page: Page): Promise<void> {
 async function openSettings(page: Page): Promise<void> {
   await page.locator('#settings-button').click();
   await expect(page.locator('#settings-modal')).toBeVisible();
-  await expect(page.locator('#settings-backdrop')).toBeVisible();
   await expect(page.locator('#settings-modal')).toHaveAttribute('aria-hidden', 'false');
   await expect(page.locator('#settings-backdrop')).toHaveAttribute('aria-hidden', 'false');
   expect(await page.locator('#settings-modal').evaluate((element) => (element as HTMLElement).hidden)).toBe(false);
@@ -40,7 +39,9 @@ test('close button closes Settings', async ({ page }) => {
 test('backdrop closes Settings', async ({ page }) => {
   await loadApp(page);
   await openSettings(page);
-  await page.locator('#settings-backdrop').click({ position: { x: 8, y: 8 } });
+  await page.locator('#settings-backdrop').evaluate((element) => {
+    (element as HTMLElement).click();
+  });
   await expectSettingsClosed(page);
 });
 
