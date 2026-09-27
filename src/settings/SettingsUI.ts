@@ -1,4 +1,4 @@
-import { PrivacyLegalUI } from '../core/PrivacyLegalUI';
+import { OPEN_SETTINGS_EVENT, requestOpenSettings } from '../app/applicationActions';
 import type { SettingsStore } from './SettingsStore';
 import type { SettingsData } from './SettingsModel';
 
@@ -11,23 +11,25 @@ export class SettingsUI {
     private readonly store: SettingsStore,
     private readonly onResetSave: () => void,
   ) {
+    const settingsButton = document.getElementById('settings-button');
+    if (!(settingsButton instanceof HTMLButtonElement)) {
+      throw new Error('Settings button was not found');
+    }
+
+    if (document.getElementById('settings-modal') || document.getElementById('settings-backdrop')) {
+      throw new Error('SettingsUI has already been initialized');
+    }
+
     this.backdrop = this.createBackdrop();
-    this.panel = this.createPanel();
+    this.panel = this.createBasePanel();
     document.body.appendChild(this.backdrop);
     document.body.appendChild(this.panel);
-    // Bind at the document level in capture phase so later UI modules cannot
-    // replace or suppress the Settings button handler.
-    document.addEventListener('click', (event) => {
-      const target = event.target;
-      if (!(target instanceof Element)) return;
-      const settingsButton = target.closest('#settings-button');
-      if (!(settingsButton instanceof HTMLButtonElement)) return;
-      event.preventDefault();
-      event.stopPropagation();
-      this.open();
-    }, true);
+
+    this.bindOpenCloseActions(settingsButton);
+    this.bindCoreControls();
     this.store.subscribe((settings) => this.render(settings));
     this.bindSystemActionReturns();
+    void this.installOptionalSections();
   }
 
   open(): void {
@@ -61,11 +63,10 @@ export class SettingsUI {
     backdrop.className = 'settings-backdrop';
     backdrop.hidden = true;
     backdrop.setAttribute('aria-hidden', 'true');
-    backdrop.addEventListener('click', () => this.close());
     return backdrop;
   }
 
-  private createPanel(): HTMLElement {
+  private createBasePanel(): HTMLElement {
     const panel = document.createElement('section');
     panel.id = 'settings-modal';
     panel.className = 'settings-modal';
@@ -147,7 +148,7 @@ export class SettingsUI {
           <section>
             <h3>Data</h3>
             <p class="settings-section-note">Game saves and settings are stored locally in your browser.</p>
-            <button type="button" data-action="open-privacy">Privacy & Legal</button>
+            <button type="button" data-action="open-privacy" disabled aria-busy="true">Privacy & Legal</button>
             <button type="button" data-action="reset-save">Reset local save</button>
             <button type="button" data-action="defaults">Restore default settings</button>
             <button type="button" data-action="reset-settings">Reset settings</button>
@@ -155,49 +156,76 @@ export class SettingsUI {
         </div>
       </div>`;
     
-    const privacySection = new PrivacyLegalUI({
-      resetSettings: () => this.store.resetSettings(),
-      deleteSaveData: () => this.onResetSave(),
-      clearAllLocalData: () => {
-        this.store.clearAllLocalData();
-        window.location.reload();
-      },
-    }).getSection();
-    panel.querySelector('.settings-scroll')?.appendChild(privacySection);
+    return panel;
+  }
 
-    panel.querySelector<HTMLButtonElement>('#settings-close')?.addEventListener('click', () => this.close());
-    panel.addEventListener('click', (event) => {
-      if (event.target === panel) this.close();
+  private bindOpenCloseActions(settingsButton: HTMLButtonElement): void {
+    settingsButton.addEventListener('click', requestOpenSettings);
+    document.addEventListener(OPEN_SETTINGS_EVENT, () => this.open());
+
+    this.backdrop.addEventListener('click', () => this.close());
+    this.panel.querySelector<HTMLButtonElement>('#settings-close')?.addEventListener('click', () => this.close());
+    this.panel.addEventListener('click', (event) => {
+      if (event.target === this.panel) this.close();
     });
 
     document.addEventListener('keydown', (event) => {
       if (event.key === 'Escape' && !this.panel.hidden) this.close();
     });
+  }
 
-    panel.querySelector('[data-action="open-privacy"]')?.addEventListener('click', () => {
-      privacySection.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    });
-
-    panel.querySelector('[data-action="reset-save"]')?.addEventListener('click', () => {
+  private bindCoreControls(): void {
+    this.panel.querySelector('[data-action="reset-save"]')?.addEventListener('click', () => {
       if (window.confirm('Delete the local game save? Your settings will be kept. This cannot be undone.')) this.onResetSave();
     });
-    panel.querySelector('[data-action="defaults"]')?.addEventListener('click', () => this.store.restoreDefaults());
-    panel.querySelector('[data-action="reset-settings"]')?.addEventListener('click', () => {
+    this.panel.querySelector('[data-action="defaults"]')?.addEventListener('click', () => this.store.restoreDefaults());
+    this.panel.querySelector('[data-action="reset-settings"]')?.addEventListener('click', () => {
       if (window.confirm('Reset all game settings to their initial defaults? Your game save will not be deleted.')) this.store.resetSettings();
     });
 
-    panel.querySelectorAll<HTMLButtonElement>('[data-system-action]').forEach((button) => {
+    this.panel.querySelectorAll<HTMLButtonElement>('[data-system-action]').forEach((button) => {
       button.addEventListener('click', () => this.openSystemAction(button.dataset.systemAction || ''));
     });
 
-    panel.querySelectorAll<HTMLInputElement | HTMLSelectElement>('[data-setting]').forEach((input) => {
+    this.panel.querySelectorAll<HTMLInputElement | HTMLSelectElement>('[data-setting]').forEach((input) => {
       input.addEventListener('change', () => this.updateFromControl(input));
       input.addEventListener('input', () => {
         if (input instanceof HTMLInputElement && input.type === 'range') this.updateFromControl(input);
       });
     });
+  }
 
-    return panel;
+  private async installOptionalSections(): Promise<void> {
+    const privacyButton = this.panel.querySelector<HTMLButtonElement>('[data-action="open-privacy"]');
+
+    try {
+      const { PrivacyLegalUI } = await import('../core/PrivacyLegalUI');
+      const privacySection = new PrivacyLegalUI({
+        resetSettings: () => this.store.resetSettings(),
+        deleteSaveData: () => this.onResetSave(),
+        clearAllLocalData: () => {
+          this.store.clearAllLocalData();
+          window.location.reload();
+        },
+      }).getSection();
+
+      this.panel.querySelector('.settings-scroll')?.appendChild(privacySection);
+
+      if (privacyButton) {
+        privacyButton.disabled = false;
+        privacyButton.removeAttribute('aria-busy');
+        privacyButton.addEventListener('click', () => {
+          privacySection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        });
+      }
+    } catch (error) {
+      console.error('Optional Privacy & Legal Settings section failed to initialize', error);
+      if (privacyButton) {
+        privacyButton.disabled = true;
+        privacyButton.removeAttribute('aria-busy');
+        privacyButton.title = 'Privacy & Legal is unavailable';
+      }
+    }
   }
 
 

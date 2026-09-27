@@ -38,6 +38,12 @@ jobs:
       - name: Build game
         run: npm run build
 
+      - name: Install browser for UI smoke tests
+        run: npx playwright install --with-deps chromium
+
+      - name: Run Settings UI smoke tests
+        run: npm run test:ui
+
       - name: Setup Pages
         uses: actions/configure-pages@v5
 

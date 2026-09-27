@@ -1,8 +1,10 @@
+import { requestOpenSettings } from '../app/applicationActions';
+
 /**
  * Mobile presentation layer for Castle Role.
  *
- * This module owns only mobile layout and input affordances. All actions proxy
- * to the existing DOM controls so gameplay/application logic stays unchanged.
+ * This module owns only mobile layout and input affordances. Gameplay actions proxy
+ * to existing DOM controls; application-level actions use their canonical commands.
  */
 export class MobileUI {
   private readonly shell: HTMLElement;
@@ -63,6 +65,12 @@ export class MobileUI {
       button.addEventListener('click', () => {
         const targetId = button.dataset.mobileProxy;
         if (!targetId) return;
+
+        if (targetId === 'settings-button') {
+          requestOpenSettings();
+          return;
+        }
+
         const target = document.getElementById(targetId);
         if (target instanceof HTMLButtonElement) target.click();
       });

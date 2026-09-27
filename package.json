@@ -5,13 +5,15 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "npm run test:battle-state-boundary && npm run test:castle-access-navigation && npm run test:settlement-lifecycle && npm run test:river-water-visibility && npm run test:build-tool-registry && tsc --noEmit && vite build",
+    "build": "npm run test:battle-state-boundary && npm run test:castle-access-navigation && npm run test:settlement-lifecycle && npm run test:river-water-visibility && npm run test:settings-bootstrap-order && tsc --noEmit && vite build",
     "preview": "vite preview",
     "test:battle-state-boundary": "node scripts/test-battle-state-boundary.mjs",
     "test:castle-access-navigation": "node scripts/test-castle-access-navigation.mjs",
     "test:settlement-lifecycle": "node scripts/test-settlement-lifecycle.mjs",
     "test:river-water-visibility": "node scripts/test-river-water-visibility.mjs",
-    "test:build-tool-registry": "node scripts/test-build-tool-registry.mjs"
+    "test:build-tool-registry": "node scripts/test-build-tool-registry.mjs",
+    "test:settings-bootstrap-order": "node scripts/test-settings-bootstrap-order.mjs",
+    "test:ui": "playwright test"
   },
   "dependencies": {
     "three": "^0.180.0"
@@ -19,6 +21,7 @@
   "devDependencies": {
     "@types/three": "^0.180.0",
     "typescript": "^7.0.2",
-    "vite": "^8.3.1"
+    "vite": "^8.3.1",
+    "@playwright/test": "^1.55.0"
   }
 }
