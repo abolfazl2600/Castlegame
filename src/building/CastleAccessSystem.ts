@@ -1,11 +1,11 @@
-import type { AccessKind, KeepState, TileKind, WallDirection } from '../core/types';
+import type { GeneratedAccessKind, KeepState, TileKind, WallDirection } from '../core/types';
 import type { CellEntry } from '../state/GameState';
 import { WallSystem } from './WallSystem';
 
 export interface GeneratedAccess {
   x: number;
   y: number;
-  kind: AccessKind;
+  kind: GeneratedAccessKind;
   rotation: number;
   targetX: number;
   targetY: number;
@@ -91,6 +91,7 @@ export class CastleAccessSystem {
       if (accessCount === 0) continue;
 
       const candidates = walkwayWalls
+        .slice()
         .sort((a, b) => a.x - b.x || a.y - b.y);
 
       if (candidates.length === 0) continue;
@@ -169,6 +170,8 @@ export class CastleAccessSystem {
     target: CellEntry,
     context: CastleAccessContext,
   ): { x: number; y: number; rotation: number; clearance: number } | null {
+    // Rotation is defined so local -Z faces the target fortification:
+    // 0=N, 1=W, 2=S, 3=E. Rendering consumes this exact orientation.
     const options = [
       { dx: 0, dy: 1, rotation: 0 },
       { dx: 1, dy: 0, rotation: 1 },
@@ -206,7 +209,26 @@ export class CastleAccessSystem {
           clearance += 1;
         }
 
-        return { x, y, rotation: option.rotation, clearance };
+        const sideObstructions = [
+          { x: x + option.dy, y: y + option.dx },
+          { x: x - option.dy, y: y - option.dx },
+        ].filter(
+          (point) =>
+            point.x < 0 ||
+            point.y < 0 ||
+            point.x >= context.size ||
+            point.y >= context.size ||
+            context.isOccupied(point.x, point.y) ||
+            !context.terrainBuildable(point.x, point.y),
+        ).length;
+
+        return {
+          x,
+          y,
+          rotation: option.rotation,
+          clearance,
+          score: clearance * 10 - sideObstructions * 3,
+        };
       })
       .filter(
         (
@@ -216,15 +238,36 @@ export class CastleAccessSystem {
           y: number;
           rotation: number;
           clearance: number;
+          score: number;
         } => value !== null,
       )
-      .sort((a, b) => b.clearance - a.clearance);
+      .sort((a, b) => b.score - a.score || a.rotation - b.rotation);
 
-    return scored[0] ?? null;
+    const best = scored[0];
+    return best
+      ? {
+          x: best.x,
+          y: best.y,
+          rotation: best.rotation,
+          clearance: best.clearance,
+        }
+      : null;
   }
 
-  private chooseKind(target: CellEntry, clearance: number): AccessKind {
+  private chooseKind(target: CellEntry, clearance: number): GeneratedAccessKind {
     const level = target.level ?? 1;
+    const supportsStoneTower =
+      target.kind === 'wall1' || target.kind === 'wall3';
+
+    // Stair Towers are compact vertical wall access. Prefer them for tall
+    // masonry walls, or when a long stair/ramp run cannot fit cleanly.
+    if (supportsStoneTower && level >= 4) {
+      return 'stairTower';
+    }
+
+    if (supportsStoneTower && level >= 3 && clearance < 2) {
+      return 'stairTower';
+    }
 
     if (clearance >= 2 && level >= 2 && target.kind !== 'wall2') {
       return 'stoneStairs';
@@ -261,7 +304,8 @@ export class CastleAccessSystem {
       kind === 'stoneStairs' ||
       kind === 'woodenStairs' ||
       kind === 'ramp' ||
-      kind === 'ladder'
+      kind === 'ladder' ||
+      kind === 'stairTower'
     );
   }
 
