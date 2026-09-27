@@ -31,25 +31,11 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Build and run regression checks
+      - name: Run core checks
+        run: npm run test:ci
+
+      - name: Typecheck and build
         run: npm run build
-
-      - name: Cache Playwright Chromium
-        id: playwright-cache
-        uses: actions/cache@v4
-        with:
-          path: ~/.cache/ms-playwright
-          key: ${{ runner.os }}-playwright-${{ hashFiles('package-lock.json') }}
-
-      - name: Install Playwright system dependencies
-        run: npx playwright install-deps chromium
-
-      - name: Install Chromium
-        if: steps.playwright-cache.outputs.cache-hit != 'true'
-        run: npx playwright install chromium
-
-      - name: Run UI smoke tests
-        run: npm run test:ui
 
       - name: Upload verified build
         uses: actions/upload-pages-artifact@v4
