@@ -9,6 +9,7 @@ import { WallSystem } from './building/WallSystem';
 import type { GeneratedAccess } from './building/CastleAccessSystem';
 import { KeepRenderer } from './rendering/KeepRenderer';
 import { MedievalMaterials } from './rendering/MedievalMaterials';
+import { WORLD_STYLE, styleTone } from './rendering/WorldStyle';
 import { BattleSystem, getUnitCombatStats } from './battle/BattleSystem';
 import { MILITARY_TIERS, militaryTierDefinition, normalizeMilitaryTier, type MilitaryTier } from './battle/MilitaryProgression';
 import type { BattleSetup, BattleStatus } from './battle/types';
@@ -431,7 +432,7 @@ export class ThreeGame {
     this.riverTexture = this.createRiverTexture();
     this.oceanTexture = this.createOceanTexture();
     this.riverWaterMaterial = new THREE.MeshStandardMaterial({
-      color: 0x55b9ca,
+      color: WORLD_STYLE.palette.riverWater,
       map: this.riverTexture,
       roughness: 0.16,
       metalness: 0.08,
@@ -441,7 +442,7 @@ export class ThreeGame {
       emissiveIntensity: 0.16,
     });
     this.oceanWaterMaterial = new THREE.MeshStandardMaterial({
-      color: 0x0b7897,
+      color: WORLD_STYLE.palette.deepWater,
       map: this.oceanTexture,
       roughness: 0.25,
       metalness: 0.08,
@@ -451,7 +452,7 @@ export class ThreeGame {
       emissiveIntensity: 0.12,
     });
     this.shallowWaterMaterial = new THREE.MeshStandardMaterial({
-      color: 0x4aaeb6,
+      color: WORLD_STYLE.palette.shallowWater,
       map: this.oceanTexture,
       roughness: 0.34,
       metalness: 0.02,
@@ -464,28 +465,28 @@ export class ThreeGame {
     applyGraphicsSettings(this.renderer, initialSettings);
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    this.renderer.toneMappingExposure = 1.08;
+    this.renderer.toneMappingExposure = 1.0;
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     applyGraphicsSettings(this.renderer, initialSettings);
     root.appendChild(this.renderer.domElement);
 
-    this.scene.background = new THREE.Color(0x718c91);
-    this.scene.fog = new THREE.Fog(0x718c91, 112, 235);
+    this.scene.background = new THREE.Color(WORLD_STYLE.lighting.fog);
+    this.scene.fog = new THREE.Fog(WORLD_STYLE.lighting.fog, WORLD_STYLE.lighting.fogNear, WORLD_STYLE.lighting.fogFar);
     applySceneGraphicsSettings(this.scene, initialSettings);
-    this.camera.position.set(68, 80, 76);
+    this.camera.position.copy(WORLD_STYLE.camera.position);
 
     this.controls = new OrbitControls(this.camera, this.renderer.domElement);
     this.controls.enableDamping = true;
     this.controls.dampingFactor = 0.06;
-    this.controls.minDistance = 34;
-    this.controls.maxDistance = 150;
+    this.controls.minDistance = WORLD_STYLE.camera.minDistance;
+    this.controls.maxDistance = WORLD_STYLE.camera.maxDistance;
     this.controls.maxPolarAngle = Math.PI / 2;
     this.controls.target.set(0, 0, 0);
     applyInputSettings(this.controls, this.settingsStore.get());
     this.settingsStore.subscribe((settings) => {
       applyGraphicsSettings(this.renderer, settings);
       applySceneGraphicsSettings(this.scene, settings);
-      this.renderer.toneMappingExposure = settings.graphics.effectsEnabled ? 1.08 : 1;
+      this.renderer.toneMappingExposure = settings.graphics.effectsEnabled ? 1.0 : 1;
       applyInputSettings(this.controls, settings);
       this.audioManager.setMasterVolume(settings.audio.masterVolume);
       this.audioManager.setMusicVolume(settings.audio.musicVolume);
@@ -1267,10 +1268,10 @@ export class ThreeGame {
   }
 
   private addLights(): void {
-    const sky = new THREE.HemisphereLight(0xb8d9e5, 0x2f2a24, 1.15);
+    const sky = new THREE.HemisphereLight(WORLD_STYLE.lighting.sky, WORLD_STYLE.lighting.ground, 1.2);
     this.scene.add(sky);
 
-    const sun = new THREE.DirectionalLight(0xffddb4, 4.65);
+    const sun = new THREE.DirectionalLight(WORLD_STYLE.lighting.sun, WORLD_STYLE.lighting.sunIntensity);
     sun.position.set(48, 92, 26);
     sun.castShadow = true;
     sun.shadow.mapSize.set(2048, 2048);
@@ -1285,11 +1286,11 @@ export class ThreeGame {
     sun.shadow.radius = 3;
     this.scene.add(sun);
 
-    const coolFill = new THREE.DirectionalLight(0x7eb8c8, 0.56);
+    const coolFill = new THREE.DirectionalLight(WORLD_STYLE.lighting.fill, WORLD_STYLE.lighting.fillIntensity);
     coolFill.position.set(-50, 34, -42);
     this.scene.add(coolFill);
 
-    const warmBounce = new THREE.PointLight(0xd2a56f, 8, 95, 2);
+    const warmBounce = new THREE.PointLight(WORLD_STYLE.lighting.bounce, WORLD_STYLE.lighting.bounceIntensity, 95, 2);
     warmBounce.position.set(22, 12, 34);
     this.scene.add(warmBounce);
   }
@@ -1323,7 +1324,7 @@ export class ThreeGame {
     );
     const island = new THREE.Mesh(
       islandGeometry,
-      new THREE.MeshStandardMaterial({ color: 0x79694c, roughness: 1 }),
+      new THREE.MeshStandardMaterial({ color: WORLD_STYLE.palette.soil, roughness: 1 }),
     );
     island.receiveShadow = true;
     island.castShadow = true;
@@ -1337,7 +1338,7 @@ export class ThreeGame {
     );
     const grass = new THREE.Mesh(
       grassGeometry,
-      new THREE.MeshStandardMaterial({ color: 0x94aa58, roughness: 0.94 }),
+      new THREE.MeshStandardMaterial({ color: WORLD_STYLE.palette.grassSunlit, roughness: 0.94 }),
     );
     grass.position.y = 1.55;
     grass.receiveShadow = true;
@@ -1853,12 +1854,12 @@ export class ThreeGame {
 
   private renderPlanLayer(cells: ReturnType<GameState['entries']>): void {
     const terrainColors: Record<TerrainKind, number> = {
-      water: 0x2a6d86,
-      shore: 0xc7b889,
-      plains: 0x87a85d,
-      river: 0x4baec4,
-      mountain: 0x857a70,
-      forest: 0x4f784c,
+      water: WORLD_STYLE.palette.deepWater,
+      shore: WORLD_STYLE.palette.shoreSand,
+      plains: WORLD_STYLE.palette.grassSunlit,
+      river: WORLD_STYLE.palette.riverWater,
+      mountain: WORLD_STYLE.palette.terrainRock,
+      forest: WORLD_STYLE.palette.grassForest,
     };
 
     for (let y = 0; y < SIZE; y += 1) {
@@ -1866,7 +1867,7 @@ export class ThreeGame {
         const position = this.gridToWorld(x, y);
         const terrain = this.terrainAt(x, y);
         const elevation = this.terrainElevation(x, y);
-        const tone = THREE.MathUtils.clamp(1 + elevation * 0.025, 0.86, 1.12);
+        const tone = styleTone(elevation);
         const base = new THREE.Color(terrainColors[terrain]).multiplyScalar(tone);
         this.addPlanRect(
           this.planLayer,
@@ -2272,12 +2273,12 @@ export class ThreeGame {
     terrain: 'forest' | 'plains',
   ): void {
     const hash = Math.abs((gx * 109 + gy * 173 + gx * gy * 13) % 97);
-    if (hash % 5 !== 0) return;
+    if (hash % 4 !== 0) return;
 
     const color =
       terrain === 'forest'
-        ? hash % 2 === 0 ? 0x718f4b : 0x5f7f46
-        : hash % 3 === 0 ? 0xa6b966 : 0x94aa5b;
+        ? hash % 2 === 0 ? WORLD_STYLE.palette.grassForest : WORLD_STYLE.palette.foliageMid
+        : hash % 3 === 0 ? WORLD_STYLE.palette.grassSunlit : WORLD_STYLE.palette.grassShaded;
     const patch = new THREE.Mesh(
       new THREE.CircleGeometry(0.55 + (hash % 4) * 0.17, 10),
       this.environmentMaterial(`grass-${terrain}-${hash % 3}`, color, 1),
@@ -6050,11 +6051,12 @@ export class ThreeGame {
 
   private makeTree(group: THREE.Group, level: number): THREE.Group {
     const variant = Math.max(1, level);
-    const trunk = new THREE.MeshStandardMaterial({ color: 0x75533c, roughness: 1 });
-    const foliage = new THREE.MeshStandardMaterial({
-      color: [0x729d51, 0x81ad5e, 0x668e49][(variant - 1) % 3],
-      roughness: 0.9,
-    });
+    const trunk = this.environmentMaterial('tree-trunk', 0x75533c, 1);
+    const foliage = this.environmentMaterial(
+      `tree-foliage-${(variant - 1) % 3}`,
+      [WORLD_STYLE.palette.foliageMid, WORLD_STYLE.palette.foliageLight, WORLD_STYLE.palette.grassForest][(variant - 1) % 3],
+      0.9,
+    );
 
     const trunkMesh = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.28, 1.6, 7), trunk);
     trunkMesh.position.y = 3.0;
