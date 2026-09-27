@@ -16,7 +16,7 @@ assert.ok(threeGame.includes('private upgradeSelectedArmyCamp(): void'));
 assert.ok(threeGame.includes('this.services.state.setLevel(this.selectedCell.x, this.selectedCell.y, nextLevel)'));
 assert.ok(threeGame.includes('if (nextLevel > this.militaryTier)'));
 assert.ok(threeGame.includes("type CampVariant = 'field' | 'reinforced' | 'command' | 'fortified'"));
-assert.ok(threeGame.includes('fortified stone foundation'));
+assert.ok(threeGame.includes('stone foundation, timber command hall'));
 assert.ok(!threeGame.includes('cycleSelectedArmyCampVariant'));
 assert.ok(!threeGame.includes("if (event.shiftKey && key === 'a')"));
 
