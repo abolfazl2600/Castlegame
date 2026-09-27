@@ -324,6 +324,8 @@ export class ThreeGame {
   private readonly godModeActions = new GodModeActionRegistry();
   private readonly planMaterials = new Map<string, THREE.MeshBasicMaterial>();
   private readonly environmentMaterials = new Map<string, THREE.MeshStandardMaterial>();
+  private readonly visualBenchmark = new URLSearchParams(window.location.search).has('visualBaseline');
+  private lastRedrawMs = 0;
   private readonly settlementUnitBox = new THREE.BoxGeometry(1, 1, 1);
   private readonly buildObjectsByCell = new Map<string, THREE.Object3D>();
   private generatedCastleAccess: GeneratedAccess[] | null = null;
@@ -494,6 +496,32 @@ export class ThreeGame {
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     applyGraphicsSettings(this.renderer, initialSettings);
     root.appendChild(this.renderer.domElement);
+    if (this.visualBenchmark) {
+      // Opt-in diagnostics and fixed camera for the reproducible visual baseline script.
+      (window as unknown as { __castleVisualMetrics: () => object }).__castleVisualMetrics = () => {
+        const geometries = new Set<THREE.BufferGeometry>();
+        const materials = new Set<THREE.Material>();
+        this.scene.traverse((object) => {
+          if (!(object instanceof THREE.Mesh || object instanceof THREE.Line || object instanceof THREE.Points)) return;
+          geometries.add(object.geometry);
+          for (const material of Array.isArray(object.material) ? object.material : [object.material]) materials.add(material);
+        });
+        return {
+          drawCalls: this.renderer.info.render.calls,
+          triangles: this.renderer.info.render.triangles,
+          sceneGeometries: geometries.size,
+          sceneMaterials: materials.size,
+          gpuGeometries: this.renderer.info.memory.geometries,
+          gpuTextures: this.renderer.info.memory.textures,
+          lastRedrawMs: this.lastRedrawMs,
+        };
+      };
+      (window as unknown as { __castleVisualCamera: (position: { x: number; y: number; z: number; targetX: number; targetY: number; targetZ: number }) => void }).__castleVisualCamera = (position) => {
+        this.camera.position.set(position.x, position.y, position.z);
+        this.controls.target.set(position.targetX, position.targetY, position.targetZ);
+        this.controls.update();
+      };
+    }
 
     this.scene.background = new THREE.Color(WORLD_STYLE.lighting.fog);
     this.scene.fog = new THREE.Fog(WORLD_STYLE.lighting.fog, WORLD_STYLE.lighting.fogNear, WORLD_STYLE.lighting.fogFar);
@@ -1718,6 +1746,7 @@ export class ThreeGame {
   }
 
   private redraw(): void {
+    const redrawStart = this.visualBenchmark ? performance.now() : 0;
     // Derived castle access follows architecture/terrain lifecycle. Redraw is
     // the invalidation boundary; rendering then materializes the canonical
     // array that BattleNavigation will consume unchanged.
@@ -1803,6 +1832,7 @@ export class ThreeGame {
         this.animatedFlags.push(object);
       }
     });
+    if (this.visualBenchmark) this.lastRedrawMs = performance.now() - redrawStart;
   }
 
   private renderMinimap(): void {
