@@ -1100,7 +1100,7 @@ export class ThreeGame {
     tabs.innerHTML = groups.map((group, index) => {
       const active = group.label === this.activeBuildCategory;
       return (
-        '<button class="build-category-tab' + (active ? ' is-active' : '') +
+        '<button id="build-category-tab-' + index + '" class="build-category-tab' + (active ? ' is-active' : '') +
         '" type="button" role="tab" aria-selected="' + active +
         '" aria-controls="build-tool-panel-' + index +
         '" data-build-category="' + group.label + '">' +
@@ -1126,7 +1126,7 @@ export class ThreeGame {
       return (
         '<section id="build-tool-panel-' + index +
         '" class="tool-category' + (active ? ' is-active' : '') +
-        '" role="tabpanel" data-category="' + group.label + '"' +
+        '" role="tabpanel" aria-labelledby="build-category-tab-' + index + '" data-category="' + group.label + '"' +
         (active ? '' : ' hidden') + '>' +
         '<div class="tool-category-label"><span>' + group.label + '</span><small>' + group.tools.length + ' tools</small></div>' +
         '<div class="tool-category-items">' + buttons + '</div>' +
@@ -1134,7 +1134,7 @@ export class ThreeGame {
       );
     }).join('');
 
-    modeChip!.textContent = modeConfig.label;
+    if (modeChip) modeChip.textContent = modeConfig.label;
     settings.hidden = this.gameMode === 'modern';
 
     tabs.querySelectorAll<HTMLButtonElement>('[data-build-category]').forEach((button) => {
@@ -8916,11 +8916,11 @@ export class ThreeGame {
       '<div class="toolbar-title-actions"><span id="build-mode-chip" class="build-mode-chip"></span>' +
       '<button id="toolbar-close" class="toolbar-close" type="button" aria-label="Close build panel">×</button></div>' +
       '</div>' +
-      '<label class="build-search">' +
+      '<div class="build-search" role="search">' +
       '<span class="build-search-icon" aria-hidden="true">⌕</span>' +
       '<input id="build-search" type="search" aria-label="Search build tools" placeholder="Search tools…" autocomplete="off" />' +
       '<button id="build-search-clear" class="build-search-clear" type="button" aria-label="Clear tool search" hidden>×</button>' +
-      '</label>' +
+      '</div>' +
       '<div class="build-context-row">' +
       '<div class="build-active" role="status" aria-live="polite"><span class="build-active-dot"></span><span>Active</span><strong id="build-active-label">Inspect</strong></div>' +
       noneHtml +
