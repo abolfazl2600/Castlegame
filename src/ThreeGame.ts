@@ -5,6 +5,7 @@ import { SaveSystem } from './core/SaveSystem';
 import type { GameState } from './state/GameState';
 import { SAVE_KEY, SAVE_VERSION, TILE_SIZE, WORLD_COLS } from './core/constants';
 import { WallSystem } from './building/WallSystem';
+import type { GeneratedAccess } from './building/CastleAccessSystem';
 import { KeepRenderer } from './rendering/KeepRenderer';
 import { MedievalMaterials } from './rendering/MedievalMaterials';
 import { BattleSystem, getUnitCombatStats } from './battle/BattleSystem';
@@ -462,6 +463,7 @@ export class ThreeGame {
         fortificationTopAt: (_x, _y, cell) => this.fortificationTopLocal(cell),
         keeps: () => this.services.keepSystem.entries(),
         towerBridges: () => Array.from(this.towerBridges.values()).map((bridge) => ({ ...bridge })),
+        generatedAccess: () => this.getGeneratedCastleAccess(),
         setWallBattleVisibility: (x, y, visible) => this.setBattleWallVisibility(x, y, visible),
         buildingDamageAt: (x, y) => this.services.state.getCell(x, y)?.damage ?? 0,
         gatePassable: (x, y) => this.services.gateSystem.isGatePassable(x, y),
@@ -1206,6 +1208,30 @@ export class ThreeGame {
     group.clear();
   }
 
+  private getGeneratedCastleAccess(): GeneratedAccess[] {
+    const cells = this.services.state.entries();
+    const keeps = this.services.keepSystem.entries();
+
+    return this.services.castleAccessSystem.generate(
+      cells,
+      keeps,
+      {
+        size: SIZE,
+        getCell: (x, y) => {
+          const cell = this.services.state.getCell(x, y);
+          return cell ? { x, y, ...cell } : undefined;
+        },
+        terrainBuildable: (x, y) => {
+          const terrain = this.terrainAt(x, y);
+          return terrain !== 'water' && terrain !== 'river';
+        },
+        isOccupied: (x, y) =>
+          Boolean(this.services.state.getCell(x, y)) ||
+          Boolean(this.services.keepSystem.findAtCell(x, y)),
+      },
+    );
+  }
+
   private redraw(): void {
     this.clearGroup(this.terrainLayer);
     this.clearGroup(this.buildLayer);
@@ -1243,24 +1269,7 @@ export class ThreeGame {
       this.buildLayer.add(this.makeTowerBridge(bridge));
     }
 
-    const generatedAccess = this.services.castleAccessSystem.generate(
-      cells,
-      this.services.keepSystem.entries(),
-      {
-        size: SIZE,
-        getCell: (x, y) => {
-          const cell = this.services.state.getCell(x, y);
-          return cell ? { x, y, ...cell } : undefined;
-        },
-        terrainBuildable: (x, y) => {
-          const terrain = this.terrainAt(x, y);
-          return terrain !== 'water' && terrain !== 'river';
-        },
-        isOccupied: (x, y) =>
-          Boolean(this.services.state.getCell(x, y)) ||
-          Boolean(this.services.keepSystem.findAtCell(x, y)),
-      },
-    );
+    const generatedAccess = this.getGeneratedCastleAccess();
 
     for (const access of generatedAccess) {
       const group = new THREE.Group();
