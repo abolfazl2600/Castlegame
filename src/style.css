@@ -24,6 +24,9 @@ button { font: inherit; }
 }
 
 .topbar {
+  position: relative;
+  z-index: 1000;
+  pointer-events: auto;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -37,7 +40,8 @@ button { font: inherit; }
 
 .eyebrow { color: #7fe7ff; font-size: 9px; font-weight: 900; letter-spacing: .28em; }
 h1 { margin: 3px 0 0; font-size: 22px; line-height: 1; letter-spacing: -.035em; }
-.status-group { display: flex; gap: 7px; align-items: center; }
+.status-group { position: relative; z-index: 1; display: flex; gap: 7px; align-items: center; }
+.status-group button { pointer-events: auto; }
 .status-pill {
   color: #c9f7ff;
   background: rgba(66,211,255,.1);

@@ -6,6 +6,7 @@ async function loadApp(page: Page): Promise<void> {
   await page.goto(APP_PATH, { waitUntil: 'domcontentloaded' });
   await expect(page.locator('#settings-modal')).toBeAttached();
   await expect(page.locator('#settings-backdrop')).toBeAttached();
+  await expect(page.locator('#game canvas')).toHaveCount(1, { timeout: 20_000 });
 }
 
 async function openSettings(page: Page): Promise<void> {
@@ -25,9 +26,31 @@ async function expectSettingsClosed(page: Page): Promise<void> {
   expect(await page.locator('#settings-backdrop').evaluate((element) => (element as HTMLElement).hidden)).toBe(true);
 }
 
-test('desktop Settings button opens the Settings modal', async ({ page }) => {
+test('desktop header Settings remains clickable after game runtime initialization', async ({ page }) => {
   await loadApp(page);
-  await openSettings(page);
+
+  const settingsButton = page.locator('#settings-button');
+  await expect(settingsButton).toBeVisible();
+
+  const box = await settingsButton.boundingBox();
+  expect(box).not.toBeNull();
+
+  const point = {
+    x: box!.x + box!.width / 2,
+    y: box!.y + box!.height / 2,
+  };
+
+  const hitTarget = await page.evaluate(({ x, y }) => {
+    const hit = document.elementFromPoint(x, y);
+    return hit?.closest('#settings-button')?.id ?? null;
+  }, point);
+  expect(hitTarget).toBe('settings-button');
+
+  await page.mouse.click(point.x, point.y);
+
+  await expect(page.locator('#settings-modal')).toBeVisible();
+  await expect(page.locator('#settings-modal')).toHaveAttribute('aria-hidden', 'false');
+  await expect(page.locator('#settings-backdrop')).toHaveAttribute('aria-hidden', 'false');
 });
 
 test('close button closes Settings', async ({ page }) => {

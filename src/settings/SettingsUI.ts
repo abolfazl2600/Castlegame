@@ -1,4 +1,4 @@
-import { OPEN_SETTINGS_EVENT, requestOpenSettings } from '../app/applicationActions';
+import { registerOpenSettings, requestOpenSettings } from '../app/applicationActions';
 import type { SettingsStore } from './SettingsStore';
 import type { SettingsData } from './SettingsModel';
 
@@ -160,8 +160,11 @@ export class SettingsUI {
   }
 
   private bindOpenCloseActions(settingsButton: HTMLButtonElement): void {
-    settingsButton.addEventListener('click', requestOpenSettings);
-    document.addEventListener(OPEN_SETTINGS_EVENT, () => this.open());
+    registerOpenSettings(() => this.open());
+    settingsButton.addEventListener('click', (event) => {
+      event.preventDefault();
+      requestOpenSettings();
+    });
 
     this.backdrop.addEventListener('click', () => this.close());
     this.panel.querySelector<HTMLButtonElement>('#settings-close')?.addEventListener('click', () => this.close());
