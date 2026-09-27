@@ -170,6 +170,9 @@ export class SurvivalGameMode implements GameModeLifecycle {
 
   start(context: GameModeLifecycleContext): void {
     this.assertContext(context);
+    // A Survival run owns one battle-damage session. Starting a new run
+    // explicitly clears any carried runtime wall damage from earlier battles.
+    this.dependencies.battleSystem.reset(false);
     this.resetRuntime();
     this.dependencies.setAttackState(true);
     this.ensureHud();
@@ -207,9 +210,10 @@ export class SurvivalGameMode implements GameModeLifecycle {
     this.assertContext(context);
     if (this.runtime.waveState === 'ended') return;
 
-    if (this.dependencies.battleSystem.isRunning()) {
-      this.dependencies.battleSystem.stop();
-    }
+    // Ending Survival terminates the battle-damage session. This restores
+    // battle-only visuals/navigation and drops carried wall damage without
+    // touching the persistent castle state.
+    this.dependencies.battleSystem.reset(false);
     this.runtime.waveState =
       this.runtime.waveState === 'defeat' ? 'defeat' : 'ended';
     this.dependencies.setAttackState(false);
@@ -304,6 +308,10 @@ export class SurvivalGameMode implements GameModeLifecycle {
     const options: BattleStartOptions = {
       attackerSpawnInterval: definition.spawnInterval,
       attackerSpawnBatchSize: definition.spawnBatchSize,
+      // Consecutive waves share runtime-only structural damage. The carried
+      // damage is cleared by Survival start/restart/end/cleanup and is never
+      // committed to GameState.
+      preserveSessionWallDamage: true,
     };
 
     this.runtime.currentWave = waveNumber;
