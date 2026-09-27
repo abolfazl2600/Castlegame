@@ -747,6 +747,30 @@ export class ThreeGame {
     return isBuildingAvailable(this.gameMode, kind);
   }
 
+  private economyConstructionEnabled(): boolean {
+    return this.gameMode === 'medieval' || this.gameMode === 'survival';
+  }
+
+  private ensureConstructionAffordable(tool: ToolKind, quantity = 1): boolean {
+    if (!this.economyConstructionEnabled()) return true;
+    const cost = this.services.economySystem.constructionCost(tool, quantity);
+    if (this.services.economySystem.canAfford(cost)) return true;
+
+    const missing = this.services.economySystem.missing(cost);
+    const needs: string[] = [];
+    if ((missing.wood ?? 0) > 0.001) needs.push(`${Math.ceil(missing.wood ?? 0)} wood`);
+    if ((missing.stone ?? 0) > 0.001) needs.push(`${Math.ceil(missing.stone ?? 0)} stone`);
+    this.setStatus(`Not enough resources · need ${needs.join(' + ') || 'more materials'}`);
+    return false;
+  }
+
+  private spendConstructionCost(tool: ToolKind, quantity = 1): void {
+    if (!this.economyConstructionEnabled()) return;
+    const cost = this.services.economySystem.constructionCost(tool, quantity);
+    this.services.economySystem.spend(cost);
+    this.syncEconomyUI();
+  }
+
   private registerGodModeActions(): void {
     this.godModeActions.register({
       id: 'missileStrike',
@@ -4785,6 +4809,8 @@ export class ThreeGame {
       return;
     }
 
+    if (!this.ensureConstructionAffordable('towerBridge')) return;
+
     this.recordHistory();
     const bridge: TowerBridgeState = {
       id: this.nextTowerBridgeId++,
@@ -4795,6 +4821,7 @@ export class ThreeGame {
       kind: this.towerBridgeKind,
     };
     this.towerBridges.set(bridge.id, bridge);
+    this.spendConstructionCost('towerBridge');
     this.towerBridgeStart = null;
     this.towerBridgeHover = null;
     this.clearGroup(this.wallPreviewLayer);
@@ -7562,6 +7589,19 @@ export class ThreeGame {
   private buildRoadDrag(start: GridPoint, end: GridPoint): void {
     const roadKind = this.selectedTool as RoadKind;
     const path = this.roadPath(start, end);
+    const costedTiles = path.filter((point) => {
+      const terrain = this.terrainAt(point.x, point.y);
+      const current = this.services.state.getCell(point.x, point.y);
+      if (current && !this.isRoadFamily(current.kind)) return false;
+      if (terrain === 'water' || terrain === 'mountain') return false;
+      return !current || current.kind !== roadKind;
+    }).length;
+
+    if (costedTiles > 0 && !this.ensureConstructionAffordable(roadKind, costedTiles)) {
+      this.clearGroup(this.wallPreviewLayer);
+      return;
+    }
+
     const before = this.captureSnapshot();
     let changed = 0;
 
@@ -7583,6 +7623,7 @@ export class ThreeGame {
 
     if (changed > 0) {
       this.pushUndoSnapshot(before);
+      if (costedTiles > 0) this.spendConstructionCost(roadKind, costedTiles);
       this.redraw();
       this.scheduleSave();
       this.setStatus(`Built ${changed} connected road tiles · preview confirmed`);
@@ -7924,6 +7965,21 @@ export class ThreeGame {
     const wallKind = this.selectedTool as WallKind;
     const path = this.wallPath(start, end);
     const single = path.length === 1;
+    const costedSegments = path.filter((point) => {
+      const terrain = this.terrainAt(point.x, point.y);
+      const cell = this.services.state.getCell(point.x, point.y);
+      if (single && cell?.kind === wallKind) return false;
+      if (cell?.kind === 'tower' || cell?.kind === 'gate') return false;
+      if (cell && !WALL_KINDS.includes(cell.kind as WallKind)) return false;
+      if (!cell && !this.canBuildFortificationOnTerrain(terrain)) return false;
+      return !cell || cell.kind !== wallKind;
+    }).length;
+
+    if (costedSegments > 0 && !this.ensureConstructionAffordable(wallKind, costedSegments)) {
+      this.clearGroup(this.wallPreviewLayer);
+      return;
+    }
+
     const before = this.captureSnapshot();
     let changed = false;
 
@@ -7970,6 +8026,7 @@ export class ThreeGame {
 
     if (changed) {
       this.pushUndoSnapshot(before);
+      if (costedSegments > 0) this.spendConstructionCost(wallKind, costedSegments);
       this.redraw();
       this.scheduleSave();
       this.setStatus(
@@ -9957,8 +10014,12 @@ export class ThreeGame {
       return;
     }
 
+    const keepCostUnits = Math.max(1, Math.ceil((draft.width * draft.depth * draft.floors) / 6));
+    if (!this.ensureConstructionAffordable('keep', keepCostUnits)) return;
+
     this.recordHistory();
     const keep = this.services.keepSystem.add(draft);
+    this.spendConstructionCost('keep', keepCostUnits);
     this.selectKeep(keep);
     this.redraw();
     this.scheduleSave();
