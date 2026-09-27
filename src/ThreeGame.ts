@@ -388,6 +388,7 @@ export class ThreeGame {
       isBuildingAvailableForMode: (mode, kind) => isBuildingAvailable(mode, kind as TileKind),
       key: (x, y) => this.key(x, y),
       syncModeDependentUI: () => this.syncModeDependentUI(),
+      prepareForLoad: () => this.clearSettlementAgents(),
       afterLoad: () => this.normalizeRiverElevations(),
       setStatus: (message) => this.setStatus(message),
     });
@@ -8386,8 +8387,18 @@ export class ThreeGame {
       };
     });
 
-    get<HTMLButtonElement>('save-button').onclick = () => this.saveSystem.openSaveDialog();
-    get<HTMLButtonElement>('load-button').onclick = () => this.saveSystem.openLoadDialog();
+    // Hidden legacy bridge buttons remain compatible with existing automation and mobile proxies.
+    // Settings uses registerSystemAction above and opens the dedicated save/load dialogs directly.
+    get<HTMLButtonElement>('save-button').onclick = () => this.save();
+    get<HTMLButtonElement>('load-button').onclick = () => {
+      this.clearSettlementAgents();
+      this.load();
+      this.selectedCell = null;
+      this.selectedKeepId = null;
+      this.undoStack.length = 0;
+      this.redoStack.length = 0;
+      this.redraw();
+    };
     get<HTMLButtonElement>('reset-button').onclick = () => {
       const confirmRequired = this.settingsStore.get().interface.confirmDestructiveActions;
       if (!confirmRequired || confirm('Reset the entire island and choose a game mode?')) {
