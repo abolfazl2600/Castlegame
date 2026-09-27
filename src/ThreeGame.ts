@@ -2907,8 +2907,9 @@ export class ThreeGame {
     else if (cell.kind === 'moat') this.makeMoat(group, floodedMoats.has(this.key(cell.x, cell.y)));
     else if (['stoneStairs', 'woodenStairs', 'ramp', 'ladder'].includes(cell.kind)) {
       this.makeAccess(group, cell.kind as AccessKind, cell.x, cell.y, cell);
-    } else {
-      this.makeHouse(group, cell.kind as ResidenceKind, cell.x, cell.y);
+    } else if (cell.kind === 'cottage' || cell.kind === 'house' ||
+      cell.kind === 'manor' || cell.kind === 'villa' || cell.kind === 'cowBarn') {
+      this.makeHouse(group, cell.kind, cell.x, cell.y);
     }
 
     if (!this.isWallFamily(cell.kind) && !ROAD_KINDS.includes(cell.kind as RoadKind) && cell.kind !== 'moat') {

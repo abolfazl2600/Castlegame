@@ -4,7 +4,7 @@
 layouts, and stable coordinate hash used by `ThreeGame.makeHouse`. A new home
 uses an entry in `RESIDENCE_LAYOUTS`: compose a compact body and warm roof from
 two or three clear masses, then set width, depth, height and `detailed` per
-part. The layout fits inside one existing grid cell. Keep its front access and
+part. The `cowBarn` layout is a related farm structure in the same kit. The layout fits inside one existing grid cell. Keep its front access and
 the alleys between parts visible at the normal camera distance.
 
 The hash uses tile coordinates, part index and family, so rebuilding a tile or

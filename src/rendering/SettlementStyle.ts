@@ -11,7 +11,7 @@ export const SETTLEMENT_STYLE = {
   soil: 0x80664a,
 } as const;
 
-export type ResidenceKind = 'cottage' | 'house' | 'manor' | 'villa';
+export type ResidenceKind = 'cottage' | 'house' | 'manor' | 'villa' | 'cowBarn';
 
 export interface ResidencePart {
   x: number;
@@ -26,6 +26,10 @@ export interface ResidencePart {
 // Parts fit within the existing one-cell residential footprint. The manor
 // receives a central hall, the villa an open garden, and cottages stay low.
 export const RESIDENCE_LAYOUTS: Record<ResidenceKind, readonly ResidencePart[]> = {
+  cowBarn: [
+    { x: -0.5, z: -0.62, rotation: 0, width: 1.85, depth: 1.26, height: 1.62, detailed: true },
+    { x: 0.92, z: 0.92, rotation: Math.PI, width: 0.82, depth: 0.72, height: 1.08, detailed: false },
+  ],
   cottage: [
     { x: -1.18, z: -1.03, rotation: 0, width: 0.84, depth: 0.72, height: 1.28, detailed: false },
     { x: 0, z: -1.08, rotation: 0, width: 0.78, depth: 0.7, height: 1.18, detailed: false },
