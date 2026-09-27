@@ -4733,35 +4733,88 @@ export class ThreeGame {
     const bodyTop = Math.max(groundY + 2.2, landingY - 0.18);
     const bodyHeight = bodyTop - groundY;
 
-    // The structure fills the wall-side edge of its access tile. The upper
-    // landing reaches into the target wall footprint, making the join flush
-    // instead of leaving a visual or navigation gap.
-    this.addBox(group, 3.65, 0.46, 4.05, foundation, 0, 2.01, -0.45);
+    const target = this.services.state.getCell(access.targetX, access.targetY);
+    const wallHalfDepth =
+      target && WALL_KINDS.includes(target.kind as WallKind)
+        ? this.wallThicknessValue(
+            target.kind as WallKind,
+            target.thickness ?? 'medium',
+          ) / 2
+        : 1.1;
+    const wallFaceZ = -TILE + wallHalfDepth;
+    const outerFaceZ = 1.42;
+    const bodyDepth = outerFaceZ - wallFaceZ + 0.18;
+    const bodyCenterZ = (outerFaceZ + wallFaceZ) / 2;
+
+    // The body itself reaches the real wall face (with a tiny overlap), so
+    // even the thickest supported wall cannot leave a visible vertical gap.
+    this.addBox(
+      group,
+      3.65,
+      0.46,
+      bodyDepth + 0.22,
+      foundation,
+      0,
+      2.01,
+      bodyCenterZ - 0.04,
+    );
     this.addBox(
       group,
       3.38,
       bodyHeight,
-      3.62,
+      bodyDepth,
       body,
       0,
       groundY + bodyHeight / 2,
-      -0.45,
+      bodyCenterZ,
     );
 
     // Ground entrance faces away from the wall; rotation is derived from the
     // target wall face and never exposed to the player.
-    this.addBox(group, 1.08, 1.86, 0.08, doorway, 0, groundY + 0.93, 1.39);
+    this.addBox(group, 1.08, 1.86, 0.08, doorway, 0, groundY + 0.93, outerFaceZ + 0.01);
 
-    // Top surface equals landingY exactly.
-    this.addBox(group, 3.56, 0.24, 3.82, walkway, 0, landingY - 0.12, -0.45);
-    this.addBox(group, 1.92, 0.24, 2.3, walkway, 0, landingY - 0.12, -2.72);
+    // Top surface equals landingY exactly. The narrow landing continues from
+    // the tower body into the wall footprint so the rendered and logical wall
+    // walk surfaces meet at the same target.
+    this.addBox(
+      group,
+      3.56,
+      0.24,
+      bodyDepth + 0.08,
+      walkway,
+      0,
+      landingY - 0.12,
+      bodyCenterZ,
+    );
+    const landingEndZ = -TILE - 0.08;
+    const landingStartZ = wallFaceZ + 0.18;
+    const landingDepth = Math.abs(landingEndZ - landingStartZ);
+    this.addBox(
+      group,
+      1.92,
+      0.24,
+      landingDepth,
+      walkway,
+      0,
+      landingY - 0.12,
+      (landingStartZ + landingEndZ) / 2,
+    );
 
     const parapetY = landingY + 0.32;
     for (const x of [-1.62, 1.62]) {
-      this.addBox(group, 0.24, 0.64, 3.58, body, x, parapetY, -0.45);
-      this.addBox(group, 0.2, 0.54, 2.28, body, x * 0.56, landingY + 0.27, -2.72);
+      this.addBox(group, 0.24, 0.64, bodyDepth - 0.2, body, x, parapetY, bodyCenterZ + 0.08);
+      this.addBox(
+        group,
+        0.2,
+        0.54,
+        landingDepth,
+        body,
+        x * 0.56,
+        landingY + 0.27,
+        (landingStartZ + landingEndZ) / 2,
+      );
     }
-    this.addBox(group, 3.4, 0.64, 0.24, body, 0, parapetY, 1.32);
+    this.addBox(group, 3.4, 0.64, 0.24, body, 0, parapetY, outerFaceZ - 0.1);
 
     // Leave the wall-facing side open; defenders step directly onto the
     // connected wall-walk node.
