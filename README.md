@@ -35,7 +35,7 @@ Terrain-only starts are separate from full castle templates. They clear construc
 - Marsh Island
 - Terraced Hills
 
-Every terrain template can immediately be modified with Raise, Lower, Flatten, Smooth, Dig, Hill, Cliff, River, Land, Mountain, vegetation, roads, and normal construction.
+Every terrain template can immediately be modified with Raise, Lower, Flatten, Smooth, Hill, Cliff, River, Land, Mountain, vegetation, roads, and normal construction.
 
 ### Living residential districts
 
@@ -465,7 +465,6 @@ Brush tools remain available:
 - Lower
 - Flatten
 - Smooth
-- Dig
 - Create Hill
 - Create Cliff
 - Brush Size
@@ -550,7 +549,6 @@ src/
 - **U / J** — Raise / Lower Terrain
 - **B** — Flatten
 - **V** — Smooth
-- **G** — Dig
 - **H** — Create Hill
 - **C** — Create Cliff
 - **X** — Remove
