@@ -1,5 +1,9 @@
 # Castle Role
 
+## Visual direction
+
+All new or revised buildings, terrain, characters, effects, and interface visuals follow the [Castle Role Visual Style Guide](VISUAL_STYLE_GUIDE.md). Use its implementation checklist and compare assets in the reference scene before merging. The phased migration is tracked in issues #60–#65.
+
 ## Settlement, battle, terrain and template expansion
 
 This update expands the world as a living medieval settlement while keeping all architecture and siege systems editable.
