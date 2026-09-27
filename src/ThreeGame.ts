@@ -465,7 +465,6 @@ export class ThreeGame {
 
   private saveTimer: number | null = null;
   private economySaveAccumulatorMs = 0;
-  private economyShortageActive = false;
   private worldSeeded = false;
   private loadedSaveVersion = 0;
   private lastFrameTime = 0;
@@ -9051,8 +9050,7 @@ export class ThreeGame {
     setText('economy-flour-rate', formatRate(rates.flourPerSecond));
     setText('economy-food-rate', formatRate(rates.foodPerSecond - rates.foodConsumptionPerSecond));
 
-    const used = Object.values(resources).reduce((sum, value) => sum + value, 0);
-    setText('economy-storage', `Storage ${Math.floor(used)} / ${snapshot.storageCapacity}`);
+    setText('economy-storage', `Storage cap ${snapshot.storageCapacity} per resource`);
     const warning = document.getElementById('economy-warning');
     if (warning) warning.hidden = !snapshot.foodShortage;
   }
@@ -9077,7 +9075,6 @@ export class ThreeGame {
     }
 
     if (result.shortageChanged) {
-      this.economyShortageActive = result.shortage;
       this.setStatus(
         result.shortage
           ? 'Food shortage · build Farms, Orchards, Windmills, Cow Barns, or Markets'
@@ -10281,7 +10278,6 @@ export class ThreeGame {
     this.elevationOverrides.clear();
     this.moatTasks.clear();
     this.services.economySystem.reset();
-    this.economyShortageActive = false;
     this.economySaveAccumulatorMs = 0;
     this.worldSeeded = true;
 
