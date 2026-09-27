@@ -6,8 +6,10 @@ import type { GameExtension } from './core/GameExtension';
 import type { GameState } from './state/GameState';
 import { SAVE_KEY, SAVE_VERSION, TILE_SIZE, WORLD_COLS } from './core/constants';
 import { WallSystem } from './building/WallSystem';
+import { rasterizeWallPath } from './building/WallPath';
 import type { GeneratedAccess } from './building/CastleAccessSystem';
 import { KeepRenderer } from './rendering/KeepRenderer';
+import { BasilicaRenderer } from './rendering/BasilicaRenderer';
 import { MedievalMaterials } from './rendering/MedievalMaterials';
 import { CASTLE_ARCHITECTURE_STYLE } from './rendering/CastleArchitectureStyle';
 import { WORLD_STYLE, styleTone } from './rendering/WorldStyle';
@@ -78,6 +80,7 @@ const PLAYABLE_LAYOUT_TEMPLATES: Readonly<Record<string, { layoutId: MapLayoutId
   'mainland-frontier': { layoutId: 'mainland', seed: 5501 },
   'coastal-peninsula': { layoutId: 'peninsula', seed: 5502 },
   'split-isles': { layoutId: 'twin-isles', seed: 5503 },
+  'carcassonne': { layoutId: 'mainland', seed: 5601 },
 };
 const BUILDING_KINDS: TileKind[] = [
   'wall1',
@@ -101,6 +104,7 @@ const BUILDING_KINDS: TileKind[] = [
   'appleOrchard',
   'armyCamp',
   'market',
+  'basilica',
   'windmill',
   'mine',
   'mountain',
@@ -226,6 +230,7 @@ const TOOL_GROUPS: Array<{ label: string; tools: ToolDefinition[] }> = [
     label: 'Economy',
     tools: [
       { id: 'market', icon: '🏪', label: 'Market', detail: 'Large medieval marketplace · tents · stalls · shops', shortcut: '-' },
+      { id: 'basilica', icon: '⛪', label: 'Basilica', detail: 'Large stone church landmark · nave · transept · tower', shortcut: '-' },
     ],
   },
   {
@@ -312,6 +317,7 @@ export class ThreeGame {
   });
     private readonly medievalMaterials = new MedievalMaterials();
   private readonly keepRenderer = new KeepRenderer(this.services.detailGenerator, this.medievalMaterials);
+  private readonly basilicaRenderer = new BasilicaRenderer(this.medievalMaterials);
   private readonly futuristicCastleRenderer = new FuturisticCastleRenderer();
   private saveSystem!: SaveSystem;
   private readonly terrainOverrides = new Map<string, TerrainOverrideKind>();
@@ -2089,6 +2095,7 @@ export class ThreeGame {
       farm: 0xc2ad54,
       appleOrchard: 0x9c6d3e,
       armyCamp: 0x8f6b4d,
+      basilica: 0xd8d2bd,
       mine: 0x665f59,
       mountain: 0x71675f,
       tree: 0x356c43,
@@ -2167,6 +2174,7 @@ export class ThreeGame {
         cell.kind === 'road' ? 2.0 :
         cell.kind === 'tree' || cell.kind === 'rock' ? 1.25 :
         cell.kind === 'farm' || cell.kind === 'appleOrchard' || cell.kind === 'armyCamp' ? 3.5 :
+        cell.kind === 'basilica' ? 3.4 :
         cell.kind === 'moat' ? 3.65 :
         2.7;
 
@@ -2967,6 +2975,7 @@ export class ThreeGame {
     else if (cell.kind === 'appleOrchard') this.services.orchardSystem.create(group, cell.level ?? 1, cell.x * 97 + cell.y * 53);
     else if (cell.kind === 'armyCamp') this.makeArmyCamp(group, Math.max(1, Math.min(5, cell.level ?? 1)));
     else if (cell.kind === 'market') this.makeMarketBuilding(group, cell.x, cell.y);
+    else if (cell.kind === 'basilica') group.add(this.basilicaRenderer.render(this.stoneStyle, cell.x, cell.y));
     else if (cell.kind === 'futuristicCastle') group.add(this.futuristicCastleRenderer.render(cell.x * 97 + cell.y * 53));
     else if (cell.kind === 'windmill') this.services.windmillSystem.create(group);
     else if (cell.kind === 'mine') this.makeMine(group);
@@ -9795,6 +9804,21 @@ export class ThreeGame {
         place(minX, y, kind, level, options);
         place(maxX, y, kind, level, options);
       }
+    };
+
+    const placeWallPath = (
+      vertices: readonly GridPoint[],
+      kind: WallKind,
+      level: number,
+      options: Partial<GridCell>,
+      closed = false,
+    ): GridPoint[] => {
+      const path = rasterizeWallPath(vertices, closed);
+      for (const point of path) {
+        if (point.x < 0 || point.y < 0 || point.x >= SIZE || point.y >= SIZE) continue;
+        place(point.x, point.y, kind, level, options);
+      }
+      return path;
     };
 
     const addTemplateBridge = (
