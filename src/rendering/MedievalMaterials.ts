@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import type { StoneStyle } from '../core/types';
+import { CASTLE_ARCHITECTURE_STYLE, CASTLE_STONE_PALETTES } from './CastleArchitectureStyle';
 
 type StoneTone = 'limestone' | 'warmGrey' | 'weathered' | 'reinforced';
 export type CastleStoneRole = 'body' | 'alt' | 'dark' | 'foundation' | 'walkway';
@@ -39,13 +40,13 @@ export class MedievalMaterials {
     const roofMap = this.createRoofTexture();
 
     this.limestone = this.register(
-      this.stoneMaterial(0xc6b89e, stoneMap, stoneBump, 0.92, 0.16),
+      this.stoneMaterial(CASTLE_STONE_PALETTES.limestone.body, stoneMap, stoneBump, 0.94, 0.11),
     );
     this.limestoneAlt = this.register(
-      this.stoneMaterial(0xb8ad98, stoneMap, stoneBump, 0.94, 0.14),
+      this.stoneMaterial(CASTLE_STONE_PALETTES.limestone.alt, stoneMap, stoneBump, 0.94, 0.1),
     );
     this.limestoneDark = this.register(
-      this.stoneMaterial(0x786f63, stoneMap, stoneBump, 0.98, 0.12),
+      this.stoneMaterial(CASTLE_STONE_PALETTES.limestone.dark, stoneMap, stoneBump, 0.98, 0.09),
     );
     this.warmGrey = this.register(
       this.stoneMaterial(0xaaa69a, stoneMap, stoneBump, 0.94, 0.15),
@@ -54,10 +55,10 @@ export class MedievalMaterials {
       this.stoneMaterial(0x969c9d, stoneMap, stoneBump, 0.88, 0.14),
     );
     this.foundation = this.register(
-      this.stoneMaterial(0x675d50, stoneMap, stoneBump, 1, 0.2),
+      this.stoneMaterial(CASTLE_STONE_PALETTES.limestone.foundation, stoneMap, stoneBump, 1, 0.13),
     );
     this.walkway = this.register(
-      this.stoneMaterial(0x8f8170, stoneMap, stoneBump, 0.96, 0.09),
+      this.stoneMaterial(CASTLE_STONE_PALETTES.limestone.walkway, stoneMap, stoneBump, 0.97, 0.07),
     );
     this.mortarDark = this.register(
       new THREE.MeshStandardMaterial({
@@ -68,28 +69,28 @@ export class MedievalMaterials {
     );
     this.timber = this.register(
       new THREE.MeshStandardMaterial({
-        color: 0x755039,
+        color: CASTLE_ARCHITECTURE_STYLE.palette.timber,
         roughness: 0.96,
         metalness: 0,
       }),
     );
     this.timberDark = this.register(
       new THREE.MeshStandardMaterial({
-        color: 0x493326,
+        color: CASTLE_ARCHITECTURE_STYLE.palette.timberDark,
         roughness: 1,
         metalness: 0,
       }),
     );
     this.iron = this.register(
       new THREE.MeshStandardMaterial({
-        color: 0x50575a,
+        color: CASTLE_ARCHITECTURE_STYLE.palette.iron,
         roughness: 0.62,
         metalness: 0.42,
       }),
     );
     this.roofTile = this.register(
       new THREE.MeshStandardMaterial({
-        color: 0x72535a,
+        color: CASTLE_ARCHITECTURE_STYLE.palette.roofTerracotta,
         map: roofMap,
         bumpMap: roofMap,
         bumpScale: 0.08,
@@ -99,19 +100,19 @@ export class MedievalMaterials {
     );
     this.roofDark = this.register(
       new THREE.MeshStandardMaterial({
-        color: 0x3a3031,
+        color: CASTLE_ARCHITECTURE_STYLE.palette.roofShadow,
         roughness: 0.98,
       }),
     );
     this.arrowVoid = this.register(
       new THREE.MeshStandardMaterial({
-        color: 0x171716,
+        color: CASTLE_ARCHITECTURE_STYLE.palette.opening,
         roughness: 1,
       }),
     );
     this.moss = this.register(
       new THREE.MeshStandardMaterial({
-        color: 0x667153,
+        color: CASTLE_ARCHITECTURE_STYLE.palette.moss,
         roughness: 1,
         transparent: true,
         opacity: 0.72,
@@ -126,29 +127,30 @@ export class MedievalMaterials {
       walkway: this.walkway,
     });
 
-    this.stylePalettes.set('darkStone', {
-      body: this.register(this.stoneMaterial(0x62676a, stoneMap, stoneBump, 0.96, 0.17)),
-      alt: this.register(this.stoneMaterial(0x747a7d, stoneMap, stoneBump, 0.94, 0.14)),
-      dark: this.register(this.stoneMaterial(0x3d4245, stoneMap, stoneBump, 1, 0.2)),
-      foundation: this.register(this.stoneMaterial(0x34383a, stoneMap, stoneBump, 1, 0.22)),
-      walkway: this.register(this.stoneMaterial(0x575c5f, stoneMap, stoneBump, 0.98, 0.1)),
-    });
+    this.stylePalettes.set('darkStone', this.createStylePalette('darkStone', stoneMap, stoneBump));
+    this.stylePalettes.set('sandstone', this.createStylePalette('sandstone', stoneMap, stoneBump));
+    this.stylePalettes.set('frontier', this.createStylePalette('frontier', stoneMap, stoneBump));
+  }
 
-    this.stylePalettes.set('sandstone', {
-      body: this.register(this.stoneMaterial(0xb99668, stoneMap, stoneBump, 0.95, 0.16)),
-      alt: this.register(this.stoneMaterial(0xc8aa79, stoneMap, stoneBump, 0.94, 0.14)),
-      dark: this.register(this.stoneMaterial(0x806548, stoneMap, stoneBump, 1, 0.19)),
-      foundation: this.register(this.stoneMaterial(0x6f5942, stoneMap, stoneBump, 1, 0.22)),
-      walkway: this.register(this.stoneMaterial(0x9c7e59, stoneMap, stoneBump, 0.98, 0.1)),
-    });
-
-    this.stylePalettes.set('frontier', {
-      body: this.register(this.stoneMaterial(0x858075, stoneMap, stoneBump, 1, 0.24)),
-      alt: this.register(this.stoneMaterial(0x9a9284, stoneMap, stoneBump, 0.98, 0.2)),
-      dark: this.register(this.stoneMaterial(0x5a554e, stoneMap, stoneBump, 1, 0.28)),
-      foundation: this.register(this.stoneMaterial(0x4d4842, stoneMap, stoneBump, 1, 0.3)),
-      walkway: this.register(this.stoneMaterial(0x716b62, stoneMap, stoneBump, 1, 0.16)),
-    });
+  private createStylePalette(
+    style: Exclude<StoneStyle, 'limestone'>,
+    stoneMap: THREE.Texture,
+    stoneBump: THREE.Texture,
+  ): {
+    body: THREE.MeshStandardMaterial;
+    alt: THREE.MeshStandardMaterial;
+    dark: THREE.MeshStandardMaterial;
+    foundation: THREE.MeshStandardMaterial;
+    walkway: THREE.MeshStandardMaterial;
+  } {
+    const palette = CASTLE_STONE_PALETTES[style];
+    return {
+      body: this.register(this.stoneMaterial(palette.body, stoneMap, stoneBump, 0.96, 0.11)),
+      alt: this.register(this.stoneMaterial(palette.alt, stoneMap, stoneBump, 0.95, 0.1)),
+      dark: this.register(this.stoneMaterial(palette.dark, stoneMap, stoneBump, 1, 0.12)),
+      foundation: this.register(this.stoneMaterial(palette.foundation, stoneMap, stoneBump, 1, 0.14)),
+      walkway: this.register(this.stoneMaterial(palette.walkway, stoneMap, stoneBump, 0.98, 0.08)),
+    };
   }
 
   castleStone(
