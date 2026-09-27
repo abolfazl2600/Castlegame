@@ -68,11 +68,33 @@ export class ModernMaterials {
     });
   }
 
+  isSharedMaterial(material: THREE.Material): boolean {
+    return (
+      material === this.reinforcedConcrete ||
+      material === this.structuralSteel ||
+      material === this.armoredSteel ||
+      material === this.compositePanel ||
+      material === this.reinforcedGlass ||
+      material === this.industrialMetal ||
+      material === this.modernConcreteFlooring ||
+      material === this.securityLight ||
+      material === this.warningStripe
+    );
+  }
+
   dispose(): void {
     for (const material of [
-      this.reinforcedConcrete, this.structuralSteel, this.armoredSteel, this.compositePanel,
-      this.reinforcedGlass, this.industrialMetal, this.modernConcreteFlooring, this.securityLight,
+      this.reinforcedConcrete,
+      this.structuralSteel,
+      this.armoredSteel,
+      this.compositePanel,
+      this.reinforcedGlass,
+      this.industrialMetal,
+      this.modernConcreteFlooring,
+      this.securityLight,
       this.warningStripe,
-    ]) material.dispose();
+    ]) {
+      material.dispose();
+    }
   }
 }
