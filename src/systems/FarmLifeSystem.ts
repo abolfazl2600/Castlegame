@@ -326,6 +326,8 @@ export class FarmLifeSystem {
       view: THREE.Group;
       phase: string;
       targetGrid: { x: number; y: number };
+      work?: { x: number; y: number };
+      waitMs: number;
       anim: number;
       id?: number;
     }> }).settlementAgents;
@@ -343,22 +345,42 @@ export class FarmLifeSystem {
       } | undefined;
       if (!animation) continue;
 
-      const target = this.game.services.state.getCell(agent.targetGrid.x, agent.targetGrid.y);
-      const atBarn = target?.kind === 'cowBarn' || (target?.kind === 'farm' && target.level === COW_BARN_LEVEL);
-      const moving = agent.phase !== 'work';
+      const workCell = agent.work
+        ? this.game.services.state.getCell(agent.work.x, agent.work.y)
+        : undefined;
+      const atBarn =
+        workCell?.kind === 'cowBarn' ||
+        (workCell?.kind === 'farm' && workCell.level === COW_BARN_LEVEL);
+      const moving = agent.waitMs <= 0;
+      const working = agent.phase === 'work' && agent.waitMs > 0;
       const time = performance.now() * 0.001 + agent.anim * 0.1;
 
       if (moving) {
         const swing = Math.sin(time * 9) * 0.42;
-        animation.legs.forEach((leg, index) => { leg.rotation.x = index === 0 ? swing : -swing; });
-        animation.arms.forEach((arm, index) => { arm.rotation.z = (index === 0 ? -1 : 1) * 0.2 + Math.sin(time * 9 + index) * 0.16; });
-        if (animation.tool) animation.tool.rotation.z = -0.55 + Math.sin(time * 9) * 0.08;
-        if (animation.basket) animation.basket.visible = false;
+        animation.legs.forEach((leg, index) => {
+          leg.rotation.x = index === 0 ? swing : -swing;
+        });
+        animation.arms.forEach((arm, index) => {
+          arm.rotation.z =
+            (index === 0 ? -1 : 1) * 0.2 +
+            Math.sin(time * 9 + index) * 0.16;
+        });
+        if (animation.tool) {
+          animation.tool.rotation.z = -0.55 + Math.sin(time * 9) * 0.08;
+        }
+        animation.body && (animation.body.rotation.x = 0);
+        animation.basket.visible = false;
+        continue;
+      }
+
+      if (!working) {
+        this.setFarmerAction(animation, 'rest', time);
         continue;
       }
 
       const actionSeed = agent.id ?? Math.floor(agent.anim);
-      const actionIndex = Math.floor((agent.anim + actionSeed + performance.now() * 0.00045) / 2.6) % (atBarn ? 5 : 5);
+      const actionIndex =
+        Math.floor((agent.anim + actionSeed + performance.now() * 0.00045) / 2.6) % 5;
       if (atBarn) {
         if (actionIndex === 0) {
           this.setFarmerAction(animation, 'feed', time);

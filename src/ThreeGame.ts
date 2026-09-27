@@ -5806,6 +5806,10 @@ export class ThreeGame {
     const woodDark = this.environmentMaterial('farm-wood-dark', 0x4f392b, 1);
     const hay = this.environmentMaterial('farm-hay', 0xc69d4d, 1);
     const water = this.environmentMaterial('farm-water', 0x4e95a3, 0.38);
+    const path = this.environmentMaterial('farm-path', 0x8b6848, 1);
+    const basket = this.environmentMaterial('farm-basket', 0x8b5f35, 1);
+    const sack = this.environmentMaterial('farm-sack', 0xb89b6a, 1);
+    const iron = this.environmentMaterial('farm-tool-iron', 0x5b6160, 0.78);
 
     this.addBox(group, 3.7, 0.14, 3.7, soil, 0, 2.23, 0);
 
@@ -5816,7 +5820,37 @@ export class ThreeGame {
         index % 3 === 0 ? cropGold : index % 3 === 1 ? cropGreen : cropYoung;
       this.addBox(group, 0.22, 0.22 + (index % 2) * 0.05, 2.62, crop, x, 2.44, -0.18);
       this.addBox(group, 0.08, 0.04, 2.78, wetSoil, x + 0.22, 2.34, -0.18);
+
+      for (let patchIndex = 0; patchIndex < 3; patchIndex += 1) {
+        const patchHeight = 0.12 + ((index + patchIndex) % 3) * 0.035;
+        this.addBox(
+          group,
+          0.27,
+          patchHeight,
+          0.28,
+          patchIndex === 0 ? cropYoung : crop,
+          x,
+          2.55 + patchHeight * 0.35,
+          -0.95 + patchIndex * 0.82 + (index % 2) * 0.08,
+        );
+      }
     });
+
+    // Worked path and footprints between rows.
+    this.addBox(group, 0.32, 0.035, 2.62, path, -0.44, 2.345, -0.18);
+    for (let i = 0; i < 5; i += 1) {
+      const footprint = this.addBox(
+        group,
+        0.08,
+        0.018,
+        0.16,
+        wetSoil,
+        -0.5 + (i % 2) * 0.12,
+        2.374,
+        -1.08 + i * 0.46,
+      );
+      footprint.rotation.y = (i % 2 === 0 ? -1 : 1) * 0.16;
+    }
 
     // Irrigation ditch and a small wooden crossing.
     this.addBox(group, 3.36, 0.08, 0.26, wetSoil, 0, 2.31, 1.46);
@@ -5859,6 +5893,45 @@ export class ThreeGame {
     scareHead.castShadow = true;
     group.add(scareHead);
 
+    // Tool rack, baskets and seed sacks show recent field activity.
+    this.addBox(group, 0.08, 0.78, 0.08, woodDark, -1.58, 2.72, -0.72);
+    this.addBox(group, 0.08, 0.78, 0.08, woodDark, -0.88, 2.72, -0.72);
+    this.addBox(group, 0.78, 0.07, 0.07, wood, -1.23, 3.02, -0.72);
+    for (const x of [-1.45, -1.08]) {
+      const handle = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.018, 0.018, 0.72, 5),
+        woodDark,
+      );
+      handle.position.set(x, 2.76, -0.7);
+      handle.rotation.z = x < -1.2 ? -0.12 : 0.14;
+      group.add(handle);
+      this.addBox(group, 0.2, 0.035, 0.07, iron, x, 2.43, -0.7);
+    }
+
+    for (const [x, z] of [[-1.47, -0.34], [-1.08, -0.28]] as Array<[number, number]>) {
+      const basketBody = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.18, 0.15, 0.2, 8, 1, true),
+        basket,
+      );
+      basketBody.position.set(x, 2.47, z);
+      basketBody.castShadow = true;
+      group.add(basketBody);
+    }
+
+    for (const [x, z, scale] of [
+      [1.43, 0.18, 1],
+      [1.14, 0.08, 0.82],
+    ] as Array<[number, number, number]>) {
+      const seedSack = new THREE.Mesh(
+        new THREE.SphereGeometry(0.2 * scale, 7, 5),
+        sack,
+      );
+      seedSack.scale.set(0.82, 1.18, 0.72);
+      seedSack.position.set(x, 2.49, z);
+      seedSack.castShadow = true;
+      group.add(seedSack);
+    }
+
     // Perimeter fence with a deliberate gate opening toward the road.
     for (const x of [-1.78, 1.78]) {
       this.addBox(group, 0.09, 0.62, 3.46, wood, x, 2.52, 0);
@@ -5866,6 +5939,7 @@ export class ThreeGame {
     this.addBox(group, 2.54, 0.08, 0.08, wood, -0.58, 2.51, -1.78);
     this.addBox(group, 0.72, 0.08, 0.08, wood, 1.42, 2.51, -1.78);
 
+    group.userData.activeFarm = true;
     return group;
   }
 
@@ -7820,7 +7894,13 @@ export class ThreeGame {
       .filter((cell) => this.isSettlementWorkKind(cell.kind))
       .sort((a, b) => a.x - b.x || a.y - b.y);
     const result: SettlementAgentSpec[] = [];
-    const maxVisibleAgents = 40;
+
+    // Citizens and farm workers use independent bounded budgets. A dense town can
+    // fill its citizen budget without starving farms of their visible workers.
+    const maxVisibleCitizens = 40;
+    const maxVisibleFarmers = 40;
+    let visibleCitizens = 0;
+    let visibleFarmers = 0;
 
     for (const home of homes) {
       const desired =
@@ -7831,19 +7911,20 @@ export class ThreeGame {
             : 2;
 
       for (let slot = 0; slot < desired; slot += 1) {
-        if (result.length >= maxVisibleAgents) return result;
+        if (visibleCitizens >= maxVisibleCitizens) break;
         result.push({
           key: `citizen:${home.x},${home.y}:${slot}`,
           role: 'citizen',
           home: { x: home.x, y: home.y },
           seed: home.x * 97 + home.y * 53 + slot * 17,
         });
+        visibleCitizens += 1;
       }
+
+      if (visibleCitizens >= maxVisibleCitizens) break;
     }
 
-    for (const farm of farms) {
-      if (result.length >= maxVisibleAgents) break;
-
+    const nearestHomeForFarm = (farm: (typeof farms)[number]): GridPoint => {
       let homePoint: GridPoint = { x: farm.x, y: farm.y };
       let best = Number.POSITIVE_INFINITY;
       for (const home of homes) {
@@ -7853,20 +7934,36 @@ export class ThreeGame {
           homePoint = { x: home.x, y: home.y };
         }
       }
+      return homePoint;
+    };
 
-      const farmerSlots = homes.length > 0 ? 2 : 1;
-      for (let slot = 0; slot < farmerSlots; slot += 1) {
-        if (result.length >= maxVisibleAgents) break;
+    // First pass reserves one stable worker for every farm/work site before any
+    // site receives a second worker.
+    for (const farm of farms) {
+      if (visibleFarmers >= maxVisibleFarmers) break;
+      const homePoint = nearestHomeForFarm(farm);
+      result.push({
+        key: `farmer:${farm.x},${farm.y}:0`,
+        role: 'farmer',
+        home: { ...homePoint },
+        work: { x: farm.x, y: farm.y },
+        seed: farm.x * 131 + farm.y * 71,
+      });
+      visibleFarmers += 1;
+    }
+
+    if (homes.length > 0) {
+      for (const farm of farms) {
+        if (visibleFarmers >= maxVisibleFarmers) break;
+        const homePoint = nearestHomeForFarm(farm);
         result.push({
-          key: `farmer:${farm.x},${farm.y}:${slot}`,
+          key: `farmer:${farm.x},${farm.y}:1`,
           role: 'farmer',
           home: { ...homePoint },
           work: { x: farm.x, y: farm.y },
-          seed:
-            slot === 0
-              ? farm.x * 131 + farm.y * 71
-              : farm.x * 149 + farm.y * 83 + 11,
+          seed: farm.x * 149 + farm.y * 83 + 11,
         });
+        visibleFarmers += 1;
       }
     }
 
@@ -8113,6 +8210,30 @@ export class ThreeGame {
     const spread = roadLike ? 0.18 : 0.58;
     const offsetX = (((agent.id * 7 + point.x * 3) % 5) - 2) * spread * 0.22;
     const offsetZ = (((agent.id * 11 + point.y * 5) % 5) - 2) * spread * 0.22;
+
+    if (agent.role === 'farmer' && agent.phase === 'work' && agent.work) {
+      const workCell = this.services.state.getCell(agent.work.x, agent.work.y);
+      const dx = point.x - agent.work.x;
+      const dy = point.y - agent.work.y;
+      if (workCell?.kind === 'farm' && Math.max(Math.abs(dx), Math.abs(dy)) === 1) {
+        const farmWorld = this.gridToWorld(agent.work.x, agent.work.y);
+        if (dx === 0 && dy === -1) {
+          return new THREE.Vector3(
+            farmWorld.x + 0.86 + offsetX * 0.35,
+            2.24 + this.terrainElevation(point.x, point.y),
+            farmWorld.z - 2.08,
+          );
+        }
+
+        const length = Math.max(1, Math.hypot(dx, dy));
+        return new THREE.Vector3(
+          farmWorld.x + (dx / length) * 2.18 + offsetX * 0.3,
+          2.24 + this.terrainElevation(point.x, point.y),
+          farmWorld.z + (dy / length) * 2.18 + offsetZ * 0.3,
+        );
+      }
+    }
+
     return new THREE.Vector3(
       world.x + offsetX,
       2.24 + this.terrainElevation(point.x, point.y),
@@ -8284,7 +8405,9 @@ export class ThreeGame {
         }
 
         if (agent.role === 'farmer') {
-          agent.waitMs = agent.phase === 'work' ? 2200 + (agent.id % 4) * 280 : 1200;
+          agent.waitMs = agent.phase === 'work'
+            ? 6800 + (agent.id % 4) * 520
+            : 950 + (agent.id % 3) * 160;
         } else {
           agent.waitMs = 650 + (agent.id % 5) * 260;
         }
