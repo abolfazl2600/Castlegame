@@ -498,6 +498,10 @@ export class ThreeGame {
     root.appendChild(this.renderer.domElement);
     if (this.visualBenchmark) {
       // Opt-in diagnostics and fixed camera for the reproducible visual baseline script.
+      (window as unknown as { __castleVisualFrame: () => object }).__castleVisualFrame = () => ({
+        drawCalls: this.renderer.info.render.calls,
+        triangles: this.renderer.info.render.triangles,
+      });
       (window as unknown as { __castleVisualMetrics: () => object }).__castleVisualMetrics = () => {
         const geometries = new Set<THREE.BufferGeometry>();
         const materials = new Set<THREE.Material>();
