@@ -5,6 +5,7 @@ import { SaveSystem } from './core/SaveSystem';
 import type { GameState } from './state/GameState';
 import { SAVE_KEY, SAVE_VERSION, TILE_SIZE, WORLD_COLS } from './core/constants';
 import { WallSystem } from './building/WallSystem';
+import type { GeneratedAccess } from './building/CastleAccessSystem';
 import { KeepRenderer } from './rendering/KeepRenderer';
 import { MedievalMaterials } from './rendering/MedievalMaterials';
 import { BattleSystem, getUnitCombatStats } from './battle/BattleSystem';
@@ -258,6 +259,7 @@ export class ThreeGame {
   private readonly planMaterials = new Map<string, THREE.MeshBasicMaterial>();
   private readonly environmentMaterials = new Map<string, THREE.MeshStandardMaterial>();
   private readonly buildObjectsByCell = new Map<string, THREE.Object3D>();
+  private generatedCastleAccess: GeneratedAccess[] = [];
   private readonly battleSystem: BattleSystem;
   private readonly groundHit = new THREE.Mesh(
     new THREE.PlaneGeometry(WORLD, WORLD),
@@ -465,6 +467,7 @@ export class ThreeGame {
         setWallBattleVisibility: (x, y, visible) => this.setBattleWallVisibility(x, y, visible),
         buildingDamageAt: (x, y) => this.services.state.getCell(x, y)?.damage ?? 0,
         gatePassable: (x, y) => this.services.gateSystem.isGatePassable(x, y),
+        generatedAccess: () => this.generatedCastleAccess,
         wallWeaponVisuals: () => this.getWallWeaponVisuals(),
       },
       (status) => this.updateBattleUI(status),
@@ -1243,7 +1246,7 @@ export class ThreeGame {
       this.buildLayer.add(this.makeTowerBridge(bridge));
     }
 
-    const generatedAccess = this.services.castleAccessSystem.generate(
+    this.generatedCastleAccess = this.services.castleAccessSystem.generate(
       cells,
       this.services.keepSystem.entries(),
       {
@@ -1262,14 +1265,11 @@ export class ThreeGame {
       },
     );
 
-    for (const access of generatedAccess) {
+    for (const access of this.generatedCastleAccess) {
       const group = new THREE.Group();
       const position = this.gridToWorld(access.x, access.y);
       group.position.set(position.x, this.terrainElevation(access.x, access.y), position.z);
-      this.makeAccess(group, access.kind, access.x, access.y, {
-        kind: access.kind,
-        rotation: access.rotation,
-      });
+      this.makeGeneratedAccess(group, access);
       this.buildLayer.add(group);
     }
 
@@ -4652,14 +4652,126 @@ export class ThreeGame {
     return this.findAccessSnap(gx, gy)?.rise ?? 3.8;
   }
 
+  private generatedAccessRise(access: GeneratedAccess): number {
+    const target = this.services.state.getCell(access.targetX, access.targetY);
+    if (!target) return 3.8;
+
+    const targetWorldTop =
+      this.terrainElevation(access.targetX, access.targetY) +
+      this.fortificationTopLocal(target);
+    const ownGroundWorld = this.terrainElevation(access.x, access.y) + 2.22;
+
+    // Generated architecture must terminate at the exact authoritative wall
+    // top rather than a hard-coded height.
+    return Math.max(1.4, targetWorldTop - ownGroundWorld);
+  }
+
+  private makeGeneratedAccess(
+    group: THREE.Group,
+    access: GeneratedAccess,
+  ): THREE.Group {
+    group.rotation.y = access.rotation * Math.PI / 2;
+    group.userData.generatedCastleAccess = access;
+
+    const rise = this.generatedAccessRise(access);
+    if (access.kind === 'stairTower') {
+      return this.makeStairTower(group, access, rise);
+    }
+
+    return this.makeAccess(
+      group,
+      access.kind,
+      access.x,
+      access.y,
+      { kind: access.kind, rotation: access.rotation },
+      rise,
+    );
+  }
+
+  private makeStairTower(
+    group: THREE.Group,
+    access: GeneratedAccess,
+    rise: number,
+  ): THREE.Group {
+    const body = this.medievalMaterials.castleStone(
+      this.stoneStyle,
+      'body',
+      access.targetX,
+      access.targetY,
+    );
+    const walkway = this.medievalMaterials.castleStone(
+      this.stoneStyle,
+      'walkway',
+      access.targetX,
+      access.targetY,
+    );
+    const foundation = this.medievalMaterials.castleStone(
+      this.stoneStyle,
+      'foundation',
+      access.targetX,
+      access.targetY,
+    );
+    const doorway = this.environmentMaterial('stair-tower-door', 0x2f2924, 1);
+
+    const groundY = 2.22;
+    const landingY = groundY + rise;
+    const bodyTop = Math.max(groundY + 2.2, landingY - 0.18);
+    const bodyHeight = bodyTop - groundY;
+
+    // The tower body sits inside the access tile but extends toward the wall.
+    // The landing bridge intentionally overlaps the wall face so there can be
+    // no visible gap between the generated tower and its target walkway.
+    this.addBox(group, 3.65, 0.46, 4.05, foundation, 0, 2.01, -0.45);
+    this.addBox(
+      group,
+      3.38,
+      bodyHeight,
+      3.62,
+      body,
+      0,
+      groundY + bodyHeight / 2,
+      -0.45,
+    );
+
+    // Ground entrance faces away from the wall.
+    this.addBox(group, 1.08, 1.86, 0.08, doorway, 0, groundY + 0.93, 1.39);
+
+    // Exact wall-height top platform.
+    this.addBox(group, 3.56, 0.24, 3.82, walkway, 0, landingY - 0.12, -0.45);
+
+    // Wall-facing landing: target wall center is one TILE away at local -Z.
+    // This span reaches into the wall footprint to guarantee a flush join.
+    this.addBox(group, 1.92, 0.24, 2.3, walkway, 0, landingY - 0.12, -2.72);
+
+    const parapetY = landingY + 0.32;
+    for (const x of [-1.62, 1.62]) {
+      this.addBox(group, 0.24, 0.64, 3.58, body, x, parapetY, -0.45);
+      this.addBox(group, 0.2, 0.54, 2.28, body, x * 0.56, landingY + 0.27, -2.72);
+    }
+    this.addBox(group, 3.4, 0.64, 0.24, body, 0, parapetY, 1.32);
+
+    // Simple medieval crenellation silhouette. The wall-facing side remains
+    // open so the upper landing connects directly into the wall walk.
+    for (const x of [-1.25, 0, 1.25]) {
+      this.addBox(group, 0.54, 0.42, 0.5, body, x, landingY + 0.84, 1.28);
+    }
+    for (const z of [-1.35, -0.25, 0.82]) {
+      this.addBox(group, 0.5, 0.42, 0.54, body, -1.58, landingY + 0.84, z);
+      this.addBox(group, 0.5, 0.42, 0.54, body, 1.58, landingY + 0.84, z);
+    }
+
+    return group;
+  }
+
   private makeAccess(
     group: THREE.Group,
     kind: AccessKind,
     gx: number,
     gy: number,
     cell: GridCell,
+    riseOverride?: number,
   ): THREE.Group {
-    const rise = this.accessRiseForRotation(gx, gy, cell.rotation ?? 0);
+    const rise = riseOverride ?? this.accessRiseForRotation(gx, gy, cell.rotation ?? 0);
     const stone = new THREE.MeshStandardMaterial({ color: 0xb7afa4, roughness: 0.92 });
     const wood = new THREE.MeshStandardMaterial({ color: 0x815b3d, roughness: 0.94 });
     const metal = new THREE.MeshStandardMaterial({ color: 0x66737b, metalness: 0.34, roughness: 0.58 });
@@ -7577,6 +7689,9 @@ export class ThreeGame {
   }
 
   private migrateKind(kind: string, level: number): { kind: TileKind; level: number } | null {
+    // Legacy manually-authored Stair Towers are removed on load. The castle
+    // access generator deterministically recreates valid derived access.
+    if (kind === 'stairTower') return null;
     if (kind === 'marketStall' || kind === 'smallMarket' || kind === 'marketHall') return { kind: 'market', level: 1 };
     if (kind === 'wall') return { kind: 'wall1', level };
     if (kind === 'mountain1') return { kind: 'mountain', level: 1 };
