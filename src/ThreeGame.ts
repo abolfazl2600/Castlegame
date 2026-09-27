@@ -1423,6 +1423,8 @@ export class ThreeGame {
     this.battleSystem.reset(false);
     this.militaryTier = 1;
     this.services.state.setMissileState();
+    this.services.economySystem.reset();
+    this.economySaveAccumulatorMs = 0;
     this.undoStack.length = 0;
     this.redoStack.length = 0;
     this.worldSeeded = false;
@@ -1999,6 +2001,7 @@ export class ThreeGame {
     this.renderMinimap();
     this.reconcileSettlementAgents(cells);
     this.updatePopulationUI();
+    this.syncEconomyUI();
     this.syncArmyCampUpgradeUI();
 
     this.animatedFlags = [];
@@ -11507,6 +11510,8 @@ export class ThreeGame {
     this.terrainOverrides.clear();
     this.elevationOverrides.clear();
     this.moatTasks.clear();
+    this.services.economySystem.reset();
+    this.economySaveAccumulatorMs = 0;
     this.worldSeeded = true;
 
     const center = Math.floor(SIZE / 2);
