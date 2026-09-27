@@ -90,6 +90,28 @@ const ARMY_CAMP_LEVELS = [
 ] as const;
 const ARMY_CAMP_MAX_LEVEL = ARMY_CAMP_LEVELS.length;
 
+type AgricultureUpgradeKind = 'farm' | 'cowBarn';
+interface AgricultureUpgradeLevel {
+  level: 1 | 2 | 3 | 4;
+  name: string;
+  description: string;
+}
+const AGRICULTURE_UPGRADE_LEVELS: Record<AgricultureUpgradeKind, readonly AgricultureUpgradeLevel[]> = {
+  farm: [
+    { level: 1, name: 'Smallholding', description: 'A working crop field with a compact shed, irrigation ditch, tools, and basic storage.' },
+    { level: 2, name: 'Irrigated Farm', description: 'Improved irrigation, extra field infrastructure, and covered working space increase the farmstead scale.' },
+    { level: 3, name: 'Prosperous Farmstead', description: 'A larger granary, expanded storage, and stronger field organization mark a mature farm.' },
+    { level: 4, name: 'Manorial Farm', description: 'Stone-backed storage, upgraded granary buildings, and a formal farm entrance create an elite estate farm.' },
+  ],
+  cowBarn: [
+    { level: 1, name: 'Cattle Shed', description: 'A modest cattle barn with a fenced yard, trough, hay, and a small herd.' },
+    { level: 2, name: 'Reinforced Barn', description: 'A larger timber barn, improved feeding area, and expanded hay storage support more livestock.' },
+    { level: 3, name: 'Expanded Stockyard', description: 'A substantial barn complex with stone foundations, covered pens, and a larger herd.' },
+    { level: 4, name: 'Royal Stockyard', description: 'A prestigious fortified stockyard with a grand barn, silo, formal gate, and premium livestock facilities.' },
+  ],
+};
+const AGRICULTURE_MAX_LEVEL = 4;
+
 const BUILDING_KINDS: TileKind[] = [
   'wall1',
   'wall2',
@@ -244,8 +266,8 @@ const TOOL_GROUPS: Array<{ label: string; tools: ToolDefinition[] }> = [
   {
     label: 'Agriculture',
     tools: [
-      { id: 'farm', icon: '🌾', label: 'Farm', detail: 'Cultivated crop field', shortcut: 'F' },
-      { id: 'cowBarn', icon: '🐄', label: 'Cow Barn', detail: 'Medieval cattle barn · fenced livestock yard', shortcut: '-' },
+      { id: 'farm', icon: '🌾', label: 'Farm', detail: 'Upgradeable crop farm · 4 visual levels', shortcut: 'F' },
+      { id: 'cowBarn', icon: '🐄', label: 'Cow Barn', detail: 'Upgradeable cattle farm · 4 visual levels', shortcut: '-' },
       { id: 'appleOrchard', icon: '🍎', label: 'Apple Orchard', detail: 'Procedural apple trees · orchard plot', shortcut: 'Y' },
       { id: 'windmill', icon: '⚙️', label: 'Medieval Windmill', detail: 'Four-sail working mill · continuous rotation', shortcut: 'W' },
     ],
@@ -3057,7 +3079,8 @@ export class ThreeGame {
     } else if (cell.kind === 'gate') this.makeGate(group, cell.x, cell.y, cell);
     else if (cell.kind === 'tower') this.makeTower(group, cell.x, cell.y, cell);
 
-    else if (cell.kind === 'farm') this.makeFarm(group);
+    else if (cell.kind === 'farm') this.makeFarm(group, Math.max(1, Math.min(AGRICULTURE_MAX_LEVEL, cell.level ?? 1)));
+    else if (cell.kind === 'cowBarn') this.makeCowBarn(group, Math.max(1, Math.min(AGRICULTURE_MAX_LEVEL, cell.level ?? 1)), cell.x, cell.y);
     else if (cell.kind === 'appleOrchard') this.services.orchardSystem.create(group, cell.level ?? 1, cell.x * 97 + cell.y * 53);
     else if (cell.kind === 'armyCamp') this.makeArmyCamp(group, Math.max(1, Math.min(ARMY_CAMP_MAX_LEVEL, cell.level ?? 1)));
     else if (cell.kind === 'market') this.makeMarketBuilding(group, cell.x, cell.y);
@@ -3073,7 +3096,7 @@ export class ThreeGame {
     else if (['stoneStairs', 'woodenStairs', 'ramp', 'ladder'].includes(cell.kind)) {
       this.makeAccess(group, cell.kind as AccessKind, cell.x, cell.y, cell);
     } else if (cell.kind === 'cottage' || cell.kind === 'house' ||
-      cell.kind === 'manor' || cell.kind === 'villa' || cell.kind === 'cowBarn') {
+      cell.kind === 'manor' || cell.kind === 'villa') {
       this.makeHouse(group, cell.kind, cell.x, cell.y);
     }
 
@@ -6075,7 +6098,8 @@ export class ThreeGame {
     this.addSettlementBox(group, 0.9, 0.08, 0.08, wood, x, 3.14, z);
   }
 
-  private makeFarm(group: THREE.Group): THREE.Group {
+  private makeFarm(group: THREE.Group, level = 1): THREE.Group {
+    const normalizedLevel = Math.max(1, Math.min(AGRICULTURE_MAX_LEVEL, Math.floor(level)));
     const soil = this.environmentMaterial('farm-soil', SETTLEMENT_STYLE.soil, 1);
     const wetSoil = this.environmentMaterial('farm-wet-soil', 0x59483a, 1);
     const cropGreen = this.environmentMaterial('farm-crop-green', 0x6f9c4f, 0.96);
@@ -6089,6 +6113,9 @@ export class ThreeGame {
     const basket = this.environmentMaterial('farm-basket', 0x8b5f35, 1);
     const sack = this.environmentMaterial('farm-sack', 0xb89b6a, 1);
     const iron = this.environmentMaterial('farm-tool-iron', 0x5b6160, 0.78);
+    const stone = this.environmentMaterial('farm-upgrade-stone', SETTLEMENT_STYLE.foundation, 1);
+    const roof = this.environmentMaterial('farm-upgrade-roof', SETTLEMENT_STYLE.roof[1], 0.96);
+    const cloth = this.environmentMaterial('farm-upgrade-cloth', 0xc9b07b, 0.96);
 
     this.addBox(group, 3.7, 0.14, 3.7, soil, 0, 2.23, 0);
 
@@ -6218,7 +6245,154 @@ export class ThreeGame {
     this.addBox(group, 2.54, 0.08, 0.08, wood, -0.58, 2.51, -1.78);
     this.addBox(group, 0.72, 0.08, 0.08, wood, 1.42, 2.51, -1.78);
 
+    if (normalizedLevel >= 2) {
+      // Level 2: visible irrigation expansion and a covered work station.
+      this.addBox(group, 0.18, 0.1, 3.08, stone, 1.58, 2.35, 0);
+      this.addBox(group, 0.1, 0.055, 2.86, water, 1.58, 2.42, 0);
+      for (const x of [-1.5, -0.82]) {
+        this.addBox(group, 0.08, 0.86, 0.08, woodDark, x, 2.79, 0.92);
+      }
+      const workRoof = this.addBox(group, 0.92, 0.08, 0.84, cloth, -1.16, 3.2, 0.92);
+      workRoof.rotation.z = -0.08;
+      this.addBox(group, 0.64, 0.12, 0.34, wood, -1.16, 2.5, 0.92);
+    }
+
+    if (normalizedLevel >= 3) {
+      // Level 3: the small shed grows into a proper timber granary.
+      this.addBox(group, 1.18, 0.22, 1.02, stone, -1.2, 2.39, -1.36);
+      this.addBox(group, 1.08, 1.42, 0.92, wood, -1.2, 3.14, -1.36);
+      this.addBox(group, 0.82, 0.16, 0.06, woodDark, -1.2, 2.78, -1.84);
+      const granaryRoof = new THREE.Mesh(
+        new THREE.ConeGeometry(0.86, 0.74, 4),
+        roof,
+      );
+      granaryRoof.rotation.y = Math.PI / 4;
+      granaryRoof.scale.z = 0.86;
+      granaryRoof.position.set(-1.2, 4.22, -1.36);
+      granaryRoof.castShadow = true;
+      group.add(granaryRoof);
+
+      for (const [x, z] of [[0.92, 1.02], [1.18, 1.02], [1.05, 1.3]] as Array<[number, number]>) {
+        this.addBox(group, 0.32, 0.28, 0.32, wood, x, 2.51, z);
+      }
+    }
+
+    if (normalizedLevel >= 4) {
+      // Level 4: a stone-backed estate storehouse and formal farm gate.
+      this.addBox(group, 1.36, 0.28, 1.08, stone, 1.12, 2.42, -1.18);
+      this.addBox(group, 1.22, 1.58, 0.96, this.environmentMaterial('farm-estate-plaster', 0xd8cda9, 0.96), 1.12, 3.28, -1.18);
+      const estateRoof = new THREE.Mesh(
+        new THREE.ConeGeometry(0.92, 0.82, 4),
+        roof,
+      );
+      estateRoof.rotation.y = Math.PI / 4;
+      estateRoof.scale.z = 0.82;
+      estateRoof.position.set(1.12, 4.5, -1.18);
+      estateRoof.castShadow = true;
+      group.add(estateRoof);
+
+      for (const x of [0.72, 1.08]) {
+        this.addBox(group, 0.12, 1.28, 0.12, stone, x, 2.88, -1.77);
+      }
+      this.addBox(group, 0.54, 0.14, 0.14, woodDark, 0.9, 3.46, -1.77);
+      this.addBox(group, 0.06, 0.78, 0.06, woodDark, 0.9, 3.82, -1.77);
+      this.addBox(group, 0.34, 0.24, 0.04, cloth, 1.08, 3.98, -1.77);
+    }
+
     group.userData.activeFarm = true;
+    group.userData.farmLevel = normalizedLevel;
+    return group;
+  }
+
+  private makeCowBarn(group: THREE.Group, level: number, gx: number, gy: number): THREE.Group {
+    const normalizedLevel = Math.max(1, Math.min(AGRICULTURE_MAX_LEVEL, Math.floor(level)));
+    this.makeHouse(group, 'cowBarn', gx, gy);
+
+    const timber = this.environmentMaterial('cow-barn-upgrade-timber', 0x63452f, 1);
+    const timberDark = this.environmentMaterial('cow-barn-upgrade-timber-dark', 0x473124, 1);
+    const stone = this.environmentMaterial('cow-barn-upgrade-stone', SETTLEMENT_STYLE.foundation, 1);
+    const hay = this.environmentMaterial('cow-barn-upgrade-hay', 0xc69d4d, 1);
+    const water = this.environmentMaterial('cow-barn-upgrade-water', 0x4e95a3, 0.42);
+    const hide = this.environmentMaterial('cow-barn-cow-hide', 0x6a4a36, 0.96);
+    const hideLight = this.environmentMaterial('cow-barn-cow-hide-light', 0xd6c9b6, 0.96);
+    const roof = this.environmentMaterial('cow-barn-upgrade-roof', 0x9e5437, 0.96);
+
+    const addCow = (x: number, z: number, rotation = 0): void => {
+      const cow = new THREE.Group();
+      cow.position.set(x, 0, z);
+      cow.rotation.y = rotation;
+      group.add(cow);
+      this.addBox(cow, 0.5, 0.34, 0.76, hide, 0, 2.63, 0);
+      this.addBox(cow, 0.34, 0.3, 0.32, hideLight, 0, 2.72, -0.48);
+      for (const sx of [-0.17, 0.17]) {
+        for (const sz of [-0.22, 0.22]) {
+          this.addBox(cow, 0.07, 0.38, 0.07, timberDark, sx, 2.34, sz);
+        }
+      }
+    };
+
+    // Every level reads clearly as livestock infrastructure.
+    this.addBox(group, 1.18, 0.2, 0.42, timberDark, 0.82, 2.42, -0.14);
+    this.addBox(group, 1.0, 0.08, 0.28, water, 0.82, 2.54, -0.14);
+    addCow(0.95, 0.82, Math.PI);
+    if (normalizedLevel >= 2) addCow(-1.05, 0.82, 0.12);
+    if (normalizedLevel >= 3) addCow(1.02, 1.38, Math.PI * 0.85);
+    if (normalizedLevel >= 4) addCow(-0.98, 1.4, -0.18);
+
+    if (normalizedLevel >= 2) {
+      // Level 2: expanded hay storage and a timber feeding canopy.
+      for (const [x, z] of [[1.42, -1.2], [1.12, -1.18], [1.28, -0.92]] as Array<[number, number]>) {
+        const bale = new THREE.Mesh(new THREE.CylinderGeometry(0.23, 0.23, 0.42, 9), hay);
+        bale.rotation.z = Math.PI / 2;
+        bale.position.set(x, 2.5, z);
+        bale.castShadow = true;
+        group.add(bale);
+      }
+      for (const x of [0.76, 1.52]) {
+        this.addBox(group, 0.09, 0.92, 0.09, timber, x, 2.78, -0.76);
+      }
+      const canopy = this.addBox(group, 1.08, 0.09, 0.86, roof, 1.14, 3.24, -0.76);
+      canopy.rotation.z = -0.06;
+    }
+
+    if (normalizedLevel >= 3) {
+      // Level 3+: the original shed becomes a substantial stone-footed barn.
+      const width = normalizedLevel >= 4 ? 2.88 : 2.42;
+      const height = normalizedLevel >= 4 ? 2.12 : 1.72;
+      const depth = normalizedLevel >= 4 ? 1.82 : 1.58;
+      this.addBox(group, width + 0.18, 0.28, depth + 0.18, stone, -0.42, 2.42, -0.72);
+      this.addBox(group, width, height, depth, timber, -0.42, 2.52 + height / 2, -0.72);
+      this.addBox(group, 0.82, 1.12, 0.08, timberDark, -0.42, 2.98, -0.72 - depth / 2 - 0.05);
+      const mainRoof = new THREE.Mesh(
+        new THREE.ConeGeometry(width * 0.66, normalizedLevel >= 4 ? 1.18 : 0.92, 4),
+        roof,
+      );
+      mainRoof.rotation.y = Math.PI / 4;
+      mainRoof.scale.z = Math.max(0.7, depth / width);
+      mainRoof.position.set(-0.42, 2.58 + height + (normalizedLevel >= 4 ? 0.58 : 0.46), -0.72);
+      mainRoof.castShadow = true;
+      group.add(mainRoof);
+    }
+
+    if (normalizedLevel >= 4) {
+      // Level 4: silo and formal stone entrance make the stockyard unmistakably elite.
+      const silo = new THREE.Mesh(new THREE.CylinderGeometry(0.44, 0.5, 2.05, 12), stone);
+      silo.position.set(1.3, 3.35, -1.24);
+      silo.castShadow = true;
+      group.add(silo);
+      const siloRoof = new THREE.Mesh(new THREE.ConeGeometry(0.58, 0.72, 12), roof);
+      siloRoof.position.set(1.3, 4.74, -1.24);
+      siloRoof.castShadow = true;
+      group.add(siloRoof);
+
+      for (const x of [-0.34, 0.34]) {
+        this.addBox(group, 0.18, 1.34, 0.18, stone, x, 2.92, 1.72);
+      }
+      this.addBox(group, 0.86, 0.18, 0.18, stone, 0, 3.54, 1.72);
+      this.addBox(group, 0.62, 0.08, 0.08, timberDark, 0, 3.28, 1.72);
+    }
+
+    group.userData.cowBarnLevel = normalizedLevel;
     return group;
   }
 
@@ -8927,6 +9101,9 @@ export class ThreeGame {
     if (kind === 'mountain2') return { kind: 'mountain', level: 2 };
     if (kind === 'mountain3') return { kind: 'mountain', level: 3 };
     if (kind === 'armyCamp') return { kind: 'armyCamp', level: Math.max(1, Math.min(ARMY_CAMP_MAX_LEVEL, level)) };
+    if (kind === 'farm' || kind === 'cowBarn') {
+      return { kind, level: Math.max(1, Math.min(AGRICULTURE_MAX_LEVEL, level)) };
+    }
     if (!BUILDING_KINDS.includes(kind as TileKind)) return null;
     return { kind: kind as TileKind, level: Math.max(1, level) };
   }
@@ -8968,6 +9145,12 @@ export class ThreeGame {
       '<div class="army-camp-level-track" aria-hidden="true"><span data-camp-level="1"></span><span data-camp-level="2"></span><span data-camp-level="3"></span><span data-camp-level="4"></span></div>' +
       '<small id="army-camp-upgrade-description">Select an Army Camp to inspect its level.</small>' +
       '<button id="army-camp-upgrade-button" class="army-camp-upgrade-button" type="button">Upgrade to Level 2</button>' +
+      '</section>' +
+      '<section id="agriculture-upgrade-card" class="agriculture-upgrade-card" aria-label="Selected agriculture building upgrade" hidden>' +
+      '<div class="agriculture-upgrade-heading"><div><span id="agriculture-upgrade-type" class="eyebrow">SELECTED AGRICULTURE BUILDING</span><strong id="agriculture-upgrade-name">Farm · Level 1</strong></div><span id="agriculture-upgrade-badge">1 / 4</span></div>' +
+      '<div class="agriculture-level-track" aria-hidden="true"><span data-agriculture-level="1"></span><span data-agriculture-level="2"></span><span data-agriculture-level="3"></span><span data-agriculture-level="4"></span></div>' +
+      '<small id="agriculture-upgrade-description">Select a Farm or Cow Barn to inspect its level.</small>' +
+      '<button id="agriculture-upgrade-button" class="agriculture-upgrade-button" type="button">Upgrade to Level 2</button>' +
       '</section>' +
       '<section class="settings-section build-settings-section">' +
       '<button class="settings-section-header" type="button" aria-expanded="false">' +
@@ -9221,6 +9404,7 @@ export class ThreeGame {
     get<HTMLButtonElement>('move-right').onclick = () => this.moveSelected(1, 0);
     get<HTMLButtonElement>('rotate-selected').onclick = () => this.rotateSelected();
     get<HTMLButtonElement>('army-camp-upgrade-button').onclick = () => this.upgradeSelectedArmyCamp();
+    get<HTMLButtonElement>('agriculture-upgrade-button').onclick = () => this.upgradeSelectedAgricultureBuilding();
     get<HTMLButtonElement>('undo-button').onclick = () => this.undo();
     get<HTMLButtonElement>('redo-button').onclick = () => this.redo();
     get<HTMLButtonElement>('select-clear').onclick = () => {
@@ -9694,12 +9878,102 @@ export class ThreeGame {
     this.setStatus(`Keep built · ${keep.width}×${keep.depth} · ${keep.floors} floors · details generated automatically`);
   }
 
+  private agricultureLevelDefinition(kind: AgricultureUpgradeKind, level: number): AgricultureUpgradeLevel {
+    const normalized = Math.max(1, Math.min(AGRICULTURE_MAX_LEVEL, Math.floor(level)));
+    return AGRICULTURE_UPGRADE_LEVELS[kind][normalized - 1];
+  }
+
+  private syncAgricultureUpgradeUI(): void {
+    const card = document.getElementById('agriculture-upgrade-card');
+    if (!card) return;
+
+    const cell = this.selectedCell
+      ? this.services.state.getCell(this.selectedCell.x, this.selectedCell.y)
+      : undefined;
+    const selectedBuilding =
+      cell?.kind === 'farm' || cell?.kind === 'cowBarn'
+        ? cell
+        : undefined;
+
+    card.hidden = !selectedBuilding;
+    if (!selectedBuilding) return;
+
+    const kind = selectedBuilding.kind as AgricultureUpgradeKind;
+    const level = Math.max(1, Math.min(AGRICULTURE_MAX_LEVEL, selectedBuilding.level ?? 1));
+    const definition = this.agricultureLevelDefinition(kind, level);
+    const next = level < AGRICULTURE_MAX_LEVEL
+      ? this.agricultureLevelDefinition(kind, level + 1)
+      : undefined;
+    const type = document.getElementById('agriculture-upgrade-type');
+    const name = document.getElementById('agriculture-upgrade-name');
+    const badge = document.getElementById('agriculture-upgrade-badge');
+    const description = document.getElementById('agriculture-upgrade-description');
+    const button = document.getElementById('agriculture-upgrade-button') as HTMLButtonElement | null;
+    const buildingLabel = kind === 'farm' ? 'Farm' : 'Cow Barn';
+
+    if (type) type.textContent = kind === 'farm' ? 'SELECTED FARM' : 'SELECTED COW BARN';
+    if (name) name.textContent = `${definition.name} · Level ${level}`;
+    if (badge) badge.textContent = `${level} / ${AGRICULTURE_MAX_LEVEL}`;
+    if (description) {
+      description.textContent = next
+        ? `${definition.description} Next: ${next.name}.`
+        : `${definition.description} Maximum building level reached.`;
+    }
+    card.querySelectorAll<HTMLElement>('[data-agriculture-level]').forEach((step) => {
+      const stepLevel = Number(step.dataset.agricultureLevel ?? 0);
+      step.classList.toggle('is-complete', stepLevel <= level);
+      step.classList.toggle('is-current', stepLevel === level);
+    });
+    if (button) {
+      button.disabled = !next || this.battleSystem.isActive();
+      button.textContent = next
+        ? `Upgrade ${buildingLabel} to Level ${next.level} · ${next.name}`
+        : 'Maximum Level';
+    }
+  }
+
+  private upgradeSelectedAgricultureBuilding(): void {
+    if (this.battleSystem.isActive()) {
+      this.setStatus('Finish or reset the battle before upgrading agriculture buildings');
+      return;
+    }
+    if (!this.selectedCell) {
+      this.setStatus('Select a Farm or Cow Barn first');
+      return;
+    }
+
+    const cell = this.services.state.getCell(this.selectedCell.x, this.selectedCell.y);
+    if (!cell || (cell.kind !== 'farm' && cell.kind !== 'cowBarn')) {
+      this.setStatus('Select a Farm or Cow Barn first');
+      this.syncAgricultureUpgradeUI();
+      return;
+    }
+
+    const kind = cell.kind as AgricultureUpgradeKind;
+    const currentLevel = Math.max(1, Math.min(AGRICULTURE_MAX_LEVEL, cell.level ?? 1));
+    if (currentLevel >= AGRICULTURE_MAX_LEVEL) {
+      this.setStatus(`${kind === 'farm' ? 'Farm' : 'Cow Barn'} is already at Level 4`);
+      this.syncAgricultureUpgradeUI();
+      return;
+    }
+
+    const nextLevel = currentLevel + 1;
+    this.recordHistory();
+    this.services.state.setLevel(this.selectedCell.x, this.selectedCell.y, nextLevel);
+    this.redraw();
+    this.scheduleSave();
+    this.setStatus(
+      `${kind === 'farm' ? 'Farm' : 'Cow Barn'} upgraded to Level ${nextLevel} · ${this.agricultureLevelDefinition(kind, nextLevel).name}`,
+    );
+  }
+
   private armyCampLevelDefinition(level: number): (typeof ARMY_CAMP_LEVELS)[number] {
     const normalized = Math.max(1, Math.min(ARMY_CAMP_MAX_LEVEL, Math.floor(level)));
     return ARMY_CAMP_LEVELS[normalized - 1];
   }
 
   private syncArmyCampUpgradeUI(): void {
+    this.syncAgricultureUpgradeUI();
     const card = document.getElementById('army-camp-upgrade-card');
     if (!card) return;
 
@@ -9786,9 +10060,13 @@ export class ThreeGame {
 
     const cell = this.services.state.getCell(this.selectedCell.x, this.selectedCell.y);
     if (!cell || (!WALL_KINDS.includes(cell.kind as WallKind) && cell.kind !== 'tower')) {
-      this.setStatus(cell?.kind === 'armyCamp'
-        ? 'Use the Army Camp Upgrade button in Build Settings'
-        : 'Selected tile is not a wall or tower');
+      this.setStatus(
+        cell?.kind === 'armyCamp'
+          ? 'Use the Army Camp Upgrade button in Build Settings'
+          : cell?.kind === 'farm' || cell?.kind === 'cowBarn'
+            ? 'Use the agriculture Upgrade button in Build Settings'
+            : 'Selected tile is not a wall or tower',
+      );
       return;
     }
 
