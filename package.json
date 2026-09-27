@@ -4,6 +4,7 @@
   "version": "0.2.0",
   "type": "module",
   "scripts": {
+    "test:gate-orientation": "node scripts/test-gate-orientation.mjs",
     "dev": "vite",
     "build": "npm run test:gate-orientation && npm run test:battle-state-boundary && npm run test:castle-access-navigation && npm run test:settlement-lifecycle && npm run test:river-water-visibility && npm run test:build-tool-registry && npm run test:cross-mode-save-loading && npm run test:settings-bootstrap-order && npm run test:save-mode-ui-sync && npm run test:modern-fortress-terrain-protection && npm run test:god-mode && tsc --noEmit && vite build",
     "preview": "vite preview",
