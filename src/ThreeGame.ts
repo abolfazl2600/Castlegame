@@ -7818,7 +7818,7 @@ export class ThreeGame {
         this.selectKeep(keepAtPoint);
       } else {
         this.selectedKeepId = null;
-        this.setStatus(current ? `Selected: ${current}` : 'No Build Tool Selected');
+        this.setStatus(current ? `Selected: ${current}` : 'Inspect mode · click a structure');
       }
       return;
     }
