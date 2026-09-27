@@ -4,6 +4,7 @@ on:
   pull_request:
     branches:
       - main
+      - codex/foundation-extension-storage
   push:
     branches:
       - main
@@ -37,7 +38,7 @@ jobs:
         run: npm run test:ui
 
   deploy:
-    if: github.event_name != 'pull_request'
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
     needs: verify
     permissions:
       contents: read
