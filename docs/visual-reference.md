@@ -11,7 +11,13 @@ The saved scene generator is [`scripts/visual-reference-scene.mjs`](../scripts/v
 | Far desktop | 1365 × 900 | (91, 108, 102) → (0, 0, 0) | Hierarchy and density |
 | Normal mobile | 390 × 844 | (68, 80, 76) → (0, 0, 0) | Screen coverage and controls |
 
-Camera projection and limits are defined in [`WorldStyle.ts`](../src/rendering/WorldStyle.ts). The directional sun starts at `#ffd7a3` with intensity `3.05`; sky fill is `#91c1cf` at `0.7`, ambient sky is `#c4e1e7`, fog is `#89a6a2` from 132 to 270 world units. The benchmark freezes optional motion, leaves effects and shadows enabled, and tests Low, Medium and High graphics quality. It samples 120 animation frames after warmup and reports median and 95th percentile frame time, estimated FPS, median draw calls, triangles, unique scene geometry/material counts, GPU geometry/texture counts, initial redraw time, and JS heap size where Chrome exposes it. Results vary by device; record browser, OS, GPU, resolution and graphics quality when reviewing a PR.
+Camera projection and limits are defined in [`WorldStyle.ts`](../src/rendering/WorldStyle.ts). The directional sun starts at `#ffd7a3` with intensity `3.05`; sky fill is `#91c1cf` at `0.7`, ambient sky is `#c4e1e7`, fog is `#89a6a2` from 132 to 270 world units. The benchmark uses normal motion with effects and shadows enabled for its primary Low, Medium and High graphics-quality passes. Phase-5 coverage also runs representative live combat with reduced motion and with effects disabled. It samples 120 animation frames after warmup and reports median and 95th percentile frame time, estimated FPS, median draw calls, triangles, unique scene geometry/material counts, GPU geometry/texture counts, initial redraw time, JS heap size where Chrome exposes it, and the observed battle state for combat cases. Results vary by device; record browser, OS, GPU, resolution and graphics quality when reviewing a PR.
+
+## Phase-5 actor, combat and interface audit
+
+The baseline also captures `dense-normal-desktop.png`, `combat-normal-desktop.png`, `combat-reduced-motion-desktop.png`, and `combat-panel-mobile.png`. Combat uses a fixed 32-attacker / 30-defender setup so faction silhouettes, active movement, projectiles/impacts, objectives, and the battle UI are reviewed against the same deterministic world. The mobile combat capture keeps the battle panel open at 390 × 844 to catch touch-target and screen-coverage regressions.
+
+For issue #64, committed before/after evidence and an environment-qualified dense/combat metric snapshot live in [`docs/visual-audits/issue-64/`](visual-audits/issue-64/). Absolute FPS from software rendering is not a target-device claim; rerun `visual:baseline` on the review machine for hardware comparisons.
 
 ## Shared roles
 
