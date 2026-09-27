@@ -12,7 +12,7 @@ export class FuturisticCastleRenderer {
     const glass = materials.reinforcedGlass;
     const energy = materials.securityLight;
     const weapon = materials.industrialMetal;
-    const warning = materials.industrialMetal;
+    const warning = materials.warningStripe;
 
     const addBox = (w: number, h: number, d: number, material: THREE.Material, x: number, y: number, z: number): THREE.Mesh => {
       const mesh = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), material);
