@@ -20,6 +20,10 @@ assert.match(game, /resolveGodModeTarget/);
 assert.match(game, /getStructureFootprint\(cell\.kind, cell\.x, cell\.y\)/);
 assert.match(game, /destructibleBuildingSystem\.applyDamage/);
 assert.match(game, /private executeMissileStrike\(target: GodModeTarget\)/);
+assert.match(game, /private fireGodModeAt\(point: GridPoint \| null\)/);
+assert.match(game, /private godModeCapacity = 10/);
+assert.match(game, /this\.fireGodModeAt\(cell\)/);
+assert.match(game, /Missile capacity exhausted/);
 assert.match(game, /this\.services\.state\.removeCell\(target\.anchor\.x, target\.anchor\.y\)/);
 assert.match(game, /createMissileStrikeEffect/);
 assert.match(game, /godModeActions\.register/);
@@ -30,6 +34,7 @@ assert.match(destructible, /applyDamage\(cell: GridCell/);
 assert.match(html, /id="god-mode-panel"/);
 assert.match(html, /data-god-action="missileStrike"/);
 assert.match(html, /id="god-mode-confirm"/);
+assert.match(html, /id="god-mode-capacity"/);
 assert.match(html, /id="god-mode-cancel"/);
 
 console.log('God Mode registry, targeting, damage, persistence and UI checks passed.');
