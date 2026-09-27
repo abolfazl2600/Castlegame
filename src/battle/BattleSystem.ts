@@ -2009,6 +2009,10 @@ export class BattleSystem {
     for (const node of this.navigation.wallPlatformNodes()) {
       this.wallNodes.set(this.gridKey(node.x, node.y), node);
     }
+    for (const key of this.breachedWalls) {
+      this.wallNodes.delete(key);
+    }
+    if (this.breachedWalls.size > 0) this.navigation.invalidate();
   }
 
   private wallMaxHealth(cell: GridCell): number {
