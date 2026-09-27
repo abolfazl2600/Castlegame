@@ -2,7 +2,7 @@
 
 ## Visual direction
 
-All new or revised buildings, terrain, characters, effects, and interface visuals follow the [Castle Role Visual Style Guide](VISUAL_STYLE_GUIDE.md). Use its implementation checklist and compare assets in the reference scene before merging. The phased migration is tracked in issues #60–#65.
+All new or revised buildings, terrain, characters, effects, and interface visuals follow the [Castle Role Visual Style Guide](VISUAL_STYLE_GUIDE.md). Use its implementation checklist and compare assets in the reference scene before merging. The phased migration is tracked in issues #60–#65. The [visual reference and baseline workflow](docs/visual-reference.md) defines the repeatable scene, camera views and performance report.
 
 ## Settlement, battle, terrain and template expansion
 
