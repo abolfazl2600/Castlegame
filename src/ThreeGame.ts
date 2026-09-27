@@ -73,6 +73,11 @@ const WORLD = SIZE * TILE;
 const WALL_KINDS: WallKind[] = ['wall1', 'wall2', 'wall3'];
 const ROAD_KINDS: RoadKind[] = ['road', 'dirtRoad', 'stoneRoad'];
 const HARBOR_KINDS: HarborKind[] = ['smallDock', 'woodenPier', 'harbor', 'fishingDock'];
+const PLAYABLE_LAYOUT_TEMPLATES: Readonly<Record<string, { layoutId: MapLayoutId; seed: number }>> = {
+  'mainland-frontier': { layoutId: 'mainland', seed: 5501 },
+  'coastal-peninsula': { layoutId: 'peninsula', seed: 5502 },
+  'split-isles': { layoutId: 'twin-isles', seed: 5503 },
+};
 const BUILDING_KINDS: TileKind[] = [
   'wall1',
   'wall2',
@@ -171,6 +176,7 @@ interface SettlementAgentSpec {
 
 interface HistorySnapshot {
   mapLayoutId: MapLayoutId;
+  worldSeed: number;
   cells: ReturnType<GameState['entries']>;
   keeps: KeepState[];
   terrain: Array<[string, TerrainOverrideKind]>;
@@ -346,6 +352,7 @@ export class ThreeGame {
   private readonly shallowWaterMaterial: THREE.MeshStandardMaterial;
 
   private mapLayoutId: MapLayoutId = 'island';
+  private worldSeed = 0;
   private selectedTool: ToolKind | null = 'wall1';
   private selectedCell: GridPoint | null = null;
   private minimapCursor: GridPoint = { x: Math.floor(SIZE / 2), y: Math.floor(SIZE / 2) };
@@ -437,6 +444,8 @@ export class ThreeGame {
       getGameMode: () => this.gameMode,
       getMapLayoutId: () => this.mapLayoutId,
       setMapLayoutId: (value) => this.setMapLayoutId(value),
+      getWorldSeed: () => this.worldSeed,
+      setWorldSeed: (value) => { this.worldSeed = Number.isFinite(value) ? Math.trunc(value) : 0; },
       getStoneStyle: () => this.stoneStyle,
       getWorldSeeded: () => this.worldSeeded,
       getBattleSetup: () => this.battleSetup,
@@ -998,13 +1007,17 @@ export class ThreeGame {
         ? template !== 'futuristic-castle'
         : template === 'futuristic-castle';
 
+      const authoredLayoutTemplate = PLAYABLE_LAYOUT_TEMPLATES[template ?? ''];
       const layoutRestricted =
         this.mapLayoutId !== 'island' &&
-        template !== 'empty-land';
+        template !== 'empty-land' &&
+        !authoredLayoutTemplate;
       button.disabled = layoutRestricted;
       button.title = layoutRestricted
         ? 'This complete castle template currently requires Classic Island. Terrain-only templates work with every map layout.'
-        : '';
+        : authoredLayoutTemplate
+          ? `Authored for ${MAP_LAYOUTS.find((layout) => layout.id === authoredLayoutTemplate.layoutId)?.label ?? authoredLayoutTemplate.layoutId}.`
+          : '';
     });
   }
 
@@ -1259,6 +1272,7 @@ export class ThreeGame {
     this.undoStack.length = 0;
     this.redoStack.length = 0;
     this.worldSeeded = false;
+    this.worldSeed = 0;
     this.rebuildWorldLayoutSurface();
     this.seedNaturalProps();
     this.worldSeeded = true;
@@ -1607,13 +1621,14 @@ export class ThreeGame {
   }
 
   private seedNaturalProps(): void {
+    const seed = Math.trunc(this.worldSeed);
     for (let y = 0; y < SIZE; y += 1) {
       for (let x = 0; x < SIZE; x += 1) {
         if (this.services.state.getCell(x, y)) continue;
 
         const terrain = this.baseTerrainAt(x, y);
-        const h1 = Math.abs((x * 92821 + y * 68917 + x * y * 137) % 997);
-        const h2 = Math.abs((x * 53 + y * 97 + x * y * 11) % 101);
+        const h1 = Math.abs((x * 92821 + y * 68917 + x * y * 137 + seed * 193) % 997);
+        const h2 = Math.abs((x * 53 + y * 97 + x * y * 11 + seed * 17) % 101);
 
         if (terrain === 'forest') {
           const clearing = ((x - 5) * (x - 5) + (y - 12) * (y - 12)) < 7;
@@ -6479,6 +6494,7 @@ export class ThreeGame {
   private captureSnapshot(): HistorySnapshot {
     return {
       mapLayoutId: this.mapLayoutId,
+      worldSeed: this.worldSeed,
       cells: this.services.state.entries().map((cell) => ({
         ...cell,
         wallLinks: cell.wallLinks ? [...cell.wallLinks] : undefined,
@@ -6504,6 +6520,7 @@ export class ThreeGame {
 
   private restoreSnapshot(snapshot: HistorySnapshot): void {
     this.setMapLayoutId(snapshot.mapLayoutId ?? 'island');
+    this.worldSeed = Number.isFinite(snapshot.worldSeed) ? Math.trunc(snapshot.worldSeed) : 0;
     this.services.state.replace(snapshot.cells);
     this.services.keepSystem.replace(snapshot.keeps ?? []);
     this.stoneStyle = snapshot.stoneStyle ?? 'limestone';
@@ -9635,7 +9652,8 @@ export class ThreeGame {
   }
 
   private applyTemplate(template: string): void {
-    if (this.mapLayoutId !== 'island' && template !== 'empty-land') {
+    const authoredLayoutTemplate = PLAYABLE_LAYOUT_TEMPLATES[template];
+    if (this.mapLayoutId !== 'island' && template !== 'empty-land' && !authoredLayoutTemplate) {
       this.setStatus('Castle templates currently require Classic Island. Terrain templates remain available on this layout.');
       return;
     }
@@ -9648,6 +9666,12 @@ export class ThreeGame {
       return;
     }
     this.recordHistory();
+    if (authoredLayoutTemplate) {
+      this.worldSeed = authoredLayoutTemplate.seed;
+      this.setMapLayoutId(authoredLayoutTemplate.layoutId);
+    } else {
+      this.worldSeed = 0;
+    }
     this.clearSettlementAgents();
     this.services.state.clear();
     this.services.keepSystem.clear();
@@ -9712,6 +9736,24 @@ export class ThreeGame {
     ): void => {
       for (let y = Math.max(0, minY); y <= Math.min(SIZE - 1, maxY); y += 1) {
         for (let x = Math.max(0, minX); x <= Math.min(SIZE - 1, maxX); x += 1) {
+          this.services.state.removeCell(x, y);
+          this.terrainOverrides.set(this.key(x, y), 'plains');
+          this.setAbsoluteElevation(x, y, elevation);
+        }
+      }
+    };
+
+    const prepareBuildableArea = (
+      minX: number,
+      minY: number,
+      maxX: number,
+      maxY: number,
+      elevation = 0,
+    ): void => {
+      for (let y = Math.max(0, minY); y <= Math.min(SIZE - 1, maxY); y += 1) {
+        for (let x = Math.max(0, minX); x <= Math.min(SIZE - 1, maxX); x += 1) {
+          const baseTerrain = this.baseTerrainAt(x, y);
+          if (baseTerrain === 'water' || baseTerrain === 'shore') continue;
           this.services.state.removeCell(x, y);
           this.terrainOverrides.set(this.key(x, y), 'plains');
           this.setAbsoluteElevation(x, y, elevation);
@@ -9800,6 +9842,96 @@ export class ThreeGame {
           }
         }
       }
+    } else if (template === 'mainland-frontier') {
+      this.stoneStyle = 'frontier';
+      this.towerBridgeKind = 'wood';
+      prepareBuildableArea(4, 6, 15, 17, 0.08);
+      prepareBuildableArea(8, 18, 10, 20, 0.04);
+
+      placeWallRect(6, 7, 13, 14, 'wall2', 2, {
+        battlement: false,
+        walkway: true,
+        thickness: 'medium',
+      });
+      place(9, 14, 'gate');
+      place(13, 10, 'gate');
+      place(6, 7, 'tower', 2, { towerShape: 'watch', towerTop: 'timberRoof' });
+      place(13, 7, 'tower', 2, { towerShape: 'square', towerTop: 'timberRoof' });
+      place(6, 14, 'tower', 2, { towerShape: 'round', towerTop: 'openBattlement' });
+      place(13, 14, 'tower', 2, { towerShape: 'watch', towerTop: 'openBattlement' });
+      placeKeepTemplate(9, 10, 3, 3, 3, 'sloped', true);
+      place(7, 12, 'cottage');
+      place(11, 12, 'house');
+      place(9, 12, 'market');
+      place(4, 9, 'farm');
+      place(4, 12, 'farm');
+      place(4, 15, 'cowBarn');
+      place(14, 8, 'armyCamp');
+      for (let y = 15; y <= 20; y += 1) place(9, y, 'dirtRoad');
+      for (let x = 14; x <= 16; x += 1) {
+        if (this.baseTerrainAt(x, 10) !== 'water' && this.baseTerrainAt(x, 10) !== 'shore') {
+          this.services.state.removeCell(x, 10);
+          this.terrainOverrides.set(this.key(x, 10), 'plains');
+          place(x, 10, 'dirtRoad');
+        }
+      }
+      placeHarborTemplate('woodenPier', 'transportShip', SIZE - 4, center);
+    } else if (template === 'coastal-peninsula') {
+      this.stoneStyle = 'limestone';
+      prepareBuildableArea(7, 7, 16, 8, 0.16);
+      prepareBuildableArea(8, 9, 14, 17, 0.12);
+
+      for (let x = 7; x <= 16; x += 1) {
+        place(x, 7, 'wall1', 2, { battlement: true, walkway: true, thickness: 'thick' });
+      }
+      place(11, 7, 'gate', 2);
+      place(7, 7, 'tower', 3, { towerShape: 'round', towerTop: 'conical' });
+      place(16, 7, 'tower', 3, { towerShape: 'round', towerTop: 'conical' });
+      placeKeepTemplate(11, 11, 3, 3, 4, 'towered', true);
+      place(9, 14, 'cottage');
+      place(13, 14, 'house');
+      place(11, 14, 'market');
+      place(8, 16, 'farm');
+      place(14, 16, 'farm');
+      place(9, 16, 'windmill');
+      for (let y = 8; y <= 17; y += 1) {
+        if (!this.services.state.getCell(11, y) && !this.services.keepSystem.findAtCell(11, y)) {
+          place(11, y, 'stoneRoad');
+        }
+      }
+      placeHarborTemplate('fishingDock', 'fishingBoat', 5, center + 2);
+      placeHarborTemplate('harbor', 'tradingBoat', SIZE - 5, center + 2);
+    } else if (template === 'split-isles') {
+      this.stoneStyle = 'sandstone';
+      this.towerBridgeKind = 'wood';
+      prepareBuildableArea(4, 8, 9, 12, 0.18);
+      prepareBuildableArea(13, 10, 18, 15, 0.1);
+
+      placeWallRect(4, 8, 9, 12, 'wall1', 2, {
+        battlement: true,
+        walkway: true,
+        thickness: 'medium',
+      });
+      place(6, 12, 'gate');
+      place(4, 8, 'tower', 2, { towerShape: 'round', towerTop: 'conical' });
+      place(9, 8, 'tower', 2, { towerShape: 'round', towerTop: 'conical' });
+      place(4, 12, 'tower', 2, { towerShape: 'square', towerTop: 'openBattlement' });
+      place(9, 12, 'tower', 2, { towerShape: 'square', towerTop: 'openBattlement' });
+      placeKeepTemplate(6, 10, 2, 2, 3, 'sloped', true);
+      place(8, 10, 'armyCamp');
+      place(8, 11, 'cottage');
+
+      place(13, 11, 'cottage');
+      place(17, 11, 'house');
+      place(15, 12, 'market');
+      place(13, 14, 'farm');
+      place(17, 14, 'farm');
+      place(15, 14, 'cowBarn');
+      for (let x = 13; x <= 18; x += 1) {
+        if (!this.services.state.getCell(x, 13)) place(x, 13, 'dirtRoad');
+      }
+      placeHarborTemplate('woodenPier', 'transportShip', 2, center);
+      placeHarborTemplate('harbor', 'transportShip', SIZE - 3, center + 2);
     } else if (template === 'small-castle') {
       const min = center - 3;
       const max = center + 3;
