@@ -11,7 +11,7 @@ const [disposalSource, modernMatSource, packageJson] = await Promise.all([
 // 1. Verify static contracts and API exports
 assert.match(disposalSource, /export function disposeHierarchy/, 'disposeHierarchy must be exported');
 assert.match(disposalSource, /export function disposeGroup/, 'disposeGroup must be exported');
-assert.match(disposalSource, /renderable\.geometry\.dispose\(\)/, 'geometry disposal must be invoked');
+assert.match(disposalSource, /geometry\.dispose\(\)/, 'geometry disposal must be invoked');
 assert.match(disposalSource, /mat\.dispose\(\)/, 'material disposal must be invoked');
 assert.match(disposalSource, /tex\.dispose\(\)/, 'attached texture disposal must be invoked');
 assert.match(disposalSource, /isSharedMaterial/, 'shared material predicate must be supported');
