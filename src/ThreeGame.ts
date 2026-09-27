@@ -291,7 +291,6 @@ const TOOL_GROUPS: Array<{ label: string; tools: ToolDefinition[] }> = [
       { id: 'lower', icon: '⬇️', label: 'Lower', detail: 'Lower terrain with brush', shortcut: 'J' },
       { id: 'flatten', icon: '▰', label: 'Flatten', detail: 'Level terrain to brush center', shortcut: 'B' },
       { id: 'smooth', icon: '〰️', label: 'Smooth', detail: 'Blend nearby terrain heights', shortcut: 'V' },
-      { id: 'dig', icon: '⛏️', label: 'Dig', detail: 'Excavate deep ground', shortcut: 'G' },
       { id: 'hill', icon: '⛰️', label: 'Create Hill', detail: 'Build a rounded hill', shortcut: 'H' },
       { id: 'cliff', icon: '🗻', label: 'Create Cliff', detail: 'Create a sharp raised plateau', shortcut: 'C' },
     ],
@@ -1736,7 +1735,7 @@ export class ThreeGame {
   }
 
   private isTerrainTool(tool: ToolKind): tool is TerrainToolKind {
-    return ['raise', 'lower', 'flatten', 'smooth', 'dig', 'hill', 'cliff'].includes(tool);
+    return ['raise', 'lower', 'flatten', 'smooth', 'hill', 'cliff'].includes(tool);
   }
 
   private gridToWorld(gx: number, gy: number): { x: number; z: number } {
@@ -2927,8 +2926,8 @@ export class ThreeGame {
 
     if (elevation < -0.03) {
       const depth = Math.min(1.55, Math.abs(elevation));
-      const earth = this.environmentMaterial('terrain-dig-earth', 0x51453a, 1);
-      const side = this.environmentMaterial('terrain-dig-side', 0x78644b, 1);
+      const earth = this.environmentMaterial('terrain-low-earth', 0x51453a, 1);
+      const side = this.environmentMaterial('terrain-low-side', 0x78644b, 1);
       const hollow = new THREE.Mesh(
         new THREE.CylinderGeometry(TILE * 0.47, TILE * 0.58, 0.12, 12),
         earth,
@@ -6933,7 +6932,6 @@ export class ThreeGame {
 
       if (tool === 'raise') next = current + 0.32 * scaled;
       else if (tool === 'lower') next = current - 0.32 * scaled;
-      else if (tool === 'dig') next = current - 0.58 * scaled;
       else if (tool === 'flatten') {
         next = THREE.MathUtils.lerp(current, centerElevation, THREE.MathUtils.clamp(0.3 * this.brushStrength, 0, 1));
       } else if (tool === 'smooth') {
@@ -8071,7 +8069,7 @@ export class ThreeGame {
         if (removableNatural) this.services.state.removeCell(gx, gy);
 
         // Manual river carving must always produce visible water. A previous
-        // Lower/Dig elevation override can push the river mesh below the
+        // A previous lowered elevation override can push the river mesh below the
         // island grass surface, making a valid river tile look dry.
         this.elevationOverrides.delete(overrideKey);
         this.terrainOverrides.set(overrideKey, 'river');
@@ -9615,7 +9613,6 @@ export class ThreeGame {
         j: 'lower',
         b: 'flatten',
         v: 'smooth',
-        g: 'dig',
         h: 'hill',
         c: 'cliff',
         x: 'erase',
