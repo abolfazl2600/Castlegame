@@ -79,6 +79,7 @@ export type ToolKind =
   | TerrainToolKind
   | 'erase';
 
+export type MapLayoutId = 'island' | 'mainland' | 'peninsula' | 'twin-isles';
 export type TerrainKind = 'water' | 'shore' | 'plains' | 'river' | 'mountain' | 'forest';
 export type TerrainOverrideKind = 'plains' | 'river';
 
@@ -132,6 +133,7 @@ export interface MissileInventoryState {
 export interface SavedGame {
   version: number;
   gameMode?: GameMode;
+  mapLayoutId?: MapLayoutId;
   updatedAt: number;
   cells: Array<{
     x: number;

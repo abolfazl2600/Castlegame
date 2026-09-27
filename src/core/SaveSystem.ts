@@ -15,6 +15,7 @@ import type { KeepSystem } from '../building/KeepSystem';
 import { APPLICATION_METADATA } from '../app/applicationMetadata';
 import type {
   KeepState,
+  MapLayoutId,
   SavedBattleSetup,
   SavedGame,
   SaveMetadata,
@@ -34,6 +35,8 @@ export interface SaveLoadHost {
   readonly elevationOverrides: Map<string, number>;
   readonly towerBridges: Map<number, TowerBridgeState>;
   getGameMode(): GameMode;
+  getMapLayoutId(): MapLayoutId;
+  setMapLayoutId(value: MapLayoutId): void;
   getStoneStyle(): StoneStyle;
   getWorldSeeded(): boolean;
   getBattleSetup?(): SavedBattleSetup;
@@ -58,6 +61,7 @@ interface RawSave {
   version?: number;
   updatedAt?: number;
   gameMode?: unknown;
+  mapLayoutId?: unknown;
   cells?: SavedGame['cells'];
   keeps?: KeepState[];
   stoneStyle?: StoneStyle;
@@ -424,6 +428,7 @@ export class SaveSystem {
     return {
       version: SAVE_VERSION,
       gameMode: this.host.getGameMode(),
+      mapLayoutId: this.host.getMapLayoutId(),
       updatedAt: Date.now(),
       cells: this.host.state.entries(),
       keeps: this.host.keepSystem.entries(),
@@ -468,6 +473,7 @@ export class SaveSystem {
 
   private applyData(data: SavedGame): void {
     const loadedMode: GameMode = isGameMode(data.gameMode) ? data.gameMode : 'medieval';
+    this.host.setMapLayoutId(validMapLayoutId(data.mapLayoutId) ? data.mapLayoutId : 'island');
     const cells: Array<ReturnType<GameState['entries']>[number]> = [];
 
     for (const cell of data.cells ?? []) {
@@ -580,6 +586,7 @@ export class SaveSystem {
       const legacyData: SavedGame = {
         version: Number(parsed.version ?? 0),
         gameMode: isGameMode(parsed.gameMode) ? parsed.gameMode : undefined,
+        mapLayoutId: validMapLayoutId(parsed.mapLayoutId) ? parsed.mapLayoutId : 'island',
         updatedAt: Number(parsed.updatedAt ?? Date.now()),
         cells: parsed.cells ?? [],
         keeps: parsed.keeps ?? [],
@@ -593,6 +600,7 @@ export class SaveSystem {
         missiles: parsed.missiles,
       };
       const data: SavedGame = parsed.data ?? legacyData;
+      if (!validMapLayoutId(data.mapLayoutId)) data.mapLayoutId = 'island';
       if (!Array.isArray(data.cells)) return;
       const now = Number(data.updatedAt) || Date.now();
       const metadata: SaveMetadata = {
@@ -622,6 +630,7 @@ function normalizeRecord(raw: RawSave, target: SaveTarget): SaveRecord | null {
   const data = raw.data ?? (Array.isArray(raw.cells) ? {
     version: Number(raw.version ?? 0),
     gameMode: isGameMode(raw.gameMode) ? raw.gameMode : undefined,
+    mapLayoutId: validMapLayoutId(raw.mapLayoutId) ? raw.mapLayoutId : 'island',
     updatedAt: Number(raw.updatedAt ?? Date.now()),
     cells: raw.cells,
     keeps: raw.keeps,
@@ -669,6 +678,13 @@ function normalizeBattleSetup(input: SavedBattleSetup): SavedBattleSetup {
 
 function validGrid(x: number, y: number): boolean {
   return Number.isInteger(x) && Number.isInteger(y) && x >= 0 && y >= 0 && x < WORLD_COLS && y < WORLD_COLS;
+}
+
+function validMapLayoutId(value: unknown): value is MapLayoutId {
+  return value === 'island' ||
+    value === 'mainland' ||
+    value === 'peninsula' ||
+    value === 'twin-isles';
 }
 
 function validStoneStyle(value: unknown): value is StoneStyle {
