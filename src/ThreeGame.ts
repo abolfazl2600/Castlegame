@@ -375,6 +375,7 @@ export class ThreeGame {
       key: (x, y) => this.key(x, y),
       updateGameModeUI: () => this.updateGameModeUI(),
       syncTemplateAvailability: () => this.syncTemplateAvailability(),
+      afterLoad: () => this.normalizeRiverElevations(),
       setStatus: (message) => this.setStatus(message),
     });
     this.riverTexture = this.createRiverTexture();
@@ -1090,6 +1091,32 @@ export class ThreeGame {
 
   private terrainElevation(x: number, y: number): number {
     return this.baseTerrainElevation(x, y) + (this.elevationOverrides.get(this.key(x, y)) ?? 0);
+  }
+
+  private normalizeRiverElevationAt(x: number, y: number): void {
+    if (this.terrainAt(x, y) !== 'river') return;
+    const key = this.key(x, y);
+    if ((this.elevationOverrides.get(key) ?? 0) < 0) {
+      this.elevationOverrides.delete(key);
+    }
+  }
+
+  private normalizeRiverElevations(): void {
+    for (const [key, value] of this.elevationOverrides.entries()) {
+      if (value >= 0) continue;
+      const [x, y] = key.split(',').map(Number);
+      if (
+        !Number.isInteger(x) ||
+        !Number.isInteger(y) ||
+        x < 0 ||
+        y < 0 ||
+        x >= SIZE ||
+        y >= SIZE
+      ) {
+        continue;
+      }
+      this.normalizeRiverElevationAt(x, y);
+    }
   }
 
   private setAbsoluteElevation(x: number, y: number, absolute: number): void {
@@ -1815,7 +1842,10 @@ export class ThreeGame {
         group.position.set(position.x, 0, position.z);
 
         if (terrain === 'river') {
-          group.position.y = elevation;
+          // River water must remain visible even if stale/legacy state carries
+          // a negative elevation override. Positive authored river elevations
+          // (for example mountain templates) remain untouched.
+          group.position.y = Math.max(0, elevation);
           this.renderRiverTile(group, x, y);
           this.terrainLayer.add(group);
           continue;
@@ -5840,6 +5870,7 @@ export class ThreeGame {
 
     for (const [key, value] of snapshot.terrain) this.terrainOverrides.set(key, value);
     for (const [key, value] of snapshot.elevations) this.elevationOverrides.set(key, value);
+    this.normalizeRiverElevations();
 
     this.selectedCell = null;
     this.selectedKeepId = null;
@@ -6993,6 +7024,7 @@ export class ThreeGame {
       if (this.terrainOverrides.has(overrideKey)) {
         this.recordHistory();
         this.terrainOverrides.delete(overrideKey);
+        this.normalizeRiverElevationAt(gx, gy);
         this.finishBuild();
       }
       return;
