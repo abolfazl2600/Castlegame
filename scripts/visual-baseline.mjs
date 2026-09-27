@@ -31,7 +31,7 @@ async function sample(page) {
     await new Promise((resolve) => {
       const step = (now) => {
         if (previous !== undefined) {
-          const getMetrics = window.__castleVisualMetrics;
+          const getMetrics = window.__castleVisualFrame;
           samples.push({ frameMs: now - previous, ...getMetrics() });
         }
         previous = now;
@@ -40,7 +40,7 @@ async function sample(page) {
       };
       requestAnimationFrame(step);
     });
-    return { samples, heapBytes: performance.memory?.usedJSHeapSize ?? null };
+    return { samples, resources: window.__castleVisualMetrics(), heapBytes: performance.memory?.usedJSHeapSize ?? null };
   });
 }
 
@@ -62,7 +62,7 @@ async function loadScene(browser, sceneName, quality, viewport, camera, screensh
   await page.waitForSelector('#toolbar [data-build-none]', { timeout: 30000 });
   await page.evaluate((position) => window.__castleVisualCamera(position), camera);
   await page.waitForTimeout(600);
-  const { samples, heapBytes } = await sample(page);
+  const { samples, resources, heapBytes } = await sample(page);
   if (screenshotName) await page.screenshot({ path: `${output}/${screenshotName}.png` });
   await context.close();
   const frames = samples.map((value) => value.frameMs);
@@ -73,9 +73,9 @@ async function loadScene(browser, sceneName, quality, viewport, camera, screensh
     frameMedianMs: percentile(frames, .5), frameP95Ms: percentile(frames, .95),
     estimatedFps: Number((1000 / percentile(frames, .5)).toFixed(1)),
     drawCallsMedian: percentile(draws, .5), triangles: latest.triangles,
-    sceneGeometries: latest.sceneGeometries, sceneMaterials: latest.sceneMaterials,
-    gpuGeometries: latest.gpuGeometries, gpuTextures: latest.gpuTextures,
-    redrawMs: Number(latest.lastRedrawMs.toFixed(2)), heapBytes,
+    sceneGeometries: resources.sceneGeometries, sceneMaterials: resources.sceneMaterials,
+    gpuGeometries: resources.gpuGeometries, gpuTextures: resources.gpuTextures,
+    redrawMs: Number(resources.lastRedrawMs.toFixed(2)), heapBytes,
   };
 }
 
