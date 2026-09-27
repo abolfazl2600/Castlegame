@@ -13,6 +13,13 @@ import { CASTLE_ARCHITECTURE_STYLE } from './rendering/CastleArchitectureStyle';
 import { WORLD_STYLE, styleTone } from './rendering/WorldStyle';
 import { BattleSystem, getUnitCombatStats } from './battle/BattleSystem';
 import { MILITARY_TIERS, militaryTierDefinition, normalizeMilitaryTier, type MilitaryTier } from './battle/MilitaryProgression';
+import {
+  beginMissileProduction,
+  MISSILE_CONFIG,
+  missileModeAvailable,
+  missilesUnlocked,
+  tickMissileState,
+} from './battle/MissileCapability';
 import type { BattleSetup, BattleStatus } from './battle/types';
 import { MaritimeSystem } from './systems/MaritimeSystem';
 import type { GameMode } from './core/GameMode';
@@ -371,6 +378,7 @@ export class ThreeGame {
     defenderModernSoldiers: 4,
   };
   private militaryTier: MilitaryTier = 1;
+  private missileUiRefreshMs = 0;
 
   private readonly undoStack: HistorySnapshot[] = [];
   private readonly redoStack: HistorySnapshot[] = [];
@@ -911,7 +919,7 @@ export class ThreeGame {
     if (label) label.textContent = config.label;
     if (button) button.setAttribute('aria-label', 'Current game mode: ' + config.label);
     const battleButton = document.getElementById('battle-button');
-    if (battleButton) battleButton.hidden = this.gameMode === 'modern';
+    if (battleButton) battleButton.hidden = false;
     const godModeButton = document.getElementById('god-mode-button');
     if (godModeButton) godModeButton.hidden = this.gameMode !== 'sandbox';
     const godModePanel = document.getElementById('god-mode-panel');
@@ -1136,6 +1144,7 @@ export class ThreeGame {
     this.clearSettlementAgents();
     this.battleSystem.reset(false);
     this.militaryTier = 1;
+    this.services.state.setMissileState();
     this.undoStack.length = 0;
     this.redoStack.length = 0;
     this.worldSeeded = false;
@@ -8946,6 +8955,9 @@ export class ThreeGame {
       this.syncMilitaryUI();
     };
     get<HTMLButtonElement>('military-upgrade').onclick = () => this.upgradeMilitaryTier();
+    get<HTMLButtonElement>('military-missile-produce').onclick = () => this.produceMissileFromUI();
+    get<HTMLButtonElement>('military-missile-launch').onclick = () => this.launchMissileFromUI();
+    get<HTMLSelectElement>('military-missile-target').onchange = () => this.syncMilitaryMissileUI();
 
     get<HTMLButtonElement>('god-mode-button').onclick = () => this.openGodMode();
     get<HTMLButtonElement>('god-mode-close').onclick = () => this.closeGodMode();
@@ -10733,6 +10745,190 @@ export class ThreeGame {
     this.setStatus(`Military upgraded to Tier ${this.militaryTier}`);
   }
 
+  private produceMissileFromUI(): void {
+    const result = beginMissileProduction(
+      this.services.state.getMissileState(),
+      this.gameMode,
+      this.militaryTier,
+      this.battleSystem.isActive(),
+    );
+    this.services.state.setMissileState(result.state);
+    this.syncMilitaryMissileUI();
+    if (result.ok) this.save(false);
+    this.setStatus(result.message);
+  }
+
+  private launchMissileFromUI(): void {
+    const state = this.services.state.getMissileState();
+    if (!missileModeAvailable(this.gameMode)) {
+      this.setStatus('Missiles are available in Modern and Sandbox modes only');
+      return;
+    }
+    if (!missilesUnlocked(this.gameMode, this.militaryTier)) {
+      this.setStatus(`Missiles unlock at Military Tier ${MISSILE_CONFIG.unlockTier}`);
+      return;
+    }
+    if (!this.battleSystem.isRunning()) {
+      this.setStatus('Start or resume the battle before launching a missile');
+      return;
+    }
+    if (state.stock <= 0) {
+      this.setStatus('No missiles in stock · produce one before the battle');
+      return;
+    }
+    if (state.cooldownRemainingMs > 0) {
+      this.setStatus(`Missile launcher cooling down · ${Math.ceil(state.cooldownRemainingMs / 1000)}s`);
+      return;
+    }
+
+    const targetSelect = document.getElementById('military-missile-target') as HTMLSelectElement | null;
+    const targetId = targetSelect?.value ?? '';
+    if (!targetId) {
+      this.setStatus('Select a valid hostile target');
+      return;
+    }
+
+    const launch = this.battleSystem.launchMissile(targetId, {
+      range: MISSILE_CONFIG.range,
+      impactRadius: MISSILE_CONFIG.impactRadius,
+      damage: MISSILE_CONFIG.damage,
+    });
+    if (!launch.ok) {
+      this.setStatus(launch.message);
+      this.syncMilitaryMissileUI();
+      return;
+    }
+
+    this.services.state.setMissileState({
+      ...state,
+      stock: state.stock - 1,
+      cooldownRemainingMs: MISSILE_CONFIG.cooldownMs,
+    });
+    this.save(false);
+    this.syncMilitaryMissileUI();
+    this.setStatus(`${launch.message} · missiles remaining ${state.stock - 1}`);
+  }
+
+  private updateMissileCapability(deltaMs: number): void {
+    const current = this.services.state.getMissileState();
+    const available = missileModeAvailable(this.gameMode) && missilesUnlocked(this.gameMode, this.militaryTier);
+    const timersEnabled = !this.battleSystem.isUnderAttack() || this.battleSystem.isRunning();
+    const tick = tickMissileState(
+      current,
+      deltaMs,
+      available,
+      !this.battleSystem.isActive(),
+      timersEnabled,
+    );
+    this.services.state.setMissileState(tick.state);
+
+    if (tick.produced || tick.supplyRestored || tick.cooldownReady) this.save(false);
+    if (tick.produced) {
+      this.setStatus(`Missile production complete · stock ${tick.state.stock}/${MISSILE_CONFIG.maxStock}`);
+    }
+
+    this.missileUiRefreshMs -= deltaMs;
+    if (this.missileUiRefreshMs <= 0) {
+      this.missileUiRefreshMs = 250;
+      this.syncMilitaryMissileUI();
+    }
+  }
+
+  private syncMilitaryMissileUI(): void {
+    const section = document.getElementById('military-missiles');
+    if (!section) return;
+
+    const state = this.services.state.getMissileState();
+    const modeAvailable = missileModeAvailable(this.gameMode);
+    const unlocked = missilesUnlocked(this.gameMode, this.militaryTier);
+    section.hidden = !modeAvailable;
+
+    const lock = document.getElementById('military-missile-lock');
+    const stock = document.getElementById('military-missile-stock');
+    const supply = document.getElementById('military-missile-supply');
+    const production = document.getElementById('military-missile-production');
+    const productionFill = document.getElementById('military-missile-production-fill') as HTMLElement | null;
+    const cooldown = document.getElementById('military-missile-cooldown');
+    const produce = document.getElementById('military-missile-produce') as HTMLButtonElement | null;
+    const launch = document.getElementById('military-missile-launch') as HTMLButtonElement | null;
+    const targetSelect = document.getElementById('military-missile-target') as HTMLSelectElement | null;
+    const hint = document.getElementById('military-missile-hint');
+
+    if (lock) lock.textContent = unlocked ? 'READY' : `LOCKED · TIER ${MISSILE_CONFIG.unlockTier}`;
+    if (stock) stock.textContent = `${state.stock}/${MISSILE_CONFIG.maxStock}`;
+    if (supply) supply.textContent = `${state.supply}/${MISSILE_CONFIG.maxSupply}`;
+    const productionPercent = state.productionRemainingMs > 0
+      ? 1 - state.productionRemainingMs / MISSILE_CONFIG.productionMs
+      : 0;
+    if (productionFill) productionFill.style.width = `${Math.round(productionPercent * 100)}%`;
+    if (production) {
+      production.textContent = state.productionRemainingMs > 0
+        ? `${Math.ceil(state.productionRemainingMs / 1000)}s remaining`
+        : 'Idle';
+    }
+    if (cooldown) {
+      cooldown.textContent = state.cooldownRemainingMs > 0
+        ? `${Math.ceil(state.cooldownRemainingMs / 1000)}s`
+        : 'Ready';
+    }
+
+    if (produce) {
+      produce.disabled =
+        !unlocked ||
+        this.battleSystem.isActive() ||
+        state.productionRemainingMs > 0 ||
+        state.stock >= MISSILE_CONFIG.maxStock ||
+        state.supply < MISSILE_CONFIG.supplyCost;
+      produce.textContent = state.productionRemainingMs > 0
+        ? 'Producing Missile…'
+        : `Produce Missile · ${MISSILE_CONFIG.supplyCost} Supply`;
+    }
+
+    let selectedTarget = targetSelect?.value ?? '';
+    let selectedInRange = false;
+    if (targetSelect) {
+      const targets = this.battleSystem.getMissileTargets(MISSILE_CONFIG.range);
+      targetSelect.innerHTML = '';
+      if (targets.length === 0) {
+        const option = document.createElement('option');
+        option.value = '';
+        option.textContent = this.battleSystem.isRunning() ? 'No hostile targets' : 'Start battle to acquire targets';
+        targetSelect.append(option);
+        selectedTarget = '';
+      } else {
+        for (const target of targets) {
+          const option = document.createElement('option');
+          option.value = target.id;
+          option.disabled = !target.inRange;
+          option.textContent =
+            `${target.unitType} · ${Math.ceil(target.health)}/${Math.ceil(target.maxHealth)} HP · ${target.distance.toFixed(0)}m` +
+            (target.inRange ? '' : ' · OUT OF RANGE');
+          targetSelect.append(option);
+        }
+        const previous = targets.find((target) => target.id === selectedTarget && target.inRange);
+        const firstValid = targets.find((target) => target.inRange);
+        selectedTarget = previous?.id ?? firstValid?.id ?? '';
+        targetSelect.value = selectedTarget;
+        selectedInRange = Boolean(targets.find((target) => target.id === selectedTarget && target.inRange));
+      }
+    }
+
+    if (launch) {
+      launch.disabled =
+        !unlocked ||
+        !this.battleSystem.isRunning() ||
+        state.stock <= 0 ||
+        state.cooldownRemainingMs > 0 ||
+        !selectedInRange;
+    }
+
+    if (hint) {
+      hint.textContent = unlocked
+        ? `Range ${MISSILE_CONFIG.range}m · radius ${MISSILE_CONFIG.impactRadius}m · ${MISSILE_CONFIG.cooldownMs / 1000}s cooldown. Production is disabled during battles; supply recharges over time.`
+        : `Modern missiles unlock at Military Tier ${MISSILE_CONFIG.unlockTier}. Sandbox bypasses the tier requirement.`;
+    }
+  }
+
   private syncMilitaryUI(): void {
     const current = militaryTierDefinition(this.militaryTier);
     const next = MILITARY_TIERS[this.militaryTier];
@@ -10746,6 +10942,7 @@ export class ThreeGame {
     if (tech) tech.textContent = `${current.technology}. Defenders +${Math.round((current.unitDefenseMultiplier - 1) * 100)}% defense, walls +${Math.round((current.wallHealthMultiplier - 1) * 100)}% health, wall weapons +${Math.round((current.weaponDamageMultiplier - 1) * 100)}% damage.`;
     if (nextText) nextText.textContent = next ? `Next: Tier ${next.tier} · ${next.name} · ${next.technology}` : 'Maximum tier reached';
     if (button) { button.disabled = !next || this.battleSystem.isActive(); button.textContent = next ? `Unlock Tier ${next.tier}` : 'Fully upgraded'; }
+    this.syncMilitaryMissileUI();
   }
 
   private stopBattleFromUI(): void {
@@ -10797,6 +10994,7 @@ export class ThreeGame {
     if (attackerAlive) attackerAlive.textContent = String(status.attackersAlive);
     if (defenderAlive) defenderAlive.textContent = String(status.defendersAlive);
     this.updatePopulationUI();
+    this.syncMilitaryMissileUI();
 
     if (captureLabel) {
       captureLabel.textContent =
@@ -10921,6 +11119,7 @@ export class ThreeGame {
       for (const extension of this.extensions) extension.updateSettlement?.(deltaMs);
     }
     this.battleSystem.update(deltaMs, time);
+    this.updateMissileCapability(deltaMs);
     this.services.session.update(deltaMs, time);
     this.updateLongPress(time);
     this.updateGodModeEffects(deltaMs);

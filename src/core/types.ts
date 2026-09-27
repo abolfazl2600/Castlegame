@@ -121,6 +121,14 @@ export interface SavedBattleSetup {
   defenderModernSoldiers: number;
 }
 
+export interface MissileInventoryState {
+  stock: number;
+  productionRemainingMs: number;
+  cooldownRemainingMs: number;
+  supply: number;
+  supplyRechargeRemainingMs: number;
+}
+
 export interface SavedGame {
   version: number;
   gameMode?: GameMode;
@@ -150,6 +158,7 @@ export interface SavedGame {
   worldSeeded?: boolean;
   battleSetup?: SavedBattleSetup;
   militaryTier?: number;
+  missiles?: MissileInventoryState;
 }
 
 export interface SaveMetadata {

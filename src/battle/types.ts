@@ -69,6 +69,26 @@ export interface BattleStatus {
   objectives?: BattleObjectiveRuntimeState[];
 }
 
+export interface BattleMissileTarget {
+  id: string;
+  unitType: UnitType;
+  health: number;
+  maxHealth: number;
+  distance: number;
+  inRange: boolean;
+}
+
+export interface BattleMissileLaunchOptions {
+  range: number;
+  impactRadius: number;
+  damage: number;
+}
+
+export interface BattleMissileLaunchResult {
+  ok: boolean;
+  message: string;
+}
+
 export interface BattleScenarioSetup {
   readonly scenario?: BattleScenario;
 }
