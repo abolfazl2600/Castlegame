@@ -83,6 +83,7 @@ interface UnitRuntime {
   attackApplied: boolean;
   hitReaction: number;
   victoryPhase: number;
+  entryTarget?: THREE.Vector3;
 }
 
 type WallDamageStage = 'healthy' | 'damaged' | 'heavy' | 'partial' | 'breached';
@@ -410,6 +411,7 @@ export class BattleSystem {
   private attackerSpawnBatchSize = 1;
   private battleSpeed = DEFAULT_BATTLE_SPEED;
   private militaryTier: MilitaryTier = 1;
+  private preparedDefenderSignature = '';
   private readonly objectiveSystem = new BattleObjectiveSystem();
 
   constructor(
@@ -444,49 +446,83 @@ export class BattleSystem {
     return this.mode === 'running' || this.mode === 'paused';
   }
 
+  prepareDefenders(setup: BattleSetup, militaryTier: MilitaryTier = 1, force = false): void {
+    if (this.mode !== 'idle') return;
+
+    const normalized = this.normalizeSetup(setup);
+    const normalizedTier = normalizeMilitaryTier(militaryTier);
+    const signature = this.defenderSetupSignature(normalized, normalizedTier);
+    const defenderCount = this.configuredDefenderCount(normalized);
+
+    if (
+      !force &&
+      signature === this.preparedDefenderSignature &&
+      this.countAlive('defender') === defenderCount
+    ) {
+      return;
+    }
+
+    for (const runtime of this.units.values()) {
+      this.layer.remove(runtime.view);
+    }
+    this.units.clear();
+
+    this.militaryTier = normalizedTier;
+    this.initializeObjectiveAnchors();
+    this.defenderStartCount = defenderCount;
+    this.spawnDefenders(normalized);
+    this.preparedDefenderSignature = signature;
+    this.emitStatus();
+  }
+
   start(setup: BattleSetup, options: BattleStartOptions = {}): void {
     const preserveSessionWallDamage = options.preserveSessionWallDamage === true;
-    this.resetRuntime(false, preserveSessionWallDamage);
-    this.militaryTier = normalizeMilitaryTier(options.militaryTier ?? 1);
+    const normalized = this.normalizeSetup(setup);
+    const nextMilitaryTier = normalizeMilitaryTier(options.militaryTier ?? 1);
+    const defenderCount = this.configuredDefenderCount(normalized);
+    const preparedSignature = this.defenderSetupSignature(normalized, nextMilitaryTier);
+    const reusePreparedGarrison =
+      this.mode === 'idle' &&
+      this.preparedDefenderSignature === preparedSignature &&
+      this.countAlive('defender') === defenderCount;
+
+    if (!reusePreparedGarrison) {
+      this.resetRuntime(false, preserveSessionWallDamage);
+    } else {
+      this.clearTransientBattleRuntime(preserveSessionWallDamage);
+    }
+
+    this.militaryTier = nextMilitaryTier;
     this.mode = 'running';
     this.battleSpeed = DEFAULT_BATTLE_SPEED;
     this.captureSeconds = 0;
     this.battleSeconds = 0;
     this.finalResult = undefined;
     this.siegeDecisionTimer = 0;
+    this.initializeObjectiveAnchors();
     this.initializeWallStates();
     this.initializeWallWeapons();
 
-    const normalized = this.normalizeSetup(setup);
     this.attackerStartCount =
       normalized.attackerSwordsmen +
       normalized.attackerArchers +
       normalized.attackerSpearmen +
       normalized.attackerCrossbowmen +
       normalized.attackerModernSoldiers;
-    this.defenderStartCount =
-      normalized.defenderSwordsmen +
-      normalized.defenderArchers +
-      normalized.defenderSpearmen +
-      normalized.defenderCrossbowmen +
-      normalized.defenderModernSoldiers;
+    this.defenderStartCount = defenderCount;
 
-    this.objectiveGrid = this.navigation.castleObjective();
-    this.capturePointGrid =
-      this.navigation.findNearestWalkable(this.objectiveGrid, 10) ?? this.objectiveGrid;
-
-    const objectiveWorld = this.world.gridToWorld(this.objectiveGrid.x, this.objectiveGrid.y);
-    this.objectiveWorld.set(
-      objectiveWorld.x,
-      2.28 + this.world.elevationAt(this.capturePointGrid.x, this.capturePointGrid.y),
-      objectiveWorld.z,
-    );
     this.createObjectiveMarker();
 
-    this.attackerSpawnInterval = Math.max(0, Number.isFinite(options.attackerSpawnInterval ?? 0) ? options.attackerSpawnInterval ?? 0 : 0);
+    this.attackerSpawnInterval = Math.max(
+      0,
+      Number.isFinite(options.attackerSpawnInterval ?? 0)
+        ? options.attackerSpawnInterval ?? 0
+        : 0,
+    );
     this.attackerSpawnBatchSize = Math.max(1, Math.floor(options.attackerSpawnBatchSize ?? 1));
     this.spawnAttackers(normalized, this.attackerSpawnInterval > 0);
-    this.spawnDefenders(normalized);
+    if (!reusePreparedGarrison) this.spawnDefenders(normalized);
+    this.preparedDefenderSignature = '';
     this.refreshSiegePlan(true);
     this.objectiveSystem.start(options.scenario ?? DEFAULT_BATTLE_SCENARIO, this.battleSeconds);
     this.emitStatus();
@@ -536,11 +572,122 @@ export class BattleSystem {
     this.resetRuntime(emit, false);
   }
 
+  private initializeObjectiveAnchors(): void {
+    this.objectiveGrid = this.navigation.castleObjective();
+    this.capturePointGrid =
+      this.navigation.findNearestWalkable(this.objectiveGrid, 10) ?? this.objectiveGrid;
+
+    const objectiveWorld = this.world.gridToWorld(this.objectiveGrid.x, this.objectiveGrid.y);
+    this.objectiveWorld.set(
+      objectiveWorld.x,
+      2.28 + this.world.elevationAt(this.capturePointGrid.x, this.capturePointGrid.y),
+      objectiveWorld.z,
+    );
+  }
+
+  private configuredDefenderCount(setup: BattleSetup): number {
+    return (
+      setup.defenderSwordsmen +
+      setup.defenderArchers +
+      setup.defenderSpearmen +
+      setup.defenderCrossbowmen +
+      setup.defenderModernSoldiers
+    );
+  }
+
+  private defenderTopologySignature(): string {
+    const defensiveKinds = new Set<TileKind>([
+      'wall1',
+      'wall2',
+      'wall3',
+      'gate',
+      'tower',
+      'armyCamp',
+      'stoneStairs',
+      'woodenStairs',
+      'ramp',
+      'ladder',
+    ]);
+    const parts: string[] = [];
+
+    for (let y = 0; y < this.world.size; y += 1) {
+      for (let x = 0; x < this.world.size; x += 1) {
+        const kind = this.world.kindAt(x, y);
+        if (kind && defensiveKinds.has(kind)) parts.push(`${x},${y},${kind}`);
+      }
+    }
+
+    for (const keep of this.world.keeps()) {
+      parts.push(`keep:${keep.id}:${keep.x},${keep.y},${keep.width},${keep.depth},${keep.floors},${keep.rotation}`);
+    }
+
+    for (const access of this.world.generatedAccess?.() ?? []) {
+      parts.push(`access:${access.x},${access.y},${access.kind}`);
+    }
+
+    return parts.join('|');
+  }
+
+  private defenderSetupSignature(setup: BattleSetup, tier: MilitaryTier): string {
+    return [
+      tier,
+      setup.defenderSwordsmen,
+      setup.defenderArchers,
+      setup.defenderSpearmen,
+      setup.defenderCrossbowmen,
+      setup.defenderModernSoldiers,
+      this.defenderTopologySignature(),
+    ].join(':');
+  }
+
+  private clearTransientBattleRuntime(preserveSessionWallDamage: boolean): void {
+    for (const [id, runtime] of this.units) {
+      if (runtime.data.faction !== 'attacker') continue;
+      this.layer.remove(runtime.view);
+      this.units.delete(id);
+    }
+
+    this.wallWeapons = [];
+    this.wallWeaponTimers.clear();
+
+    for (const arrow of this.arrows) this.layer.remove(arrow.view);
+    this.arrows.length = 0;
+    this.clearMissiles();
+
+    if (this.objectiveMarker) {
+      this.layer.remove(this.objectiveMarker);
+      this.objectiveMarker.geometry.dispose();
+      this.objectiveMarker = null;
+    }
+
+    this.clearSiegeState();
+    this.objectiveSystem.reset();
+    this.pendingAttackerSpawns = [];
+    this.attackerSpawnCells = [];
+    this.attackerSpawnCursor = 0;
+    this.attackerSpawnInterval = 0;
+    this.attackerSpawnTimer = 0;
+    this.attackerSpawnBatchSize = 1;
+
+    if (!preserveSessionWallDamage) this.sessionWallDamage.clear();
+    this.preserveSessionWallDamage = preserveSessionWallDamage;
+
+    for (const runtime of this.units.values()) {
+      runtime.data.targetId = undefined;
+      runtime.data.state = 'guarding';
+      runtime.defenderBehavior = 'idle';
+      runtime.path = [];
+      runtime.pathIndex = 0;
+      runtime.patrolTarget = undefined;
+    }
+  }
+
   private resetRuntime(emit: boolean, preserveSessionWallDamage: boolean): void {
     for (const runtime of this.units.values()) {
       this.layer.remove(runtime.view);
     }
     this.units.clear();
+    this.preparedDefenderSignature = '';
     this.wallWeapons = [];
     this.wallWeaponTimers.clear();
 
@@ -582,6 +729,16 @@ export class BattleSystem {
   update(deltaMs: number, timeMs: number): void {
     this.updateImpactEffects(deltaMs);
     if (this.mode !== 'running') {
+      if (this.mode === 'idle' && this.preparedDefenderSignature) {
+        const idleDelta = Math.min(0.05, deltaMs / 1000);
+        for (const runtime of this.units.values()) {
+          if (runtime.data.faction !== 'defender' || runtime.data.state === 'dead') continue;
+          runtime.animTime += idleDelta;
+          runtime.moving = false;
+          runtime.view.position.copy(runtime.position);
+          this.animateUnit(runtime);
+        }
+      }
       if (this.objectiveMarker) this.animateObjective(timeMs);
       return;
     }
@@ -985,11 +1142,23 @@ export class BattleSystem {
     const offsetZ =
       (row - 2) * spacing * 0.38 +
       (attacker && this.isRangedUnit(unitType) ? 0.55 : 0);
-    const position = new THREE.Vector3(
+    const edgePosition = new THREE.Vector3(
       base.x + offsetX,
       2.22 + this.world.elevationAt(cell.x, cell.y),
       base.z + offsetZ,
     );
+    const position = edgePosition.clone();
+
+    if (attacker) {
+      const outward = new THREE.Vector3(
+        edgePosition.x - this.objectiveWorld.x,
+        0,
+        edgePosition.z - this.objectiveWorld.z,
+      );
+      if (outward.lengthSq() < 0.001) outward.set(0, 0, 1);
+      outward.normalize();
+      position.addScaledVector(outward, this.world.tileSize * 2.25);
+    }
 
     const runtime = this.createRuntime(faction, unitType, position, cell.x, cell.y, 'ground');
     runtime.home.copy(position);
@@ -998,6 +1167,7 @@ export class BattleSystem {
       const target = this.navigation.findNearestWalkable(this.capturePointGrid, 10) ?? this.capturePointGrid;
       runtime.path = this.navigation.findPath(cell, target, true);
       runtime.pathIndex = Math.min(1, Math.max(0, runtime.path.length - 1));
+      runtime.entryTarget = edgePosition;
       runtime.data.state = 'forming';
     } else {
       runtime.data.state = 'guarding';
@@ -1286,6 +1456,18 @@ export class BattleSystem {
       runtime.deathTime += delta;
       runtime.view.rotation.z = THREE.MathUtils.lerp(runtime.view.rotation.z, Math.PI / 2, delta * 5);
       runtime.view.position.y = runtime.position.y - Math.min(0.2, runtime.deathTime * 0.08);
+      this.animateUnit(runtime);
+      return;
+    }
+
+    if (runtime.entryTarget) {
+      runtime.data.targetId = undefined;
+      runtime.data.state = 'forming';
+      if (this.moveTowardPoint(runtime, runtime.entryTarget, delta, 0.28)) {
+        runtime.position.copy(runtime.entryTarget);
+        runtime.entryTarget = undefined;
+      }
+      runtime.view.position.copy(runtime.position);
       this.animateUnit(runtime);
       return;
     }
