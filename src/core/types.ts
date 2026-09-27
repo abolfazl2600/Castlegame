@@ -2,6 +2,7 @@ import type { GameMode } from './GameMode';
 
 export type WallKind = 'wall1' | 'wall2' | 'wall3';
 export type RoadKind = 'road' | 'dirtRoad' | 'stoneRoad';
+/** Legacy dock kinds remain readable for pre-v13 saves; new gameplay creates only `harbor`. */
 export type HarborKind = 'smallDock' | 'woodenPier' | 'harbor' | 'fishingDock';
 export type ShipKind = 'fishingBoat' | 'tradingBoat' | 'transportShip';
 export type WallThickness = 'thin' | 'medium' | 'thick';
