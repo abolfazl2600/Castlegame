@@ -48,6 +48,7 @@ import {
 } from './godmode/GodModeSystem';
 import type {
   AccessKind,
+  EconomyResourceState,
   GridCell,
   HarborKind,
   KeepRoofStyle,
@@ -219,6 +220,7 @@ interface HistorySnapshot {
   stoneStyle: StoneStyle;
   towerBridges: TowerBridgeState[];
   militaryTier: MilitaryTier;
+  economy: EconomyResourceState;
 }
 
 const TOOL_GROUPS: Array<{ label: string; tools: ToolDefinition[] }> = [
@@ -462,6 +464,7 @@ export class ThreeGame {
   private longPressStartScreen: { x: number; y: number } | null = null;
 
   private saveTimer: number | null = null;
+  private economySaveAccumulatorMs = 0;
   private worldSeeded = false;
   private loadedSaveVersion = 0;
   private lastFrameTime = 0;
@@ -489,6 +492,8 @@ export class ThreeGame {
       setBattleSetup: (value) => { this.battleSetup = value as BattleSetup; },
       getMilitaryTier: () => this.militaryTier,
       setMilitaryTier: (value) => { this.militaryTier = normalizeMilitaryTier(value); },
+      getEconomyState: () => this.services.economySystem.getState(),
+      setEconomyState: (value) => { this.services.economySystem.setState(value); },
       setWorldSeeded: (value) => { this.worldSeeded = value; },
       setLoadedSaveVersion: (value) => { this.loadedSaveVersion = value; },
       setStoneStyle: (value) => { this.stoneStyle = value; },
@@ -739,6 +744,30 @@ export class ThreeGame {
 
   private isBuildingAvailable(kind: TileKind): boolean {
     return isBuildingAvailable(this.gameMode, kind);
+  }
+
+  private economyConstructionEnabled(): boolean {
+    return this.gameMode === 'medieval' || this.gameMode === 'survival';
+  }
+
+  private ensureConstructionAffordable(tool: ToolKind, quantity = 1): boolean {
+    if (!this.economyConstructionEnabled()) return true;
+    const cost = this.services.economySystem.constructionCost(tool, quantity);
+    if (this.services.economySystem.canAfford(cost)) return true;
+
+    const missing = this.services.economySystem.missing(cost);
+    const needs: string[] = [];
+    if ((missing.wood ?? 0) > 0.001) needs.push(`${Math.ceil(missing.wood ?? 0)} wood`);
+    if ((missing.stone ?? 0) > 0.001) needs.push(`${Math.ceil(missing.stone ?? 0)} stone`);
+    this.setStatus(`Not enough resources · need ${needs.join(' + ') || 'more materials'}`);
+    return false;
+  }
+
+  private spendConstructionCost(tool: ToolKind, quantity = 1): void {
+    if (!this.economyConstructionEnabled()) return;
+    const cost = this.services.economySystem.constructionCost(tool, quantity);
+    this.services.economySystem.spend(cost);
+    this.syncEconomyUI();
   }
 
   private registerGodModeActions(): void {
@@ -1394,6 +1423,8 @@ export class ThreeGame {
     this.battleSystem.reset(false);
     this.militaryTier = 1;
     this.services.state.setMissileState();
+    this.services.economySystem.reset();
+    this.economySaveAccumulatorMs = 0;
     this.undoStack.length = 0;
     this.redoStack.length = 0;
     this.worldSeeded = false;
@@ -1970,6 +2001,7 @@ export class ThreeGame {
     this.renderMinimap();
     this.reconcileSettlementAgents(cells);
     this.updatePopulationUI();
+    this.syncEconomyUI();
     this.syncArmyCampUpgradeUI();
 
     this.animatedFlags = [];
@@ -4779,6 +4811,8 @@ export class ThreeGame {
       return;
     }
 
+    if (!this.ensureConstructionAffordable('towerBridge')) return;
+
     this.recordHistory();
     const bridge: TowerBridgeState = {
       id: this.nextTowerBridgeId++,
@@ -4789,6 +4823,7 @@ export class ThreeGame {
       kind: this.towerBridgeKind,
     };
     this.towerBridges.set(bridge.id, bridge);
+    this.spendConstructionCost('towerBridge');
     this.towerBridgeStart = null;
     this.towerBridgeHover = null;
     this.clearGroup(this.wallPreviewLayer);
@@ -6800,6 +6835,7 @@ export class ThreeGame {
       stoneStyle: this.stoneStyle,
       towerBridges: Array.from(this.towerBridges.values()).map((bridge) => ({ ...bridge })),
       militaryTier: this.militaryTier,
+      economy: this.services.economySystem.getState(),
     };
   }
 
@@ -6832,7 +6868,9 @@ export class ThreeGame {
     for (const [key, value] of snapshot.elevations) this.elevationOverrides.set(key, value);
     this.normalizeRiverElevations();
     this.militaryTier = normalizeMilitaryTier(snapshot.militaryTier);
+    this.services.economySystem.setState(snapshot.economy);
     this.syncMilitaryUI();
+    this.syncEconomyUI();
 
     this.selectedCell = null;
     this.selectedKeepId = null;
@@ -7553,6 +7591,19 @@ export class ThreeGame {
   private buildRoadDrag(start: GridPoint, end: GridPoint): void {
     const roadKind = this.selectedTool as RoadKind;
     const path = this.roadPath(start, end);
+    const costedTiles = path.filter((point) => {
+      const terrain = this.terrainAt(point.x, point.y);
+      const current = this.services.state.getCell(point.x, point.y);
+      if (current && !this.isRoadFamily(current.kind)) return false;
+      if (terrain === 'water' || terrain === 'mountain') return false;
+      return !current || current.kind !== roadKind;
+    }).length;
+
+    if (costedTiles > 0 && !this.ensureConstructionAffordable(roadKind, costedTiles)) {
+      this.clearGroup(this.wallPreviewLayer);
+      return;
+    }
+
     const before = this.captureSnapshot();
     let changed = 0;
 
@@ -7574,6 +7625,7 @@ export class ThreeGame {
 
     if (changed > 0) {
       this.pushUndoSnapshot(before);
+      if (costedTiles > 0) this.spendConstructionCost(roadKind, costedTiles);
       this.redraw();
       this.scheduleSave();
       this.setStatus(`Built ${changed} connected road tiles · preview confirmed`);
@@ -7915,6 +7967,21 @@ export class ThreeGame {
     const wallKind = this.selectedTool as WallKind;
     const path = this.wallPath(start, end);
     const single = path.length === 1;
+    const costedSegments = path.filter((point) => {
+      const terrain = this.terrainAt(point.x, point.y);
+      const cell = this.services.state.getCell(point.x, point.y);
+      if (single && cell?.kind === wallKind) return false;
+      if (cell?.kind === 'tower' || cell?.kind === 'gate') return false;
+      if (cell && !WALL_KINDS.includes(cell.kind as WallKind)) return false;
+      if (!cell && !this.canBuildFortificationOnTerrain(terrain)) return false;
+      return !cell || cell.kind !== wallKind;
+    }).length;
+
+    if (costedSegments > 0 && !this.ensureConstructionAffordable(wallKind, costedSegments)) {
+      this.clearGroup(this.wallPreviewLayer);
+      return;
+    }
+
     const before = this.captureSnapshot();
     let changed = false;
 
@@ -7961,6 +8028,7 @@ export class ThreeGame {
 
     if (changed) {
       this.pushUndoSnapshot(before);
+      if (costedSegments > 0) this.spendConstructionCost(wallKind, costedSegments);
       this.redraw();
       this.scheduleSave();
       this.setStatus(
@@ -8102,11 +8170,13 @@ export class ThreeGame {
         return;
       }
 
+      if (!this.ensureConstructionAffordable(this.selectedTool)) return;
       this.recordHistory();
       this.services.state.setCell(gx, gy, this.selectedTool, 1, {
         rotation: direction.rotation,
         shipKind: this.maritimeSystem.defaultShip(this.selectedTool) ?? undefined,
       });
+      this.spendConstructionCost(this.selectedTool);
       this.finishBuild();
       this.setStatus('Maritime structure placed · orientation matched to coastline');
       return;
@@ -8147,15 +8217,19 @@ export class ThreeGame {
 
     if (this.selectedTool === 'mine') {
       if (current === 'mountain') {
+        if (!this.ensureConstructionAffordable('mine')) return;
         this.recordHistory();
         this.services.state.setCell(gx, gy, 'mine', 1);
+        this.spendConstructionCost('mine');
         this.finishBuild();
         return;
       }
 
       if (!current && terrain === 'mountain') {
+        if (!this.ensureConstructionAffordable('mine')) return;
         this.recordHistory();
         this.services.state.setCell(gx, gy, 'mine', 1);
+        this.spendConstructionCost('mine');
         this.finishBuild();
       }
       return;
@@ -8177,9 +8251,11 @@ export class ThreeGame {
         return;
       }
       if (!current && terrain === 'plains') {
+        if (!this.ensureConstructionAffordable('appleOrchard')) return;
         this.recordHistory();
         const size = 1 + ((gx * 7 + gy * 11) % 3);
         this.services.state.setCell(gx, gy, 'appleOrchard', size);
+        this.spendConstructionCost('appleOrchard');
         this.finishBuild();
         this.setStatus(`Apple Orchard placed · size ${size}`);
       }
@@ -8216,6 +8292,7 @@ export class ThreeGame {
       if (current && !this.isWallFamily(current)) return;
       if (!current && !this.canBuildFortificationOnTerrain(terrain)) return;
 
+      if (!this.ensureConstructionAffordable('tower')) return;
       this.recordHistory();
       const compatibleTop = this.compatibleTowerTop(this.towerShape, this.towerTop);
       this.towerTop = compatibleTop;
@@ -8223,6 +8300,7 @@ export class ThreeGame {
         towerShape: this.towerShape,
         towerTop: compatibleTop,
       });
+      this.spendConstructionCost('tower');
       this.finishBuild();
       return;
     }
@@ -8237,10 +8315,12 @@ export class ThreeGame {
         this.setStatus('Cow Barn requires open plains');
         return;
       }
+      if (!this.ensureConstructionAffordable('cowBarn')) return;
       this.recordHistory();
-      this.services.state.setCell(gx, gy, 'cowBarn', 99);
+      this.services.state.setCell(gx, gy, 'cowBarn', 1);
+      this.spendConstructionCost('cowBarn');
       this.finishBuild();
-      this.setStatus('Cow Barn placed · livestock yard active');
+      this.setStatus('Cow Barn placed · Level 1 livestock yard active');
       return;
     }
     if (!this.isBuildingAvailable(selectedTile)) {
@@ -8256,32 +8336,38 @@ export class ThreeGame {
         this.setStatus('Market needs a clear 3×3 land area');
         return;
       }
+      if (!this.ensureConstructionAffordable('market')) return;
       this.recordHistory();
       this.services.state.setCell(gx, gy, 'market', 1);
+      this.spendConstructionCost('market');
       this.finishBuild();
       return;
     }
 
     if (current) {
       if (selectedFortification && currentFortification) {
+        if (!this.ensureConstructionAffordable(selectedTile)) return;
         this.recordHistory();
         this.services.state.setCell(gx, gy, selectedTile, cell?.level ?? 1, {
           wallLinks: cell?.wallLinks,
           rotation: cell?.rotation,
           rotationMode: 'auto',
         });
+        this.spendConstructionCost(selectedTile);
         this.finishBuild();
       }
       return;
     }
 
     if (!this.canBuildOnTerrain(this.selectedTool, terrain)) return;
+    if (!this.ensureConstructionAffordable(selectedTile)) return;
     this.recordHistory();
     if (selectedTile === 'gate') {
       this.services.state.setCell(gx, gy, selectedTile, 1, { rotationMode: 'auto' });
     } else {
       this.services.state.setCell(gx, gy, selectedTile, 1);
     }
+    this.spendConstructionCost(selectedTile);
     this.finishBuild();
   }
 
@@ -8933,6 +9019,73 @@ export class ThreeGame {
     }
   }
 
+  private syncEconomyUI(): void {
+    const cells = this.services.state.entries();
+    const populationGroups = this.services.populationSystem.calculate(cells, 0);
+    const snapshot = this.services.economySystem.snapshot(
+      cells,
+      populationGroups.civilians,
+      this.services.keepSystem.entries().length,
+    );
+    const resources = snapshot.resources;
+    const rates = snapshot.rates;
+    const setText = (id: string, value: string): void => {
+      const element = document.getElementById(id);
+      if (element) element.textContent = value;
+    };
+    const formatAmount = (value: number): string =>
+      value >= 100 ? String(Math.floor(value)) : value.toFixed(1).replace(/\.0$/, '');
+    const formatRate = (value: number): string => {
+      const rounded = Math.abs(value) < 0.005 ? 0 : value;
+      return `${rounded >= 0 ? '+' : ''}${rounded.toFixed(2)}/s`;
+    };
+
+    setText('economy-wood', `Wood ${formatAmount(resources.wood)}`);
+    setText('economy-stone', `Stone ${formatAmount(resources.stone)}`);
+    setText('economy-grain', `Grain ${formatAmount(resources.grain)}`);
+    setText('economy-apples', `Apples ${formatAmount(resources.apples)}`);
+    setText('economy-flour', `Flour ${formatAmount(resources.flour)}`);
+    setText('economy-food', `Food ${formatAmount(resources.food)}`);
+    setText('economy-wood-rate', formatRate(rates.woodPerSecond));
+    setText('economy-stone-rate', formatRate(rates.stonePerSecond));
+    setText('economy-grain-rate', formatRate(rates.grainPerSecond));
+    setText('economy-apples-rate', formatRate(rates.applesPerSecond));
+    setText('economy-flour-rate', formatRate(rates.flourPerSecond));
+    setText('economy-food-rate', formatRate(rates.foodPerSecond - rates.foodConsumptionPerSecond));
+
+    setText('economy-storage', `Storage cap ${snapshot.storageCapacity} per resource`);
+    const warning = document.getElementById('economy-warning');
+    if (warning) warning.hidden = !snapshot.foodShortage;
+  }
+
+  private updateEconomy(deltaMs: number): void {
+    const cells = this.services.state.entries();
+    const populationGroups = this.services.populationSystem.calculate(cells, 0);
+    const result = this.services.economySystem.tick(
+      deltaMs,
+      cells,
+      populationGroups.civilians,
+      this.services.keepSystem.entries().length,
+    );
+
+    if (!result.updated) return;
+
+    this.syncEconomyUI();
+    this.economySaveAccumulatorMs += 1000;
+    if (this.economySaveAccumulatorMs >= 15000) {
+      this.economySaveAccumulatorMs = 0;
+      this.save(false);
+    }
+
+    if (result.shortageChanged) {
+      this.setStatus(
+        result.shortage
+          ? 'Food shortage · build Farms, Orchards, Windmills, Cow Barns, or Markets'
+          : 'Food supply recovered',
+      );
+    }
+  }
+
   private updatePopulationUI(): void {
     const battleStatus = this.battleSystem.status();
     const configuredMilitary =
@@ -9134,6 +9287,16 @@ export class ThreeGame {
       '<span class="build-world-stat build-world-population"><span class="build-world-stat-icon" aria-hidden="true">♟</span><b id="city-population">Population: 0</b></span>' +
       '<span class="build-world-stat build-world-army"><span class="build-world-stat-icon" aria-hidden="true">⚔</span><b id="military-population">Army: 0</b></span>' +
       '</div>' +
+      '<div class="build-economy-summary" role="group" aria-label="Settlement resources">' +
+      '<span class="build-resource-stat"><b id="economy-wood">Wood 0</b><small id="economy-wood-rate">+0/s</small></span>' +
+      '<span class="build-resource-stat"><b id="economy-stone">Stone 0</b><small id="economy-stone-rate">+0/s</small></span>' +
+      '<span class="build-resource-stat"><b id="economy-grain">Grain 0</b><small id="economy-grain-rate">+0/s</small></span>' +
+      '<span class="build-resource-stat"><b id="economy-apples">Apples 0</b><small id="economy-apples-rate">+0/s</small></span>' +
+      '<span class="build-resource-stat"><b id="economy-flour">Flour 0</b><small id="economy-flour-rate">+0/s</small></span>' +
+      '<span class="build-resource-stat"><b id="economy-food">Food 0</b><small id="economy-food-rate">+0/s</small></span>' +
+      '<span class="build-economy-storage" id="economy-storage">Storage 0 / 0</span>' +
+      '<span class="build-economy-warning" id="economy-warning" hidden>Food shortage</span>' +
+      '</div>' +
       '<div class="build-category-tabs" role="tablist" aria-label="Build tool categories"></div>' +
       '<div id="build-search-empty" class="build-search-empty" hidden>No tools match that search.</div>' +
       '<div class="build-tool-sections"></div>' +
@@ -9240,6 +9403,8 @@ export class ThreeGame {
 
     document.querySelector<HTMLButtonElement>('[data-build-none]')?.addEventListener('click', () => this.selectTool(null));
     this.refreshBuildPanelForMode();
+    this.updatePopulationUI();
+    this.syncEconomyUI();
 
     get<HTMLButtonElement>('toolbar-close').onclick = () => this.setToolbarOpen(false);
     get<HTMLButtonElement>('toolbar-open').onclick = () => this.setToolbarOpen(true);
@@ -9867,8 +10032,12 @@ export class ThreeGame {
       return;
     }
 
+    const keepCostUnits = Math.max(1, Math.ceil((draft.width * draft.depth * draft.floors) / 6));
+    if (!this.ensureConstructionAffordable('keep', keepCostUnits)) return;
+
     this.recordHistory();
     const keep = this.services.keepSystem.add(draft);
+    this.spendConstructionCost('keep', keepCostUnits);
     this.selectKeep(keep);
     this.redraw();
     this.scheduleSave();
@@ -10111,6 +10280,8 @@ export class ThreeGame {
     this.terrainOverrides.clear();
     this.elevationOverrides.clear();
     this.moatTasks.clear();
+    this.services.economySystem.reset();
+    this.economySaveAccumulatorMs = 0;
     this.worldSeeded = true;
 
     const center = Math.floor(SIZE / 2);
@@ -11339,6 +11510,8 @@ export class ThreeGame {
     this.terrainOverrides.clear();
     this.elevationOverrides.clear();
     this.moatTasks.clear();
+    this.services.economySystem.reset();
+    this.economySaveAccumulatorMs = 0;
     this.worldSeeded = true;
 
     const center = Math.floor(SIZE / 2);
@@ -11979,6 +12152,7 @@ export class ThreeGame {
       for (const extension of this.extensions) extension.updateSettlement?.(deltaMs);
     }
     this.battleSystem.update(deltaMs, time);
+    this.updateEconomy(deltaMs);
     this.updateMissileCapability(deltaMs);
     this.services.session.update(deltaMs, time);
     this.updateLongPress(time);

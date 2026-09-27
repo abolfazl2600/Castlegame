@@ -131,6 +131,15 @@ export interface MissileInventoryState {
   supplyRechargeRemainingMs: number;
 }
 
+export interface EconomyResourceState {
+  wood: number;
+  stone: number;
+  grain: number;
+  apples: number;
+  flour: number;
+  food: number;
+}
+
 export interface SavedGame {
   version: number;
   gameMode?: GameMode;
@@ -163,6 +172,7 @@ export interface SavedGame {
   battleSetup?: SavedBattleSetup;
   militaryTier?: number;
   missiles?: MissileInventoryState;
+  economy?: EconomyResourceState;
 }
 
 export interface SaveMetadata {
