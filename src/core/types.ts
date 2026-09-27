@@ -6,6 +6,7 @@ export type HarborKind = 'smallDock' | 'woodenPier' | 'harbor' | 'fishingDock';
 export type ShipKind = 'fishingBoat' | 'tradingBoat' | 'transportShip';
 export type WallThickness = 'thin' | 'medium' | 'thick';
 export type WallDirection = 'N' | 'NE' | 'E' | 'SE' | 'S' | 'SW' | 'W' | 'NW';
+export type GateRotationMode = 'auto' | 'manual';
 export type WallCornerKind = 'square' | 'rounded' | 'reinforced' | 'turret' | 'buttressed';
 
 export type TowerShape = 'square' | 'round' | 'octagonal' | 'corner' | 'watch';
@@ -90,6 +91,7 @@ export interface GridCell {
   towerShape?: TowerShape;
   towerTop?: TowerTop;
   rotation?: number;
+  rotationMode?: GateRotationMode;
   wallLinks?: WallDirection[];
   shipKind?: ShipKind;
   accessHeight?: number;
@@ -134,6 +136,7 @@ export interface SavedGame {
     towerShape?: TowerShape;
     towerTop?: TowerTop;
     rotation?: number;
+    rotationMode?: GateRotationMode;
     wallLinks?: WallDirection[];
     shipKind?: ShipKind;
     accessHeight?: number;
