@@ -67,6 +67,7 @@ const CONSTRUCTION_COSTS: Partial<Record<ToolKind, ResourceCost>> = {
   market: { wood: 6, stone: 4 },
   basilica: { wood: 8, stone: 14 },
   armyCamp: { wood: 8, stone: 2 },
+  hut: { wood: 2 },
   smallDock: { wood: 6 },
   woodenPier: { wood: 8 },
   fishingDock: { wood: 7 },
@@ -232,6 +233,7 @@ export class EconomySystem {
       else if (cell.kind === 'market') bakeryCapacity += 0.32;
       else if (cell.kind === 'mine') stoneRate += 0.24 * level;
       else if (cell.kind === 'hut') woodRate += 0.18 * level;
+      else if (cell.kind === 'tree') woodRate += 0.025 * level;
     }
 
     const capacity = this.storageCapacity(cells, keepCount);
