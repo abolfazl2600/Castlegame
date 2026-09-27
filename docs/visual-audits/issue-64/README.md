@@ -8,11 +8,8 @@ This folder records the remaining acceptance evidence for **Visual style migrati
 | --- | --- |
 | `before-reference.webp` | Gameplay capture from commit `153f4760`, the `main` base immediately before the phase-5 actor/effects/UI implementation in PR #85. |
 | `after-reference.webp` | Same deterministic reference save on current `main`; shows the phase-5 minimap and revised world/UI presentation. |
-| `after-dense.webp` | Current dense settlement at normal gameplay zoom for resident/worker and UI readability review. |
-| `after-combat.webp` | Current representative 32-attacker / 30-defender battle for faction silhouettes, action feedback, objectives and interface review. |
-| `after-mobile.webp` | Current 390×844 mobile layout with Build panel and minimap visible. |
 
-The before/after captures were rendered from the successful GitHub Pages artifacts for workflow runs `36322972254` and `36324784016`, rather than a working-tree build.
+The before/after captures were rendered from the successful GitHub Pages artifacts for workflow runs `36322972254` and `36324784016`, rather than a working-tree build. Dense, combat, reduced-motion/effects-off, and mobile captures are now generated reproducibly by `visual:baseline`; the audit below records the current dense/combat metrics.
 
 ## Performance snapshot
 
@@ -25,7 +22,7 @@ For normal review hardware, run `npm run visual:baseline -- --out visual-baselin
 
 ## Acceptance mapping
 
-- **People/factions/actions:** dense and combat captures include visible residents/workers plus blue defenders and red attackers in an active battle.
+- **People/factions/actions:** the deterministic dense/combat baseline covers visible residents/workers plus blue defenders and red attackers in an active battle.
 - **Bounded effects:** PR #88 ties wall-weapon/missile feedback to battle lifecycle and graphics/reduced-motion settings; the extended baseline runs both reduced-motion and effects-disabled combat cases.
-- **Desktop/mobile UI and minimap:** reference and mobile captures exercise the navy/blue UI and minimap; Playwright coverage checks mouse, keyboard and touch-oriented behavior.
+- **Desktop/mobile UI and minimap:** the committed reference capture shows the navy/blue UI and minimap; the baseline adds a 390×844 mobile battle-panel capture, while Playwright coverage checks mouse, keyboard and touch-oriented behavior.
 - **Evidence:** this folder keeps review captures and metrics with the repository so future visual phases can compare against the same deterministic scene.
