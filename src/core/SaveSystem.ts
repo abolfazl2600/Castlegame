@@ -38,6 +38,8 @@ export interface SaveLoadHost {
   getWorldSeeded(): boolean;
   getBattleSetup?(): SavedBattleSetup;
   setBattleSetup?(value: SavedBattleSetup): void;
+  getMilitaryTier?(): number;
+  setMilitaryTier?(value: number): void;
   setWorldSeeded(value: boolean): void;
   setLoadedSaveVersion(value: number): void;
   setStoneStyle(value: StoneStyle): void;
@@ -64,6 +66,7 @@ interface RawSave {
   elevations?: SavedGame['elevations'];
   worldSeeded?: boolean;
   battleSetup?: SavedBattleSetup;
+  militaryTier?: number;
 }
 
 export class SaveSystem {
@@ -429,6 +432,7 @@ export class SaveSystem {
       elevations,
       worldSeeded: this.host.getWorldSeeded(),
       battleSetup: this.host.getBattleSetup ? { ...this.host.getBattleSetup() } : readBattleSetupFromDom(),
+      militaryTier: this.host.getMilitaryTier?.() ?? 1,
     };
   }
 
@@ -522,6 +526,7 @@ export class SaveSystem {
       this.host.setBattleSetup?.(normalizedBattleSetup);
       restoreBattleSetupToDom(normalizedBattleSetup);
     }
+    this.host.setMilitaryTier?.(data.militaryTier ?? 1);
     this.host.syncModeDependentUI();
   }
 
@@ -580,6 +585,7 @@ export class SaveSystem {
         elevations: parsed.elevations,
         worldSeeded: parsed.worldSeeded,
         battleSetup: parsed.battleSetup,
+        militaryTier: parsed.militaryTier,
       };
       const data: SavedGame = parsed.data ?? legacyData;
       if (!Array.isArray(data.cells)) return;
@@ -620,6 +626,7 @@ function normalizeRecord(raw: RawSave, target: SaveTarget): SaveRecord | null {
     elevations: raw.elevations,
     worldSeeded: raw.worldSeeded,
     battleSetup: raw.battleSetup,
+    militaryTier: raw.militaryTier,
   } : undefined);
   if (!data || !Array.isArray(data.cells)) return null;
 
