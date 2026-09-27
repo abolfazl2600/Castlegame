@@ -220,7 +220,8 @@
             </div>
             <button id="god-mode-close" class="icon-button battle-close" type="button" aria-label="Close God Mode">×</button>
           </div>
-          <p class="god-mode-instructions">Choose an action, click a building in the world, then confirm. World changes use the same undo and save systems as construction.</p>
+          <p class="god-mode-instructions">Choose a weapon model, then click a valid building in the world to fire immediately. World changes use the same undo and save systems as construction.</p>
+          <div id="god-mode-capacity" class="god-mode-capacity">Missiles: 10/10</div>
           <div class="god-mode-actions" role="group" aria-label="God Mode actions">
             <button type="button" data-god-action="missileStrike" class="god-mode-action is-selected"><strong>🚀 Missile Strike</strong><small>Target one building with a visible impact.</small></button>
             <button type="button" data-god-action="flood" class="god-mode-action" disabled><strong>🌊 Flood</strong><small>Coming soon · area terrain event.</small></button>
@@ -230,7 +231,7 @@
           <div id="god-mode-feedback" class="god-mode-feedback">Select a building to prepare a missile strike.</div>
           <div class="god-mode-actions-footer">
             <button id="god-mode-cancel" class="secondary-button" type="button" disabled>Cancel Target</button>
-            <button id="god-mode-confirm" class="battle-primary" type="button" disabled>Confirm Strike</button>
+            <button id="god-mode-confirm" class="battle-primary" type="button" disabled>Fire Selected Target</button>
           </div>
         </aside>
 

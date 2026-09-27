@@ -372,6 +372,8 @@ export class ThreeGame {
   private godModeActionId = 'missileStrike';
   private godModeTarget: GodModeTarget | null = null;
   private godModeHover: GridPoint | null = null;
+  private godModeCapacity = 10;
+  private readonly godModeMaxCapacity = 10;
   private readonly godModeEffects: Array<{ group: THREE.Group; elapsed: number; duration: number }> = [];
   private terrainStrokeActive = false;
   private terrainStrokeChanged = false;
@@ -722,21 +724,42 @@ export class ThreeGame {
   }
 
   private confirmGodModeAction(): void {
+    this.fireGodModeTarget();
+  }
+
+  private fireGodModeAt(point: GridPoint | null): void {
+    this.godModeTarget = point ? this.resolveGodModeTarget(point) : null;
+    this.renderGodModeTargetMarker();
+    this.updateGodModeUI();
+    this.fireGodModeTarget();
+  }
+
+  private fireGodModeTarget(): void {
     const action = this.godModeActions.get(this.godModeActionId);
-    if (!action || !this.godModeTarget) {
-      this.setStatus('Select a valid building first');
+    const target = this.godModeTarget;
+    if (!action || !target) {
+      this.setStatus('Click a valid building to fire');
+      return;
+    }
+    if (this.godModeCapacity <= 0) {
+      this.setStatus('Missile capacity exhausted');
       return;
     }
     const context = this.godModeContext();
-    const reason = action.validateTarget(this.godModeTarget, context);
+    const reason = action.validateTarget(target, context);
     if (reason) {
       this.setStatus(reason);
       this.updateGodModeUI();
       return;
     }
-    const result = action.execute(this.godModeTarget, context);
-    this.setStatus(result.message);
-    if (result.ok) this.setGodModeTarget(null);
+    const result = action.execute(target, context);
+    if (result.ok) {
+      this.godModeCapacity -= 1;
+      this.setStatus(`${result.message} · missiles remaining ${this.godModeCapacity}/${this.godModeMaxCapacity}`);
+      this.setGodModeTarget(null);
+    } else {
+      this.setStatus(result.message);
+    }
   }
 
   private updateGodModeUI(): void {
@@ -753,9 +776,11 @@ export class ThreeGame {
     }
     if (feedback) {
       feedback.textContent = action
-        ? (preview ? (action.validateTarget(preview, this.godModeContext()) ?? 'Ready to confirm') : action.description)
+        ? (preview ? (action.validateTarget(preview, this.godModeContext()) ?? 'Click the highlighted building to fire immediately') : action.description)
         : 'Choose an action';
     }
+    const capacity = document.getElementById('god-mode-capacity');
+    if (capacity) capacity.textContent = `Missiles: ${this.godModeCapacity}/${this.godModeMaxCapacity}`;
     if (confirm) confirm.disabled = !preview || !action || !this.godModeActions.isAvailable(this.godModeActionId, this.gameMode);
     if (cancel) cancel.disabled = !preview;
     document.querySelectorAll<HTMLButtonElement>('[data-god-action]').forEach((button) => {
@@ -6468,8 +6493,7 @@ export class ThreeGame {
 
         const cell = this.pickGridCell(event);
         if (this.isGodModeTargeting()) {
-          this.setGodModeTarget(cell);
-          this.setStatus(cell ? 'God Mode target selected · confirm the action' : 'Click a building to target it');
+          this.fireGodModeAt(cell);
           event.preventDefault();
           event.stopPropagation();
           return;
