@@ -989,6 +989,78 @@ h1 { margin: 3px 0 0; font-size: 22px; line-height: 1; letter-spacing: -.035em; 
   transform: none;
 }
 
+.agriculture-upgrade-card {
+  display: grid;
+  gap: 9px;
+  margin: 8px 0 10px;
+  padding: 11px;
+  border: 1px solid rgba(181, 214, 116, .22);
+  border-radius: 12px;
+  background: linear-gradient(145deg, rgba(32, 45, 27, .96), rgba(17, 31, 22, .96));
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,.035);
+}
+.agriculture-upgrade-card[hidden] { display: none; }
+.agriculture-upgrade-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+}
+.agriculture-upgrade-heading > div { display: grid; gap: 3px; }
+.agriculture-upgrade-heading strong { color: #f4fae8; font-size: 12px; }
+#agriculture-upgrade-badge {
+  flex: 0 0 auto;
+  padding: 4px 7px;
+  border: 1px solid rgba(198, 226, 133, .24);
+  border-radius: 999px;
+  color: #eff9d7;
+  background: rgba(104, 143, 66, .22);
+  font-size: 9px;
+  font-weight: 900;
+}
+.agriculture-level-track {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 5px;
+}
+.agriculture-level-track span {
+  height: 6px;
+  border: 1px solid rgba(255,255,255,.06);
+  border-radius: 99px;
+  background: rgba(255,255,255,.09);
+}
+.agriculture-level-track span.is-complete {
+  border-color: rgba(203, 229, 139, .3);
+  background: rgba(111, 151, 67, .7);
+}
+.agriculture-level-track span.is-current {
+  box-shadow: 0 0 0 2px rgba(196, 224, 128, .18);
+}
+#agriculture-upgrade-description {
+  color: rgba(239, 247, 226, .72);
+  font-size: 9px;
+  line-height: 1.45;
+}
+.agriculture-upgrade-button {
+  min-height: 34px;
+  border: 1px solid rgba(194, 225, 126, .3);
+  border-radius: 9px;
+  color: #f8fce9;
+  background: linear-gradient(135deg, rgba(92, 132, 54, .56), rgba(142, 103, 54, .42));
+  cursor: pointer;
+  font-size: 10px;
+  font-weight: 900;
+}
+.agriculture-upgrade-button:hover:not(:disabled) {
+  border-color: rgba(210, 237, 146, .62);
+  transform: translateY(-1px);
+}
+.agriculture-upgrade-button:disabled {
+  opacity: .52;
+  cursor: not-allowed;
+  transform: none;
+}
+
 .settings-hint {
   color: rgba(222,243,250,.46);
   font-size: 8px;
