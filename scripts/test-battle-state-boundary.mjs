@@ -51,7 +51,7 @@ assert.doesNotMatch(
 const battleUi = between(
   threeGame,
   'private updateBattleUI(',
-  'private updateBattleCombatStatsUI(',
+  'private selectTool(',
 );
 assert.doesNotMatch(
   battleUi,
