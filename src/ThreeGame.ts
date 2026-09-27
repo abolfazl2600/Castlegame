@@ -1898,6 +1898,7 @@ export class ThreeGame {
         let tileColor = terrainColors[this.terrainAt(x, y)];
         if (kind === 'tree') tileColor = palette.foliageDark;
         else if (kind === 'farm' || kind === 'appleOrchard') tileColor = palette.soil;
+        else if (kind === 'basilica') tileColor = SETTLEMENT_STYLE.stone;
         else if (kind && ROAD_KINDS.includes(kind as RoadKind)) tileColor = kind === 'stoneRoad' ? 0xc8c9b2 : 0x8f7151;
         else if (kind === 'gate' || kind === 'tower' || WALL_KINDS.includes(kind as WallKind)) tileColor = 0xc8c9b2;
         else if (kind && kind !== 'rock' && kind !== 'mountain') tileColor = 0xc96b3e;
