@@ -176,6 +176,71 @@ assert.match(
   'BattleSystem must forward generated access into BattleNavigation.',
 );
 
+const attackVisibility = between(
+  battleSystem,
+  'private hasUnitAttackVisibility(',
+  'private canTraverseGroundTransition(',
+);
+assert.match(
+  attackVisibility,
+  /kind === 'wall1'[\s\S]*?kind === 'wall2'[\s\S]*?kind === 'wall3'[\s\S]*?kind === 'tower'/,
+  'Intact fortifications must block direct attack visibility.',
+);
+assert.match(
+  attackVisibility,
+  /breachedWalls\.has/,
+  'Breached wall cells must stop blocking attack visibility.',
+);
+assert.match(
+  attackVisibility,
+  /kind === 'gate'[\s\S]*?gatePassable/,
+  'Gate visibility must follow the runtime open/closed state.',
+);
+
+const targetAwareness = between(
+  battleSystem,
+  'private refreshTargets(): void {',
+  'private isDefenderOnAdvance(',
+);
+assert.doesNotMatch(
+  targetAwareness,
+  /hasUnitAttackVisibility|hasDirectAttackVisibility/,
+  'Strategic target awareness must remain independent from direct line of sight.',
+);
+
+const arrowAttack = between(
+  battleSystem,
+  'private fireArrow(',
+  'private initializeWallWeapons(',
+);
+assert.match(
+  arrowAttack,
+  /hasUnitAttackVisibility\(attacker, target\)/,
+  'Ranged units must re-check direct visibility before spawning a projectile.',
+);
+
+const projectileUpdate = between(
+  battleSystem,
+  'private updateProjectiles(',
+  'private updateCapture(',
+);
+assert.match(
+  projectileUpdate,
+  /hasDirectAttackVisibility\(arrow\.view\.position, targetPoint\)/,
+  'Projectiles must not continue homing through an intact wall.',
+);
+
+const combatRouting = between(
+  battleSystem,
+  'private updateUnit(',
+  'private followAttackerObjective(',
+);
+assert.match(
+  combatRouting,
+  /!moved && runtime\.data\.faction === 'attacker'[\s\S]*?updateSiegeGroundAttacker/,
+  'Blocked attackers must fall back to siege routing instead of deadlocking on an aware target.',
+);
+
 const accessNodes = between(
   battleNavigation,
   'stairTowerAccessNodes():',
