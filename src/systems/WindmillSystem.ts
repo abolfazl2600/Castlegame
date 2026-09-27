@@ -1,16 +1,17 @@
 import * as THREE from 'three';
+import { SETTLEMENT_STYLE } from '../rendering/SettlementStyle';
 
 const ROTATION_SPEED = 0.32;
 
 export class WindmillSystem {
   private readonly rotors: THREE.Object3D[] = [];
 
-  private readonly bodyMaterial = new THREE.MeshStandardMaterial({ color: 0x8b6a4d, roughness: 0.9 });
+  private readonly bodyMaterial = new THREE.MeshStandardMaterial({ color: SETTLEMENT_STYLE.plaster[0], roughness: 0.96 });
   private readonly bodyDarkMaterial = new THREE.MeshStandardMaterial({ color: 0x5b402f, roughness: 0.95 });
-  private readonly timberMaterial = new THREE.MeshStandardMaterial({ color: 0x6d472f, roughness: 0.88 });
+  private readonly timberMaterial = new THREE.MeshStandardMaterial({ color: SETTLEMENT_STYLE.timber, roughness: 0.96 });
   private readonly timberLightMaterial = new THREE.MeshStandardMaterial({ color: 0xa37a4e, roughness: 0.86 });
-  private readonly roofMaterial = new THREE.MeshStandardMaterial({ color: 0x49352c, roughness: 0.92 });
-  private readonly roofAccentMaterial = new THREE.MeshStandardMaterial({ color: 0x6a4935, roughness: 0.9 });
+  private readonly roofMaterial = new THREE.MeshStandardMaterial({ color: SETTLEMENT_STYLE.roof[0], roughness: 0.94 });
+  private readonly roofAccentMaterial = new THREE.MeshStandardMaterial({ color: SETTLEMENT_STYLE.roofShadow, roughness: 0.96 });
   private readonly windowMaterial = new THREE.MeshStandardMaterial({ color: 0x25201c, roughness: 1 });
 
   private readonly bodyGeometry = new THREE.CylinderGeometry(1.75, 2.15, 5.3, 8);

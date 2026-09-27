@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { WORLD_STYLE } from '../rendering/WorldStyle';
+import { SETTLEMENT_STYLE } from '../rendering/SettlementStyle';
 
 interface OrchardLayout {
   fieldScale: number;
@@ -16,11 +17,11 @@ export class OrchardSystem {
   private readonly appleGeometry = new THREE.SphereGeometry(0.075, 7, 6);
 
   private readonly soil = new THREE.MeshStandardMaterial({
-    color: WORLD_STYLE.palette.soil,
+    color: SETTLEMENT_STYLE.soil,
     roughness: 1,
   });
   private readonly soilDark = new THREE.MeshStandardMaterial({ color: 0x624a36, roughness: 1 });
-  private readonly packedEarth = new THREE.MeshStandardMaterial({ color: 0x9a7a56, roughness: 1 });
+  private readonly packedEarth = new THREE.MeshStandardMaterial({ color: SETTLEMENT_STYLE.path, roughness: 1 });
   private readonly grass = new THREE.MeshStandardMaterial({
     color: WORLD_STYLE.palette.grassShaded,
     roughness: 1,
@@ -41,7 +42,7 @@ export class OrchardSystem {
   });
   private readonly apple = new THREE.MeshStandardMaterial({ color: 0xc94435, roughness: 0.8 });
   private readonly appleDark = new THREE.MeshStandardMaterial({ color: 0x922d27, roughness: 0.84 });
-  private readonly fence = new THREE.MeshStandardMaterial({ color: 0x765137, roughness: 1 });
+  private readonly fence = new THREE.MeshStandardMaterial({ color: SETTLEMENT_STYLE.timber, roughness: 1 });
   private readonly crateWood = new THREE.MeshStandardMaterial({ color: 0x8a603e, roughness: 1 });
 
   create(group: THREE.Group, size: number, seed: number): void {

@@ -11,6 +11,7 @@ import { KeepRenderer } from './rendering/KeepRenderer';
 import { MedievalMaterials } from './rendering/MedievalMaterials';
 import { CASTLE_ARCHITECTURE_STYLE } from './rendering/CastleArchitectureStyle';
 import { WORLD_STYLE, styleTone } from './rendering/WorldStyle';
+import { RESIDENCE_LAYOUTS, SETTLEMENT_STYLE, settlementVariant, type ResidenceKind } from './rendering/SettlementStyle';
 import { BattleSystem, getUnitCombatStats } from './battle/BattleSystem';
 import { MILITARY_TIERS, militaryTierDefinition, normalizeMilitaryTier, type MilitaryTier } from './battle/MilitaryProgression';
 import {
@@ -323,6 +324,7 @@ export class ThreeGame {
   private readonly godModeActions = new GodModeActionRegistry();
   private readonly planMaterials = new Map<string, THREE.MeshBasicMaterial>();
   private readonly environmentMaterials = new Map<string, THREE.MeshStandardMaterial>();
+  private readonly settlementUnitBox = new THREE.BoxGeometry(1, 1, 1);
   private readonly buildObjectsByCell = new Map<string, THREE.Object3D>();
   private generatedCastleAccess: GeneratedAccess[] | null = null;
   private readonly battleSystem: BattleSystem;
@@ -1656,7 +1658,7 @@ export class ThreeGame {
   private clearGroup(group: THREE.Group): void {
     group.traverse((object) => {
       const mesh = object as THREE.Mesh;
-      if (mesh.geometry) mesh.geometry.dispose();
+      if (mesh.geometry && mesh.geometry !== this.settlementUnitBox) mesh.geometry.dispose();
 
       const material = mesh.material as THREE.Material | THREE.Material[] | undefined;
       if (Array.isArray(material)) {
@@ -2906,7 +2908,7 @@ export class ThreeGame {
     else if (['stoneStairs', 'woodenStairs', 'ramp', 'ladder'].includes(cell.kind)) {
       this.makeAccess(group, cell.kind as AccessKind, cell.x, cell.y, cell);
     } else {
-      this.makeHouse(group, cell.kind as 'cottage' | 'house' | 'manor' | 'villa');
+      this.makeHouse(group, cell.kind as ResidenceKind, cell.x, cell.y);
     }
 
     if (!this.isWallFamily(cell.kind) && !ROAD_KINDS.includes(cell.kind as RoadKind) && cell.kind !== 'moat') {
@@ -2952,8 +2954,8 @@ export class ThreeGame {
       kind === 'dirtRoad'
         ? this.environmentMaterial('road-dirt', 0x8a6142, 1)
         : kind === 'stoneRoad'
-          ? this.environmentMaterial('road-stone', 0x9b9487, 0.98)
-          : this.environmentMaterial('road-standard', 0x8b6d55, 0.95);
+          ? this.environmentMaterial('road-stone', SETTLEMENT_STYLE.stone, 0.98)
+          : this.environmentMaterial('road-standard', SETTLEMENT_STYLE.path, 0.98);
     const edge =
       kind === 'stoneRoad'
         ? this.environmentMaterial('road-stone-edge', 0x6e6961, 1)
@@ -2968,7 +2970,7 @@ export class ThreeGame {
       const horizontal = left || right || (!up && !down);
       const bridgeMaterial =
         kind === 'stoneRoad'
-          ? this.environmentMaterial('bridge-stone', 0x918a7d, 1)
+          ? this.environmentMaterial('bridge-stone', SETTLEMENT_STYLE.stone, 1)
           : this.environmentMaterial('bridge-timber', 0x775137, 0.98);
       const support =
         kind === 'stoneRoad'
@@ -3046,13 +3048,21 @@ export class ThreeGame {
 
     if (kind === 'dirtRoad') {
       const track = this.environmentMaterial('road-track', 0x604632, 1);
-      this.addBox(group, 0.15, 0.025, 1.6, track, -0.42, 2.37, 0);
-      this.addBox(group, 0.15, 0.025, 1.6, track, 0.42, 2.37, 0);
+      // Keep marks inside the center on intersections; arms carry the route.
+      if (!left && !right) {
+        this.addBox(group, 0.15, 0.025, 1.6, track, -0.42, 2.37, 0);
+        this.addBox(group, 0.15, 0.025, 1.6, track, 0.42, 2.37, 0);
+      }
     } else if (kind === 'stoneRoad') {
       const joint = this.environmentMaterial('road-joint', 0x5b5751, 1);
-      for (let i = -1; i <= 1; i += 1) {
-        this.addBox(group, 1.62, 0.025, 0.055, joint, 0, 2.38, i * 0.5);
+      if (!left && !right) {
+        for (let i = -1; i <= 1; i += 1) {
+          this.addBox(group, 1.62, 0.025, 0.055, joint, 0, 2.38, i * 0.5);
+        }
       }
+    } else {
+      const center = this.environmentMaterial('road-standard-wear', 0x907961, 1);
+      this.addBox(group, 0.56, 0.018, 0.56, center, 0, 2.36, 0);
     }
 
     return group;
@@ -5451,9 +5461,9 @@ export class ThreeGame {
     const timber = this.environmentMaterial('market-timber', 0x65452f, 0.98);
     const timberLight = this.environmentMaterial('market-timber-light', 0x8a623d, 0.96);
     const woodDark = this.environmentMaterial('market-wood-dark', 0x473022, 1);
-    const plaster = this.environmentMaterial('market-plaster', 0xc7ad82, 0.98);
-    const stone = this.environmentMaterial('market-stone', 0x8d8272, 1);
-    const roof = this.environmentMaterial('market-roof', 0x5a4032, 0.98);
+    const plaster = this.environmentMaterial('market-plaster', SETTLEMENT_STYLE.plaster[1], 0.98);
+    const stone = this.environmentMaterial('market-stone', SETTLEMENT_STYLE.foundation, 1);
+    const roof = this.environmentMaterial('market-roof', SETTLEMENT_STYLE.roof[0], 0.98);
     const clothMaterials = [
       this.environmentMaterial('market-cloth-red', 0xb45f3e, 0.92),
       this.environmentMaterial('market-cloth-teal', 0x587d75, 0.92),
@@ -5468,7 +5478,7 @@ export class ThreeGame {
       this.environmentMaterial('market-goods-gold', 0xb08a4d, 0.95),
     ];
     const metal = this.environmentMaterial('market-metal', 0x6f675c, 0.7);
-    const ground = this.environmentMaterial('market-ground', 0x9b875f, 1);
+    const ground = this.environmentMaterial('market-ground', SETTLEMENT_STYLE.path, 1);
 
     const hash = (value: number): number => {
       const n = Math.sin(value * 12.9898 + gx * 78.233 + gy * 37.719) * 43758.5453;
@@ -5539,7 +5549,7 @@ export class ThreeGame {
       canopy.scale.z = 0.74;
       canopy.castShadow = true;
       group.add(canopy);
-      for (let i = 0; i < 3; i += 1) {
+      for (let i = 0; i < 2; i += 1) {
         addGoods(x - width * 0.28 + i * width * 0.28, z - 0.03, variant + i);
       }
       if (variant % 2 === 0) addCrate(x - width * 0.46, z + 0.68, 0.8);
@@ -5588,7 +5598,6 @@ export class ThreeGame {
     const stallLayout = [
       [-3.1, -0.55], [-1.05, -0.65], [1.05, -0.65], [3.1, -0.55],
       [-3.05, 1.85], [-1.0, 1.9], [1.0, 1.9], [3.05, 1.85],
-      [-2.9, -2.55], [2.9, -2.55], [-2.9, 3.0], [2.9, 3.0],
     ];
     stallLayout.forEach(([x, z], index) => {
       const variant = Math.floor(hash(20 + index) * clothMaterials.length);
@@ -5622,9 +5631,9 @@ export class ThreeGame {
     addGoods(0.6, -1.32, 2);
 
     // Storage clusters and signs add visual density without per-frame logic.
-    for (let i = 0; i < 8; i += 1) {
-      const x = -4.9 + (i % 4) * 3.25 + hash(120 + i) * 0.35;
-      const z = i < 4 ? 4.8 + hash(140 + i) * 0.3 : -4.8 - hash(160 + i) * 0.3;
+    for (let i = 0; i < 4; i += 1) {
+      const x = -3.6 + (i % 2) * 7.2 + hash(120 + i) * 0.2;
+      const z = i < 2 ? 4.8 + hash(140 + i) * 0.2 : -4.8 - hash(160 + i) * 0.2;
       addCrate(x, z, 0.72 + hash(180 + i) * 0.5);
     }
 
@@ -5650,9 +5659,24 @@ export class ThreeGame {
     return group;
   }
 
+  private addSettlementBox(
+    group: THREE.Group, width: number, height: number, depth: number,
+    material: THREE.Material, x: number, y: number, z: number,
+  ): THREE.Mesh {
+    const mesh = new THREE.Mesh(this.settlementUnitBox, material);
+    mesh.scale.set(width, height, depth);
+    mesh.position.set(x, y, z);
+    mesh.castShadow = true;
+    mesh.receiveShadow = true;
+    group.add(mesh);
+    return mesh;
+  }
+
   private makeHouse(
     group: THREE.Group,
-    kind: 'cottage' | 'house' | 'manor' | 'villa',
+    kind: ResidenceKind,
+    gx: number,
+    gy: number,
   ): THREE.Group {
     const pathMaterial = this.environmentMaterial('village-path', 0xa98d70, 1);
     const pathDark = this.environmentMaterial('village-path-dark', 0x826b55, 1);
@@ -5663,47 +5687,39 @@ export class ThreeGame {
     // Each residential cell is a compact lived-in medieval block rather than
     // one oversized house. Narrow alleys keep silhouettes readable from the
     // isometric camera while supporting more visible residents.
-    this.addBox(group, 3.72, 0.055, 3.72, grassPatch, 0, 2.2, 0);
-    this.addBox(group, 3.5, 0.065, 0.34, pathMaterial, 0, 2.26, 0.04);
-    this.addBox(group, 0.34, 0.065, 3.42, pathMaterial, -0.08, 2.265, 0);
-    this.addBox(group, 1.4, 0.04, 1.12, yardMaterial, 0.82, 2.245, 0.82);
+    this.addSettlementBox(group, 3.72, 0.055, 3.72, grassPatch, 0, 2.2, 0);
+    this.addSettlementBox(group, 3.5, 0.065, 0.34, pathMaterial, 0, 2.26, 0.04);
+    this.addSettlementBox(group, 0.34, 0.065, 3.42, pathMaterial, -0.08, 2.265, 0);
+    this.addSettlementBox(group, 1.4, 0.04, 1.12, yardMaterial, 0.82, 2.245, 0.82);
 
-    if (kind === 'cottage') {
-      this.addMiniHouse(group, -1.18, -1.03, -0.05, 0.84, 0.72, 1.28, 0xd7a17c, 0x8b5a43, false);
-      this.addMiniHouse(group, -0.15, -1.08, 0.04, 0.78, 0.7, 1.18, 0xd9b08a, 0x83533d, false);
-      this.addMiniHouse(group, 1.03, -0.96, 0.11, 0.86, 0.72, 1.3, 0xc99474, 0x78513d, true);
-      this.addMiniHouse(group, -1.12, 1.02, Math.PI + 0.04, 0.8, 0.7, 1.18, 0xd5aa83, 0x845740, false);
-      this.addMiniHouse(group, 0.05, 1.08, Math.PI - 0.03, 0.78, 0.68, 1.12, 0xcfa17d, 0x76503c, false);
-      this.addVillageWell(group, 1.02, 0.92);
-    } else if (kind === 'house') {
-      const houses: Array<[number, number, number, number, number, number, number, number, boolean]> = [
-        [-1.2, -1.02, -0.04, 0.88, 0.74, 1.48, 0xc6aadf, 0x735d98, true],
-        [-0.12, -1.1, 0.05, 0.82, 0.72, 1.38, 0xb99bd6, 0x6a568f, true],
-        [1.08, -0.96, 0.1, 0.9, 0.76, 1.52, 0xd0b7e4, 0x8067a4, true],
-        [-1.16, 1.02, Math.PI + 0.04, 0.84, 0.72, 1.34, 0xbca1d4, 0x684f8b, false],
-        [-0.06, 1.08, Math.PI, 0.8, 0.7, 1.3, 0xc9afe0, 0x72558f, true],
-        [1.08, 1.0, Math.PI - 0.05, 0.84, 0.72, 1.4, 0xb99ed1, 0x614b82, false],
-      ];
-      for (const house of houses) this.addMiniHouse(group, ...house);
-    } else if (kind === 'manor') {
-      this.addMiniHouse(group, 0, -0.8, 0, 1.34, 1.0, 2.05, 0xd77b8f, 0x8b4f5f, true);
-      this.addMiniHouse(group, -1.24, -0.95, -0.06, 0.72, 0.68, 1.22, 0xd9a0ab, 0x80515a, true);
-      this.addMiniHouse(group, 1.24, -0.95, 0.06, 0.72, 0.68, 1.26, 0xce8f9e, 0x754852, true);
-      this.addMiniHouse(group, -1.16, 1.05, Math.PI, 0.82, 0.72, 1.28, 0xc98697, 0x754b56, false);
-      this.addMiniHouse(group, 1.14, 1.04, Math.PI, 0.82, 0.72, 1.3, 0xe0a5b0, 0x85525e, false);
+    RESIDENCE_LAYOUTS[kind].forEach((part, index) => {
+      const variation = settlementVariant(gx, gy, index, kind.length);
+      const wallColor = SETTLEMENT_STYLE.plaster[variation % SETTLEMENT_STYLE.plaster.length];
+      const roofColor = SETTLEMENT_STYLE.roof[(variation >>> 4) % SETTLEMENT_STYLE.roof.length];
+      this.addMiniHouse(
+        group,
+        part.x + ((variation >>> 8) % 3 - 1) * 0.025,
+        part.z,
+        part.rotation + ((variation >>> 12) % 3 - 1) * 0.045,
+        part.width,
+        part.depth,
+        part.height + ((variation >>> 16) % 3 - 1) * 0.05,
+        wallColor,
+        roofColor,
+        part.detailed,
+        variation % 3 === 0,
+      );
+    });
+
+    if (kind === 'cottage') this.addVillageWell(group, 1.02, 0.92);
+    if (kind === 'manor') {
       this.addVillageWell(group, 0, 0.8);
-
       for (const x of [-1.68, 1.68]) {
-        this.addBox(group, 0.08, 0.64, 3.08, fenceMaterial, x, 2.52, 0);
+        this.addSettlementBox(group, 0.08, 0.64, 3.08, fenceMaterial, x, 2.52, 0);
       }
-    } else {
-      this.addMiniHouse(group, -1.18, -0.95, -0.08, 0.92, 0.78, 1.55, 0x79c1ba, 0x467e78, true);
-      this.addMiniHouse(group, -0.02, -1.05, 0.02, 0.86, 0.74, 1.42, 0x6fb0ab, 0x3d716d, true);
-      this.addMiniHouse(group, 1.12, -0.9, 0.1, 0.92, 0.78, 1.5, 0x86c9c2, 0x4f8983, true);
-      this.addMiniHouse(group, -1.08, 1.0, Math.PI + 0.04, 0.84, 0.72, 1.38, 0x78bbb4, 0x456f6b, true);
-      this.addMiniHouse(group, 0.08, 1.08, Math.PI, 0.84, 0.72, 1.44, 0x91d1ca, 0x507f79, false);
-
-      const garden = new THREE.Mesh(new THREE.CircleGeometry(0.46, 16), yardMaterial);
+    }
+    if (kind === 'villa') {
+      const garden = new THREE.Mesh(new THREE.CircleGeometry(0.46, 12), yardMaterial);
       garden.rotation.x = -Math.PI / 2;
       garden.position.set(1.05, 2.27, 0.98);
       group.add(garden);
@@ -5713,15 +5729,15 @@ export class ThreeGame {
     // Edge fences, benches, barrels and market-like clutter give the block a
     // believable inhabited scale without overwhelming the single cell.
     for (const z of [-1.76, 1.76]) {
-      this.addBox(group, 3.55, 0.07, 0.07, fenceMaterial, 0, 2.5, z);
+      this.addSettlementBox(group, 3.55, 0.07, 0.07, fenceMaterial, 0, 2.5, z);
       for (const x of [-1.62, -0.54, 0.54, 1.62]) {
-        this.addBox(group, 0.075, 0.58, 0.075, fenceMaterial, x, 2.48, z);
+        this.addSettlementBox(group, 0.075, 0.58, 0.075, fenceMaterial, x, 2.48, z);
       }
     }
 
-    this.addBox(group, 0.52, 0.16, 0.22, pathDark, 1.18, 2.37, -0.08);
-    this.addBox(group, 0.08, 0.42, 0.08, fenceMaterial, 1.38, 2.55, -0.08);
-    this.addBox(group, 0.08, 0.42, 0.08, fenceMaterial, 0.98, 2.55, -0.08);
+    this.addSettlementBox(group, 0.52, 0.16, 0.22, pathDark, 1.18, 2.37, -0.08);
+    this.addSettlementBox(group, 0.08, 0.42, 0.08, fenceMaterial, 1.38, 2.55, -0.08);
+    this.addSettlementBox(group, 0.08, 0.42, 0.08, fenceMaterial, 0.98, 2.55, -0.08);
 
     return group;
   }
@@ -5737,38 +5753,27 @@ export class ThreeGame {
     wallColor: number,
     roofColor: number,
     detailed: boolean,
+    chimneyVisible: boolean,
   ): void {
     const house = new THREE.Group();
     house.position.set(x, 0, z);
     house.rotation.y = rotation;
     parent.add(house);
 
-    const wall = new THREE.MeshStandardMaterial({
-      color: wallColor,
-      roughness: 0.84,
-    });
-    const wallShade = new THREE.MeshStandardMaterial({
-      color: new THREE.Color(wallColor).multiplyScalar(0.82),
-      roughness: 0.9,
-    });
-    const roof = new THREE.MeshStandardMaterial({
-      color: roofColor,
-      roughness: 0.9,
-    });
-    const roofDark = new THREE.MeshStandardMaterial({
-      color: new THREE.Color(roofColor).multiplyScalar(0.7),
-      roughness: 0.96,
-    });
-    const wood = this.environmentMaterial('house-timber', 0x684733, 0.98);
-    const stone = this.environmentMaterial('house-stone', 0xa79d91, 1);
-    const glass = this.environmentMaterial('house-window', 0x6ba5ae, 0.45);
+    const wall = this.environmentMaterial(`residence-wall-${wallColor}`, wallColor, 0.94);
+    const wallShade = this.environmentMaterial(`residence-shade-${wallColor}`, new THREE.Color(wallColor).multiplyScalar(0.82).getHex(), 0.98);
+    const roof = this.environmentMaterial(`residence-roof-${roofColor}`, roofColor, 0.94);
+    const roofDark = this.environmentMaterial('residence-roof-shadow', SETTLEMENT_STYLE.roofShadow, 0.98);
+    const wood = this.environmentMaterial('house-timber', SETTLEMENT_STYLE.timber, 0.98);
+    const stone = this.environmentMaterial('house-stone', SETTLEMENT_STYLE.foundation, 1);
+    const glass = this.environmentMaterial('house-window', SETTLEMENT_STYLE.window, 0.88);
 
-    this.addBox(house, width + 0.14, 0.18, depth + 0.14, stone, 0, 2.3, 0);
-    this.addBox(house, width, height, depth, wall, 0, 2.32 + height / 2, 0);
+    this.addSettlementBox(house, width + 0.14, 0.18, depth + 0.14, stone, 0, 2.3, 0);
+    this.addSettlementBox(house, width, height, depth, wall, 0, 2.32 + height / 2, 0);
 
     // Slightly projecting upper timber floor on richer houses.
     if (detailed) {
-      this.addBox(
+      this.addSettlementBox(
         house,
         width + 0.1,
         Math.min(0.44, height * 0.26),
@@ -5779,13 +5784,13 @@ export class ThreeGame {
         0,
       );
       for (const sx of [-width * 0.38, width * 0.38]) {
-        this.addBox(house, 0.055, height * 0.72, 0.055, wood, sx, 2.38 + height * 0.5, -depth / 2 - 0.035);
+        this.addSettlementBox(house, 0.055, height * 0.72, 0.055, wood, sx, 2.38 + height * 0.5, -depth / 2 - 0.035);
       }
-      this.addBox(house, width * 0.82, 0.055, 0.055, wood, 0, 2.58 + height * 0.58, -depth / 2 - 0.04);
+      this.addSettlementBox(house, width * 0.82, 0.055, 0.055, wood, 0, 2.58 + height * 0.58, -depth / 2 - 0.04);
     }
 
     const roofHeight = 0.68 + height * 0.2;
-    const eave = this.addBox(
+    const eave = this.addSettlementBox(
       house,
       width + 0.22,
       0.1,
@@ -5808,7 +5813,7 @@ export class ThreeGame {
     roofMesh.receiveShadow = true;
     house.add(roofMesh);
 
-    this.addBox(
+    this.addSettlementBox(
       house,
       width * 0.23,
       Math.min(0.78, height * 0.5),
@@ -5821,12 +5826,12 @@ export class ThreeGame {
 
     const windowY = 2.68 + height * 0.34;
     for (const sx of [-width * 0.28, width * 0.28]) {
-      this.addBox(house, width * 0.16, 0.28, 0.055, glass, sx, windowY, -depth / 2 - 0.045);
-      this.addBox(house, width * 0.19, 0.045, 0.075, wood, sx, windowY - 0.17, -depth / 2 - 0.065);
+      this.addSettlementBox(house, width * 0.16, 0.28, 0.055, glass, sx, windowY, -depth / 2 - 0.045);
+      this.addSettlementBox(house, width * 0.19, 0.045, 0.075, wood, sx, windowY - 0.17, -depth / 2 - 0.065);
     }
 
     // Side window and small sill improve readability at isometric angles.
-    this.addBox(
+    this.addSettlementBox(
       house,
       0.055,
       0.26,
@@ -5836,7 +5841,7 @@ export class ThreeGame {
       windowY,
       0.1,
     );
-    this.addBox(
+    this.addSettlementBox(
       house,
       0.075,
       0.045,
@@ -5847,7 +5852,7 @@ export class ThreeGame {
       0.1,
     );
 
-    const chimney = this.addBox(
+    if (chimneyVisible) this.addSettlementBox(
       house,
       0.14,
       0.58,
@@ -5857,10 +5862,9 @@ export class ThreeGame {
       2.32 + height + 0.38,
       depth * 0.12,
     );
-    chimney.castShadow = true;
 
     if (detailed) {
-      const awning = this.addBox(
+      const awning = this.addSettlementBox(
         house,
         width * 0.72,
         0.075,
@@ -5892,30 +5896,30 @@ export class ThreeGame {
   }
 
   private addVillageWell(group: THREE.Group, x: number, z: number): void {
-    const stone = new THREE.MeshStandardMaterial({ color: 0xaaa39a, roughness: 1 });
-    const wood = new THREE.MeshStandardMaterial({ color: 0x71503a, roughness: 1 });
+    const stone = this.environmentMaterial('village-well-stone', SETTLEMENT_STYLE.stone, 1);
+    const wood = this.environmentMaterial('village-well-wood', SETTLEMENT_STYLE.timber, 1);
 
     const ring = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.34, 0.38, 12), stone);
     ring.position.set(x, 2.42, z);
     ring.castShadow = true;
     group.add(ring);
 
-    this.addBox(group, 0.08, 0.82, 0.08, wood, x - 0.38, 2.76, z);
-    this.addBox(group, 0.08, 0.82, 0.08, wood, x + 0.38, 2.76, z);
-    this.addBox(group, 0.9, 0.08, 0.08, wood, x, 3.14, z);
+    this.addSettlementBox(group, 0.08, 0.82, 0.08, wood, x - 0.38, 2.76, z);
+    this.addSettlementBox(group, 0.08, 0.82, 0.08, wood, x + 0.38, 2.76, z);
+    this.addSettlementBox(group, 0.9, 0.08, 0.08, wood, x, 3.14, z);
   }
 
   private makeFarm(group: THREE.Group): THREE.Group {
-    const soil = this.environmentMaterial('farm-soil', 0x77563d, 1);
+    const soil = this.environmentMaterial('farm-soil', SETTLEMENT_STYLE.soil, 1);
     const wetSoil = this.environmentMaterial('farm-wet-soil', 0x59483a, 1);
     const cropGreen = this.environmentMaterial('farm-crop-green', 0x6f9c4f, 0.96);
     const cropGold = this.environmentMaterial('farm-crop-gold', 0xc8b95d, 0.94);
     const cropYoung = this.environmentMaterial('farm-crop-young', 0x8db95d, 0.94);
-    const wood = this.environmentMaterial('farm-wood', 0x77543a, 1);
+    const wood = this.environmentMaterial('farm-wood', SETTLEMENT_STYLE.timber, 1);
     const woodDark = this.environmentMaterial('farm-wood-dark', 0x4f392b, 1);
     const hay = this.environmentMaterial('farm-hay', 0xc69d4d, 1);
     const water = this.environmentMaterial('farm-water', 0x4e95a3, 0.38);
-    const path = this.environmentMaterial('farm-path', 0x8b6848, 1);
+    const path = this.environmentMaterial('farm-path', SETTLEMENT_STYLE.path, 1);
     const basket = this.environmentMaterial('farm-basket', 0x8b5f35, 1);
     const sack = this.environmentMaterial('farm-sack', 0xb89b6a, 1);
     const iron = this.environmentMaterial('farm-tool-iron', 0x5b6160, 0.78);
@@ -5973,7 +5977,7 @@ export class ThreeGame {
     this.addBox(group, 0.72, 0.88, 0.64, wood, -1.2, 2.82, -1.42);
     const shedRoof = new THREE.Mesh(
       new THREE.ConeGeometry(0.58, 0.48, 4),
-      this.environmentMaterial('farm-roof', 0x6c4b35, 1),
+      this.environmentMaterial('farm-roof', SETTLEMENT_STYLE.roof[0], 1),
     );
     shedRoof.rotation.y = Math.PI / 4;
     shedRoof.position.set(-1.2, 3.48, -1.42);
