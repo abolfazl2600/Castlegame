@@ -3,6 +3,7 @@
  * graphics-quality, effects-disabled, and reduced-motion scenarios.
  */
 import { spawn } from 'node:child_process';
+import os from 'node:os';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { chromium } from '@playwright/test';
 import { createVisualScene, REFERENCE_CAMERA, REFERENCE_SEED } from './visual-reference-scene.mjs';
@@ -56,7 +57,16 @@ async function sample(page) {
       };
       requestAnimationFrame(step);
     });
-    return { samples, resources: window.__castleVisualMetrics(), heapBytes: performance.memory?.usedJSHeapSize ?? null };
+    return {
+      samples,
+      resources: window.__castleVisualMetrics(),
+      heapBytes: performance.memory?.usedJSHeapSize ?? null,
+      runtime: {
+        userAgent: navigator.userAgent,
+        hardwareConcurrency: navigator.hardwareConcurrency ?? null,
+        deviceMemoryGb: navigator.deviceMemory ?? null,
+      },
+    };
   });
 }
 
@@ -113,7 +123,7 @@ async function loadScene(browser, {
   }
 
   await page.waitForTimeout(600);
-  const { samples, resources, heapBytes } = await sample(page);
+  const { samples, resources, heapBytes, runtime } = await sample(page);
   if (screenshotName) await page.screenshot({ path: `${output}/${screenshotName}.png` });
 
   const battleState = battle ? await page.evaluate(() => ({
@@ -135,6 +145,7 @@ async function loadScene(browser, {
     viewport,
     camera,
     battleState,
+    screenshot: screenshotName ? `${screenshotName}.png` : null,
     frameMedianMs: percentile(frames, .5),
     frameP95Ms: percentile(frames, .95),
     estimatedFps: Number((1000 / percentile(frames, .5)).toFixed(1)),
@@ -146,6 +157,10 @@ async function loadScene(browser, {
     gpuTextures: resources.gpuTextures,
     redrawMs: Number(resources.lastRedrawMs.toFixed(2)),
     heapBytes,
+    pixelRatio: resources.pixelRatio,
+    drawingBuffer: resources.drawingBuffer,
+    gpu: resources.gpu,
+    runtime,
   };
 }
 
@@ -235,15 +250,37 @@ try {
       showBattlePanel: true,
     }));
 
+    const first = results[0];
     const report = {
+      schemaVersion: 2,
       seed: REFERENCE_SEED,
       url,
       capturedAt: new Date().toISOString(),
-      browser: browser.version(),
+      source: {
+        gitSha: process.env.GITHUB_SHA ?? null,
+        gitRef: process.env.GITHUB_REF ?? null,
+        runId: process.env.GITHUB_RUN_ID ?? null,
+      },
+      host: {
+        platform: process.platform,
+        arch: process.arch,
+        node: process.version,
+        cpus: os.cpus().length,
+        cpuModel: os.cpus()[0]?.model ?? null,
+        totalMemoryBytes: os.totalmem(),
+      },
+      browser: {
+        version: browser.version(),
+        userAgent: first?.runtime?.userAgent ?? null,
+        hardwareConcurrency: first?.runtime?.hardwareConcurrency ?? null,
+        deviceMemoryGb: first?.runtime?.deviceMemoryGb ?? null,
+      },
+      gpu: first?.gpu ?? null,
+      captures: results.filter((result) => result.screenshot).map((result) => result.screenshot),
       battleSetup: BATTLE_SETUP,
       results,
     };
     await writeFile(`${output}/metrics.json`, JSON.stringify(report, null, 2) + '\n');
-    console.log(`Saved ${results.length} measurements and phase-5 captures to ${output}`);
+    console.log(`Saved ${results.length} measurements and ${report.captures.length} captures to ${output}`);
   } finally { await browser.close(); }
 } finally { server?.kill(); }
