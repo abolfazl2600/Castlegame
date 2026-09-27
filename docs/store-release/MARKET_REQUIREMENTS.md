@@ -1,189 +1,244 @@
-# مقایسه الزامات کافه‌بازار و مایکت
+# مقایسه الزامات Google Play، کافه‌بازار و مایکت
 
-> این فایل الزامات پایدار و مواردی را که باید در روز submission دوباره از پنل تأیید شوند جدا می‌کند.
+> آخرین بررسی: 2026-09-27. موارد پویا در روز submission دوباره از console/panel رسمی بررسی می‌شوند.
 
 ## بسته انتشار
 
-| مورد | کافه‌بازار | مایکت | تصمیم Castle Role |
-|---|---|---|---|
-| APK | پشتیبانی | مسیر اصلی مستند انتشار | تولید شود |
-| AAB | پشتیبانی رسمی اعلام شده | در راهنمای فعلی انتشار APK ذکر شده | برای Bazaar اختیاری |
-| TWA/PWA | پشتیبانی رسمی اعلام شده | مسیر مستند اصلی نیست | برای v1 انتخاب نشود |
-| Android shell | قابل انتشار | قابل انتشار | مسیر پیشنهادی |
+| مورد | Google Play | کافه‌بازار | مایکت | تصمیم Castle Role |
+|---|---|---|---|---|
+| APK برای production | app جدید با AAB منتشر می‌شود | پشتیبانی | مسیر مستند فعلی | APK برای ایرانی‌ها |
+| AAB | **الزام app جدید** | پشتیبانی رسمی اعلام‌شده | راهنمای فعلی روی APK متمرکز است | AAB برای Play |
+| TWA/PWA | ممکن، ولی مسیر ما نیست | پشتیبانی رسمی اعلام‌شده | مسیر اصلی مستند نیست | استفاده نشود |
+| Android shell | لازم | قابل انتشار | قابل انتشار | Capacitor/local bundle |
+| 64-bit | **الزام** | بهتر/سازگار | بهتر/سازگار | audit مشترک |
 
-## Package identity
+## Package ID
 
-- Package name باید دائمی و یکتا باشد.
-- مایکت امکان رزرو شناسه قبل از آماده شدن APK را مستند کرده است.
-- برای هر دو مارکت از همان applicationId استفاده می‌کنیم مگر دلیل فنی مستند برای flavor متفاوت وجود داشته باشد.
-- signing identity باید برای updateهای آینده حفظ شود.
+همه storeها:
+
+- یک Package ID دائمی و یکتا.
+- تغییر package بعد از انتشار عملاً app جدید ایجاد می‌کند.
+
+Google Play:
+
+- از 2026-09-30 package registration بخشی از Android developer verification است.
+- package name و signing ownership باید ثبت/تأیید شود.
+
+Myket:
+
+- امکان رزرو package name قبل از APK مستند شده است.
+
+Castle Role:
+
+- **یک applicationId برای هر سه store**.
 
 ## Target SDK
 
-### مایکت
-اعلام رسمی ۱۴۰۵/۰۴/۲۱:
+### Google Play
+از **2026-08-31**:
 
-- از **۱ آبان ۱۴۰۵** برنامه جدید یا update با `targetSdk < 34` قابل انتشار نیست.
+- app جدید و update باید Android 16 / **API 36+** را target کنند.
 
-### کافه‌بازار
-در این تحقیق requirement عددی جدیدی که به‌اندازه اطلاعیه مایکت قابل استناد باشد پیدا نشد؛ قبل از submission از پیشخان/قوانین جاری بازار دوباره بررسی شود.
+### Myket
+از **1 Aban 1405**:
 
-### تصمیم پیشنهادی پروژه
-- هدف: API 36 در صورت compatibility کامل
-- hard floor فعلی برای Myket بعد از deadline: API 34
+- `targetSdk < 34` برای app جدید/update پذیرفته نمی‌شود.
+
+### Bazaar
+آخرین requirement عددی باید در روز submission از قوانین/پیشخان جاری بررسی شود.
+
+### Baseline مشترک
+- **targetSdk 36**
+- downgrade برای یکی از storeها انجام نمی‌دهیم.
 
 ## Signing
 
-Android release APK باید امضاشده باشد.
+### Google Play
+- app جدید AAB از Play App Signing استفاده می‌کند.
+- AAB با Upload Key upload می‌شود.
+- Google APK توزیعی را با App Signing Key امضا می‌کند.
+- Google رسماً می‌گوید برای استفاده از همان signing key در چند store باید **اپ signing key خودمان را به Play ارائه کنیم**.
 
-قواعد داخلی پروژه:
+### Bazaar / Myket
+- APK release با App Signing Key خودمان امضا می‌شود.
 
-- keystore هرگز commit نشود
-- backup امن داشته باشد
-- certificate fingerprint ثبت شود
-- updateها با همان signing identity ساخته شوند
+### Castle Role
+دو key role:
+
+1. **Cross-store App Signing Key** — بسیار حساس، دائمی، backup شده.
+2. **Google Play Upload Key** — جدا و قابل reset در Play.
+
+## Google Play developer account
+
+دو نوع account:
+
+### Personal
+- legal identity/contact verification
+- developer email عمومی
+- برای accountهای ایجادشده بعد از 2023-11-13: حداقل **12 closed testers برای 14 روز پیوسته** قبل از درخواست production access.
+
+### Organization
+- D-U-N-S
+- organization identity/address
+- organization website
+- contact information
+- verification documents
+
+انتخاب Personal/Organization باید در Phase 0 بر اساس وضعیت واقعی Publisher انجام شود.
 
 ## Permissions
 
-مایکت صراحتاً اعلام می‌کند permission باید مرتبط با عملکرد واقعی برنامه باشد و permission غیرمرتبط می‌تواند مانع انتشار شود.
+Google Play:
+- permissionهای high-risk/sensitive ممکن است Permissions Declaration و approval بخواهند.
+- app بدون نیاز واقعی نباید sensitive permission درخواست کند.
 
-برای v1 Castle Role هدف:
+Myket:
+- permission باید مرتبط با core functionality باشد.
 
-- بدون Camera
-- بدون Location
-- بدون Microphone
-- بدون Contacts
-- بدون SMS
-- بدون Phone
-- بدون broad storage access
+Castle Role v1:
+- no Camera
+- no Location
+- no Microphone
+- no Contacts
+- no SMS
+- no Call Log / Phone
+- no broad external storage permission
 
-هر permission اضافه باید در Release Audit توضیح داشته باشد.
+## Privacy
 
-## Privacy & Security
+### Google Play
+برای **تمام appها**:
 
-مایکت:
+- Privacy Policy URL عمومی، فعال، non-geofenced و غیر PDF
+- privacy policy داخل خود app
+- تکمیل و به‌روز نگه داشتن Data safety
+- disclosure تمام data access/collection/sharing شامل SDKها
+- retention/deletion policy
+- developer/app identification و privacy contact
 
-- app توسط ابزارهای امنیتی/آنتی‌ویروس بررسی می‌شود
-- داده کاربران باید با permission و policy متناسب مدیریت شود
-- SDKها و WebView باید از نظر امنیت بررسی شوند
+### Myket
+privacy/security/data handling باید با رفتار app متناسب باشد.
 
-Castle Role:
+### Castle Role
+یک Privacy Policy مشترک و یک data inventory مشترک.
 
-- Privacy Policy حتی در حالت data-minimal ساخته شود
-- data inventory نوشته شود
-- مشخص شود save فقط local است یا sync/network هم وجود دارد
-- remote URLs و SDKهای شخص ثالث audit شوند
+## App content declarations — Google Play
 
-## Quality & Functionality
+قبل از review موارد زیر باید تکمیل شوند:
 
-مایکت:
+- Privacy Policy
+- Ads declaration
+- App access instructions
+- Target audience and content
+- sensitive permission declarations در صورت وجود
+- Data safety
+- Content rating / IARC
+- سایر declarationهایی که Play Console برای app نشان می‌دهد
 
-- برنامه روی دستگاه‌های Android نصب و تست می‌شود
-- crash، force close، freeze و loading گیرکرده می‌توانند موجب رد شوند
-- دکمه/feature بدون عملکرد باید حذف شود یا واضحاً «به‌زودی» باشد
-- incompatibilityهای شناخته‌شده باید شفاف اعلام شوند
+Castle Role v1:
+- Ads: No
+- Login/App access restriction: No
+- Target audience باید بعد از content review تعیین شود
+- Battle/Siege/Missile باید در IARC questionnaire دقیق اعلام شود
 
-Castle Role:
+## Store listing
 
-- mobile QA باید قبل از submission اجباری باشد
-- هر placeholder یا button ناقص باید حذف/label شود
+### Google Play
+Product text:
+- App name: max 30 chars
+- Short description: max 80 chars
+- Full description: max 4000 chars
 
-## Store Listing — Myket
+Graphics:
+- app icon: 512×512 PNG, max 1024 KB
+- feature graphic: 1024×500 JPEG یا 24-bit PNG
+- حداقل 2 screenshot برای publish
+- حداکثر 8 screenshot برای هر device type
+- برای game discovery: حداقل 3 landscape screenshots با حداقل 1920×1080 توصیه/شرط نمایش در برخی recommendation surfaces
+- preview video اختیاری، ولی برای game توصیه می‌شود
 
-طبق راهنمای رسمی فعلی:
-
-- نوع برنامه/بازی
-- category
+### Myket
+طبق راهنمای رسمی:
+- Game type/category
 - icon
-- عنوان فارسی و انگلیسی
-- توضیحات
-- contact information
-- email اجباری
+- FA/EN titles
+- description
+- contact/email
 - pricing
-- version changelog اجباری
-- screenshots
-- حداقل 3 screenshot واقعی از داخل app/game
-- optional video از Aparat
+- version changelog
+- حداقل 3 screenshot واقعی
+- optional Aparat video
 
-## Store Listing — Bazaar
+### Bazaar
+فیلدها و asset constraints جاری در پیشخان دوباره بررسی می‌شوند.
 
-موارد دقیق UI پیشخان ممکن است تغییر کند؛ در مرحله submission از پنل جاری برداشت نهایی انجام می‌شود.
-
-دارایی مشترک از قبل آماده خواهد شد:
-
-- icon
-- title FA/EN
-- descriptions
-- contact/support
-- screenshots
-- release notes
-- privacy URL
-- category/content declarations
-
-## Content
-
-مایکت قوانین محتوایی صریح دارد و نمایش محتوای خشونت‌آمیز حساس است.
-
+### Master asset decision
 برای Castle Role:
+- master icon >= 1024×1024
+- 7 screenshot master در 1920×1080 landscape
+- Play feature graphic 1024×500
+- localized FA/EN text set
 
-- battle به‌صورت stylized نگه داشته شود
-- gore اضافه نشود
-- store screenshots روی build/strategy تمرکز کنند
-- missile/weapon نباید به آموزش استفاده واقعی تبدیل شود
-- از نمادهای ممنوع و محتوای گروه‌های تروریستی اجتناب شود
+## Content Rating
 
-## Copyright
+Google Play:
+- تمام appها باید IARC content rating داشته باشند.
+- questionnaire باید با محتوای واقعی تطبیق داشته باشد.
 
-مایکت صراحتاً مالکیت/مجوز محتوا، نام‌ها، تصاویر، صوت و open-source licenseها را بررسی می‌کند.
+Castle Role:
+- battle، siege، missile، destruction declare می‌شوند.
+- gore/graphic violence برای v1 هدف نیست.
 
-قبل از submission باید inventory داشته باشیم برای:
+## Quality
 
-- code libraries
-- textures
-- fonts
-- music
-- sound effects
-- icons
-- images
-- 3D/reference assets
-- historical visual material
+Google Play:
+- store listing باید دقیقاً قابلیت واقعی app را نشان دهد.
+- اگر login/restricted content وجود داشته باشد review credentials لازم است.
+
+Myket:
+- crash/freeze/broken functionality می‌تواند موجب rejection شود.
+
+Castle Role:
+- یک QA gate مشترک قبل از هر سه submission.
 
 ## Monetization
 
-### Myket
-برای محصولات/خدمات دیجیتال:
+### Google Play
+برای digital goods/services در Play-distributed build، Google Play Billing لازم است مگر exception/program قانونی مربوط اعمال شود.
 
-- پرداخت باید از Myket IAP باشد
-- مسیر پرداخت موازی/خارجی برای محصول دیجیتال پذیرفته نیست
-- اگر app رایگان منتشر شود، همان listing بعداً قابل تبدیل به paid app نیست
+### Myket
+digital goods -> Myket billing.
 
 ### Bazaar
-اگر IAP اضافه شود، flavor بازار باید integration بازار را داشته باشد و قوانین جاری پرداخت بازار در زمان implementation دوباره بررسی شود.
+در صورت IAP -> Bazaar billing طبق قوانین جاری.
 
-### پیشنهاد v1
-Free + no IAP.
+### v1
+Free + no IAP؛ پس billing SDK وارد build نمی‌شود.
 
-## Review / Release Controls
+## Review / Testing
 
-مایکت:
-- manual publish option بعد از approval دارد
-- در مستند فعلی سقف اعلام‌شده بررسی تا 3 روز کاری است
+### Google Play
+- Internal testing اختیاری ولی توصیه‌شده.
+- Closed testing برای personal accounts جدید طبق rule بالا ممکن است prerequisite production باشد.
+- Open testing بعد از production access برای آن account scenario در دسترس است.
+- review برخی accountها ممکن است تا 7 روز یا بیشتر در شرایط استثنایی طول بکشد؛ زمان را guarantee نمی‌کنیم.
 
-بازار:
-- staged rollout در پیشخان اعلام شده
-- auto-update publishing برای بسیاری از updateها اعلام شده
-- SLA یا زمان review را در Roadmap ثابت نکرده‌ایم چون اطلاعیه‌های قدیمی قابل اتکای بلندمدت نیستند
+### Myket
+- review/install testing طبق فرایند رسمی.
+- manual publish بعد از approval در راهنمای فعلی ذکر شده.
+
+### Bazaar
+- staged rollout اعلام شده.
+- زمان review را در Roadmap hardcode نمی‌کنیم.
 
 ## Android Developer Verification
 
-Android از 2026 rollout منطقه‌ای verification را شروع کرده و برای 2027 گسترش جهانی به تمام اپ‌های دستگاه‌های certified را برنامه‌ریزی کرده است.
+Google Play:
 
-برای توزیع خارج Google Play:
+- از **2026-09-30** package registration requirement فعال است.
+- identity verification + package registration باید انجام شود.
 
-- developer identity
-- package registration
-- signed APK / signing ownership
+توزیع خارج Play:
+- Android developer verification rollout برای certified devices در حال اجرا/گسترش است و در 2027 وسیع‌تر می‌شود.
 
-باید در برنامه بلندمدت release در نظر گرفته شود.
-
-این مورد در 2026 برای بازار/مایکت blocker فوری اثبات‌شده نیست، اما نباید تا 2027 نادیده گرفته شود.
+بنابراین signing/package ownership از ابتدا cross-store مستند می‌شود.

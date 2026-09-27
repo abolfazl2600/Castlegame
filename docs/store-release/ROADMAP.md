@@ -1,394 +1,421 @@
-# Roadmap انتشار Castle Role در کافه‌بازار و مایکت
+# Roadmap مشترک انتشار Castle Role در Google Play، کافه‌بازار و مایکت
 
-این Roadmap ترتیب انجام کار را مشخص می‌کند. در مرحله بعد هر Phase به taskهای دقیق فنی و عملیاتی شکسته خواهد شد.
+این Roadmap عمداً **shared-first** طراحی شده است. تا قبل از بسته‌بندی و submission، سه نسخه جدا از بازی نمی‌سازیم.
 
 ---
 
-## Phase 0 — Freeze تصمیم‌های انتشار
+## Phase 0 — Product, Publisher & Store Account Freeze
 
-**هدف:** جلوگیری از تغییر تصمیم‌های پایه در میانه انتشار.
+**هدف:** تثبیت identity قبل از هر تصمیم برگشت‌ناپذیر.
 
-تصمیم‌هایی که باید نهایی شوند:
+تصمیم‌ها:
 
-- نام نهایی محصول: Castle Role یا نام فارسی/بازاری متفاوت
+- نام نهایی app
 - Publisher / Developer display name
 - Package ID دائمی
-- مدل درآمد نسخه 1.0
-- حداقل Android پشتیبانی‌شده
-- orientation اصلی بازی
-- سیاست online/offline
-- اینکه نسخه 1.0 تبلیغ، login، analytics یا IAP داشته باشد یا خیر
+- Personal vs Organization برای Google Play
+- مدل درآمد v1
+- orientation
+- minSdk
+- supported countries/languages
+- support email
+- privacy contact
+- website/privacy hosting
 
-**پیشنهاد فعلی برای v1:**
+Baseline v1:
 
 - Free
-- بدون تبلیغ
-- بدون Login
-- بدون IAP
-- بدون Analytics شخص ثالث
+- no Ads
+- no Login
+- no IAP
+- no external Analytics
 - Offline-first
 - Landscape-first
-- حداقل permission ممکن
+- minimal permissions
+- targetSdk 36
 
-**Gate خروج:** Product identity و Package ID دیگر تغییر نکنند.
+### کارهای account که می‌توانند همزمان شروع شوند
+
+- Google Play developer account onboarding/verification
+- Bazaar developer account
+- Myket developer account
+
+اگر Google Play account سازمانی است:
+- D-U-N-S و website زود آماده شوند.
+
+اگر Play personal account جدید است:
+- closed-test requirement را از ابتدا در timeline لحاظ می‌کنیم.
+
+**Deadline مهم:** از 2026-09-30 Play package registration requirement فعال است.
+
+**Gate:** Product/Publisher identity و Package ID freeze شده باشند.
 
 ---
 
-## Phase 1 — Android Foundation
+## Phase 1 — Common Android Foundation
 
-**هدف:** تبدیل پروژه فعلی به یک Android app واقعی.
+**هدف:** تبدیل web game به Android app واقعی.
 
-کارهای سطح بالا:
+- Capacitor/native wrapper نهایی
+- `android/`
+- applicationId
+- versionName/versionCode
+- compileSdk / targetSdk / minSdk
+- **targetSdk 36**
+- local bundled Vite assets
+- landscape
+- fullscreen baseline
+- adaptive icon baseline
+- splash baseline
+- debug APK
+- release build skeleton
+- AAB build skeleton
 
-- اضافه کردن Android shell
-- انتخاب و تثبیت Capacitor/native wrapper
-- ساخت پروژه Android
-- تنظیم applicationId
-- تنظیم versionName / versionCode
-- تنظیم compileSdk / targetSdk / minSdk
-- تنظیم orientation و fullscreen
-- اضافه کردن app icon و splash پایه
-- تولید اولین debug APK
-- تست اجرا بدون اتصال به dev server
-
-**Target SDK strategy:**
-
-- محدودیت رسمی اعلام‌شده مایکت از ۱ آبان ۱۴۰۵: کمتر از API 34 قابل انتشار نیست.
-- هدف فنی پروژه بهتر است جدیدتر از minimum باشد؛ در زمان implementation، API 36 را به‌عنوان target پیشنهادی بررسی می‌کنیم و فقط در صورت incompatibility مستندشده پایین‌تر می‌آییم.
-
-**Gate خروج:** APK مستقل و قابل نصب که بازی را از assetهای local اجرا کند.
+**Gate:** app بدون dev server روی device/emulator اجرا شود.
 
 ---
 
 ## Phase 2 — Android Runtime Integration
 
-**هدف:** بازی در Android مانند یک اپ واقعی رفتار کند، نه صرفاً یک WebView بسته‌بندی‌شده.
+- Back button
+- pause/resume
+- background/foreground
+- autosave on background
+- audio focus/lifecycle
+- screen lock/interruption
+- WebView recreation
+- safe areas/cutouts
+- immersive mode
+- touch/pointer
+- update-safe save migration
 
-موارد اصلی:
-
-- Android Back behavior
-- lifecycle: pause / resume / background / foreground
-- autosave هنگام background
-- audio pause/resume
-- handling screen lock / interruption
-- safe areas / cutouts / navigation bars
-- immersive fullscreen
-- touch/pointer رفتار صحیح
-- جلوگیری از refresh/reload ناخواسته
-- persistence مطمئن save data
-- update-safe storage migration
-
-**Gate خروج:** kill/reopen/background/update موجب از دست رفتن save یا شکستن state نشود.
+**Gate:** kill/reopen/background/update state را خراب نکند.
 
 ---
 
-## Phase 3 — Mobile UX & Device Compatibility
+## Phase 3 — Mobile UX
 
-**هدف:** UI بازی واقعاً مناسب موبایل باشد.
-
-بررسی:
-
-- Build sidebar
+- Build
 - Settings
 - Templates
 - Battle
 - Military
+- Population/Army sidebar
 - minimap
-- modals
-- touch targets
-- landscape sizes
-- low-resolution phones
-- tablets
-- notch/cutout
-- keyboard assumptions
-- hover-only interactions
+- dialogs/modals
+- touch target sizes
+- no hover-only action
+- no keyboard-only core action
+- landscape small screen
+- tablet
 
-**Gate خروج:** هیچ قابلیت اصلی فقط با mouse/keyboard قابل استفاده نباشد.
+**Gate:** تمام gameplay اصلی touch-only قابل انجام باشد.
 
 ---
 
-## Phase 4 — Performance & Stability
+## Phase 4 — Performance, WebGL & 64-bit Compatibility
 
-**هدف:** عبور از بررسی واقعی مارکت و کاهش crash/freeze.
+### Performance
 
-ماتریس تست:
-
-- Android نسخه‌های قدیمی‌ترِ پشتیبانی‌شده
-- Android 14 / 15 / 16
+- low/mid/high Android devices
 - Adreno
 - Mali
-- دستگاه RAM پایین
-- settlement سنگین
-- battle سنگین
-- تغییر mode
-- load/save مکرر
+- Android 14/15/16
+- low RAM
+- dense settlement
+- large battle
 - long session
-- app background/foreground
-- install / update / reinstall scenarios
+- thermal/battery
+- context loss
 
-شاخص‌ها:
+### 64-bit
 
-- startup time
-- FPS
-- frame spikes
-- memory
-- crash / force close
-- freeze
-- WebGL context loss
-- battery/thermal behavior در session طولانی
+- APK/AAB native-library inventory
+- arm64 compatibility
+- third-party plugin ABI audit
+- APK Analyzer check
 
-**Gate خروج:** release candidate روی چند دستگاه واقعی بدون blocker اجرا شود.
+**Gate:** release build روی device matrix بدون crash/freeze/blocker اجرا شود.
 
 ---
 
-## Phase 5 — Signing, Identity & Release Security
+## Phase 5 — Cross-Store Signing & Package Ownership
 
-**هدف:** هویت نسخه انتشار پایدار شود.
+**هدف:** یک signing identity برای هر سه store.
 
-کارها:
+1. App Signing Key اصلی ایجاد شود.
+2. دو backup امن ایجاد شود.
+3. SHA-256 certificate ثبت شود.
+4. Bazaar/Myket APK با آن key امضا شود.
+5. Play App Signing با **همان key supplied by us** تنظیم شود.
+6. Upload Key جدا برای Play ساخته شود.
+7. Upload Key certificate در Play ثبت شود.
+8. Package registration/verification انجام شود.
 
-- ایجاد release keystore
-- backup امن حداقل در دو محل
-- مستندسازی alias و ownership بدون ذخیره password در Git
-- build signing config
-- release APK امضاشده
-- بررسی certificate fingerprint
-- تثبیت versionCode policy
-- تثبیت release naming
-- رزرو Package ID در پنل‌ها در صورت امکان
+**ممنوع:** انتخاب تصادفی Google-generated Play signing key قبل از تصمیم multi-store.
 
-**نکته آینده‌نگر:** Android Developer Verification برای توزیع خارج Google Play در حال گسترش جهانی تا 2027 است؛ بنابراین package name و signing identity باید از ابتدا دائمی و قابل اثبات باشند.
-
-**Gate خروج:** APK release قابل update با همان signature باشد.
+**Gate:** APK local و Play-distributed artifact از app-signing identity مورد انتظار استفاده کنند.
 
 ---
 
-## Phase 6 — Permissions, Privacy & Security Audit
+## Phase 6 — Permission, Data, Privacy & Security Audit
 
-**هدف:** حداقل‌سازی ریسک رد شدن و ریسک امنیتی.
+Shared audit:
 
-کارها:
+- AndroidManifest
+- permissions
+- network requests
+- WebView settings
+- localStorage/save
+- SDK data behavior
+- dependency audit
+- secrets scan
+- HTTPS usage
+- privacy inventory
+- retention/deletion
 
-- audit کامل AndroidManifest
-- حذف permissionهای غیرضروری
-- audit dependency/SDK
-- بررسی WebView security
-- بررسی network calls
-- تعیین دقیق داده‌هایی که جمع‌آوری/ذخیره/ارسال می‌شوند
-- ساخت Privacy Policy
-- افزودن Privacy/About داخل بازی در صورت نیاز
-- malware / Play Protect sanity check
-- dependency license audit
+Outputs:
 
-برای v1 ترجیح این است که بازی نیاز نداشته باشد به:
+- public Privacy Policy
+- in-app Privacy entry
+- data inventory
+- Google Play Data safety answers
+- store privacy metadata
 
-- Camera
-- Microphone
-- Location
-- Contacts
-- SMS
-- Phone
-- broad storage permissions
-
-**Gate خروج:** هر permission و هر data flow دلیل مستند داشته باشد.
+**Gate:** هر data flow و permission مستند باشد.
 
 ---
 
-## Phase 7 — Content, Rating & Copyright Review
+## Phase 7 — Content, Audience, Rating & Copyright
 
-**هدف:** محتوای بازی با قوانین انتشار سازگار باشد.
+- violence/battle facts
+- gore check
+- missile/destruction presentation
+- historical references
+- trademark/name check
+- music/SFX/font/texture/icon/model licenses
+- open-source attributions
+- Google Play IARC questionnaire facts
+- Google Play target audience decision
+- Bazaar/Myket content declarations
 
-Castle Role به‌دلیل battle/siege/missile به بررسی جداگانه نیاز دارد:
-
-- پرهیز از gore و خشونت واقع‌گرایانه
-- عدم استفاده از نماد یا محتوای گروه‌های ممنوع
-- عدم ارائه آموزش واقعی ساخت/استفاده غیرقانونی سلاح
-- بررسی متن‌ها، نام‌ها و تصاویر تاریخی
-- بررسی تمام موسیقی/صدا/فونت/texture/icon از نظر مجوز
-- ثبت attribution لازم برای open-source assets/libraries
-- بررسی screenshotهای فروشگاه از نظر محتوای حساس
-
-**Gate خروج:** هیچ asset یا محتوای مشکوک به مالکیت شخص ثالث بدون مجوز/منبع باقی نماند.
+**Gate:** rating answers و asset ownership قابل دفاع باشند.
 
 ---
 
-## Phase 8 — Store Identity & Marketing Assets
+## Phase 8 — Shared Store Identity & Asset Production
 
-**هدف:** آماده کردن صفحه فروشگاه همگام با build واقعی.
+Master package:
 
-دارایی‌ها:
-
-- App icon نهایی
-- Android adaptive icon
-- عنوان فارسی
-- عنوان انگلیسی
-- توضیح کوتاه / tagline
-- توضیحات کامل فارسی
-- توضیحات انگلیسی
+- brand/app name
+- master icon >= 1024×1024
+- adaptive icon
+- FA title
+- EN title
+- FA description
+- EN description
+- short description
 - support email
-- website در صورت استفاده
+- privacy URL
 - release notes
-- حداقل 3 screenshot واقعی برای مایکت
-- مجموعه screenshot بهتر برای هر دو مارکت
-- optional promo video
-- category انتخاب‌شده
+- 7 real gameplay screenshots 1920×1080 landscape
 
-روایت پیشنهادی screenshotها:
+Play-specific export:
 
-1. ساخت قلعه
-2. شهر زنده و NPCها
-3. Battle / Siege
-4. Historical Templates
-5. Terrain / Map Layout
-6. Modern Mode
-7. Mobile Build UX
+- icon 512×512
+- feature graphic 1024×500
+- screenshot alt text
+- optional YouTube gameplay trailer
 
-**Gate خروج:** Store listing دقیقاً ویژگی‌هایی را نشان دهد که در build وجود دارند.
+**Gate:** هیچ screenshot یا text قابلیت غیرواقعی نشان ندهد.
 
 ---
 
-## Phase 9 — Monetization Decision
+## Phase 9 — Monetization Architecture Decision
 
-**هدف:** قبل از submission تکلیف اقتصاد محصول مشخص شود.
+v1:
+- no billing SDK
 
-اگر v1 رایگان و بدون IAP باشد:
-- هیچ SDK billing اضافه نمی‌شود.
+اگر آینده IAP:
 
-اگر محصول دیجیتال فروخته شود:
-- Myket flavor باید Myket billing داشته باشد.
-- Bazaar flavor باید Bazaar billing داشته باشد.
-- یک abstraction مشترک داخل game/app ساخته می‌شود.
-- purchase verification و restore flow طراحی می‌شود.
+- shared PurchaseProvider interface
+- Play flavor -> Google Play Billing
+- Bazaar flavor -> Bazaar Billing
+- Myket flavor -> Myket Billing
+- same gameplay entitlement model
 
-**نکته مهم مایکت:** برنامه‌ای که رایگان منتشر شده، بعداً نمی‌تواند همان listing را به برنامه پولی تبدیل کند؛ مدل درآمد باید قبل از اولین انتشار آگاهانه انتخاب شود.
-
-**Gate خروج:** هیچ مسیر پرداخت خارجی ناسازگار با قوانین مارکت در build وجود نداشته باشد.
+**Gate:** build هر store policy payment خودش را رعایت کند.
 
 ---
 
-## Phase 10 — Bazaar Preparation
+## Phase 10 — Common Release Candidate
 
-**هدف:** آماده‌سازی submission کافه‌بازار.
+از یک Git SHA:
 
-- تکمیل/تأیید حساب توسعه‌دهنده و قراردادهای جاری پیشخان
-- بررسی هزینه/اشتراک جاری پیشخان در همان زمان
-- ایجاد app entry
-- ثبت package identity
-- آپلود release package
-- تکمیل listing
-- تکمیل content/rating declarations موجود در پنل
-- تکمیل privacy/contact information
-- انتخاب روش release
-- در صورت نیاز staged rollout
+- signed release APK
+- release AAB
+- same package ID
+- same versionCode/versionName
+- no debug flag
+- no dev URL
+- no secrets
+- local assets only
+- install smoke test
+- upgrade smoke test
+- save migration
+- signature verification
+- APK/AAB analysis
+- SHA-256 artifacts recorded
 
-بازار پشتیبانی از APK/AAB و همچنین TWA/PWA را اعلام کرده است؛ برای Castle Role مسیر مشترک Android shell همچنان گزینه پیشنهادی است.
-
-**Gate خروج:** release در Bazaar بدون validation error آماده ارسال برای review باشد.
+**Gate:** RC freeze شود؛ هر code change نیازمند RC جدید است.
 
 ---
 
-## Phase 11 — Myket Preparation
+## Phase 11 — Google Play Preparation & Testing
 
-**هدف:** آماده‌سازی submission مایکت.
+### Account
+- developer verification
+- package registration
+- account type requirements
 
-- تکمیل حساب توسعه‌دهنده و اطلاعات هویتی
-- رزرو/ثبت package name
-- بارگذاری APK
-- تعیین نوع: Game
-- category مناسب
-- آیکون
-- عنوان فارسی و انگلیسی
-- توضیحات
-- ایمیل پشتیبانی
+### App setup
+- create app
+- configure Play App Signing with our cross-store key
+- register separate Upload Key
+
+### App content
+- Privacy Policy
+- Data safety
+- Ads declaration
+- App access
+- Target audience
+- IARC content rating
+- permission declarations if applicable
+
+### Listing
+- 30-char name
+- 80-char short description
+- 4000-char full description
+- Play icon
+- feature graphic
+- screenshots
+- optional trailer
+
+### Testing
+- Internal test
+- Closed test
+- اگر personal account مشمول rule است: 12 tester / 14 continuous days
+- request production access
+
+**Gate:** Play Console production submission unlocked و AAB validation clean.
+
+---
+
+## Phase 12 — Cafe Bazaar Preparation
+
+- account/contract verification
+- app entry
+- package identity
+- current target/API rule recheck
+- current package format recheck
+- APK یا AAB upload
+- listing
+- privacy/contact
+- rating/content forms
+- rollout settings
+
+**Gate:** Bazaar validation clean.
+
+---
+
+## Phase 13 — Myket Preparation
+
+- account/identity
+- package reservation/registration
+- APK upload
+- Game/category
+- icon
+- FA/EN titles
+- description
+- support email
 - pricing
-- version changelog
-- حداقل 3 screenshot واقعی
+- changelog
+- >=3 real screenshots
 - optional Aparat video
-- final review
-- انتخاب publish mode
-- ارسال برای بررسی
+- final review fields
 
-**Gate خروج:** تمام فیلدهای اجباری پنل مایکت کامل و package قابل نصب باشد.
+**Gate:** Myket validation clean.
 
 ---
 
-## Phase 12 — Pre-Submission Release Candidate
+## Phase 14 — Parallel Submission & Review
 
-**هدف:** همان فایلی که ارسال می‌شود، قبل از upload تأیید شود.
+هر سه submission باید به یک release record اشاره کنند.
 
-RC checklist:
+ثبت می‌کنیم:
 
-- clean release build
-- signed correctly
-- correct package ID
-- correct versionCode/versionName
-- no debug flags
-- no dev URLs
-- no local secrets
-- no broken buttons
-- no placeholder features بدون برچسب
-- privacy policy reachable
-- screenshots match UI
-- save/load works
-- new install works
-- update from previous signed test release works
-- Play Protect check
-- antivirus sanity check
+- store
+- submitted artifact
+- versionCode
+- SHA
+- submission time
+- review state
+- rejection reason
+- corrective action
 
-**Gate خروج:** checksum و نسخه RC ثبت شود و بعد از آن code change بدون RC جدید ممنوع باشد.
+اگر binary عوض شود:
 
----
+- versionCode جدید
+- RC جدید
+- artifact hashes جدید
+- سه-store impact review
 
-## Phase 13 — Submission & Review
-
-**هدف:** ارسال کنترل‌شده به هر دو مارکت.
-
-ترتیب پیشنهادی:
-
-1. Myket submission
-2. Bazaar submission
-3. ثبت نسخه/زمان/نتیجه بررسی
-4. پاسخ به rejection فقط با تغییر مستند
-5. ساخت RC جدید در صورت تغییر binary
-6. عدم جایگزینی binary بدون افزایش versionCode
-
-این ترتیب الزام نیست؛ برای v1 فقط مدیریت feedback را ساده می‌کند.
+**Gate:** approval در هر سه channel یا exception مستند.
 
 ---
 
-## Phase 14 — Launch
+## Phase 15 — Launch
 
-**هدف:** انتشار با امکان کنترل ریسک.
+- controlled/manual rollout where available
+- production install از خود Google Play
+- production install از Bazaar
+- production install از Myket
+- verify package/signature/version
+- smoke gameplay
+- save/update check
+- listing check
+- support channel check
 
-- انتشار کنترل‌شده در صورت وجود ابزار staged/manual release
-- تست صفحه store بعد از انتشار
-- نصب نسخه production از خود مارکت
-- تست update path
-- بررسی crash/feedback
-- ثبت known issues
+**Gate:** هر سه production path سالم.
 
 ---
 
-## Phase 15 — Post-Launch Operations
+## Phase 16 — Post-Launch Operations
 
-**هدف:** تبدیل انتشار به یک فرایند تکرارپذیر.
-
-- release checklist برای هر update
 - versionCode automation
-- release notes template
-- store screenshots update policy
-- backup signing key audit
-- dependency/targetSdk periodic review
-- 2027 Android Developer Verification readiness
-- billing flavors در صورت اضافه شدن monetization
-- rollout/rollback plan
+- common release checklist
+- Play target API annual review
+- Android developer verification review
+- privacy/Data safety updates
+- screenshot/listing sync
+- key backup audit
+- dependency updates
+- staged rollout/rollback
+- crash/feedback triage
+- billing flavors if monetization starts
 
 ---
 
-# ترتیب بحرانی
+# Critical Shared Path
 
-مسیر بحرانی انتشار:
+**Identity → Package ID → Android Foundation → Runtime → Mobile QA → Performance/64-bit → Shared Signing → Privacy/Data → Content/Rating → Assets → Common RC**
 
-**Product Identity → Android Shell → Runtime Integration → Mobile QA → Signing → Privacy/Security → Content/Copyright → Store Assets → RC → Myket/Bazaar Submission**
+فقط بعد از این نقطه مسیرها جدا می‌شوند:
 
-تا Phase 5 بهتر است هیچ اقدام برگشت‌ناپذیر مانند انتشار عمومی یا گم‌کردن کنترل signing identity انجام نشود.
+```
+                         ┌─ Google Play: AAB + Play Console/Test tracks
+Common Release Candidate ├─ Bazaar: APK/AAB + Pishkhan
+                         └─ Myket: APK + Myket panel
+```
+
+هدف این است که هیچ fix فنی برای یک store به fork دائمی gameplay تبدیل نشود.
