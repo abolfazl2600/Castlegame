@@ -61,10 +61,24 @@ assert.match(buildMethods, /toolbar\.classList\.toggle\('is-searching', searchin
 assert.match(buildMethods, /tab\.hidden = searching && !matchingCategories\.has\(categoryName\)/);
 assert.match(game, /if \(tool !== null\) \{[\s\S]*?this\.activeBuildCategory = category\.label;/);
 
+// Build controls are rendered dynamically, so selection must be delegated from
+// the stable toolbar rather than depending on per-button handlers that can be
+// discarded by refreshBuildPanelForMode().
+assert.match(game, /toolbar\.addEventListener\('click', \(event\) => \{/);
+assert.match(game, /target\.closest<HTMLButtonElement>\('\[data-tool\]'\)/);
+assert.match(game, /this\.selectTool\(tool\)/);
+assert.match(game, /target\.closest<HTMLButtonElement>\('\[data-build-category\]'\)/);
+assert.match(game, /target\.closest<HTMLButtonElement>\('\[data-build-none\]'\)/);
+assert.doesNotMatch(buildMethods, /button\.onclick = \(\) => \{[\s\S]*?this\.selectTool/);
+
 assert.doesNotMatch(buildMethods, /tool-category-header/);
 assert.doesNotMatch(game, /No Build Tool Selected/);
 
 assert.match(css, /\.tool-category-items \{[\s\S]*?grid-template-columns: repeat\(2, minmax\(0, 1fr\)\)/);
+assert.match(css, /\.build-tool-sections \{[\s\S]*?pointer-events: auto/);
+assert.match(css, /\.tool-button \{[\s\S]*?pointer-events: auto[\s\S]*?touch-action: manipulation/);
+assert.match(css, /\.build-category-tab \{[\s\S]*?pointer-events: auto[\s\S]*?touch-action: manipulation/);
+assert.match(css, /\.build-inspect-button \{[\s\S]*?pointer-events: auto[\s\S]*?touch-action: manipulation/);
 assert.match(css, /\.build-category-tabs \{[\s\S]*?overflow-x: auto/);
 assert.match(css, /\.build-category-tabs \{[\s\S]*?overflow-y: hidden/);
 assert.match(css, /\.build-category-tabs \{[\s\S]*?scrollbar-width: thin/);

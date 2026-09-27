@@ -1195,26 +1195,6 @@ export class ThreeGame {
     if (modeChip) modeChip.textContent = modeConfig.label;
     settings.hidden = this.gameMode === 'modern';
 
-    tabs.querySelectorAll<HTMLButtonElement>('[data-build-category]').forEach((button) => {
-      button.onclick = () => {
-        const category = button.dataset.buildCategory;
-        if (!category) return;
-        this.activeBuildCategory = category;
-        const search = toolbar.querySelector<HTMLInputElement>('#build-search');
-        if (search) search.value = '';
-        this.filterBuildTools();
-      };
-    });
-
-    sections.querySelectorAll<HTMLButtonElement>('[data-tool]').forEach((button) => {
-      button.onclick = () => {
-        this.selectTool(button.dataset.tool as ToolKind);
-        if (this.selectedTool === button.dataset.tool && window.matchMedia('(max-width: 760px)').matches) {
-          this.setToolbarOpen(false);
-        }
-      };
-    });
-
     noneButton?.classList.toggle('is-selected', this.selectedTool === null);
     noneButton?.setAttribute('aria-pressed', String(this.selectedTool === null));
     const activeLabel = toolbar.querySelector<HTMLElement>('#build-active-label');
@@ -9401,7 +9381,40 @@ export class ThreeGame {
       }
     }, { passive: false });
 
-    document.querySelector<HTMLButtonElement>('[data-build-none]')?.addEventListener('click', () => this.selectTool(null));
+    toolbar.addEventListener('click', (event) => {
+      const target = event.target as HTMLElement | null;
+      if (!target) return;
+
+      const categoryButton = target.closest<HTMLButtonElement>('[data-build-category]');
+      if (categoryButton && toolbar.contains(categoryButton)) {
+        const category = categoryButton.dataset.buildCategory;
+        if (!category) return;
+        event.preventDefault();
+        this.activeBuildCategory = category;
+        if (buildSearch) buildSearch.value = '';
+        this.filterBuildTools();
+        return;
+      }
+
+      const toolButton = target.closest<HTMLButtonElement>('[data-tool]');
+      if (toolButton && toolbar.contains(toolButton)) {
+        const tool = toolButton.dataset.tool as ToolKind | undefined;
+        if (!tool || toolButton.disabled) return;
+        event.preventDefault();
+        this.selectTool(tool);
+        if (this.selectedTool === tool && window.matchMedia('(max-width: 760px)').matches) {
+          this.setToolbarOpen(false);
+        }
+        return;
+      }
+
+      const inspectButton = target.closest<HTMLButtonElement>('[data-build-none]');
+      if (inspectButton && toolbar.contains(inspectButton)) {
+        event.preventDefault();
+        this.selectTool(null);
+      }
+    });
+
     this.refreshBuildPanelForMode();
     this.updatePopulationUI();
     this.syncEconomyUI();
