@@ -76,7 +76,7 @@ assert.match(
 
 const restoreSnapshot = between(
   threeGame,
-  'private restoreSnapshot(',
+  'private applySnapshot(',
   'private undo(): void {',
 );
 assert.match(

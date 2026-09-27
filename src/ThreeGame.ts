@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { createGameDomainServices } from './core/GameDomainServices';
 import { SaveSystem, type SaveStorage } from './core/SaveSystem';
+import { WorldEditHistory } from './core/WorldEditHistory';
 import type { GameExtension } from './core/GameExtension';
 import type { GameState } from './state/GameState';
 import { SAVE_KEY, SAVE_VERSION, TILE_SIZE, WORLD_COLS } from './core/constants';
@@ -353,8 +354,11 @@ export class ThreeGame {
     defenderModernSoldiers: 4,
   };
 
-  private readonly undoStack: HistorySnapshot[] = [];
-  private readonly redoStack: HistorySnapshot[] = [];
+  private readonly editHistory = new WorldEditHistory<HistorySnapshot>(
+    () => this.captureSnapshot(),
+    (snapshot) => this.applySnapshot(snapshot),
+    () => { this.redraw(); this.save(false); },
+  );
   private terrainStrokeActive = false;
   private terrainStrokeChanged = false;
   private terrainStrokeSnapshot: HistorySnapshot | null = null;
@@ -803,8 +807,7 @@ export class ThreeGame {
     this.workers.length = 0;
     this.clearSettlementAgents();
     this.battleSystem.reset(false);
-    this.undoStack.length = 0;
-    this.redoStack.length = 0;
+    this.editHistory.clear();
     this.worldSeeded = false;
     this.seedNaturalProps();
     this.worldSeeded = true;
@@ -5900,16 +5903,21 @@ export class ThreeGame {
   }
 
   private pushUndoSnapshot(snapshot: HistorySnapshot): void {
-    this.undoStack.push(snapshot);
-    if (this.undoStack.length > 60) this.undoStack.shift();
-    this.redoStack.length = 0;
+    this.editHistory.record(snapshot);
   }
 
   private recordHistory(): void {
-    this.pushUndoSnapshot(this.captureSnapshot());
+    this.editHistory.recordCurrent();
   }
 
-  private restoreSnapshot(snapshot: HistorySnapshot): void {
+  private transactWorldEdit(edit: () => boolean): boolean {
+    return this.editHistory.transact(edit, () => {
+      this.redraw();
+      this.scheduleSave();
+    });
+  }
+
+  private applySnapshot(snapshot: HistorySnapshot): void {
     this.services.state.replace(snapshot.cells);
     this.services.keepSystem.replace(snapshot.keeps ?? []);
     this.stoneStyle = snapshot.stoneStyle ?? 'limestone';
@@ -5932,31 +5940,21 @@ export class ThreeGame {
     this.towerBridgeHover = null;
     const stoneSelect = document.getElementById('castle-stone-style') as HTMLSelectElement | null;
     if (stoneSelect) stoneSelect.value = this.stoneStyle;
-    this.redraw();
-    this.save(false);
   }
 
   private undo(): void {
-    const snapshot = this.undoStack.pop();
-    if (!snapshot) {
+    if (!this.editHistory.undo()) {
       this.setStatus('Nothing to undo');
       return;
     }
-
-    this.redoStack.push(this.captureSnapshot());
-    this.restoreSnapshot(snapshot);
     this.setStatus('Undo');
   }
 
   private redo(): void {
-    const snapshot = this.redoStack.pop();
-    if (!snapshot) {
+    if (!this.editHistory.redo()) {
       this.setStatus('Nothing to redo');
       return;
     }
-
-    this.undoStack.push(this.captureSnapshot());
-    this.restoreSnapshot(snapshot);
     this.setStatus('Redo');
   }
 
@@ -6073,12 +6071,12 @@ export class ThreeGame {
         return;
       }
 
-      this.recordHistory();
-      const updated = this.services.keepSystem.update(keep.id, { x: draft.x, y: draft.y });
-      if (updated) {
-        this.selectKeep(updated);
-        this.redraw();
-        this.scheduleSave();
+      const changed = this.transactWorldEdit(() =>
+        Boolean(this.services.keepSystem.update(keep.id, { x: draft.x, y: draft.y })),
+      );
+      if (changed) {
+        const updated = this.services.keepSystem.get(keep.id);
+        if (updated) this.selectKeep(updated);
         this.setStatus('Moved Keep');
       }
       return;
@@ -6108,19 +6106,16 @@ export class ThreeGame {
       return;
     }
 
-    this.recordHistory();
-
     const sourceX = this.selectedCell.x;
     const sourceY = this.selectedCell.y;
-    if (source.kind === 'tower') this.removeTowerBridgesAt(sourceX, sourceY);
-
-    const { kind, level, ...options } = source;
-    this.services.state.removeCell(sourceX, sourceY);
-    this.services.state.setCell(nx, ny, kind, level ?? 1, options);
-    this.selectedCell = { x: nx, y: ny };
-
-    this.redraw();
-    this.scheduleSave();
+    this.transactWorldEdit(() => {
+      if (source.kind === 'tower') this.removeTowerBridgesAt(sourceX, sourceY);
+      const { kind, level, ...options } = source;
+      this.services.state.removeCell(sourceX, sourceY);
+      this.services.state.setCell(nx, ny, kind, level ?? 1, options);
+      this.selectedCell = { x: nx, y: ny };
+      return true;
+    });
     this.setStatus('Moved selected structure');
   }
 
@@ -6141,12 +6136,12 @@ export class ThreeGame {
       return;
     }
 
-    this.recordHistory();
-    this.services.state.updateCell(this.selectedCell.x, this.selectedCell.y, {
-      rotation: ((cell.rotation ?? 0) + 1) % 4,
+    this.transactWorldEdit(() => {
+      this.services.state.updateCell(this.selectedCell!.x, this.selectedCell!.y, {
+        rotation: ((cell.rotation ?? 0) + 1) % 4,
+      });
+      return true;
     });
-    this.redraw();
-    this.scheduleSave();
     this.setStatus('Rotated selected structure');
   }
 
@@ -6615,29 +6610,25 @@ export class ThreeGame {
   private buildRoadDrag(start: GridPoint, end: GridPoint): void {
     const roadKind = this.selectedTool as RoadKind;
     const path = this.roadPath(start, end);
-    const before = this.captureSnapshot();
     let changed = 0;
 
-    for (const point of path) {
-      const terrain = this.terrainAt(point.x, point.y);
-      const current = this.services.state.getCell(point.x, point.y);
-
-      if (current && !this.isRoadFamily(current.kind)) continue;
-      if (terrain === 'water' || terrain === 'mountain') {
-        continue;
+    const committed = this.transactWorldEdit(() => {
+      for (const point of path) {
+        const terrain = this.terrainAt(point.x, point.y);
+        const current = this.services.state.getCell(point.x, point.y);
+        if (current && !this.isRoadFamily(current.kind)) continue;
+        if (terrain === 'water' || terrain === 'mountain') continue;
+        if (current?.kind === roadKind && (current.level ?? 1) === 1) continue;
+        this.services.state.setCell(point.x, point.y, roadKind, 1);
+        changed += 1;
       }
-
-      this.services.state.setCell(point.x, point.y, roadKind, 1);
-      changed += 1;
-    }
+      return changed > 0;
+    });
 
     this.clearGroup(this.wallPreviewLayer);
     this.selectedCell = path[path.length - 1] ?? end;
 
-    if (changed > 0) {
-      this.pushUndoSnapshot(before);
-      this.redraw();
-      this.scheduleSave();
+    if (committed) {
       this.setStatus(`Built ${changed} connected road tiles · preview confirmed`);
     } else {
       this.setStatus('No valid road tiles in that path');
@@ -8413,8 +8404,7 @@ export class ThreeGame {
       this.load();
       this.selectedCell = null;
       this.selectedKeepId = null;
-      this.undoStack.length = 0;
-      this.redoStack.length = 0;
+      this.editHistory.clear();
       this.redraw();
     };
     get<HTMLButtonElement>('reset-button').onclick = () => {
