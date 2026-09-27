@@ -114,8 +114,8 @@ assert.match(
 );
 assert.match(
   newGameFlow,
-  /this\.startNewGameWithMode\(mode, layoutId\)/,
-  'Starting a new game must apply the selected layout.',
+  /this\.setMapLayoutId\(layoutId\);[\s\S]*?this\.startNewGameWithMode\(mode\);/,
+  'Selecting a map layout must apply it before starting the new game.',
 );
 
 assert.match(
