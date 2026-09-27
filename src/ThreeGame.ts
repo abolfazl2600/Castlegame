@@ -9423,6 +9423,12 @@ export class ThreeGame {
       '<small id="agriculture-upgrade-description">Select a Farm or Cow Barn to inspect its level.</small>' +
       '<button id="agriculture-upgrade-button" class="agriculture-upgrade-button" type="button">Upgrade to Level 2</button>' +
       '</section>' +
+      '<section id="harbor-upgrade-card" class="harbor-upgrade-card" aria-label="Selected Harbor upgrade" hidden>' +
+      '<div class="harbor-upgrade-heading"><div><span class="eyebrow">SELECTED HARBOR</span><strong id="harbor-upgrade-name">Landing Dock · Level 1</strong></div><span id="harbor-upgrade-badge">1 / 4</span></div>' +
+      '<div class="harbor-level-track" aria-hidden="true"><span data-harbor-level="1"></span><span data-harbor-level="2"></span><span data-harbor-level="3"></span><span data-harbor-level="4"></span></div>' +
+      '<small id="harbor-upgrade-description">Select a Harbor to inspect its level.</small>' +
+      '<button id="harbor-upgrade-button" class="harbor-upgrade-button" type="button">Upgrade to Level 2</button>' +
+      '</section>' +
       '<section class="settings-section build-settings-section">' +
       '<button class="settings-section-header" type="button" aria-expanded="false">' +
       '<span class="settings-section-title">Tool Options</span>' +
@@ -9774,6 +9780,7 @@ export class ThreeGame {
     get<HTMLButtonElement>('rotate-selected').onclick = () => this.rotateSelected();
     get<HTMLButtonElement>('army-camp-upgrade-button').onclick = () => this.upgradeSelectedArmyCamp();
     get<HTMLButtonElement>('agriculture-upgrade-button').onclick = () => this.upgradeSelectedAgricultureBuilding();
+    get<HTMLButtonElement>('harbor-upgrade-button').onclick = () => this.upgradeSelectedHarbor();
     get<HTMLButtonElement>('undo-button').onclick = () => this.undo();
     get<HTMLButtonElement>('redo-button').onclick = () => this.redo();
     get<HTMLButtonElement>('select-clear').onclick = () => {
@@ -10250,6 +10257,87 @@ export class ThreeGame {
     this.setStatus(`Keep built · ${keep.width}×${keep.depth} · ${keep.floors} floors · details generated automatically`);
   }
 
+  private harborLevelDefinition(level: number): (typeof HARBOR_LEVELS)[number] {
+    const normalized = Math.max(1, Math.min(HARBOR_MAX_LEVEL, Math.floor(level)));
+    return HARBOR_LEVELS[normalized - 1];
+  }
+
+  private syncHarborUpgradeUI(): void {
+    const card = document.getElementById('harbor-upgrade-card');
+    if (!card) return;
+
+    const cell = this.selectedCell
+      ? this.services.state.getCell(this.selectedCell.x, this.selectedCell.y)
+      : undefined;
+    const selectedHarbor = cell?.kind === 'harbor' ? cell : undefined;
+    card.hidden = !selectedHarbor;
+    if (!selectedHarbor) return;
+
+    const level = Math.max(1, Math.min(HARBOR_MAX_LEVEL, selectedHarbor.level ?? 1));
+    const definition = this.harborLevelDefinition(level);
+    const next = level < HARBOR_MAX_LEVEL ? this.harborLevelDefinition(level + 1) : undefined;
+    const name = document.getElementById('harbor-upgrade-name');
+    const badge = document.getElementById('harbor-upgrade-badge');
+    const description = document.getElementById('harbor-upgrade-description');
+    const button = document.getElementById('harbor-upgrade-button') as HTMLButtonElement | null;
+
+    if (name) name.textContent = `${definition.name} · Level ${level}`;
+    if (badge) badge.textContent = `${level} / ${HARBOR_MAX_LEVEL}`;
+    if (description) {
+      description.textContent = next
+        ? `${definition.description} Next: ${next.name}.`
+        : `${definition.description} Maximum harbor level reached.`;
+    }
+
+    card.querySelectorAll<HTMLElement>('[data-harbor-level]').forEach((step) => {
+      const stepLevel = Number(step.dataset.harborLevel ?? 0);
+      step.classList.toggle('is-complete', stepLevel <= level);
+      step.classList.toggle('is-current', stepLevel === level);
+    });
+
+    if (button) {
+      button.disabled = !next || this.battleSystem.isActive();
+      button.textContent = next
+        ? `Upgrade to Level ${next.level} · ${next.name}`
+        : 'Maximum Level';
+    }
+  }
+
+  private upgradeSelectedHarbor(): void {
+    if (this.battleSystem.isActive()) {
+      this.setStatus('Finish or reset the battle before upgrading the Harbor');
+      return;
+    }
+    if (!this.selectedCell) {
+      this.setStatus('Select a Harbor first');
+      return;
+    }
+
+    const cell = this.services.state.getCell(this.selectedCell.x, this.selectedCell.y);
+    if (!cell || cell.kind !== 'harbor') {
+      this.setStatus('Select a Harbor first');
+      this.syncHarborUpgradeUI();
+      return;
+    }
+
+    const currentLevel = Math.max(1, Math.min(HARBOR_MAX_LEVEL, cell.level ?? 1));
+    if (currentLevel >= HARBOR_MAX_LEVEL) {
+      this.setStatus('Harbor is already at Level 4 · Grand Harbor');
+      this.syncHarborUpgradeUI();
+      return;
+    }
+
+    const nextLevel = currentLevel + 1;
+    this.recordHistory();
+    this.services.state.updateCell(this.selectedCell.x, this.selectedCell.y, {
+      level: nextLevel,
+      shipKind: this.maritimeSystem.defaultShipForLevel(nextLevel),
+    });
+    this.redraw();
+    this.scheduleSave();
+    this.setStatus(`Harbor upgraded to Level ${nextLevel} · ${this.harborLevelDefinition(nextLevel).name}`);
+  }
+
   private agricultureLevelDefinition(kind: AgricultureUpgradeKind, level: number): AgricultureUpgradeLevel {
     const normalized = Math.max(1, Math.min(AGRICULTURE_MAX_LEVEL, Math.floor(level)));
     return AGRICULTURE_UPGRADE_LEVELS[kind][normalized - 1];
@@ -10346,6 +10434,7 @@ export class ThreeGame {
 
   private syncArmyCampUpgradeUI(): void {
     this.syncAgricultureUpgradeUI();
+    this.syncHarborUpgradeUI();
     const card = document.getElementById('army-camp-upgrade-card');
     if (!card) return;
 
@@ -10437,7 +10526,9 @@ export class ThreeGame {
           ? 'Use the Army Camp Upgrade button in Build Settings'
           : cell?.kind === 'farm' || cell?.kind === 'cowBarn'
             ? 'Use the agriculture Upgrade button in Build Settings'
-            : 'Selected tile is not a wall or tower',
+            : cell?.kind === 'harbor'
+              ? 'Use the Harbor Upgrade button in Build Settings'
+              : 'Selected tile is not a wall or tower',
       );
       return;
     }
