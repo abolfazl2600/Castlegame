@@ -5,6 +5,7 @@ Castle Role currently ships as a browser game. Keep gameplay state and rules sep
 - `GameState` owns authored grid cells. A rendered mesh or an animated person is derived runtime state and must not become the save format.
 - `SaveSystem` receives a `SaveStorage` adapter. The web entry point passes browser storage; another shell can supply its own implementation of `getItem`, `setItem`, and `removeItem`. Maintain save migrations when adding durable fields.
 - `ThreeGame` owns the browser scene, UI, and animation loop. Optional visual systems register through `GameExtension` callbacks instead of replacing methods on its prototype. `GameExtension` is a renderer integration API, not a platform-independent gameplay API.
+- `WebGLDisposal` (`src/rendering/WebGLDisposal.ts`) owns recursive disposal of geometries, materials, and textures when clearing layers, reloading templates, or resetting sessions. Do not leave detached Object3D instances without explicit GPU disposal.
 - New gameplay rules should live outside `ThreeGame`, take explicit state and dependencies, and be testable without WebGL. A platform-specific shell should translate input and storage and host the renderer.
 
 Next boundaries to extract, in order: construction transactions (validation, undo, save notification), deterministic simulation time and world events, blueprint serialization, and portable world import/export. Keep each extraction compatible with existing saves and validate it in the browser before targeting other packages.

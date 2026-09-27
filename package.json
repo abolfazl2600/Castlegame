@@ -4,12 +4,10 @@
   "version": "0.2.0",
   "type": "module",
   "scripts": {
-    "test:gate-orientation": "node scripts/test-gate-orientation.mjs",
     "dev": "vite",
-    "build": "tsc --noEmit && vite build",
+    "build": "npm run test:battle-state-boundary && npm run test:castle-access-navigation && npm run test:settlement-lifecycle && npm run test:river-water-visibility && npm run test:settings-bootstrap-order && npm run test:save-mode-ui-sync && npm run test:modern-fortress-terrain-protection && tsc --noEmit && vite build",
     "preview": "vite preview",
     "test:battle-state-boundary": "node scripts/test-battle-state-boundary.mjs",
-    "test:missile-capability": "node scripts/test-missile-capability.mjs",
     "test:castle-access-navigation": "node scripts/test-castle-access-navigation.mjs",
     "test:settlement-lifecycle": "node scripts/test-settlement-lifecycle.mjs",
     "test:river-water-visibility": "node scripts/test-river-water-visibility.mjs",
@@ -17,19 +15,18 @@
     "test:cross-mode-save-loading": "node scripts/test-cross-mode-save-loading.mjs",
     "test:settings-bootstrap-order": "node scripts/test-settings-bootstrap-order.mjs",
     "test:ui": "playwright test",
-    "visual:baseline": "node scripts/visual-baseline.mjs",
-    "visual:report": "node scripts/visual-baseline-report.mjs",
-    "test:visual-reference": "node scripts/test-visual-reference.mjs",
     "test:save-mode-ui-sync": "node scripts/test-save-mode-ui-sync.mjs",
     "test:modern-fortress-terrain-protection": "node scripts/test-modern-fortress-terrain-protection.mjs",
-    "test:god-mode": "node scripts/test-god-mode.mjs",
-    "test:farm-worker-visibility": "node scripts/test-farm-worker-visibility.mjs",
-    "test:orchard-visual-contract": "node scripts/test-orchard-visual-contract.mjs",
     "test:castle-architecture-style": "node scripts/test-castle-architecture-style.mjs",
+    "test:orchard-visual-contract": "node scripts/test-orchard-visual-contract.mjs",
+    "test:god-mode": "node scripts/test-god-mode.mjs",
+    "test:gate-orientation": "node scripts/test-gate-orientation.mjs",
+    "test:missile-capability": "node scripts/test-missile-capability.mjs",
+    "test:farm-worker-visibility": "node scripts/test-farm-worker-visibility.mjs",
     "test:map-layouts": "node scripts/test-map-layouts.mjs",
     "test:playable-layout-templates": "node scripts/test-playable-layout-templates.mjs",
     "test:visual-style-integration": "node scripts/test-visual-style-integration.mjs",
-    "test:regression": "npm run test:gate-orientation && npm run test:battle-state-boundary && npm run test:missile-capability && npm run test:castle-access-navigation && npm run test:castle-architecture-style && npm run test:settlement-lifecycle && npm run test:map-layouts && npm run test:playable-layout-templates && npm run test:carcassonne-template && npm run test:visual-style-integration && npm run test:farm-worker-visibility && npm run test:river-water-visibility && npm run test:build-tool-registry && npm run test:cross-mode-save-loading && npm run test:settings-bootstrap-order && npm run test:build-sidebar-ux && npm run test:save-mode-ui-sync && npm run test:modern-fortress-terrain-protection && npm run test:god-mode && npm run test:orchard-visual-contract && npm run test:visual-phase5-audit && npm run test:military-progression && npm run test:army-camp-upgrade && npm run test:agriculture-building-upgrades && npm run test:remove-dig-terrain-tool && npm run test:settlement-economy",
+    "test:regression": "npm run test:gate-orientation && npm run test:battle-state-boundary && npm run test:missile-capability && npm run test:castle-access-navigation && npm run test:castle-architecture-style && npm run test:settlement-lifecycle && npm run test:map-layouts && npm run test:playable-layout-templates && npm run test:carcassonne-template && npm run test:visual-style-integration && npm run test:farm-worker-visibility && npm run test:river-water-visibility && npm run test:build-tool-registry && npm run test:cross-mode-save-loading && npm run test:settings-bootstrap-order && npm run test:build-sidebar-ux && npm run test:save-mode-ui-sync && npm run test:modern-fortress-terrain-protection && npm run test:god-mode && npm run test:orchard-visual-contract && npm run test:visual-phase5-audit && npm run test:military-progression && npm run test:army-camp-upgrade && npm run test:agriculture-building-upgrades && npm run test:remove-dig-terrain-tool && npm run test:settlement-economy && npm run test:webgl-resource-disposal",
     "test:ci": "npm run test:missile-capability && npm run test:cross-mode-save-loading && npm run test:settings-bootstrap-order",
     "test:visual-phase5-audit": "node scripts/test-visual-phase5-audit.mjs",
     "test:carcassonne-template": "node scripts/test-carcassonne-template.mjs",
@@ -38,15 +35,16 @@
     "test:army-camp-upgrade": "node scripts/test-army-camp-upgrade.mjs",
     "test:agriculture-building-upgrades": "node scripts/test-agriculture-building-upgrades.mjs",
     "test:remove-dig-terrain-tool": "node scripts/test-remove-dig-terrain-tool.mjs",
-    "test:settlement-economy": "node scripts/test-settlement-economy.mjs"
+    "test:settlement-economy": "node scripts/test-settlement-economy.mjs",
+    "test:webgl-resource-disposal": "node scripts/test-webgl-resource-disposal.mjs"
   },
   "dependencies": {
     "three": "^0.180.0"
   },
   "devDependencies": {
+    "@playwright/test": "^1.55.0",
     "@types/three": "^0.180.0",
     "typescript": "^7.0.2",
-    "vite": "^8.3.1",
-    "@playwright/test": "^1.55.0"
+    "vite": "^8.3.1"
   }
 }
