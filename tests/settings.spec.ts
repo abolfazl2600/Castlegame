@@ -19,9 +19,10 @@ async function openSettings(page: Page): Promise<void> {
 
 async function expectSettingsClosed(page: Page): Promise<void> {
   await expect(page.locator('#settings-modal')).toBeHidden();
-  await expect(page.locator('#settings-backdrop')).toBeHidden();
   await expect(page.locator('#settings-modal')).toHaveAttribute('aria-hidden', 'true');
   await expect(page.locator('#settings-backdrop')).toHaveAttribute('aria-hidden', 'true');
+  expect(await page.locator('#settings-modal').evaluate((element) => (element as HTMLElement).hidden)).toBe(true);
+  expect(await page.locator('#settings-backdrop').evaluate((element) => (element as HTMLElement).hidden)).toBe(true);
 }
 
 test('desktop Settings button opens the Settings modal', async ({ page }) => {
