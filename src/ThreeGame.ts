@@ -430,7 +430,7 @@ export class ThreeGame {
     this.riverTexture = this.createRiverTexture();
     this.oceanTexture = this.createOceanTexture();
     this.riverWaterMaterial = new THREE.MeshStandardMaterial({
-      color: 0x55b9ca,
+      color: WORLD_STYLE.palette.riverWater,
       map: this.riverTexture,
       roughness: 0.16,
       metalness: 0.08,
@@ -440,7 +440,7 @@ export class ThreeGame {
       emissiveIntensity: 0.16,
     });
     this.oceanWaterMaterial = new THREE.MeshStandardMaterial({
-      color: 0x0b7897,
+      color: WORLD_STYLE.palette.deepWater,
       map: this.oceanTexture,
       roughness: 0.25,
       metalness: 0.08,
