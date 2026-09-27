@@ -3,6 +3,7 @@ import type { GridCell, KeepState, TerrainKind, TileKind, TowerBridgeState } fro
 import { BattleNavigation, type NavPoint, type WallNavNode } from './BattleNavigation';
 import type { WallDirection } from '../core/types';
 import { WallSystem } from '../building/WallSystem';
+import type { GeneratedAccess } from '../building/CastleAccessSystem';
 import { FactionRelations } from './FactionRelations';
 import { BattleObjectiveSystem } from './objectives/BattleObjectiveSystem';
 import { DEFAULT_BATTLE_SCENARIO } from './objectives/BattleObjectiveDefinitions';
@@ -33,7 +34,7 @@ export interface BattleWorldContext {
   setWallBattleVisibility: (x: number, y: number, visible: boolean) => void;
   buildingDamageAt?: (x: number, y: number) => number;
   gatePassable?: (x: number, y: number) => boolean;
-  generatedAccess?: () => Array<{ x: number; y: number; kind: TileKind; rotation: number; targetX: number; targetY: number }>;
+  generatedAccess?: () => GeneratedAccess[];
   wallWeaponVisuals?: () => THREE.Object3D[];
   objectiveBuildings?: () => ObjectiveBuildingSnapshot[];
   objectivePositions?: () => ObjectivePositionSnapshot[];
@@ -418,6 +419,7 @@ export class BattleSystem {
   }
 
   start(setup: BattleSetup, options: BattleStartOptions = {}): void {
+    this.navigation.invalidate();
     const preserveSessionWallDamage = options.preserveSessionWallDamage === true;
     this.resetRuntime(false, preserveSessionWallDamage);
     this.mode = 'running';
