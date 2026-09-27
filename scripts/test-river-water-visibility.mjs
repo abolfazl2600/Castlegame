@@ -21,7 +21,7 @@ const saveHost = between(
 );
 assert.match(
   saveHost,
-  /afterLoad:\s*\(\)\s*=>\s*this\.normalizeRiverElevations\(\)/,
+  /afterLoad:\s*\(\)\s*=>\s*\{[\s\S]*?this\.normalizeRiverElevations\(\);[\s\S]*?\}/,
   'Loading a save must normalize legacy negative river elevations.',
 );
 
