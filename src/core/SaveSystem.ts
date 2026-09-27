@@ -67,6 +67,7 @@ interface RawSave {
   worldSeeded?: boolean;
   battleSetup?: SavedBattleSetup;
   militaryTier?: number;
+  missiles?: SavedGame['missiles'];
 }
 
 export class SaveSystem {
@@ -433,6 +434,7 @@ export class SaveSystem {
       worldSeeded: this.host.getWorldSeeded(),
       battleSetup: this.host.getBattleSetup ? { ...this.host.getBattleSetup() } : readBattleSetupFromDom(),
       militaryTier: this.host.getMilitaryTier?.() ?? 1,
+      missiles: this.host.state.getMissileState(),
     };
   }
 
@@ -528,6 +530,7 @@ export class SaveSystem {
       restoreBattleSetupToDom(normalizedBattleSetup);
     }
     this.host.setMilitaryTier?.(data.militaryTier ?? 1);
+    this.host.state.setMissileState(data.missiles);
     this.host.syncModeDependentUI();
   }
 
@@ -587,6 +590,7 @@ export class SaveSystem {
         worldSeeded: parsed.worldSeeded,
         battleSetup: parsed.battleSetup,
         militaryTier: parsed.militaryTier,
+        missiles: parsed.missiles,
       };
       const data: SavedGame = parsed.data ?? legacyData;
       if (!Array.isArray(data.cells)) return;
@@ -628,6 +632,7 @@ function normalizeRecord(raw: RawSave, target: SaveTarget): SaveRecord | null {
     worldSeeded: raw.worldSeeded,
     battleSetup: raw.battleSetup,
     militaryTier: raw.militaryTier,
+    missiles: raw.missiles,
   } : undefined);
   if (!data || !Array.isArray(data.cells)) return null;
 

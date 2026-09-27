@@ -80,6 +80,34 @@
             <button id="military-upgrade" class="secondary-button" type="button">Unlock Tier 2</button>
           </section>
 
+          <section id="military-missiles" class="military-missiles" aria-label="Modern missile defense" hidden>
+            <div class="military-missile-heading">
+              <div>
+                <span class="eyebrow">MODERN ORDNANCE</span>
+                <strong>MISSILE DEFENSE</strong>
+              </div>
+              <b id="military-missile-lock">LOCKED · TIER 4</b>
+            </div>
+            <div class="military-missile-stats">
+              <span>Stock <b id="military-missile-stock">0/3</b></span>
+              <span>Supply <b id="military-missile-supply">6/6</b></span>
+              <span>Cooldown <b id="military-missile-cooldown">Ready</b></span>
+            </div>
+            <div class="military-missile-production">
+              <div><span>Production</span><b id="military-missile-production">Idle</b></div>
+              <div class="military-missile-progress"><span id="military-missile-production-fill"></span></div>
+            </div>
+            <button id="military-missile-produce" class="secondary-button" type="button">Produce Missile · 2 Supply</button>
+            <label class="military-missile-target">
+              <span>Hostile target</span>
+              <select id="military-missile-target">
+                <option value="">Start battle to acquire targets</option>
+              </select>
+            </label>
+            <button id="military-missile-launch" class="battle-primary" type="button" disabled>Launch Missile</button>
+            <small id="military-missile-hint">Modern missiles unlock at Military Tier 4.</small>
+          </section>
+
           <div class="battle-armies">
             <section class="battle-faction battle-defenders">
               <div class="battle-faction-title">
