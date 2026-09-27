@@ -25,6 +25,7 @@ import type {
 } from './types';
 
 type SaveTarget = number | 'quick' | 'autosave';
+export type SaveStorage = Pick<Storage, 'getItem' | 'setItem' | 'removeItem'>;
 
 export interface SaveLoadHost {
   readonly state: GameState;
@@ -70,7 +71,7 @@ export class SaveSystem {
   private modal: HTMLElement | null = null;
   private dialogMode: 'save' | 'load' = 'load';
 
-  constructor(private readonly host: SaveLoadHost) {
+  constructor(private readonly host: SaveLoadHost, private readonly storage: SaveStorage) {
     this.installToolbarInterceptors();
   }
 
@@ -87,12 +88,13 @@ export class SaveSystem {
     }, true);
   }
 
-  static hasAnySave(): boolean {
-    if (typeof localStorage === 'undefined') return false;
-    if (localStorage.getItem(SAVE_KEY)) return true;
-    if (localStorage.getItem(SAVE_AUTOSAVE_KEY) || localStorage.getItem(SAVE_QUICK_KEY)) return true;
+  static hasAnySave(storage?: SaveStorage): boolean {
+    const source = storage ?? (typeof localStorage === 'undefined' ? undefined : localStorage);
+    if (!source) return false;
+    if (source.getItem(SAVE_KEY)) return true;
+    if (source.getItem(SAVE_AUTOSAVE_KEY) || source.getItem(SAVE_QUICK_KEY)) return true;
     for (let slot = 1; slot <= SAVE_SLOT_COUNT; slot += 1) {
-      if (localStorage.getItem(slotKey(slot))) return true;
+      if (source.getItem(slotKey(slot))) return true;
     }
     return false;
   }
@@ -171,7 +173,7 @@ export class SaveSystem {
 
   delete(target: SaveTarget): boolean {
     if (target === 'autosave' || !this.readRecord(target)) return false;
-    localStorage.removeItem(storageKey(target));
+    this.storage.removeItem(storageKey(target));
     this.host.setStatus('Save deleted');
     return true;
   }
@@ -389,17 +391,17 @@ export class SaveSystem {
     try {
       const key = storageKey(target);
       const tempKey = key + '.tmp';
-      localStorage.setItem(tempKey, JSON.stringify(record));
-      const verified = localStorage.getItem(tempKey);
+      this.storage.setItem(tempKey, JSON.stringify(record));
+      const verified = this.storage.getItem(tempKey);
       if (!verified) throw new Error('Save verification failed');
       JSON.parse(verified);
-      localStorage.setItem(key, verified);
-      localStorage.setItem(SAVE_KEY, '1');
-      localStorage.removeItem(tempKey);
+      this.storage.setItem(key, verified);
+      this.storage.setItem(SAVE_KEY, '1');
+      this.storage.removeItem(tempKey);
       if (updateStatus) this.host.setStatus('Saved');
       return true;
     } catch {
-      try { localStorage.removeItem(storageKey(target) + '.tmp'); } catch { /* ignore */ }
+      try { this.storage.removeItem(storageKey(target) + '.tmp'); } catch { /* ignore */ }
       this.host.setStatus('Could not save game');
       return false;
     }
@@ -539,7 +541,7 @@ export class SaveSystem {
 
   private readRecord(target: SaveTarget): SaveRecord | null {
     try {
-      const raw = localStorage.getItem(storageKey(target));
+      const raw = this.storage.getItem(storageKey(target));
       if (!raw) return null;
       const parsed = JSON.parse(raw) as RawSave;
       return normalizeRecord(parsed, target);
@@ -563,7 +565,7 @@ export class SaveSystem {
 
   private migrateLegacySave(): void {
     try {
-      const raw = localStorage.getItem(SAVE_LEGACY_KEY);
+      const raw = this.storage.getItem(SAVE_LEGACY_KEY);
       if (!raw) return;
       const parsed = JSON.parse(raw) as RawSave;
       const legacyData: SavedGame = {
@@ -588,7 +590,7 @@ export class SaveSystem {
         summary: { buildings: data.cells.length, keeps: data.keeps?.length ?? 0, terrainChanges: data.terrain?.length ?? 0, elevations: data.elevations?.length ?? 0 },
       };
       this.writeRaw('autosave', { metadata, data });
-      localStorage.setItem(SAVE_LEGACY_KEY, 'migrated');
+      this.storage.setItem(SAVE_LEGACY_KEY, 'migrated');
     } catch {
       // A malformed legacy save is ignored; it must never prevent a new game.
     }

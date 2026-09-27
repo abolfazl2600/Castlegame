@@ -1,9 +1,11 @@
 import * as THREE from 'three';
+import type { GameExtension } from '../core/GameExtension';
 
 const COW_BARN_LEVEL = 99;
 
 type GameRuntime = {
   renderer: THREE.WebGLRenderer;
+  registerExtension(extension: GameExtension): () => void;
   buildLayer: THREE.Group;
   settlementLayer: THREE.Group;
   services: {
@@ -38,133 +40,71 @@ interface CowState {
 }
 
 export class FarmLifeSystem {
-  private static installed = false;
   private readonly game: GameRuntime;
   private active = false;
 
   constructor(game: unknown) {
     this.game = game as GameRuntime;
-    this.install();
-  }
-
-  private install(): void {
-    if (FarmLifeSystem.installed) return;
-    FarmLifeSystem.installed = true;
-
-    this.patchBuildingRenderer();
-    this.patchSettlementPerson();
-    this.patchSettlementUpdate();
-    this.patchToolSelection();
-    this.patchBuildPanelRefresh();
     this.installBuildTool();
     this.installInputBridge();
+    this.game.registerExtension({
+      createBuilding: (cell) =>
+        cell.kind === 'cowBarn' || (cell.kind === 'farm' && cell.level === COW_BARN_LEVEL)
+          ? this.makeCowBarn(this.game, cell.x, cell.y)
+          : undefined,
+      decoratePerson: (group, role) => {
+        if (role === 'farmer') this.decorateFarmer(group);
+      },
+      updateSettlement: (deltaMs) => {
+        this.updateCows(deltaMs);
+        this.updateFarmers(deltaMs);
+      },
+      onToolSelected: (tool) => {
+        if (tool !== null) this.active = false;
+        this.syncToolButton();
+      },
+      onBuildPanelRefreshed: () => {
+        this.installBuildTool();
+        this.updateToolVisibility();
+      },
+    });
   }
 
-  private patchBuildingRenderer(): void {
-    const prototype = Object.getPrototypeOf(this.game) as Record<string, unknown>;
-    const original = prototype.makeBuilding as Function | undefined;
-    if (!original) return;
+  private decorateFarmer(group: THREE.Group): void {
+    const armMaterial = new THREE.MeshStandardMaterial({ color: 0x6b6240, roughness: 0.96 });
+    const basketMaterial = new THREE.MeshStandardMaterial({ color: 0x8a5f36, roughness: 1 });
 
-    const system = this;
-    prototype.makeBuilding = function (
-      this: GameRuntime,
-      cell: { x: number; y: number; kind: string; level?: number },
-      floodedMoats: Set<string>,
-    ): THREE.Group {
-      if (cell.kind === 'cowBarn' || (cell.kind === 'farm' && cell.level === COW_BARN_LEVEL)) {
-        return system.makeCowBarn(this, cell.x, cell.y);
-      }
-      return original.call(this, cell, floodedMoats);
-    };
-  }
-
-  private patchSettlementPerson(): void {
-    const prototype = Object.getPrototypeOf(this.game) as Record<string, unknown>;
-    const original = prototype.createSettlementPerson as Function | undefined;
-    if (!original) return;
-
-    prototype.createSettlementPerson = function (
-      this: GameRuntime,
-      role: 'citizen' | 'farmer',
-      seed: number,
-    ): THREE.Group {
-      const group = original.call(this, role, seed) as THREE.Group;
-      if (role !== 'farmer') return group;
-
-      const armMaterial = new THREE.MeshStandardMaterial({ color: 0x6b6240, roughness: 0.96 });
-      const basketMaterial = new THREE.MeshStandardMaterial({ color: 0x8a5f36, roughness: 1 });
-
-      const arms: THREE.Mesh[] = [];
-      for (const side of [-1, 1]) {
-        const arm = new THREE.Mesh(
-          new THREE.CylinderGeometry(0.028, 0.038, 0.34, 5),
-          armMaterial,
-        );
-        arm.position.set(side * 0.16, 0.58, 0.02);
-        arm.rotation.z = side * 0.18;
-        arm.castShadow = true;
-        group.add(arm);
-        arms.push(arm);
-      }
-
-      const basket = new THREE.Group();
-      const body = new THREE.Mesh(
-        new THREE.BoxGeometry(0.24, 0.16, 0.2),
-        basketMaterial,
+    const arms: THREE.Mesh[] = [];
+    for (const side of [-1, 1]) {
+      const arm = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.028, 0.038, 0.34, 5),
+        armMaterial,
       );
-      body.position.y = 0.06;
-      basket.add(body);
-      basket.visible = false;
-      basket.position.set(0, 0.55, 0.16);
-      group.add(basket);
+      arm.position.set(side * 0.16, 0.58, 0.02);
+      arm.rotation.z = side * 0.18;
+      arm.castShadow = true;
+      group.add(arm);
+      arms.push(arm);
+    }
 
-      group.userData.farmerAnimation = {
-        arms,
-        tool: group.children[6] as THREE.Object3D | undefined,
-        legs: [group.children[2], group.children[3]] as THREE.Object3D[],
-        body: group.children[0] as THREE.Object3D,
-        head: group.children[1] as THREE.Object3D,
-        basket,
-      };
-      return group;
-    };
-  }
+    const basket = new THREE.Group();
+    const body = new THREE.Mesh(
+      new THREE.BoxGeometry(0.24, 0.16, 0.2),
+      basketMaterial,
+    );
+    body.position.y = 0.06;
+    basket.add(body);
+    basket.visible = false;
+    basket.position.set(0, 0.55, 0.16);
+    group.add(basket);
 
-  private patchSettlementUpdate(): void {
-    const prototype = Object.getPrototypeOf(this.game) as Record<string, unknown>;
-    const original = prototype.updateSettlementAgents as Function | undefined;
-    if (!original) return;
-
-    const system = this;
-    prototype.updateSettlementAgents = function (this: GameRuntime, deltaMs: number): void {
-      original.call(this, deltaMs);
-      system.updateCows(deltaMs);
-      system.updateFarmers(deltaMs);
-    };
-  }
-
-  private patchToolSelection(): void {
-    const prototype = Object.getPrototypeOf(this.game) as Record<string, unknown>;
-    const original = prototype.selectTool as Function | undefined;
-    if (!original) return;
-
-    const system = this;
-    prototype.selectTool = function (this: GameRuntime, tool: unknown): void {
-      if (tool !== null) system.active = false;
-      original.call(this, tool);
-      system.syncToolButton();
-    };
-  }
-
-  private patchBuildPanelRefresh(): void {
-    const prototype = Object.getPrototypeOf(this.game) as Record<string, unknown>;
-    const original = prototype.refreshBuildPanelForMode as Function | undefined;
-    if (!original) return;
-
-    const system = this;
-    prototype.refreshBuildPanelForMode = function (this: GameRuntime): void {
-      original.call(this);
-      system.updateToolVisibility();
+    group.userData.farmerAnimation = {
+      arms,
+      tool: group.children[6] as THREE.Object3D | undefined,
+      legs: [group.children[2], group.children[3]] as THREE.Object3D[],
+      body: group.children[0] as THREE.Object3D,
+      head: group.children[1] as THREE.Object3D,
+      basket,
     };
   }
 
@@ -249,6 +189,7 @@ export class FarmLifeSystem {
 
   private updateToolVisibility(): void {
     const button = document.querySelector<HTMLElement>('[data-cow-barn]');
+    if (this.game.gameMode === 'modern') this.active = false;
     if (!button) return;
     button.hidden = this.game.gameMode === 'modern';
     if (button.hidden) this.active = false;
