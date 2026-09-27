@@ -3,13 +3,13 @@ export class WorldEditHistory<Snapshot> {
   private readonly undoStack: Snapshot[] = [];
   private readonly redoStack: Snapshot[] = [];
   private readonly capture: () => Snapshot;
-  private readonly restore: (snapshot: Snapshot) => void;
+  private readonly restore: (snapshot: Snapshot, reason: 'rollback' | 'history') => void;
   private readonly onRestored: () => void;
   private readonly limit: number;
 
   constructor(
     capture: () => Snapshot,
-    restore: (snapshot: Snapshot) => void,
+    restore: (snapshot: Snapshot, reason: 'rollback' | 'history') => void,
     onRestored: () => void,
     limit = 60,
   ) {
@@ -42,11 +42,11 @@ export class WorldEditHistory<Snapshot> {
     try {
       changed = edit();
     } catch (error) {
-      this.restore(before);
+      this.restore(before, 'rollback');
       throw error;
     }
     if (!changed) {
-      this.restore(before);
+      this.restore(before, 'rollback');
       return false;
     }
     this.record(before);
@@ -58,7 +58,7 @@ export class WorldEditHistory<Snapshot> {
     if (this.undoStack.length === 0) return false;
     const previous = this.undoStack[this.undoStack.length - 1];
     const current = this.capture();
-    this.restore(previous);
+    this.restore(previous, 'history');
     this.undoStack.pop();
     this.redoStack.push(current);
     this.onRestored();
@@ -69,7 +69,7 @@ export class WorldEditHistory<Snapshot> {
     if (this.redoStack.length === 0) return false;
     const next = this.redoStack[this.redoStack.length - 1];
     const current = this.capture();
-    this.restore(next);
+    this.restore(next, 'history');
     this.redoStack.pop();
     this.undoStack.push(current);
     this.onRestored();

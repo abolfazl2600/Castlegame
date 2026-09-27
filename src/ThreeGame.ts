@@ -356,7 +356,7 @@ export class ThreeGame {
 
   private readonly editHistory = new WorldEditHistory<HistorySnapshot>(
     () => this.captureSnapshot(),
-    (snapshot) => this.applySnapshot(snapshot),
+    (snapshot, reason) => this.applySnapshot(snapshot, reason === 'history'),
     () => { this.redraw(); this.save(false); },
   );
   private terrainStrokeActive = false;
@@ -5917,7 +5917,7 @@ export class ThreeGame {
     });
   }
 
-  private applySnapshot(snapshot: HistorySnapshot): void {
+  private applySnapshot(snapshot: HistorySnapshot, restoreUI = true): void {
     this.services.state.replace(snapshot.cells);
     this.services.keepSystem.replace(snapshot.keeps ?? []);
     this.stoneStyle = snapshot.stoneStyle ?? 'limestone';
@@ -5932,14 +5932,15 @@ export class ThreeGame {
 
     for (const [key, value] of snapshot.terrain) this.terrainOverrides.set(key, value);
     for (const [key, value] of snapshot.elevations) this.elevationOverrides.set(key, value);
-    this.normalizeRiverElevations();
-
-    this.selectedCell = null;
-    this.selectedKeepId = null;
-    this.towerBridgeStart = null;
-    this.towerBridgeHover = null;
-    const stoneSelect = document.getElementById('castle-stone-style') as HTMLSelectElement | null;
-    if (stoneSelect) stoneSelect.value = this.stoneStyle;
+    if (restoreUI) {
+      this.normalizeRiverElevations();
+      this.selectedCell = null;
+      this.selectedKeepId = null;
+      this.towerBridgeStart = null;
+      this.towerBridgeHover = null;
+      const stoneSelect = document.getElementById('castle-stone-style') as HTMLSelectElement | null;
+      if (stoneSelect) stoneSelect.value = this.stoneStyle;
+    }
   }
 
   private undo(): void {

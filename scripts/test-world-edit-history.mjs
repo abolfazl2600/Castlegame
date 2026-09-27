@@ -3,9 +3,10 @@ import { WorldEditHistory } from '../src/core/WorldEditHistory.ts';
 
 let world = { cells: [], terrain: [] };
 let notifications = 0;
+const restoreReasons = [];
 const history = new WorldEditHistory(
   () => structuredClone(world),
-  (snapshot) => { world = structuredClone(snapshot); },
+  (snapshot, reason) => { world = structuredClone(snapshot); restoreReasons.push(reason); },
   () => { notifications += 1; },
 );
 const commit = () => { notifications += 1; };
@@ -30,12 +31,14 @@ assert.deepEqual(world, { cells: [], terrain: [] });
 assert.equal(notifications, 2);
 assert.equal(history.redo(), true, 'a rejected edit must not clear redo');
 assert.deepEqual(world.cells, ['road-a', 'road-b']);
+assert.deepEqual(restoreReasons, ['history', 'rollback', 'history']);
 
 assert.throws(() => history.transact(() => {
   world.cells.push('partial');
   throw new Error('failed placement');
 }, commit), /failed placement/);
 assert.deepEqual(world.cells, ['road-a', 'road-b'], 'failed edits must roll back');
+assert.equal(restoreReasons.at(-1), 'rollback');
 
 history.clear();
 assert.equal(history.undo(), false);
