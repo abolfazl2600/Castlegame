@@ -19,6 +19,7 @@ import { createSandboxDefinition } from './SandboxGameMode';
 import type { SettingsStore } from './settings/SettingsStore';
 import { applyGraphicsSettings, applyInputSettings, applySceneGraphicsSettings } from './settings/SettingsSubsystems';
 import { FuturisticCastleRenderer } from './rendering/FuturisticCastleRenderer';
+import { getStructureFootprint } from './building/StructureFootprints';
 import { AudioManager } from './audio/AudioManager';
 import { audioEvents } from './audio/AudioEventBus';
 import type {
@@ -1143,6 +1144,21 @@ export class ThreeGame {
     const offset = clamped - this.baseTerrainElevation(x, y);
     if (Math.abs(offset) < 0.02) this.elevationOverrides.delete(this.key(x, y));
     else this.elevationOverrides.set(this.key(x, y), offset);
+  }
+
+  /**
+   * Terrain protection is derived from live structure anchors rather than cached.
+   * Save/load therefore reconstructs it automatically, and erasing the fortress
+   * releases the footprint immediately.
+   */
+  private canEditTerrainAt(x: number, y: number): boolean {
+    for (const anchor of this.services.state.entries()) {
+      if (anchor.kind !== 'futuristicCastle') continue;
+      const footprint = getStructureFootprint(anchor.kind, anchor.x, anchor.y);
+      if (footprint.some((cell) => cell.x === x && cell.y === y)) return false;
+    }
+
+    return true;
   }
 
   private isTerrainTool(tool: ToolKind): tool is TerrainToolKind {
@@ -5979,6 +5995,7 @@ export class ThreeGame {
     let changed = false;
 
     for (const point of points) {
+      if (!this.canEditTerrainAt(point.x, point.y)) continue;
       const terrain = this.terrainAt(point.x, point.y);
       if (terrain === 'water' || terrain === 'river') continue;
 
@@ -6617,6 +6634,7 @@ export class ThreeGame {
         const x = gx + ox;
         const y = gy + oy;
         if (x < 1 || y < 1 || x >= SIZE - 1 || y >= SIZE - 1) continue;
+        if (!this.canEditTerrainAt(x, y)) continue;
 
         const distance = Math.hypot(ox, oy);
         if (distance > radius) continue;
@@ -6773,6 +6791,7 @@ export class ThreeGame {
           const x = ridge.x + ox;
           const y = ridge.y + oy;
           if (x < 1 || y < 1 || x >= SIZE - 1 || y >= SIZE - 1) continue;
+          if (!this.canEditTerrainAt(x, y)) continue;
   
           const distance = Math.hypot(ox, oy);
           if (distance > influenceRadius) continue;
@@ -7041,6 +7060,10 @@ export class ThreeGame {
       }
 
       if (this.terrainOverrides.has(overrideKey)) {
+        if (!this.canEditTerrainAt(gx, gy)) {
+          this.setStatus('Terrain is protected by the Modern Fortress footprint');
+          return;
+        }
         this.recordHistory();
         this.terrainOverrides.delete(overrideKey);
         this.normalizeRiverElevationAt(gx, gy);
@@ -7068,6 +7091,10 @@ export class ThreeGame {
 
     if (this.selectedTool === 'river' || this.selectedTool === 'land') {
       if (this.moatTasks.has(overrideKey)) return;
+      if (!this.canEditTerrainAt(gx, gy)) {
+        this.setStatus('Terrain is protected by the Modern Fortress footprint');
+        return;
+      }
 
       if (this.selectedTool === 'river') {
         const removableNatural =
@@ -7137,6 +7164,11 @@ export class ThreeGame {
     }
 
     if (this.selectedTool === 'mountain') {
+      if (!this.canEditTerrainAt(gx, gy)) {
+        this.setStatus('Terrain is protected by the Modern Fortress footprint');
+        return;
+      }
+
       if (current === 'mountain') {
         this.recordHistory();
         const nextLevel = (cell?.level ?? 1) + 1;
