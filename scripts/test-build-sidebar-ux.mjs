@@ -65,10 +65,15 @@ assert.match(game, /if \(tool !== null\) \{[\s\S]*?this\.activeBuildCategory = c
 // the stable toolbar rather than depending on per-button handlers that can be
 // discarded by refreshBuildPanelForMode().
 assert.match(game, /toolbar\.addEventListener\('click', \(event\) => \{/);
-assert.match(game, /target\.closest<HTMLButtonElement>\('\[data-tool\]'\)/);
+assert.match(game, /const buildControlSelector = '\[data-build-category\], \[data-tool\], \[data-build-none\]'/);
+assert.match(game, /private selectTool\(tool: ToolKind \| null\): void/);
+assert.match(game, /const activateBuildControl = \(control: HTMLButtonElement, event\?: Event\): boolean => \{/);
 assert.match(game, /this\.selectTool\(tool\)/);
-assert.match(game, /target\.closest<HTMLButtonElement>\('\[data-build-category\]'\)/);
-assert.match(game, /target\.closest<HTMLButtonElement>\('\[data-build-none\]'\)/);
+assert.match(game, /toolbar\.addEventListener\('pointerdown'/);
+assert.match(game, /toolbar\.addEventListener\('pointerup'/);
+assert.match(game, /distance > 10/);
+assert.match(game, /suppressBuildClickUntil = performance\.now\(\) \+ 500/);
+assert.match(game, /toolbar\.addEventListener\('pointercancel'/);
 assert.doesNotMatch(buildMethods, /button\.onclick = \(\) => \{[\s\S]*?this\.selectTool/);
 
 assert.doesNotMatch(buildMethods, /tool-category-header/);
@@ -79,6 +84,7 @@ assert.match(css, /\.build-tool-sections \{[\s\S]*?pointer-events: auto/);
 assert.match(css, /\.tool-button \{[\s\S]*?pointer-events: auto[\s\S]*?touch-action: manipulation/);
 assert.match(css, /\.build-category-tab \{[\s\S]*?pointer-events: auto[\s\S]*?touch-action: manipulation/);
 assert.match(css, /\.build-inspect-button \{[\s\S]*?pointer-events: auto[\s\S]*?touch-action: manipulation/);
+assert.match(css, /\.toolbar \{ left:max\(8px,var\(--mobile-safe-left\)\);[\s\S]*?z-index:40;[\s\S]*?padding:8px 8px 14px;[\s\S]*?overscroll-behavior:contain;[\s\S]*?scroll-padding-bottom:18px;/);
 assert.match(css, /\.build-category-tabs \{[\s\S]*?overflow-x: auto/);
 assert.match(css, /\.build-category-tabs \{[\s\S]*?overflow-y: hidden/);
 assert.match(css, /\.build-category-tabs \{[\s\S]*?scrollbar-width: thin/);

@@ -9381,38 +9381,101 @@ export class ThreeGame {
       }
     }, { passive: false });
 
-    toolbar.addEventListener('click', (event) => {
-      const target = event.target as HTMLElement | null;
-      if (!target) return;
+    const buildControlSelector = '[data-build-category], [data-tool], [data-build-none]';
+    let buildPointerTap: {
+      pointerId: number;
+      startX: number;
+      startY: number;
+      control: HTMLButtonElement;
+    } | null = null;
+    let suppressBuildClickUntil = 0;
 
-      const categoryButton = target.closest<HTMLButtonElement>('[data-build-category]');
-      if (categoryButton && toolbar.contains(categoryButton)) {
-        const category = categoryButton.dataset.buildCategory;
-        if (!category) return;
-        event.preventDefault();
+    const activateBuildControl = (control: HTMLButtonElement, event?: Event): boolean => {
+      if (!toolbar.contains(control) || control.disabled) return false;
+
+      const category = control.dataset.buildCategory;
+      if (category) {
+        event?.preventDefault();
         this.activeBuildCategory = category;
         if (buildSearch) buildSearch.value = '';
         this.filterBuildTools();
-        return;
+        return true;
       }
 
-      const toolButton = target.closest<HTMLButtonElement>('[data-tool]');
-      if (toolButton && toolbar.contains(toolButton)) {
-        const tool = toolButton.dataset.tool as ToolKind | undefined;
-        if (!tool || toolButton.disabled) return;
-        event.preventDefault();
+      const tool = control.dataset.tool as ToolKind | undefined;
+      if (tool) {
+        event?.preventDefault();
         this.selectTool(tool);
         if (this.selectedTool === tool && window.matchMedia('(max-width: 760px)').matches) {
           this.setToolbarOpen(false);
         }
+        return true;
+      }
+
+      if (control.hasAttribute('data-build-none')) {
+        event?.preventDefault();
+        this.selectTool(null);
+        return true;
+      }
+
+      return false;
+    };
+
+    toolbar.addEventListener('pointerdown', (event) => {
+      if (event.pointerType === 'mouse') return;
+      const target = event.target as HTMLElement | null;
+      const control = target?.closest<HTMLButtonElement>(buildControlSelector) ?? null;
+      if (!control || !toolbar.contains(control)) return;
+      buildPointerTap = {
+        pointerId: event.pointerId,
+        startX: event.clientX,
+        startY: event.clientY,
+        control,
+      };
+    });
+
+    toolbar.addEventListener('pointerup', (event) => {
+      if (!buildPointerTap || event.pointerId !== buildPointerTap.pointerId) return;
+      const pending = buildPointerTap;
+      buildPointerTap = null;
+
+      const distance = Math.hypot(
+        event.clientX - pending.startX,
+        event.clientY - pending.startY,
+      );
+      if (distance > 10) return;
+
+      const target = event.target as HTMLElement | null;
+      const releasedControl = target?.closest<HTMLButtonElement>(buildControlSelector) ?? null;
+      if (releasedControl !== pending.control) return;
+
+      if (activateBuildControl(pending.control, event)) {
+        // Touch browsers normally synthesize a click after pointerup. Avoid
+        // selecting the same tool twice after the sidebar has already updated.
+        suppressBuildClickUntil = performance.now() + 500;
+      }
+    });
+
+    toolbar.addEventListener('pointercancel', () => {
+      buildPointerTap = null;
+    });
+
+    toolbar.addEventListener('click', (event) => {
+      const target = event.target as HTMLElement | null;
+      if (!target) return;
+      const control = target.closest<HTMLButtonElement>(buildControlSelector);
+      if (!control || !toolbar.contains(control)) return;
+
+      if (
+        event instanceof MouseEvent &&
+        event.detail > 0 &&
+        performance.now() < suppressBuildClickUntil
+      ) {
+        event.preventDefault();
         return;
       }
 
-      const inspectButton = target.closest<HTMLButtonElement>('[data-build-none]');
-      if (inspectButton && toolbar.contains(inspectButton)) {
-        event.preventDefault();
-        this.selectTool(null);
-      }
+      activateBuildControl(control, event);
     });
 
     this.refreshBuildPanelForMode();
