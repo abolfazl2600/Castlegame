@@ -1134,7 +1134,7 @@ export class ThreeGame {
     const modal = document.getElementById('map-layout-modal');
     const grid = document.getElementById('map-layout-grid');
     if (!modal || !grid) {
-      this.startNewGameWithMode(mode, this.mapLayoutId);
+      this.startNewGameWithMode(mode);
       return;
     }
 
