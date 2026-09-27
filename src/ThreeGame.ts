@@ -10,6 +10,7 @@ import type { GeneratedAccess } from './building/CastleAccessSystem';
 import { KeepRenderer } from './rendering/KeepRenderer';
 import { MedievalMaterials } from './rendering/MedievalMaterials';
 import { BattleSystem, getUnitCombatStats } from './battle/BattleSystem';
+import { MILITARY_TIERS, militaryTierDefinition, normalizeMilitaryTier, type MilitaryTier } from './battle/MilitaryProgression';
 import type { BattleSetup, BattleStatus } from './battle/types';
 import { MaritimeSystem } from './systems/MaritimeSystem';
 import type { GameMode } from './core/GameMode';
@@ -159,6 +160,7 @@ interface HistorySnapshot {
   elevations: Array<[string, number]>;
   stoneStyle: StoneStyle;
   towerBridges: TowerBridgeState[];
+  militaryTier: MilitaryTier;
 }
 
 const TOOL_GROUPS: Array<{ label: string; tools: ToolDefinition[] }> = [
@@ -362,6 +364,7 @@ export class ThreeGame {
     attackerModernSoldiers: 0,
     defenderModernSoldiers: 4,
   };
+  private militaryTier: MilitaryTier = 1;
 
   private readonly undoStack: HistorySnapshot[] = [];
   private readonly redoStack: HistorySnapshot[] = [];
@@ -408,6 +411,10 @@ export class ThreeGame {
       getGameMode: () => this.gameMode,
       getStoneStyle: () => this.stoneStyle,
       getWorldSeeded: () => this.worldSeeded,
+      getBattleSetup: () => this.battleSetup,
+      setBattleSetup: (value) => { this.battleSetup = value as BattleSetup; },
+      getMilitaryTier: () => this.militaryTier,
+      setMilitaryTier: (value) => { this.militaryTier = normalizeMilitaryTier(value); },
       setWorldSeeded: (value) => { this.worldSeeded = value; },
       setLoadedSaveVersion: (value) => { this.loadedSaveVersion = value; },
       setStoneStyle: (value) => { this.stoneStyle = value; },
@@ -900,6 +907,7 @@ export class ThreeGame {
 
     this.updateGameModeUI();
     this.syncTemplateAvailability();
+    this.syncMilitaryUI();
     this.refreshBuildPanelForMode();
   }
 
@@ -988,6 +996,7 @@ export class ThreeGame {
         createSurvivalDefinition({
           battleSystem: this.battleSystem,
           getBattleSetup: () => this.battleSetup,
+          getMilitaryTier: () => this.militaryTier,
           setStatus: (message) => this.setStatus(message),
           setAttackState: (active) => this.services.gateSystem.setAttackState(active),
           onDefeat: () => {
@@ -1095,6 +1104,7 @@ export class ThreeGame {
     this.workers.length = 0;
     this.clearSettlementAgents();
     this.battleSystem.reset(false);
+    this.militaryTier = 1;
     this.undoStack.length = 0;
     this.redoStack.length = 0;
     this.worldSeeded = false;
@@ -6190,6 +6200,7 @@ export class ThreeGame {
       elevations: Array.from(this.elevationOverrides.entries()),
       stoneStyle: this.stoneStyle,
       towerBridges: Array.from(this.towerBridges.values()).map((bridge) => ({ ...bridge })),
+      militaryTier: this.militaryTier,
     };
   }
 
@@ -6219,6 +6230,8 @@ export class ThreeGame {
     for (const [key, value] of snapshot.terrain) this.terrainOverrides.set(key, value);
     for (const [key, value] of snapshot.elevations) this.elevationOverrides.set(key, value);
     this.normalizeRiverElevations();
+    this.militaryTier = normalizeMilitaryTier(snapshot.militaryTier);
+    this.syncMilitaryUI();
 
     this.selectedCell = null;
     this.selectedKeepId = null;
@@ -8644,6 +8657,11 @@ export class ThreeGame {
     get<HTMLButtonElement>('battle-close').onclick = () => {
       battlePanel.hidden = true;
     };
+    get<HTMLButtonElement>('military-button').onclick = () => {
+      battlePanel.hidden = false;
+      this.syncMilitaryUI();
+    };
+    get<HTMLButtonElement>('military-upgrade').onclick = () => this.upgradeMilitaryTier();
 
     get<HTMLButtonElement>('god-mode-button').onclick = () => this.openGodMode();
     get<HTMLButtonElement>('god-mode-close').onclick = () => this.closeGodMode();
@@ -8691,6 +8709,7 @@ export class ThreeGame {
     };
 
     this.syncBattleSetupUI();
+    this.syncMilitaryUI();
     this.updateBattleUI(this.battleSystem.status());
 
     const openHelp = (): void => {
@@ -10412,8 +10431,37 @@ export class ThreeGame {
     if (this.settingsStore.get().gameplay.combatFeedback) {
       audioEvents.emit({ action: 'play_sfx', assetId: 'combat.battle-start' });
     }
-    this.battleSystem.start(this.battleSetup);
+    this.battleSystem.start(this.battleSetup, { militaryTier: this.militaryTier });
     this.setStatus('Battle started · Attackers are advancing on the castle');
+  }
+
+  private upgradeMilitaryTier(): void {
+    if (this.battleSystem.isActive()) {
+      this.setStatus('Reset the current battle before upgrading military technology');
+      return;
+    }
+    if (this.militaryTier >= 4) return;
+    this.recordHistory();
+    this.militaryTier = normalizeMilitaryTier(this.militaryTier + 1);
+    this.syncMilitaryUI();
+    this.syncBattleCombatStatsUI();
+    this.save();
+    this.setStatus(`Military upgraded to Tier ${this.militaryTier}`);
+  }
+
+  private syncMilitaryUI(): void {
+    const current = militaryTierDefinition(this.militaryTier);
+    const next = MILITARY_TIERS[this.militaryTier];
+    const tier = document.getElementById('military-tier-value');
+    const name = document.getElementById('military-tier-name');
+    const tech = document.getElementById('military-tier-tech');
+    const nextText = document.getElementById('military-tier-next');
+    const button = document.getElementById('military-upgrade') as HTMLButtonElement | null;
+    if (tier) tier.textContent = `Tier ${this.militaryTier}`;
+    if (name) name.textContent = current.name;
+    if (tech) tech.textContent = `${current.technology}. Defenders +${Math.round((current.unitDefenseMultiplier - 1) * 100)}% defense, walls +${Math.round((current.wallHealthMultiplier - 1) * 100)}% health, wall weapons +${Math.round((current.weaponDamageMultiplier - 1) * 100)}% damage.`;
+    if (nextText) nextText.textContent = next ? `Next: Tier ${next.tier} · ${next.name} · ${next.technology}` : 'Maximum tier reached';
+    if (button) { button.disabled = !next || this.battleSystem.isActive(); button.textContent = next ? `Unlock Tier ${next.tier}` : 'Fully upgraded'; }
   }
 
   private stopBattleFromUI(): void {

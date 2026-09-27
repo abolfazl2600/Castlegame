@@ -146,6 +146,7 @@ export interface SavedGame {
   elevations?: Array<{ x: number; y: number; value: number }>;
   worldSeeded?: boolean;
   battleSetup?: SavedBattleSetup;
+  militaryTier?: number;
 }
 
 export interface SaveMetadata {

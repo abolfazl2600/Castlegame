@@ -17,6 +17,7 @@
         <div class="status-group">
           <span id="save-status" class="status-pill">3D Ready</span>
           <button id="battle-button" class="secondary-button battle-button" type="button">Battle</button>
+          <button id="military-button" class="secondary-button battle-button" type="button">Military</button>
           <button id="god-mode-button" class="secondary-button god-mode-button" type="button" hidden>God Mode</button>
           <button id="game-mode-button" class="secondary-button mode-button" type="button" aria-label="Current game mode: Medieval Castle">Mode: <span id="game-mode-label">Medieval Castle</span></button>
           <button id="templates-button" class="secondary-button system-action-bridge" type="button" hidden>Templates</button>
@@ -67,6 +68,17 @@
             <span>Attackers alive <b id="battle-attacker-alive">0</b></span>
             <span>Defenders alive <b id="battle-defender-alive">0</b></span>
           </div>
+
+          <section class="military-progress" aria-label="Military progression">
+            <div class="military-progress-heading">
+              <span class="eyebrow">MILITARY DEVELOPMENT</span>
+              <strong id="military-tier-value">Tier 1</strong>
+            </div>
+            <strong id="military-tier-name">Militia Garrison</strong>
+            <small id="military-tier-tech">Basic watch rotations and issued weapons.</small>
+            <small id="military-tier-next">Next tier technology</small>
+            <button id="military-upgrade" class="secondary-button" type="button">Unlock Tier 2</button>
+          </section>
 
           <div class="battle-armies">
             <section class="battle-faction battle-defenders">
