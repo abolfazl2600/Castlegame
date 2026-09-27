@@ -1,5 +1,6 @@
 import type { GridCell, KeepState, TerrainKind, TileKind, TowerBridgeState } from '../core/types';
 import { ConnectedWallNetwork } from '../building/ConnectedWallNetwork';
+import type { GeneratedAccess } from '../building/CastleAccessSystem';
 
 export interface NavPoint {
   x: number;
@@ -22,14 +23,7 @@ export interface BattleNavigationContext {
   towerBridges?: () => TowerBridgeState[];
   temporaryGroundPassable?: (x: number, y: number) => boolean;
   gatePassable?: (x: number, y: number) => boolean;
-  generatedAccess?: () => Array<{
-    x: number;
-    y: number;
-    kind: TileKind;
-    rotation: number;
-    targetX: number;
-    targetY: number;
-  }>;
+  generatedAccess?: () => GeneratedAccess[];
 }
 
 interface SearchNode extends NavPoint {
