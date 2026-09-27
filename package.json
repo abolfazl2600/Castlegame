@@ -5,9 +5,10 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "npm run test:battle-state-boundary && tsc --noEmit && vite build",
+    "build": "npm run test:battle-state-boundary && npm run test:castle-access-navigation && tsc --noEmit && vite build",
     "preview": "vite preview",
-    "test:battle-state-boundary": "node scripts/test-battle-state-boundary.mjs"
+    "test:battle-state-boundary": "node scripts/test-battle-state-boundary.mjs",
+    "test:castle-access-navigation": "node scripts/test-castle-access-navigation.mjs"
   },
   "dependencies": {
     "three": "^0.180.0"
