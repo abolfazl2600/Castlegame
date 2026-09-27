@@ -76,7 +76,7 @@ const TILE = TILE_SIZE;
 const WORLD = SIZE * TILE;
 const WALL_KINDS: WallKind[] = ['wall1', 'wall2', 'wall3'];
 const ROAD_KINDS: RoadKind[] = ['road', 'dirtRoad', 'stoneRoad'];
-const HARBOR_KINDS: HarborKind[] = ['smallDock', 'woodenPier', 'harbor', 'fishingDock'];
+const HARBOR_KINDS: HarborKind[] = ['harbor'];
 const PLAYABLE_LAYOUT_TEMPLATES: Readonly<Record<string, { layoutId: MapLayoutId; seed: number }>> = {
   'mainland-frontier': { layoutId: 'mainland', seed: 5501 },
   'coastal-peninsula': { layoutId: 'peninsula', seed: 5502 },
@@ -113,6 +113,14 @@ const AGRICULTURE_UPGRADE_LEVELS: Record<AgricultureUpgradeKind, readonly Agricu
 };
 const AGRICULTURE_MAX_LEVEL = 4;
 
+const HARBOR_LEVELS = [
+  { level: 1, name: 'Landing Dock', description: 'A compact timber landing with simple mooring posts, basic cargo, and a fishing boat.' },
+  { level: 2, name: 'Fishing Wharf', description: 'A broader working wharf with side platforms, railings, fishing gear, storage, and more supports.' },
+  { level: 3, name: 'Merchant Pier', description: 'A developed commercial pier with a stone apron, covered warehouse, crane, cargo stacks, and transport ship access.' },
+  { level: 4, name: 'Grand Harbor', description: 'A substantial port with a stone quay, twin docking arms, roofed harbor buildings, cranes, lantern posts, and trading vessel facilities.' },
+] as const;
+const HARBOR_MAX_LEVEL = HARBOR_LEVELS.length;
+
 const BUILDING_KINDS: TileKind[] = [
   'wall1',
   'wall2',
@@ -122,10 +130,7 @@ const BUILDING_KINDS: TileKind[] = [
   'road',
   'dirtRoad',
   'stoneRoad',
-  'smallDock',
-  'woodenPier',
   'harbor',
-  'fishingDock',
   'cottage',
   'house',
   'manor',
@@ -313,10 +318,7 @@ const TOOL_GROUPS: Array<{ label: string; tools: ToolDefinition[] }> = [
   {
     label: 'Harbor & Shipping',
     tools: [
-      { id: 'smallDock', icon: '🛶', label: 'Small Dock', detail: 'Coast only · fishing boat', shortcut: '-' },
-      { id: 'woodenPier', icon: '⚓', label: 'Wooden Pier', detail: 'Deep coast · transport dock', shortcut: '-' },
-      { id: 'harbor', icon: '⛵', label: 'Harbor', detail: 'Deep coast · trading vessel', shortcut: '-' },
-      { id: 'fishingDock', icon: '🎣', label: 'Fishing Dock', detail: 'Coast only · fishing gear', shortcut: '-' },
+      { id: 'harbor', icon: '⚓', label: 'Harbor', detail: 'Upgradeable coastal port · 4 visual levels', shortcut: '-' },
     ],
   },
 ];
@@ -497,7 +499,7 @@ export class ThreeGame {
       setWorldSeeded: (value) => { this.worldSeeded = value; },
       setLoadedSaveVersion: (value) => { this.loadedSaveVersion = value; },
       setStoneStyle: (value) => { this.stoneStyle = value; },
-      migrateKind: (kind, level) => this.migrateKind(kind, level),
+      migrateKind: (kind, level, saveVersion) => this.migrateKind(kind, level, saveVersion),
       isBuildingAvailableForMode: (mode, kind) => isBuildingAvailable(mode, kind as TileKind),
       key: (x, y) => this.key(x, y),
       syncModeDependentUI: () => this.syncModeDependentUI(),
@@ -2203,10 +2205,7 @@ export class ThreeGame {
       road: 0x9a7658,
       dirtRoad: 0x8a6142,
       stoneRoad: 0xa9a195,
-      smallDock: 0x765137,
-      woodenPier: 0x6d4931,
-      harbor: 0x57402f,
-      fishingDock: 0x805a3d,
+      harbor: 0x6a5038,
       cottage: 0xd69f78,
       house: 0xb899ce,
       manor: 0xc97888,
@@ -3084,7 +3083,7 @@ export class ThreeGame {
     group.position.set(position.x, this.terrainElevation(cell.x, cell.y), position.z);
 
     if (ROAD_KINDS.includes(cell.kind as RoadKind)) this.makeRoad(group, cell.x, cell.y, cell.kind as RoadKind);
-    else if (HARBOR_KINDS.includes(cell.kind as HarborKind)) this.makeHarbor(group, cell.kind as HarborKind, cell.x, cell.y, cell);
+    else if (HARBOR_KINDS.includes(cell.kind as HarborKind)) this.makeHarbor(group, Math.max(1, Math.min(HARBOR_MAX_LEVEL, cell.level ?? 1)), cell);
     else if (WALL_KINDS.includes(cell.kind as WallKind)) {
       this.makeWall(group, cell.kind as WallKind, cell.x, cell.y, cell);
     } else if (cell.kind === 'gate') this.makeGate(group, cell.x, cell.y, cell);
@@ -8142,23 +8141,19 @@ export class ThreeGame {
 
       const direction = this.maritimeSystem.canPlace(this.selectedTool, gx, gy);
       if (!direction) {
-        this.setStatus(
-          this.selectedTool === 'harbor' || this.selectedTool === 'woodenPier'
-            ? 'This structure needs a valid coast with deeper open water'
-            : 'Dock placement requires a valid coastline next to ocean water',
-        );
+        this.setStatus('Harbor placement requires a clear coastal land tile next to ocean water');
         return;
       }
 
-      if (!this.ensureConstructionAffordable(this.selectedTool)) return;
+      if (!this.ensureConstructionAffordable('harbor')) return;
       this.recordHistory();
-      this.services.state.setCell(gx, gy, this.selectedTool, 1, {
+      this.services.state.setCell(gx, gy, 'harbor', 1, {
         rotation: direction.rotation,
-        shipKind: this.maritimeSystem.defaultShip(this.selectedTool) ?? undefined,
+        shipKind: this.maritimeSystem.defaultShipForLevel(1),
       });
-      this.spendConstructionCost(this.selectedTool);
+      this.spendConstructionCost('harbor');
       this.finishBuild();
-      this.setStatus('Maritime structure placed · orientation matched to coastline');
+      this.setStatus('Landing Dock placed · upgrade it from Build Settings');
       return;
     }
 
@@ -9222,7 +9217,7 @@ export class ThreeGame {
     this.saveSystem.load();
   }
 
-  private migrateKind(kind: string, level: number): { kind: TileKind; level: number } | null {
+  private migrateKind(kind: string, level: number, saveVersion: number): { kind: TileKind; level: number } | null {
     // Legacy manually authored Stair Towers are intentionally discarded.
     // CastleAccessSystem deterministically regenerates valid derived access.
     if (kind === 'stairTower') return null;
@@ -9231,6 +9226,13 @@ export class ThreeGame {
     if (kind === 'mountain1') return { kind: 'mountain', level: 1 };
     if (kind === 'mountain2') return { kind: 'mountain', level: 2 };
     if (kind === 'mountain3') return { kind: 'mountain', level: 3 };
+    if (saveVersion < 13) {
+      if (kind === 'smallDock') return { kind: 'harbor', level: 1 };
+      if (kind === 'fishingDock') return { kind: 'harbor', level: 2 };
+      if (kind === 'woodenPier') return { kind: 'harbor', level: 3 };
+      if (kind === 'harbor') return { kind: 'harbor', level: 4 };
+    }
+    if (kind === 'harbor') return { kind: 'harbor', level: Math.max(1, Math.min(HARBOR_MAX_LEVEL, level)) };
     if (kind === 'armyCamp') return { kind: 'armyCamp', level: Math.max(1, Math.min(ARMY_CAMP_MAX_LEVEL, level)) };
     if (kind === 'farm' || kind === 'cowBarn') {
       return { kind, level: Math.max(1, Math.min(AGRICULTURE_MAX_LEVEL, level)) };
@@ -10487,16 +10489,17 @@ export class ThreeGame {
     };
 
     const placeHarborTemplate = (
-      kind: HarborKind,
+      level: number,
       shipKind: ShipKind,
       targetX: number,
       targetY: number,
     ): GridPoint | null => {
+      const normalizedLevel = Math.max(1, Math.min(HARBOR_MAX_LEVEL, Math.floor(level)));
       const candidates: Array<{ point: GridPoint; rotation: number; score: number }> = [];
       for (let y = 1; y < SIZE - 1; y += 1) {
         for (let x = 1; x < SIZE - 1; x += 1) {
           if (this.services.state.getCell(x, y) || this.services.keepSystem.findAtCell(x, y)) continue;
-          const coast = this.maritimeSystem.canPlace(kind, x, y);
+          const coast = this.maritimeSystem.canPlace('harbor', x, y);
           if (!coast) continue;
           candidates.push({
             point: { x, y },
@@ -10510,7 +10513,7 @@ export class ThreeGame {
       if (!choice) return null;
 
       this.services.state.removeCell(choice.point.x, choice.point.y);
-      place(choice.point.x, choice.point.y, kind, 1, {
+      place(choice.point.x, choice.point.y, 'harbor', normalizedLevel, {
         rotation: choice.rotation,
         shipKind,
       });
@@ -10561,7 +10564,7 @@ export class ThreeGame {
           place(x, 10, 'dirtRoad');
         }
       }
-      placeHarborTemplate('woodenPier', 'transportShip', SIZE - 4, center);
+      placeHarborTemplate(3, 'transportShip', SIZE - 4, center);
     } else if (template === 'coastal-peninsula') {
       prepareBuildableArea(7, 7, 16, 8, 0.16);
       prepareBuildableArea(8, 9, 14, 17, 0.12);
@@ -10584,8 +10587,8 @@ export class ThreeGame {
           place(11, y, 'stoneRoad');
         }
       }
-      placeHarborTemplate('fishingDock', 'fishingBoat', 5, center + 2);
-      placeHarborTemplate('harbor', 'tradingBoat', SIZE - 5, center + 2);
+      placeHarborTemplate(2, 'fishingBoat', 5, center + 2);
+      placeHarborTemplate(4, 'tradingBoat', SIZE - 5, center + 2);
     } else if (template === 'split-isles') {
       prepareBuildableArea(4, 8, 9, 12, 0.18);
       prepareBuildableArea(13, 10, 18, 15, 0.1);
@@ -10613,8 +10616,8 @@ export class ThreeGame {
       for (let x = 13; x <= 18; x += 1) {
         if (!this.services.state.getCell(x, 13)) place(x, 13, 'dirtRoad');
       }
-      placeHarborTemplate('woodenPier', 'transportShip', 2, center);
-      placeHarborTemplate('harbor', 'transportShip', SIZE - 3, center + 2);
+      placeHarborTemplate(3, 'transportShip', 2, center);
+      placeHarborTemplate(4, 'transportShip', SIZE - 3, center + 2);
     } else if (template === 'small-castle') {
       const min = center - 3;
       const max = center + 3;
@@ -11037,10 +11040,10 @@ export class ThreeGame {
       for (let y = center + 6; y <= center + 9; y += 1) place(center, y, 'road');
     } else if (template === 'harbor-capital') {
 
-      const harbor = placeHarborTemplate('harbor', 'tradingBoat', SIZE - 5, center);
-      const pier = placeHarborTemplate('woodenPier', 'transportShip', SIZE - 6, center - 6);
-      const fishing = placeHarborTemplate('fishingDock', 'fishingBoat', SIZE - 6, center + 6);
-      const smallDock = placeHarborTemplate('smallDock', 'fishingBoat', 5, center);
+      const harbor = placeHarborTemplate(4, 'tradingBoat', SIZE - 5, center);
+      const pier = placeHarborTemplate(3, 'transportShip', SIZE - 6, center - 6);
+      const fishing = placeHarborTemplate(2, 'fishingBoat', SIZE - 6, center + 6);
+      const smallDock = placeHarborTemplate(1, 'fishingBoat', 5, center);
 
       const portPoints = [harbor, pier, fishing, smallDock].filter(
         (point): point is GridPoint => point !== null,
@@ -11237,8 +11240,8 @@ export class ThreeGame {
       place(center - 5, center - 3, 'farm');
       for (let y = center + 1; y < center + 5; y += 1) place(center - 3, y, 'stoneRoad');
 
-      placeHarborTemplate('smallDock', 'fishingBoat', SIZE - 4, center + 4);
-      placeHarborTemplate('fishingDock', 'fishingBoat', SIZE - 5, center - 3);
+      placeHarborTemplate(1, 'fishingBoat', SIZE - 4, center + 4);
+      placeHarborTemplate(2, 'fishingBoat', SIZE - 5, center - 3);
     } else if (template === 'farming-duchy') {
       prepareArea(center - 11, center - 9, center + 11, center + 9, 0);
 
