@@ -54,6 +54,20 @@ Farm visuals now include cultivated rows, furrows, several crop stages/colors, i
 
 Farmers are visible settlement agents. Each Farm gets working farmers assigned from the nearest housing block where possible. Farmers travel to the field, remain there while working, and later return home.
 
+### Settlement economy
+
+The settlement now runs a lightweight deterministic resource simulation:
+
+- Farms produce **Grain**; Apple Orchards produce **Apples**; Cow Barns add direct **Food**.
+- Windmills consume Grain and produce **Flour**. Markets convert part of the Flour supply into ready Food.
+- Mines produce **Stone**. Huts and Trees contribute **Wood**.
+- Population consumes Food each economy tick, falling back to Apples, Flour, and Grain if ready Food is depleted.
+- A food shortage warning appears when total edible reserves cannot satisfy civilian demand.
+- Keeps, Markets, Manors, Farms, and Cow Barns increase storage capacity.
+- Medieval and Survival construction deduct Wood/Stone. Sandbox construction remains free.
+- Resource inventory, including Grain/Apples/Flour/Food, persists through Save/Load. Legacy saves without economy data receive safe starter resources.
+- The Build sidebar shows current resource totals, per-second net rates, storage capacity, and shortage state.
+
 ### Professional battle setup
 
 The Battle panel supports direct numeric entry in addition to +/- controls. Values are clamped to 0–120 per unit type.
