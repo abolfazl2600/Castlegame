@@ -11262,9 +11262,9 @@ export class ThreeGame {
       const harbor = placeHarborTemplate(4, 'tradingBoat', SIZE - 5, center);
       const pier = placeHarborTemplate(3, 'transportShip', SIZE - 6, center - 6);
       const fishing = placeHarborTemplate(2, 'fishingBoat', SIZE - 6, center + 6);
-      const smallDock = placeHarborTemplate(1, 'fishingBoat', 5, center);
+      const landingDock = placeHarborTemplate(1, 'fishingBoat', 5, center);
 
-      const portPoints = [harbor, pier, fishing, smallDock].filter(
+      const portPoints = [harbor, pier, fishing, landingDock].filter(
         (point): point is GridPoint => point !== null,
       );
       for (const point of portPoints) {
@@ -11608,7 +11608,7 @@ export class ThreeGame {
       place(center+7,center+5,'farm');
       for(let x=center-8;x<=center+8;x+=1) if(!this.services.state.getCell(x,center+1)) place(x,center+1,'stoneRoad');
       for(let y=center-6;y<=center+6;y+=1) if(!this.services.state.getCell(center,y)) place(center,y,'road');
-      placeHarborTemplate('smallDock','fishingBoat',SIZE-5,center+5);
+      placeHarborTemplate(1,'fishingBoat',SIZE-5,center+5);
     } else if (template === 'war-camp') {
       prepareArea(center-11,center-9,center+11,center+9,0.08);
 
@@ -11779,7 +11779,7 @@ export class ThreeGame {
       place(center+3,center+5,'farm');
       place(center-6,center-5,'tree',3);
       place(center+6,center-5,'tree',3);
-      placeHarborTemplate('smallDock','fishingBoat',4,center);
+      placeHarborTemplate(1,'fishingBoat',4,center);
     }
 
     this.selectedCell = null;
