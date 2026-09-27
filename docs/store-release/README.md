@@ -1,56 +1,89 @@
-# Castle Role — Bazaar & Myket Release Program
+# Castle Role — Android Store Release Program
 
-این فولدر مسیر آماده‌سازی و انتشار **Castle Role** در **کافه‌بازار** و **مایکت** را نگه می‌دارد.
+این فولدر مسیر آماده‌سازی و انتشار **Castle Role** در سه کانال اصلی Android را نگه می‌دارد:
+
+- Google Play
+- کافه‌بازار
+- مایکت
 
 > وضعیت تحقیق: 2026-09-27  
-> این مستندات «نقشه راه سطح بالا» هستند. جزئیات اجرایی هر مرحله در مرحله بعدی تکمیل می‌شوند.
+> هدف این مستندات: یک مسیر **مشترک و قابل تکرار** تا حد ممکن، با انشعاب فقط در بخش‌هایی که هر فروشگاه الزام متفاوت دارد.
 
-## هدف
+## اصل معماری
 
-رسیدن از وضعیت فعلی پروژه — یک بازی وب مبتنی بر Vite + TypeScript + Three.js — به یک نسخه Android پایدار، امضاشده و قابل انتشار در هر دو مارکت.
+Castle Role نباید سه اپ جداگانه شود.
 
-## تصمیم معماری پیشنهادی
+مسیر پیشنهادی:
 
-برای مسیر مشترک بازار و مایکت:
+- یک codebase
+- یک Android project
+- یک `applicationId` / Package ID
+- یک `versionCode` و `versionName` برای هر release
+- یک **App Signing Key اصلی مشترک** برای هر سه فروشگاه
+- یک Upload Key جدا برای Google Play
+- یک privacy/data inventory مشترک
+- یک مجموعه QA مشترک
+- یک مجموعه master store assets
+- خروجی `AAB` برای Google Play
+- خروجی `APK` برای Myket
+- خروجی `APK` یا `AAB` برای Bazaar بر اساس requirement جاری پیشخان
 
-- **Android shell با Capacitor**
-- bundle شدن خروجی Vite داخل APK/AAB
-- عدم وابستگی نسخه اول به یک وب‌سایت remote برای اجرای بازی
-- یک Package ID ثابت برای هر دو مارکت
-- یک signing identity پایدار برای تمام آپدیت‌های آینده
-- خروجی APK برای مایکت
-- APK یا AAB برای بازار، پس از تأیید نهایی در پیشخان
+Google صراحتاً توصیه می‌کند اگر قرار است یک app در چند store با قابلیت cross-store update توزیع شود، هنگام تنظیم Play App Signing **کلید signing خودمان را ارائه کنیم** و نگذاریم Google یک app-signing key مستقل بسازد.
 
-این انتخاب در این مرحله «پیشنهاد اجرایی» است و قبل از implementation نهایی در Phase 1 تثبیت می‌شود.
+## وضعیت فعلی
+
+Castle Role اکنون یک Vite + TypeScript + Three.js web game است. Android project هنوز ساخته نشده است.
 
 ## ساختار این فولدر
 
-- [ROADMAP.md](./ROADMAP.md) — ترتیب مراحل از وضعیت فعلی تا انتشار
-- [CURRENT_STATUS.md](./CURRENT_STATUS.md) — وضعیت فعلی repo و gapهای انتشار
-- [MARKET_REQUIREMENTS.md](./MARKET_REQUIREMENTS.md) — تفاوت‌ها و الزامات بازار/مایکت
+- [ROADMAP.md](./ROADMAP.md) — ترتیب مشترک از صفر تا انتشار در هر سه فروشگاه
+- [COMMON_RELEASE_STRATEGY.md](./COMMON_RELEASE_STRATEGY.md) — تصمیم‌های مشترک و نقاطی که نباید store-specific شوند
+- [CURRENT_STATUS.md](./CURRENT_STATUS.md) — وضعیت فعلی repo و gapها
+- [MARKET_REQUIREMENTS.md](./MARKET_REQUIREMENTS.md) — مقایسه Google Play / Bazaar / Myket
+- [GOOGLE_PLAY_REQUIREMENTS.md](./GOOGLE_PLAY_REQUIREMENTS.md) — الزامات اختصاصی فعلی Google Play
 - [SOURCES.md](./SOURCES.md) — منابع رسمی و تاریخ بررسی
 
-## اصل مهم
+## Baseline مشترک نسخه 1.0
 
-هیچ secret انتشار نباید وارد Git شود:
+تا زمانی که در Phase 0 خلافش تصویب نشود:
 
-- keystore / .jks
-- keystore password
-- signing key passwords
-- Bazaar/Myket API tokens
-- billing secrets / private credentials
+- Free
+- بدون Ads
+- بدون Login
+- بدون IAP
+- بدون Analytics شخص ثالث
+- Offline-first
+- Landscape-first
+- `targetSdk = 36`
+- حداقل permission ممکن
+- local bundled web assets داخل Android shell
 
-این موارد باید خارج از repo یا در Secret Store/CI Secrets نگهداری شوند.
+## Secrets
+
+هیچ مورد زیر نباید وارد Git شود:
+
+- app-signing `.jks` / keystore
+- upload-key keystore
+- key passwords
+- signing passwords
+- Play Console service credentials
+- Bazaar/Myket credentials
+- billing secrets
+- private API credentials
 
 ## Definition of Done نهایی
 
-انتشار فقط زمانی «آماده» محسوب می‌شود که:
+انتشار زمانی کامل است که:
 
-1. release APK روی چند دستگاه واقعی Android نصب و اجرا شود.
-2. save/load پس از kill و update حفظ شود.
-3. هیچ permission غیرضروری وجود نداشته باشد.
-4. privacy/content/copyright review تکمیل شده باشد.
-5. Store listing و screenshots با نسخه واقعی هماهنگ باشند.
-6. package ID و signing key نهایی و backup شده باشند.
-7. نسخه نهایی در هر دو پنل بدون blocker ارسال شود.
-8. بعد از انتشار، مسیر update/rollback مشخص باشد.
+1. یک release source revision برای هر سه store استفاده شود.
+2. Package ID در هر سه store یکسان باشد.
+3. final installed APKها با app-signing certificate مورد انتظار سازگار باشند.
+4. AAB Google Play و APK ایرانی‌ها از همان version ساخته شوند.
+5. save/load پس از kill و upgrade حفظ شود.
+6. privacy/data declarations با رفتار واقعی app تطابق داشته باشند.
+7. هیچ sensitive permission غیرضروری وجود نداشته باشد.
+8. content/copyright review تکمیل شده باشد.
+9. store listingهای هر سه فروشگاه با build واقعی هماهنگ باشند.
+10. Google Play production requirements، Bazaar review و Myket review بدون blocker طی شوند.
+11. نسخه production از خود هر سه store نصب و smoke-test شود.
+12. update/rollback/release process برای نسخه بعدی مستند باشد.
