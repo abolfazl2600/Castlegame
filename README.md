@@ -128,7 +128,7 @@ Castle Role now includes **17 starting templates**: the original seven plus ten 
 - **Frontier Outpost** — Rough Frontier style, timber walls, Timber Roof and Watch towers, dirt roads, huts, farm, and Stair Tower.
 - **Bridge Stronghold** — both Stone and Wooden Tower Bridges connecting multiple elevated tower platforms.
 - **Siege Academy** — moat, heavy walls, Wall Walks, Stair Tower, Stone Stairs, Wooden Stairs, Ramp, Ladder, gate, and a battle-ready Keep.
-- **Harbor Capital** — Small Dock, Wooden Pier, Harbor, Fishing Dock, Fishing Boat, Trading Boat, and Transport Ship.
+- **Harbor Capital** — all four unified Harbor upgrade levels, plus Fishing Boat, Trading Boat, and Transport Ship examples.
 - **Mountain Fortress** — steep edited terrain, stepped foundations, cliff-like plateau, Mountain, Mine, Rock, Tree, and high defensive structures.
 - **Royal City** — Cottage, House, Manor, Villa, Farm, Road, Dirt Road, and Stone Road inside a walled city.
 - **Architecture Gallery** — Square/Round/Octagonal/Corner/Watch towers; Conical/Hipped/Pyramidal/Open Battlement/Timber Roof plus Flat/Watch/Flag tops; all four Keep roof modes; all three wall families and thicknesses; diagonal walls; both bridge materials; Stair Tower; lowered terrain, hills, plateau, and cliff-like height changes.
@@ -193,22 +193,16 @@ The island environment now has a richer medieval-world layer while preserving ca
 
 ### Harbor and shipping
 
-A new **Harbor & Shipping** build category contains:
+The **Harbor & Shipping** category now exposes one clear **Harbor** building instead of four parallel dock variants. Place the Harbor on a valid coastal land tile and upgrade the same structure through four visually distinct stages:
 
-- Small Dock
-- Wooden Pier
-- Harbor
-- Fishing Dock
+1. **Landing Dock** — compact timber landing, basic mooring posts, cargo, and fishing boat.
+2. **Fishing Wharf** — wider platform, side docks, railings, fishing equipment, extra supports, and storage.
+3. **Merchant Pier** — stone apron, warehouse, cargo stacks, working crane, and transport-ship facilities.
+4. **Grand Harbor** — broad stone quay, twin docking arms, harbor office, multiple cranes, lantern posts, richer cargo, and trading-vessel facilities.
 
-Maritime placement validates the coastline and automatically rotates the structure toward ocean water. Larger piers/harbors require deeper open water. River tiles are not accepted as harbor coast.
+Maritime placement still validates the coastline and automatically rotates the Harbor toward ocean water. River tiles are not accepted as harbor coast. The base level works on any valid coast, so old small-dock placement opportunities remain usable.
 
-Dock details include timber decks, support posts, ropes, barrels, crates, and fishing equipment. Each structure can also generate a small docked vessel:
-
-- Fishing Boat
-- Small Trading Boat
-- Transport Ship
-
-The maritime code uses extensible harbor/ship types so more vessel classes can be introduced later.
+Legacy saves are migrated safely: Small Dock → Level 1, Fishing Dock → Level 2, Wooden Pier → Level 3, and the former Harbor → Level 4. New saves store the unified Harbor kind plus its level.
 
 ### Road construction
 

@@ -58,21 +58,18 @@ export class MaritimeSystem {
   }
 
   canPlace(kind: HarborKind, x: number, y: number): CoastDirection | null {
-    const direction = this.coastDirection(x, y);
-    if (!direction) return null;
-
-    if ((kind === 'harbor' || kind === 'woodenPier') && direction.waterDepth !== 'deep') {
-      return null;
-    }
-
-    return direction;
+    if (kind !== 'harbor') return null;
+    return this.coastDirection(x, y);
   }
 
   defaultShip(kind: HarborKind): ShipKind | null {
-    if (kind === 'fishingDock') return 'fishingBoat';
-    if (kind === 'harbor') return 'tradingBoat';
-    if (kind === 'woodenPier') return 'transportShip';
-    if (kind === 'smallDock') return 'fishingBoat';
-    return null;
+    return kind === 'harbor' ? 'fishingBoat' : null;
+  }
+
+  defaultShipForLevel(level: number): ShipKind {
+    const normalized = Math.max(1, Math.min(4, Math.floor(level)));
+    if (normalized >= 4) return 'tradingBoat';
+    if (normalized >= 3) return 'transportShip';
+    return 'fishingBoat';
   }
 }

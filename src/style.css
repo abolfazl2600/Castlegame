@@ -1119,6 +1119,78 @@ h1 { margin: 3px 0 0; font-size: 22px; line-height: 1; letter-spacing: -.035em; 
   transform: none;
 }
 
+.harbor-upgrade-card {
+  display: grid;
+  gap: 9px;
+  margin: 8px 0 10px;
+  padding: 11px;
+  border: 1px solid rgba(102, 211, 224, .22);
+  border-radius: 12px;
+  background: linear-gradient(145deg, rgba(17, 45, 53, .96), rgba(10, 28, 39, .96));
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,.035);
+}
+.harbor-upgrade-card[hidden] { display: none; }
+.harbor-upgrade-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+}
+.harbor-upgrade-heading > div { display: grid; gap: 3px; }
+.harbor-upgrade-heading strong { color: #eafcff; font-size: 12px; }
+#harbor-upgrade-badge {
+  flex: 0 0 auto;
+  padding: 4px 7px;
+  border: 1px solid rgba(110, 222, 232, .26);
+  border-radius: 999px;
+  color: #e9fdff;
+  background: rgba(46, 133, 148, .24);
+  font-size: 9px;
+  font-weight: 900;
+}
+.harbor-level-track {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 5px;
+}
+.harbor-level-track span {
+  height: 6px;
+  border: 1px solid rgba(255,255,255,.06);
+  border-radius: 99px;
+  background: rgba(255,255,255,.09);
+}
+.harbor-level-track span.is-complete {
+  border-color: rgba(119, 229, 237, .3);
+  background: rgba(42, 142, 157, .72);
+}
+.harbor-level-track span.is-current {
+  box-shadow: 0 0 0 2px rgba(104, 224, 235, .18);
+}
+#harbor-upgrade-description {
+  color: rgba(226, 246, 249, .74);
+  font-size: 9px;
+  line-height: 1.45;
+}
+.harbor-upgrade-button {
+  min-height: 34px;
+  border: 1px solid rgba(105, 221, 232, .3);
+  border-radius: 9px;
+  color: #f1fdff;
+  background: linear-gradient(135deg, rgba(37, 128, 145, .58), rgba(54, 90, 137, .46));
+  cursor: pointer;
+  font-size: 10px;
+  font-weight: 900;
+}
+.harbor-upgrade-button:hover:not(:disabled) {
+  border-color: rgba(125, 234, 242, .62);
+  transform: translateY(-1px);
+}
+.harbor-upgrade-button:disabled {
+  opacity: .52;
+  cursor: not-allowed;
+  transform: none;
+}
+
 .settings-hint {
   color: rgba(222,243,250,.46);
   font-size: 8px;
