@@ -2774,3 +2774,48 @@ html[data-high-contrast] .settings-card { border-color:rgba(255,255,255,.42); }
   .settings-system-actions { grid-template-columns: 1fr; }
   .settings-control-reference { grid-template-columns: 1fr; }
 }
+
+/* Shared miniature-world interface colors and interaction states. */
+:root {
+  --ui-navy: #102536;
+  --ui-navy-deep: #071a29;
+  --ui-blue: #3b84b6;
+  --ui-text: #f2f9fc;
+  --ui-muted: #b6ced9;
+  --ui-focus: #8ce6ff;
+}
+button:focus-visible, select:focus-visible, input:focus-visible, [tabindex]:focus-visible {
+  outline: 2px solid var(--ui-focus);
+  outline-offset: 2px;
+}
+button:disabled, button[aria-disabled="true"] { cursor: not-allowed; opacity: .5; transform: none; }
+.tool-category-header, .tool-button, .secondary-button, .camera-view-button { color: var(--ui-text); }
+.tool-category-header:hover, .tool-category-header:focus-visible { background: rgba(59,132,182,.24); }
+.tool-button.is-selected, .view-mode-button.is-active { border-color: var(--ui-focus); }
+.minimap {
+  position: absolute;
+  right: 16px;
+  top: 110px;
+  z-index: 8;
+  width: 136px;
+  display: grid;
+  gap: 5px;
+  padding: 9px;
+  border: 1px solid rgba(140,230,255,.3);
+  border-radius: 13px;
+  color: var(--ui-text);
+  background: rgba(16,37,54,.94);
+  box-shadow: 0 10px 26px rgba(0,0,0,.32);
+  cursor: crosshair;
+  text-align: left;
+}
+.minimap:hover { border-color: var(--ui-focus); }
+.minimap-title { color: var(--ui-muted); font-size: 9px; font-weight: 800; letter-spacing: .14em; }
+.minimap canvas { width: 100%; aspect-ratio: 1; image-rendering: pixelated; border: 1px solid rgba(255,255,255,.15); border-radius: 4px; }
+.minimap-hint { color: var(--ui-muted); font-size: 9px; }
+@media (max-width: 760px) {
+  .minimap { top: calc(var(--mobile-header-height) + var(--mobile-safe-top) + 48px); right: max(8px,var(--mobile-safe-right)); width: 94px; padding: 6px; }
+  .minimap-title { font-size: 8px; }
+  .minimap-hint { display: none; }
+}
+html[data-reduced-motion] .minimap, html[data-reduced-motion] button { transition: none !important; }

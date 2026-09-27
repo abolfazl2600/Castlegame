@@ -40,6 +40,7 @@ export interface BattleWorldContext {
   gatePassable?: (x: number, y: number) => boolean;
   generatedAccess?: () => GeneratedAccess[];
   wallWeaponVisuals?: () => THREE.Object3D[];
+  effectsEnabled?: () => boolean;
   objectiveBuildings?: () => ObjectiveBuildingSnapshot[];
   objectivePositions?: () => ObjectivePositionSnapshot[];
 }
@@ -344,7 +345,7 @@ export class BattleSystem {
   private readonly rifleStockGeometry = this.geometry(new THREE.BoxGeometry(0.13, 0.11, 0.32));
   private readonly missileBodyGeometry = this.geometry(new THREE.CylinderGeometry(0.1, 0.14, 1.25, 8));
   private readonly missileNoseGeometry = this.geometry(new THREE.ConeGeometry(0.14, 0.32, 8));
-  private readonly missileBlastGeometry = this.geometry(new THREE.SphereGeometry(1, 12, 8));
+  private readonly missileBlastGeometry = this.geometry(new THREE.RingGeometry(0.72, 1, 24));
   private readonly tacticalMaterial = this.material(new THREE.MeshStandardMaterial({ color: 0x334039, roughness: 0.9 }));
   private readonly rifleMaterial = this.material(new THREE.MeshStandardMaterial({ color: 0x1d2322, roughness: 0.46, metalness: 0.52 }));
   private readonly missileMaterial = this.material(new THREE.MeshStandardMaterial({ color: 0xcfd7d8, roughness: 0.38, metalness: 0.62 }));
@@ -1246,6 +1247,12 @@ export class BattleSystem {
     );
     factionBand.position.y = 0.98;
     root.add(factionBand);
+    // Broad color planes stay recognizable at the normal elevated camera zoom.
+    const crest = new THREE.Mesh(this.shieldGeometry, primary);
+    crest.scale.set(0.5, 0.6, 0.5);
+    crest.rotation.x = Math.PI / 2;
+    crest.position.set(0, 1.04, -0.19);
+    root.add(crest);
 
     const refs: UnitVisualRefs = { body, leftLeg, rightLeg, leftArm, rightArm, weapon, shield };
     root.userData.visualRefs = refs;
@@ -3864,12 +3871,15 @@ export class BattleSystem {
     }
 
     this.layer.remove(missile.view);
-    const blast = new THREE.Mesh(this.missileBlastGeometry, this.objectiveMaterial);
-    blast.position.copy(impact);
-    blast.position.y += 0.45;
-    blast.scale.setScalar(Math.max(1.2, missile.impactRadius * 0.38));
-    this.layer.add(blast);
-    window.setTimeout(() => this.layer.remove(blast), 220);
+    if (this.world.effectsEnabled?.() !== false) {
+      const blast = new THREE.Mesh(this.missileBlastGeometry, this.objectiveMaterial);
+      blast.position.copy(impact);
+      blast.position.y += 0.14;
+      blast.rotation.x = -Math.PI / 2;
+      blast.scale.setScalar(Math.max(0.8, missile.impactRadius * 0.4));
+      this.layer.add(blast);
+      window.setTimeout(() => this.layer.remove(blast), 180);
+    }
     this.emitStatus();
   }
 

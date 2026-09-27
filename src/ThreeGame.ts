@@ -557,6 +557,10 @@ export class ThreeGame {
         buildingDamageAt: (x, y) => this.services.state.getCell(x, y)?.damage ?? 0,
         gatePassable: (x, y) => this.services.gateSystem.isGatePassable(x, y),
         wallWeaponVisuals: () => this.getWallWeaponVisuals(),
+        effectsEnabled: () => {
+          const settings = this.settingsStore.get();
+          return settings.graphics.effectsEnabled && !settings.interface.reducedMotion && settings.graphics.quality !== 'low';
+        },
       },
       (status) => this.updateBattleUI(status),
     );
@@ -872,6 +876,8 @@ export class ThreeGame {
   }
 
   private createMissileStrikeEffect(target: GodModeTarget): void {
+    const settings = this.settingsStore.get();
+    if (!settings.graphics.effectsEnabled || settings.interface.reducedMotion || settings.graphics.quality === 'low') return;
     const group = new THREE.Group();
     const center = this.gridToWorld(target.anchor.x, target.anchor.y);
     const elevation = this.terrainElevation(target.anchor.x, target.anchor.y);
@@ -881,7 +887,7 @@ export class ThreeGame {
     const missile = new THREE.Mesh(new THREE.CylinderGeometry(0.11, 0.16, 1.8, 8), missileMaterial);
     missile.position.y = 34;
     group.add(missile);
-    const plume = new THREE.Mesh(new THREE.SphereGeometry(0.55, 8, 6), smokeMaterial);
+    const plume = new THREE.Mesh(new THREE.SphereGeometry(0.38, 8, 6), smokeMaterial);
     plume.position.y = 1.6;
     plume.scale.set(1.8, 0.7, 1.8);
     group.add(plume);
@@ -893,7 +899,7 @@ export class ThreeGame {
     ring.position.y = 0.25;
     group.add(ring);
     this.godModeLayer.add(group);
-    this.godModeEffects.push({ group, elapsed: 0, duration: 1100 });
+    this.godModeEffects.push({ group, elapsed: 0, duration: 700 });
     while (this.godModeEffects.length > 4) {
       const oldest = this.godModeEffects.shift();
       if (oldest) {
@@ -1785,6 +1791,7 @@ export class ThreeGame {
     }
 
     this.renderPlanLayer(cells);
+    this.renderMinimap();
     this.reconcileSettlementAgents(cells);
     this.updatePopulationUI();
 
@@ -1794,6 +1801,44 @@ export class ThreeGame {
         this.animatedFlags.push(object);
       }
     });
+  }
+
+  private renderMinimap(): void {
+    const canvas = document.getElementById('minimap-canvas') as HTMLCanvasElement | null;
+    const context = canvas?.getContext('2d');
+    if (!canvas || !context) return;
+    // One tile per map cell keeps the map deterministic and cheap on redraw.
+    canvas.width = canvas.height = SIZE;
+    const palette = WORLD_STYLE.palette;
+    const terrainColors: Record<TerrainKind, number> = {
+      water: palette.deepWater,
+      river: palette.riverWater,
+      shore: palette.shoreSand,
+      plains: palette.grassSunlit,
+      forest: palette.grassForest,
+      mountain: palette.terrainRock,
+    };
+    const color = (value: number) => `#${value.toString(16).padStart(6, '0')}`;
+    for (let y = 0; y < SIZE; y += 1) {
+      for (let x = 0; x < SIZE; x += 1) {
+        const cell = this.services.state.getCell(x, y);
+        const kind = cell?.kind;
+        let tileColor = terrainColors[this.terrainAt(x, y)];
+        if (kind === 'tree') tileColor = palette.foliageDark;
+        else if (kind === 'farm' || kind === 'appleOrchard') tileColor = palette.soil;
+        else if (kind && ROAD_KINDS.includes(kind as RoadKind)) tileColor = kind === 'stoneRoad' ? 0xc8c9b2 : 0x8f7151;
+        else if (kind === 'gate' || kind === 'tower' || WALL_KINDS.includes(kind as WallKind)) tileColor = 0xc8c9b2;
+        else if (kind && kind !== 'rock' && kind !== 'mountain') tileColor = 0xc96b3e;
+        context.fillStyle = color(tileColor);
+        context.fillRect(x, y, 1, 1);
+      }
+    }
+    context.fillStyle = '#7043a5';
+    for (const keep of this.services.keepSystem.entries()) context.fillRect(keep.x, keep.y, 2, 2);
+    if (this.selectedCell) {
+      context.fillStyle = '#ffffff';
+      context.fillRect(this.selectedCell.x, this.selectedCell.y, 1, 1);
+    }
   }
 
   private getWallWeaponVisuals(): THREE.Object3D[] {
@@ -8262,6 +8307,12 @@ export class ThreeGame {
       tool.rotation.z = -0.55;
       tool.position.set(0.18, 0.52, 0.08);
       group.add(tool);
+      const basket = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.14, 0.1, 0.19, 7),
+        leather,
+      );
+      basket.position.set(-0.2, 0.35, 0.08);
+      group.add(basket);
     } else {
       const cap = new THREE.Mesh(
         new THREE.ConeGeometry(0.15, 0.16, 6),
@@ -8269,6 +8320,12 @@ export class ThreeGame {
       );
       cap.position.y = 1.08;
       group.add(cap);
+      const satchel = new THREE.Mesh(
+        new THREE.BoxGeometry(0.17, 0.22, 0.12),
+        leather,
+      );
+      satchel.position.set(-0.2, 0.42, 0.02);
+      group.add(satchel);
     }
 
     group.scale.setScalar(0.92);
@@ -8844,6 +8901,20 @@ export class ThreeGame {
 
     get<HTMLButtonElement>('toolbar-close').onclick = () => this.setToolbarOpen(false);
     get<HTMLButtonElement>('toolbar-open').onclick = () => this.setToolbarOpen(true);
+    get<HTMLButtonElement>('minimap').onclick = (event) => {
+      const canvas = get<HTMLCanvasElement>('minimap-canvas');
+      const bounds = canvas.getBoundingClientRect();
+      if (event.detail !== 0 && (event.clientX < bounds.left || event.clientX > bounds.right || event.clientY < bounds.top || event.clientY > bounds.bottom)) return;
+      const x = event.detail === 0 ? Math.floor(SIZE / 2) : Math.max(0, Math.min(SIZE - 1, Math.floor((event.clientX - bounds.left) / bounds.width * SIZE)));
+      const y = event.detail === 0 ? Math.floor(SIZE / 2) : Math.max(0, Math.min(SIZE - 1, Math.floor((event.clientY - bounds.top) / bounds.height * SIZE)));
+      const next = this.gridToWorld(x, y);
+      const offset = this.camera.position.clone().sub(this.controls.target);
+      this.controls.target.set(next.x, this.controls.target.y, next.z);
+      this.camera.position.copy(this.controls.target).add(offset);
+      this.controls.update();
+      const hint = document.querySelector<HTMLElement>('.minimap-hint');
+      if (hint) hint.textContent = `Viewing sector ${x + 1}, ${y + 1}`;
+    };
     get<HTMLButtonElement>('view-2d-button').onclick = () => this.setViewMode('plan2d');
     get<HTMLButtonElement>('view-3d-button').onclick = () => this.setViewMode('world3d');
     get<HTMLButtonElement>('camera-45-button').onclick = () => this.setCameraView('45');
