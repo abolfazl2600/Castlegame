@@ -982,6 +982,9 @@ export class ThreeGame {
     const toolbar = document.getElementById('toolbar');
     if (!toolbar) return;
 
+    const openCategories = new Set(
+      [...toolbar.querySelectorAll<HTMLElement>('.tool-category.is-open')].map((category) => category.dataset.category),
+    );
     toolbar.querySelectorAll<HTMLElement>('.tool-category').forEach((category) => category.remove());
 
     const modeConfig = getGameModeDefinition(this.gameMode);
@@ -993,6 +996,7 @@ export class ThreeGame {
     if (!settings) return;
 
     const toolHtml = modeConfig.toolGroups.map((group) => {
+      const isOpen = openCategories.has(group.label) || group.toolIds.includes(this.selectedTool as ToolKind);
       const buttons = group.toolIds
         .map((toolId) => toolDefinitions.get(toolId))
         .filter((tool): tool is ToolDefinition => Boolean(tool))
@@ -1000,7 +1004,7 @@ export class ThreeGame {
           (tool) =>
             '<button class="tool-button' +
             (tool.id === this.selectedTool ? ' is-selected' : '') +
-            '" data-tool="' + tool.id + '">' +
+            '" data-tool="' + tool.id + '" type="button" aria-pressed="' + (tool.id === this.selectedTool) + '">' +
             '<span class="tool-icon">' + tool.icon + '</span>' +
             '<span class="tool-copy"><strong>' + tool.label + '</strong><small>' + tool.detail + '</small></span>' +
             '<kbd>' + tool.shortcut + '</kbd></button>',
@@ -1008,8 +1012,8 @@ export class ThreeGame {
         .join('');
 
       return (
-        '<section class="tool-category" data-category="' + group.label + '">' +
-        '<button class="tool-category-header" type="button" aria-expanded="false">' +
+        '<section class="tool-category' + (isOpen ? ' is-open' : '') + '" data-category="' + group.label + '">' +
+        '<button class="tool-category-header" type="button" aria-expanded="' + isOpen + '">' +
         '<span>' + group.label + '</span>' +
         '<span class="tool-category-chevron" aria-hidden="true">▶</span>' +
         '</button>' +
@@ -1020,6 +1024,7 @@ export class ThreeGame {
 
     settings.insertAdjacentHTML('beforebegin', toolHtml);
     settings.hidden = this.gameMode === 'modern';
+    this.filterBuildTools();
 
     toolbar.querySelectorAll<HTMLButtonElement>('.tool-category-header').forEach((header) => {
       header.onclick = () => {
@@ -1032,17 +1037,39 @@ export class ThreeGame {
 
     toolbar.querySelectorAll<HTMLButtonElement>('[data-tool]').forEach((button) => {
       button.onclick = () => {
-        toolbar.querySelectorAll<HTMLButtonElement>('[data-tool]').forEach((item) => {
-          item.classList.toggle('is-selected', item === button);
-        });
         this.selectTool(button.dataset.tool as ToolKind);
-        if (window.matchMedia('(max-width: 760px)').matches) this.setToolbarOpen(false);
+        if (this.selectedTool === button.dataset.tool && window.matchMedia('(max-width: 760px)').matches) this.setToolbarOpen(false);
       };
     });
 
     noneButton?.classList.toggle('is-selected', this.selectedTool === null);
     noneButton?.setAttribute('aria-pressed', String(this.selectedTool === null));
+    const activeLabel = toolbar.querySelector<HTMLElement>('#build-active-label');
+    if (activeLabel) activeLabel.textContent = this.selectedTool === null ? 'None' : (toolDefinitions.get(this.selectedTool)?.label ?? this.selectedTool);
     for (const extension of this.extensions) extension.onBuildPanelRefreshed?.();
+  }
+
+  private filterBuildTools(): void {
+    const toolbar = document.getElementById('toolbar');
+    if (!toolbar) return;
+    const query = (toolbar.querySelector<HTMLInputElement>('#build-search')?.value ?? '').trim().toLocaleLowerCase();
+    let matches = 0;
+    toolbar.querySelectorAll<HTMLElement>('.tool-category').forEach((category) => {
+      let categoryMatches = 0;
+      category.querySelectorAll<HTMLButtonElement>('[data-tool]').forEach((button) => {
+        const found = !query || (button.textContent ?? '').toLocaleLowerCase().includes(query);
+        button.hidden = !found;
+        if (found) categoryMatches += 1;
+      });
+      category.hidden = categoryMatches === 0;
+      matches += categoryMatches;
+      if (query && categoryMatches) {
+        category.classList.add('is-open');
+        category.querySelector('.tool-category-header')?.setAttribute('aria-expanded', 'true');
+      }
+    });
+    const empty = toolbar.querySelector<HTMLElement>('#build-search-empty');
+    if (empty) empty.hidden = !query || matches > 0;
   }
 
   private registerBuiltInGameModes(): void {
@@ -8682,7 +8709,7 @@ export class ThreeGame {
           (tool) =>
             '<button class="tool-button' +
             (tool.id === this.selectedTool ? ' is-selected' : '') +
-            '" data-tool="' +
+            '" type="button" aria-pressed="' + (tool.id === this.selectedTool) + '" data-tool="' +
             tool.id +
             '">' +
             '<span class="tool-icon">' +
@@ -8722,6 +8749,9 @@ export class ThreeGame {
 
     toolbar.innerHTML =
       '<div class="toolbar-title"><div><span>Build</span><small>Modular engineering</small></div><button id="toolbar-close" class="toolbar-close" type="button" aria-label="Close build panel">×</button></div>' +
+      '<label class="build-search"><span>Find a tool</span><input id="build-search" type="search" placeholder="Search buildings, roads, terrain…" autocomplete="off" /></label>' +
+      '<div id="build-search-empty" class="build-search-empty" hidden>No matching tools. Try another name.</div>' +
+      '<div class="build-active" role="status" aria-live="polite">Active tool: <strong id="build-active-label">None</strong></div>' +
       noneHtml +
       toolHtml +
       '<div class="builder-settings">' +
@@ -8790,6 +8820,7 @@ export class ThreeGame {
 
     const builderSettings = toolbar.querySelector<HTMLElement>('.builder-settings');
     if (builderSettings) builderSettings.hidden = this.gameMode === 'modern';
+    toolbar.querySelector<HTMLInputElement>('#build-search')?.addEventListener('input', () => this.filterBuildTools());
 
     toolbar.querySelectorAll<HTMLButtonElement>('.tool-category-header').forEach((header) => {
       header.onclick = () => {
@@ -8804,11 +8835,8 @@ export class ThreeGame {
 
     toolbar.querySelectorAll<HTMLButtonElement>('[data-tool]').forEach((button) => {
       button.onclick = () => {
-        toolbar.querySelectorAll<HTMLButtonElement>('[data-tool]').forEach((item) => {
-          item.classList.toggle('is-selected', item === button);
-        });
         this.selectTool(button.dataset.tool as ToolKind);
-        if (window.matchMedia('(max-width: 760px)').matches) {
+        if (this.selectedTool === button.dataset.tool && window.matchMedia('(max-width: 760px)').matches) {
           this.setToolbarOpen(false);
         }
       };
@@ -9100,6 +9128,13 @@ export class ThreeGame {
     window.addEventListener('keydown', (event) => {
       const key = event.key.toLowerCase();
 
+      const typingTarget = event.target;
+      if (
+        typingTarget instanceof HTMLInputElement ||
+        typingTarget instanceof HTMLTextAreaElement ||
+        typingTarget instanceof HTMLSelectElement
+      ) return;
+
       if ((event.ctrlKey || event.metaKey) && key === 'z') {
         event.preventDefault();
         this.undo();
@@ -9109,15 +9144,6 @@ export class ThreeGame {
       if ((event.ctrlKey || event.metaKey) && key === 'y') {
         event.preventDefault();
         this.redo();
-        return;
-      }
-
-      const typingTarget = event.target;
-      if (
-        typingTarget instanceof HTMLInputElement ||
-        typingTarget instanceof HTMLTextAreaElement ||
-        typingTarget instanceof HTMLSelectElement
-      ) {
         return;
       }
 
@@ -11103,11 +11129,15 @@ export class ThreeGame {
     this.selectedTool = tool;
     if (tool) audioEvents.emit({ action: 'play_sfx', assetId: 'ui.tool-select' });
     document.querySelectorAll('[data-tool]').forEach((element) => {
-      element.classList.toggle('is-selected', tool !== null && (element as HTMLElement).dataset.tool === tool);
+      const selected = tool !== null && (element as HTMLElement).dataset.tool === tool;
+      element.classList.toggle('is-selected', selected);
+      element.setAttribute('aria-pressed', String(selected));
     });
     const noneButton = document.querySelector('[data-build-none]');
     noneButton?.classList.toggle('is-selected', tool === null);
     noneButton?.setAttribute('aria-pressed', String(tool === null));
+    const activeLabel = document.getElementById('build-active-label');
+    if (activeLabel) activeLabel.textContent = tool === null ? 'None' : (document.querySelector<HTMLElement>('[data-tool="' + tool + '"] .tool-copy strong')?.textContent ?? tool);
     this.setStatus(tool === null ? 'No Build Tool Selected · free camera / inspect' : 'Selected: ' + tool);
     for (const extension of this.extensions) extension.onToolSelected?.(tool);
   }
