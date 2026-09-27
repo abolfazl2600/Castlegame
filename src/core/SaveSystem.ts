@@ -483,6 +483,7 @@ export class SaveSystem {
         towerShape: cell.towerShape,
         towerTop: cell.towerTop,
         rotation: cell.rotation,
+        rotationMode: cell.rotationMode,
         wallLinks: cell.wallLinks,
         shipKind: cell.shipKind,
         accessHeight: cell.accessHeight,
