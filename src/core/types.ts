@@ -25,7 +25,7 @@ export type StoneStyle = 'limestone' | 'darkStone' | 'sandstone' | 'frontier';
 export type TowerBridgeKind = 'stone' | 'wood';
 export type AccessKind = 'stoneStairs' | 'woodenStairs' | 'ramp' | 'ladder';
 export type GeneratedAccessKind = AccessKind | 'stairTower';
-export type TerrainToolKind = 'raise' | 'lower' | 'flatten' | 'smooth' | 'dig' | 'hill' | 'cliff';
+export type TerrainToolKind = 'raise' | 'lower' | 'flatten' | 'smooth' | 'hill' | 'cliff';
 export type KeepRoofStyle = 'flatBattlement' | 'sloped' | 'defensivePlatform' | 'towered';
 
 export interface KeepState {
