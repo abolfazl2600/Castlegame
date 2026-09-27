@@ -36,8 +36,8 @@ assert.match(
 
 assert.match(
   threeGame,
-  /template === 'split-isles'[\s\S]*?placeHarborTemplate\('woodenPier', 'transportShip'[\s\S]*?placeHarborTemplate\('harbor', 'transportShip'/,
-  'Split Isles must provide transport-capable maritime access on both landmasses.',
+  /template === 'split-isles'[\s\S]*?placeHarborTemplate\(3, 'transportShip'[\s\S]*?placeHarborTemplate\(4, 'transportShip'/,
+  'Split Isles must provide transport-capable unified Harbor progression on both landmasses.',
 );
 
 assert.match(
