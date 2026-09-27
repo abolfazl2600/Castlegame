@@ -129,6 +129,13 @@ h1 { margin: 3px 0 0; font-size: 22px; line-height: 1; letter-spacing: -.035em; 
   line-height: 1;
 }
 .toolbar-close:hover { background: rgba(255,255,255,.12); }
+.build-search { display:grid; gap:5px; padding:6px 2px 2px; color:#a9cfdb; font-size:10px; font-weight:700; }
+.build-search input { width:100%; min-height:38px; padding:8px 10px; border:1px solid rgba(126,225,255,.22); border-radius:9px; outline:none; color:#f4f8fb; background:rgba(2,15,25,.8); font:inherit; font-size:12px; }
+.build-search input:focus-visible { border-color:#7fe7ff; box-shadow:0 0 0 2px rgba(127,231,255,.2); }
+.build-search-empty { padding:12px 8px; color:#a9cfdb; font-size:11px; }
+.build-active { padding:8px 10px; border:1px solid rgba(126,225,255,.16); border-radius:9px; color:#a9cfdb; background:rgba(93,202,255,.06); font-size:11px; }
+.build-active strong { color:#effbff; }
+.tool-category[hidden], .tool-button[hidden], .build-search-empty[hidden] { display:none !important; }
 
 .toolbar-open {
   position: absolute;
