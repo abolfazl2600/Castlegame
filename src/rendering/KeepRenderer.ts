@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import type { KeepState, StoneStyle, TerrainKind, TileKind } from '../core/types';
 import { CastleDetailGenerator } from '../building/CastleDetailGenerator';
 import { MedievalMaterials } from './MedievalMaterials';
+import { CASTLE_ARCHITECTURE_STYLE } from './CastleArchitectureStyle';
 
 export interface KeepRenderContext {
   tileSize: number;
@@ -41,8 +42,8 @@ export class KeepRenderer {
 
     const minElevation = Math.min(...elevations, 0);
     const maxElevation = Math.max(...elevations, 0);
-    const foundationBottom = 2.15 + minElevation;
-    const foundationTop = 2.72 + maxElevation;
+    const foundationBottom = CASTLE_ARCHITECTURE_STYLE.elevation.groundSurfaceY - 0.07 + minElevation;
+    const foundationTop = CASTLE_ARCHITECTURE_STYLE.elevation.bodyBaseY + 0.14 + maxElevation;
     const foundationHeight = Math.max(0.58, foundationTop - foundationBottom);
 
     group.position.set(center.x, 0, center.z);
@@ -63,9 +64,9 @@ export class KeepRenderer {
 
     this.addBox(
       group,
-      width + 1.05,
+      width + CASTLE_ARCHITECTURE_STYLE.keep.foundationPadding,
       foundationHeight + 0.2,
-      depth + 1.05,
+      depth + CASTLE_ARCHITECTURE_STYLE.keep.foundationPadding,
       stoneDark,
       0,
       foundationBottom + (foundationHeight + 0.2) / 2,
@@ -73,16 +74,16 @@ export class KeepRenderer {
     );
     this.addBox(
       group,
-      width + 0.62,
+      width + CASTLE_ARCHITECTURE_STYLE.keep.foundationCapPadding,
       0.34,
-      depth + 0.62,
+      depth + CASTLE_ARCHITECTURE_STYLE.keep.foundationCapPadding,
       stoneLight,
       0,
       foundationTop - 0.08,
       0,
     );
 
-    const floorHeight = 2.45;
+    const floorHeight = CASTLE_ARCHITECTURE_STYLE.keep.floorHeight;
     const floorGap = 0.13;
     const bodyBottom = foundationTop;
     const totalBodyHeight = keep.floors * floorHeight;
@@ -556,10 +557,8 @@ export class KeepRenderer {
     rotationY: number,
     material: THREE.Material,
   ): void {
-    const merlonWidth = 0.72;
-    const crenelWidth = 0.52;
-    const baseHeight = 0.38;
-    const merlonHeight = 0.82;
+    const { merlonWidth, crenelWidth, baseHeight, merlonHeight, depth, bevel } =
+      CASTLE_ARCHITECTURE_STYLE.battlement;
     const module = merlonWidth + crenelWidth;
     const count = Math.max(2, Math.floor(span / module));
     const actualSpan = count * module + merlonWidth;
@@ -585,14 +584,14 @@ export class KeepRenderer {
     shape.lineTo(-actualSpan / 2, 0);
 
     const geometry = new THREE.ExtrudeGeometry(shape, {
-      depth: 0.34,
+      depth,
       bevelEnabled: true,
-      bevelSize: 0.035,
-      bevelThickness: 0.025,
+      bevelSize: bevel,
+      bevelThickness: bevel * 0.72,
       bevelSegments: 1,
       curveSegments: 1,
     });
-    geometry.translate(0, 0, -0.17);
+    geometry.translate(0, 0, -depth / 2);
 
     const mesh = new THREE.Mesh(geometry, material);
     mesh.position.set(0, y, z);

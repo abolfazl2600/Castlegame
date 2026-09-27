@@ -9,6 +9,7 @@ import { WallSystem } from './building/WallSystem';
 import type { GeneratedAccess } from './building/CastleAccessSystem';
 import { KeepRenderer } from './rendering/KeepRenderer';
 import { MedievalMaterials } from './rendering/MedievalMaterials';
+import { CASTLE_ARCHITECTURE_STYLE } from './rendering/CastleArchitectureStyle';
 import { WORLD_STYLE, styleTone } from './rendering/WorldStyle';
 import { BattleSystem, getUnitCombatStats } from './battle/BattleSystem';
 import { MILITARY_TIERS, militaryTierDefinition, normalizeMilitaryTier, type MilitaryTier } from './battle/MilitaryProgression';
@@ -3205,9 +3206,14 @@ export class ThreeGame {
     const walkway = cell.walkway ?? false;
     const links = this.wallConnections(gx, gy, cell);
 
-    const baseHeight = kind === 'wall1' ? 5.2 : kind === 'wall2' ? 4.7 : 5.8;
-    const height = baseHeight + Math.max(0, level - 1) * 2.15;
-    const topY = 2.58 + height;
+    const baseHeight =
+      kind === 'wall1'
+        ? CASTLE_ARCHITECTURE_STYLE.wall.stoneBaseHeight
+        : kind === 'wall2'
+          ? CASTLE_ARCHITECTURE_STYLE.wall.timberBaseHeight
+          : CASTLE_ARCHITECTURE_STYLE.wall.reinforcedBaseHeight;
+    const height = baseHeight + Math.max(0, level - 1) * CASTLE_ARCHITECTURE_STYLE.wall.levelRise;
+    const topY = CASTLE_ARCHITECTURE_STYLE.elevation.bodyBaseY + height;
 
     const wallMaterial =
       kind === 'wall2'
@@ -3252,11 +3258,11 @@ export class ThreeGame {
       .map((vector) => this.terrainElevation(gx + vector.x, gy + vector.y));
     const localLow = Math.min(ownElevation, ...adjacentElevations);
     const foundationDrop = THREE.MathUtils.clamp(ownElevation - localLow, 0, 3.4);
-    const foundationHeight = 0.72 + foundationDrop;
+    const foundationHeight = CASTLE_ARCHITECTURE_STYLE.wall.foundationBaseHeight + foundationDrop;
 
     this.addBox(
       group,
-      junctionThickness * 1.52,
+      junctionThickness * (CASTLE_ARCHITECTURE_STYLE.wall.foundationWidthScale + 0.14),
       foundationHeight,
       junctionThickness * 1.52,
       darkMaterial,
@@ -3266,7 +3272,7 @@ export class ThreeGame {
     );
     this.addBox(
       group,
-      junctionThickness * 1.3,
+      junctionThickness * CASTLE_ARCHITECTURE_STYLE.wall.plinthWidthScale,
       0.38,
       junctionThickness * 1.3,
       accentMaterial,
@@ -3463,7 +3469,7 @@ export class ThreeGame {
 
     // Keep the defensive wall vertical. Terrain changes are absorbed by deeper
     // foundations and by a stepped height transition between adjacent cells.
-    const bodyLength = run + 0.24;
+    const bodyLength = run + CASTLE_ARCHITECTURE_STYLE.wall.joinOverlap;
     this.addBox(
       arm,
       thickness,
@@ -3477,7 +3483,7 @@ export class ThreeGame {
 
     const terrainDrop = Math.max(0, -elevationDelta);
     const terrainRise = Math.max(0, elevationDelta);
-    const foundationDepth = 0.82 + terrainDrop * 0.8 + Math.abs(elevationDelta) * 0.2;
+    const foundationDepth = CASTLE_ARCHITECTURE_STYLE.wall.foundationBaseHeight + 0.04 + terrainDrop * 0.8 + Math.abs(elevationDelta) * 0.2;
     this.addBox(
       arm,
       thickness * 1.34,
@@ -3517,8 +3523,8 @@ export class ThreeGame {
     if (walkway) {
       this.addBox(
         arm,
-        Math.max(1.05, thickness - 0.32),
-        0.3,
+        Math.max(1.05, thickness - CASTLE_ARCHITECTURE_STYLE.wall.walkwayInset),
+        CASTLE_ARCHITECTURE_STYLE.wall.walkwayThickness,
         bodyLength,
         walkwayMaterial,
         0,
@@ -3634,10 +3640,8 @@ export class ThreeGame {
     material: THREE.Material,
     endInset = 0,
   ): void {
-    const merlonWidth = 0.68;
-    const crenelWidth = 0.48;
-    const baseHeight = 0.42;
-    const merlonHeight = 0.92;
+    const { merlonWidth, crenelWidth, baseHeight, merlonHeight, depth, bevel } =
+      CASTLE_ARCHITECTURE_STYLE.battlement;
     const module = merlonWidth + crenelWidth;
     const usable = Math.max(0.9, span - endInset * 2);
     const count = Math.max(1, Math.floor((usable - merlonWidth) / module));
@@ -3663,15 +3667,15 @@ export class ThreeGame {
     shape.lineTo(-actualSpan / 2, 0);
 
     const geometry = new THREE.ExtrudeGeometry(shape, {
-      depth: 0.34,
+      depth,
       bevelEnabled: true,
-      bevelSize: 0.04,
-      bevelThickness: 0.035,
+      bevelSize: bevel,
+      bevelThickness: bevel,
       bevelSegments: 1,
       curveSegments: 1,
     });
     geometry.rotateY(Math.PI / 2);
-    geometry.translate(-0.17, 0, 0);
+    geometry.translate(-depth / 2, 0, 0);
 
     const mesh = new THREE.Mesh(geometry, material);
     mesh.position.set(sideOffset, y, span / 2);
@@ -4148,13 +4152,16 @@ export class ThreeGame {
 
     const core = new THREE.Group();
     const door = new THREE.Group();
-    this.addBox(core, 3.75, 0.8, 2.55, foundation, 0, 2.15, 0);
-    this.addBox(core, 0.92, 5.25, 2.38, wallMaterial, -1.42, 5.2, 0);
-    this.addBox(core, 0.92, 5.25, 2.38, wallMaterial, 1.42, 5.2, 0);
-    this.addBox(core, 3.75, 1.0, 2.42, wallMaterial, 0, 7.25, 0);
+    const gateStyle = CASTLE_ARCHITECTURE_STYLE.gate;
+    const gateHalfWidth = gateStyle.width / 2;
+    const pierX = gateHalfWidth - gateStyle.pierWidth / 2;
+    this.addBox(core, gateStyle.width, 0.82, gateStyle.depth, foundation, 0, 2.15, 0);
+    this.addBox(core, gateStyle.pierWidth, gateStyle.bodyHeight, gateStyle.depth - 0.18, wallMaterial, -pierX, 5.22, 0);
+    this.addBox(core, gateStyle.pierWidth, gateStyle.bodyHeight, gateStyle.depth - 0.18, wallMaterial, pierX, 5.22, 0);
+    this.addBox(core, gateStyle.width, gateStyle.topBandHeight, gateStyle.depth - 0.12, wallMaterial, 0, 7.28, 0);
 
-    this.addBox(door, 1.95, 3.35, 0.2, shadow, 0, 4.18, -1.22);
-    this.addBox(door, 1.78, 3.2, 0.24, woodMaterial, 0, 4.16, -1.34);
+    this.addBox(door, gateStyle.openingWidth, gateStyle.openingHeight, 0.2, shadow, 0, 4.2, -gateStyle.depth / 2 + 0.07);
+    this.addBox(door, gateStyle.openingWidth - 0.17, gateStyle.openingHeight - 0.15, 0.24, woodMaterial, 0, 4.18, -gateStyle.depth / 2 - 0.05);
     for (const x of [-0.58, 0.58]) {
       this.addBox(door, 0.14, 3.05, 0.34, darkWood, x, 4.16, -1.39);
     }
@@ -4163,9 +4170,9 @@ export class ThreeGame {
     }
     core.add(door);
 
-    this.addBox(core, 3.95, 0.28, 2.62, this.medievalMaterials.castleStone(this.stoneStyle, 'walkway', gx, gy), 0, 7.72, 0);
-    this.addTowerCrenellatedEdge(core, 3.55, 0, -1.0, 7.78, 0, wallMaterial);
-    this.addTowerCrenellatedEdge(core, 3.55, 0, 1.0, 7.78, Math.PI, wallMaterial);
+    this.addBox(core, gateStyle.width + 0.2, gateStyle.walkwayThickness, gateStyle.depth + 0.08, this.medievalMaterials.castleStone(this.stoneStyle, 'walkway', gx, gy), 0, 7.72, 0);
+    this.addTowerCrenellatedEdge(core, gateStyle.width - 0.46, 0, -(gateStyle.depth / 2 - 0.3), 7.78, 0, wallMaterial);
+    this.addTowerCrenellatedEdge(core, gateStyle.width - 0.46, 0, gateStyle.depth / 2 - 0.3, 7.78, Math.PI, wallMaterial);
 
     if (vertical) core.rotation.y = Math.PI / 2;
     group.add(core);
@@ -4201,7 +4208,7 @@ export class ThreeGame {
     const level = cell.level ?? 1;
     const shape = cell.towerShape ?? 'round';
     const top = cell.towerTop ?? 'battlement';
-    const height = (shape === 'watch' ? 6.4 : 7.4) + Math.max(0, level - 1) * 2.15;
+    const height = (shape === 'watch' ? 6.4 : 7.4) + Math.max(0, level - 1) * CASTLE_ARCHITECTURE_STYLE.tower.levelRise;
     const bodyBase = 2.58;
     const topY = bodyBase + height;
 
@@ -4226,8 +4233,8 @@ export class ThreeGame {
     const foundationHeight = 0.95 + foundationDrop;
 
     const squareLike = shape === 'square' || shape === 'corner';
-    const width = shape === 'corner' ? 4.15 : shape === 'square' ? 3.85 : 0;
-    const radius = shape === 'watch' ? 1.72 : shape === 'octagonal' ? 2.0 : 2.08;
+    const width = shape === 'corner' ? CASTLE_ARCHITECTURE_STYLE.tower.cornerWidth : shape === 'square' ? CASTLE_ARCHITECTURE_STYLE.tower.squareWidth : 0;
+    const radius = shape === 'watch' ? CASTLE_ARCHITECTURE_STYLE.tower.watchRadius : shape === 'octagonal' ? CASTLE_ARCHITECTURE_STYLE.tower.octagonalRadius : CASTLE_ARCHITECTURE_STYLE.tower.roundRadius;
 
     if (squareLike) {
       this.addBox(
@@ -4616,12 +4623,12 @@ export class ThreeGame {
       const walkway = this.medievalMaterials.castleStone(this.stoneStyle, 'walkway', bridge.ax, bridge.ay);
       const support = this.medievalMaterials.castleStone(this.stoneStyle, 'foundation', bridge.ax, bridge.ay);
 
-      this.addBridgeBeamBetween(group, start, end, 1.9, 0.34, walkway);
+      this.addBridgeBeamBetween(group, start, end, CASTLE_ARCHITECTURE_STYLE.bridge.stoneDeckWidth, 0.34, walkway);
       for (const sign of [-1, 1]) {
-        const offset = side.clone().multiplyScalar(sign * 0.82);
+        const offset = side.clone().multiplyScalar(sign * CASTLE_ARCHITECTURE_STYLE.bridge.stoneRailOffset);
         const railStart = start.clone().add(offset).add(new THREE.Vector3(0, 0.38, 0));
         const railEnd = end.clone().add(offset).add(new THREE.Vector3(0, 0.38, 0));
-        this.addBridgeBeamBetween(group, railStart, railEnd, 0.26, 0.68, stone);
+        this.addBridgeBeamBetween(group, railStart, railEnd, CASTLE_ARCHITECTURE_STYLE.bridge.stoneRailWidth, CASTLE_ARCHITECTURE_STYLE.bridge.stoneRailHeight, stone);
       }
 
       const supportCount = Math.max(1, Math.floor(span / 6));
@@ -4651,11 +4658,11 @@ export class ThreeGame {
         const t1 = (i + 0.9) / plankCount;
         const p0 = start.clone().lerp(end, t0);
         const p1 = start.clone().lerp(end, t1);
-        this.addBridgeBeamBetween(group, p0, p1, 1.75, 0.18, wood);
+        this.addBridgeBeamBetween(group, p0, p1, CASTLE_ARCHITECTURE_STYLE.bridge.woodDeckWidth, 0.18, wood);
       }
 
       for (const sign of [-1, 1]) {
-        const offset = side.clone().multiplyScalar(sign * 0.78);
+        const offset = side.clone().multiplyScalar(sign * CASTLE_ARCHITECTURE_STYLE.bridge.woodRailOffset);
         const railStart = start.clone().add(offset).add(new THREE.Vector3(0, 0.62, 0));
         const railEnd = end.clone().add(offset).add(new THREE.Vector3(0, 0.62, 0));
         this.addBridgeBeamBetween(group, railStart, railEnd, 0.11, 0.11, dark);
@@ -4666,7 +4673,7 @@ export class ThreeGame {
         const t = i / postCount;
         const center = start.clone().lerp(end, t);
         for (const sign of [-1, 1]) {
-          const offset = side.clone().multiplyScalar(sign * 0.78);
+          const offset = side.clone().multiplyScalar(sign * CASTLE_ARCHITECTURE_STYLE.bridge.woodRailOffset);
           const post = this.addBridgeBeamBetween(
             group,
             center.clone().add(offset).add(new THREE.Vector3(0, 0.1, 0)),
@@ -4710,9 +4717,9 @@ export class ThreeGame {
 
     this.addBox(
       connector,
-      1.92,
+      CASTLE_ARCHITECTURE_STYLE.tower.connectorWidth,
       height,
-      run + 0.3,
+      run + CASTLE_ARCHITECTURE_STYLE.wall.joinOverlap,
       material,
       0,
       2.58 + height / 2,
@@ -4723,9 +4730,9 @@ export class ThreeGame {
     const foundationHeight = 0.82 + terrainDrop * 0.8 + Math.abs(elevationDelta) * 0.2;
     this.addBox(
       connector,
-      2.35,
+      CASTLE_ARCHITECTURE_STYLE.tower.connectorFoundationWidth,
       foundationHeight,
-      run + 0.44,
+      run + CASTLE_ARCHITECTURE_STYLE.wall.joinOverlap + 0.14,
       this.medievalMaterials.castleStone(this.stoneStyle, 'foundation'),
       0,
       2.22 - foundationHeight / 2 + 0.16,
@@ -5234,7 +5241,7 @@ export class ThreeGame {
     // even the thickest supported wall cannot leave a visible vertical gap.
     this.addBox(
       group,
-      3.65,
+      CASTLE_ARCHITECTURE_STYLE.access.stairTowerWidth,
       0.46,
       bodyDepth + 0.22,
       foundation,
@@ -5244,7 +5251,7 @@ export class ThreeGame {
     );
     this.addBox(
       group,
-      3.38,
+      CASTLE_ARCHITECTURE_STYLE.access.stairTowerWidth - 0.24,
       bodyHeight,
       bodyDepth,
       body,
@@ -5262,7 +5269,7 @@ export class ThreeGame {
     // walk surfaces meet at the same target.
     this.addBox(
       group,
-      3.56,
+      CASTLE_ARCHITECTURE_STYLE.access.stairTowerWidth - 0.06,
       0.24,
       bodyDepth + 0.08,
       walkway,
@@ -5275,7 +5282,7 @@ export class ThreeGame {
     const landingDepth = Math.abs(landingEndZ - landingStartZ);
     this.addBox(
       group,
-      1.92,
+      CASTLE_ARCHITECTURE_STYLE.access.stairTowerLandingWidth,
       0.24,
       landingDepth,
       walkway,
@@ -5322,14 +5329,14 @@ export class ThreeGame {
     riseOverride?: number,
   ): THREE.Group {
     const rise = riseOverride ?? this.accessRiseForRotation(gx, gy, cell.rotation ?? 0);
-    const stone = new THREE.MeshStandardMaterial({ color: 0xb7afa4, roughness: 0.92 });
-    const wood = new THREE.MeshStandardMaterial({ color: 0x815b3d, roughness: 0.94 });
-    const metal = new THREE.MeshStandardMaterial({ color: 0x66737b, metalness: 0.34, roughness: 0.58 });
+    const stone = this.medievalMaterials.castleStone(this.stoneStyle, 'walkway', gx, gy);
+    const wood = this.medievalMaterials.timber;
+    const metal = this.medievalMaterials.iron;
     const material = kind === 'woodenStairs' || kind === 'ladder' ? wood : stone;
 
     if (kind === 'ramp') {
       const run = 3.35;
-      const ramp = this.addBox(group, 1.7, 0.3, Math.sqrt(run * run + rise * rise), stone, 0, 2.28 + rise / 2, 0);
+      const ramp = this.addBox(group, CASTLE_ARCHITECTURE_STYLE.access.rampWidth, 0.3, Math.sqrt(run * run + rise * rise), stone, 0, 2.28 + rise / 2, 0);
       ramp.rotation.x = -Math.atan2(rise, run);
       return group;
     }
@@ -5356,11 +5363,11 @@ export class ThreeGame {
       const t = (i + 1) / steps;
       const z = run / 2 - t * run;
       const y = 2.24 + t * rise;
-      this.addBox(group, 1.75, 0.24, stepDepth, stepMaterial, 0, y, z);
+      this.addBox(group, CASTLE_ARCHITECTURE_STYLE.access.stairWidth, 0.24, stepDepth, stepMaterial, 0, y, z);
     }
 
     const railMaterial = kind === 'woodenStairs' ? wood : stone;
-    for (const x of [-0.93, 0.93]) {
+    for (const x of [-CASTLE_ARCHITECTURE_STYLE.access.railOffset, CASTLE_ARCHITECTURE_STYLE.access.railOffset]) {
       const rail = this.addBox(group, 0.12, 0.12, Math.sqrt(run * run + rise * rise), railMaterial, x, 2.35 + rise / 2, 0);
       rail.rotation.x = -Math.atan2(rise, run);
     }
