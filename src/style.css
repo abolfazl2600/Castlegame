@@ -1583,6 +1583,8 @@ kbd {
   color: #8fa8b7;
   font-size: 11px;
   line-height: 1.5;
+}
+
 /* Privacy and legal settings */
 .privacy-modal {
   width: min(680px, calc(100vw - 28px));

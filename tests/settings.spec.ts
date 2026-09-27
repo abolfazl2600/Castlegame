@@ -48,9 +48,35 @@ test('desktop header Settings remains clickable after game runtime initializatio
 
   await page.mouse.click(point.x, point.y);
 
-  await expect(page.locator('#settings-modal')).toBeVisible();
-  await expect(page.locator('#settings-modal')).toHaveAttribute('aria-hidden', 'false');
-  await expect(page.locator('#settings-backdrop')).toHaveAttribute('aria-hidden', 'false');
+  const modal = page.locator('#settings-modal');
+  const backdrop = page.locator('#settings-backdrop');
+
+  await expect(modal).toBeVisible();
+  await expect(modal).toBeInViewport();
+  await expect(modal).toHaveAttribute('aria-hidden', 'false');
+  await expect(backdrop).toHaveAttribute('aria-hidden', 'false');
+
+  const layout = await modal.evaluate((element) => {
+    const style = getComputedStyle(element);
+    const rect = element.getBoundingClientRect();
+    return {
+      position: style.position,
+      zIndex: Number(style.zIndex),
+      left: rect.left,
+      top: rect.top,
+      right: rect.right,
+      bottom: rect.bottom,
+      viewportWidth: innerWidth,
+      viewportHeight: innerHeight,
+    };
+  });
+
+  expect(layout.position).toBe('fixed');
+  expect(layout.zIndex).toBeGreaterThan(100);
+  expect(layout.left).toBeGreaterThanOrEqual(0);
+  expect(layout.top).toBeGreaterThanOrEqual(0);
+  expect(layout.right).toBeLessThanOrEqual(layout.viewportWidth);
+  expect(layout.bottom).toBeLessThanOrEqual(layout.viewportHeight);
 });
 
 test('close button closes Settings', async ({ page }) => {
