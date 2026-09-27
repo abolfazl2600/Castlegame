@@ -325,6 +325,7 @@ export class BattleSystem {
   private readonly units = new Map<string, UnitRuntime>();
   private readonly arrows: ArrowProjectile[] = [];
   private readonly missiles: MissileProjectile[] = [];
+  private readonly impactEffects: Array<{ view: THREE.Mesh; remainingMs: number }> = [];
   private readonly sharedGeometries: THREE.BufferGeometry[] = [];
   private readonly sharedMaterials: THREE.Material[] = [];
   private readonly bodyGeometry = this.geometry(new THREE.CylinderGeometry(0.22, 0.29, 0.68, 7));
@@ -346,6 +347,7 @@ export class BattleSystem {
   private readonly missileBodyGeometry = this.geometry(new THREE.CylinderGeometry(0.1, 0.14, 1.25, 8));
   private readonly missileNoseGeometry = this.geometry(new THREE.ConeGeometry(0.14, 0.32, 8));
   private readonly missileBlastGeometry = this.geometry(new THREE.RingGeometry(0.72, 1, 24));
+  private readonly wallFlashGeometry = this.geometry(new THREE.SphereGeometry(0.09, 6, 5));
   private readonly tacticalMaterial = this.material(new THREE.MeshStandardMaterial({ color: 0x334039, roughness: 0.9 }));
   private readonly rifleMaterial = this.material(new THREE.MeshStandardMaterial({ color: 0x1d2322, roughness: 0.46, metalness: 0.52 }));
   private readonly missileMaterial = this.material(new THREE.MeshStandardMaterial({ color: 0xcfd7d8, roughness: 0.38, metalness: 0.62 }));
@@ -578,6 +580,7 @@ export class BattleSystem {
   }
 
   update(deltaMs: number, timeMs: number): void {
+    this.updateImpactEffects(deltaMs);
     if (this.mode !== 'running') {
       if (this.objectiveMarker) this.animateObjective(timeMs);
       return;
@@ -3815,10 +3818,11 @@ export class BattleSystem {
       this.applyDamage(target, 18 * tier.weaponDamageMultiplier);
       this.wallWeaponTimers.set(key, 0.95 * tier.weaponCooldownMultiplier);
 
-      const flash = new THREE.Mesh(new THREE.SphereGeometry(0.09, 6, 5), this.objectiveMaterial);
-      flash.position.lerpVectors(origin, target.position, 0.18);
-      this.layer.add(flash);
-      window.setTimeout(() => this.layer.remove(flash), 55);
+      if (this.world.effectsEnabled?.() !== false) {
+        const flash = new THREE.Mesh(this.wallFlashGeometry, this.objectiveMaterial);
+        flash.position.lerpVectors(origin, target.position, 0.18);
+        this.addImpactEffect(flash, 55);
+      }
     }
   }
 
@@ -3877,10 +3881,29 @@ export class BattleSystem {
       blast.position.y += 0.14;
       blast.rotation.x = -Math.PI / 2;
       blast.scale.setScalar(Math.max(0.8, missile.impactRadius * 0.4));
-      this.layer.add(blast);
-      window.setTimeout(() => this.layer.remove(blast), 180);
+      this.addImpactEffect(blast, 180);
     }
     this.emitStatus();
+  }
+
+  private addImpactEffect(view: THREE.Mesh, remainingMs: number): void {
+    this.layer.add(view);
+    this.impactEffects.push({ view, remainingMs });
+    if (this.impactEffects.length > 16) {
+      const oldest = this.impactEffects.shift();
+      if (oldest) this.layer.remove(oldest.view);
+    }
+  }
+
+  private updateImpactEffects(deltaMs: number): void {
+    const enabled = this.world.effectsEnabled?.() !== false;
+    for (let index = this.impactEffects.length - 1; index >= 0; index -= 1) {
+      const effect = this.impactEffects[index];
+      effect.remainingMs -= Math.max(0, deltaMs);
+      if (enabled && effect.remainingMs > 0) continue;
+      this.layer.remove(effect.view);
+      this.impactEffects.splice(index, 1);
+    }
   }
 
   private clearMissiles(): void {
@@ -4014,6 +4037,8 @@ export class BattleSystem {
     this.objectiveSystem.stop();
     this.clearSiegeState();
     this.clearMissiles();
+    for (const effect of this.impactEffects) this.layer.remove(effect.view);
+    this.impactEffects.length = 0;
     this.emitStatus();
   }
 
