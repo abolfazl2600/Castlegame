@@ -81,13 +81,29 @@ const toolbarRefresh = between(
 );
 assert.match(
   toolbarRefresh,
-  /querySelectorAll<HTMLElement>\('\.tool-category'\)\.forEach\(\(category\) => category\.remove\(\)\)/,
-  'Toolbar refresh must replace stale categories rather than append duplicates.',
+  /tabs\.innerHTML = groups\.map\(\(group, index\) => \{/,
+  'Toolbar refresh must fully replace stale category tabs rather than append duplicates.',
 );
 assert.match(
   toolbarRefresh,
-  /querySelectorAll<HTMLButtonElement>\('\[data-tool\]'\)\.forEach/,
-  'Toolbar refresh must rebind tool click handlers after rebuilding buttons.',
+  /sections\.innerHTML = groups\.map\(\(group, index\) => \{/,
+  'Toolbar refresh must fully replace stale tool sections rather than append duplicates.',
+);
+
+const bindUi = between(
+  threeGame,
+  'private bindUI(): void {',
+  'private syncWallSettingsSummary(): void {',
+);
+assert.match(
+  bindUi,
+  /toolbar\.addEventListener\('click', \(event\) => \{/,
+  'Build tool selection must be delegated from the stable toolbar after dynamic rerenders.',
+);
+assert.match(
+  bindUi,
+  /const buildControlSelector = '\[data-build-category\], \[data-tool\], \[data-build-none\]';/,
+  'Delegated Build selection must cover categories, tools, and Inspect.',
 );
 assert.match(
   toolbarRefresh,
