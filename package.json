@@ -18,6 +18,7 @@
     "test:settings-bootstrap-order": "node scripts/test-settings-bootstrap-order.mjs",
     "test:ui": "playwright test",
     "visual:baseline": "node scripts/visual-baseline.mjs",
+    "visual:report": "node scripts/visual-baseline-report.mjs",
     "test:visual-reference": "node scripts/test-visual-reference.mjs",
     "test:save-mode-ui-sync": "node scripts/test-save-mode-ui-sync.mjs",
     "test:modern-fortress-terrain-protection": "node scripts/test-modern-fortress-terrain-protection.mjs",
