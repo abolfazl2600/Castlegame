@@ -9,7 +9,7 @@ const modernMaterials = await readFile(new URL('../src/rendering/ModernMaterials
 const futuristicRenderer = await readFile(new URL('../src/rendering/FuturisticCastleRenderer.ts', import.meta.url), 'utf8');
 
 const templateIds = [...html.matchAll(/data-template="([^"]+)"/g)].map((match) => match[1]);
-assert.equal(templateIds.length, 31, 'Template picker should expose the current 31 complete starting worlds.');
+assert.equal(templateIds.length, 32, 'Template picker should expose the current 32 complete starting worlds.');
 assert.equal(new Set(templateIds).size, templateIds.length, 'Complete template IDs must be unique.');
 
 for (const id of templateIds) {
