@@ -1,167 +1,351 @@
 import * as THREE from 'three';
+import { WORLD_STYLE } from '../rendering/WorldStyle';
+
+interface OrchardLayout {
+  fieldScale: number;
+  columns: number;
+  rows: number;
+  treeScale: number;
+}
 
 export class OrchardSystem {
+  private readonly unitBox = new THREE.BoxGeometry(1, 1, 1);
+  private readonly trunkGeometry = new THREE.CylinderGeometry(0.13, 0.18, 0.92, 7);
+  private readonly branchGeometry = new THREE.CylinderGeometry(0.04, 0.07, 0.58, 6);
+  private readonly canopyGeometry = new THREE.DodecahedronGeometry(0.55, 1);
+  private readonly appleGeometry = new THREE.SphereGeometry(0.075, 7, 6);
+
+  private readonly soil = new THREE.MeshStandardMaterial({
+    color: WORLD_STYLE.palette.soil,
+    roughness: 1,
+  });
+  private readonly soilDark = new THREE.MeshStandardMaterial({ color: 0x624a36, roughness: 1 });
+  private readonly packedEarth = new THREE.MeshStandardMaterial({ color: 0x9a7a56, roughness: 1 });
+  private readonly grass = new THREE.MeshStandardMaterial({
+    color: WORLD_STYLE.palette.grassShaded,
+    roughness: 1,
+  });
+  private readonly trunk = new THREE.MeshStandardMaterial({ color: 0x68442d, roughness: 0.96 });
+  private readonly branch = new THREE.MeshStandardMaterial({ color: 0x513622, roughness: 0.98 });
+  private readonly leafDark = new THREE.MeshStandardMaterial({
+    color: WORLD_STYLE.palette.foliageDark,
+    roughness: 0.92,
+  });
+  private readonly leaf = new THREE.MeshStandardMaterial({
+    color: WORLD_STYLE.palette.foliageMid,
+    roughness: 0.9,
+  });
+  private readonly leafLight = new THREE.MeshStandardMaterial({
+    color: WORLD_STYLE.palette.foliageLight,
+    roughness: 0.9,
+  });
+  private readonly apple = new THREE.MeshStandardMaterial({ color: 0xc94435, roughness: 0.8 });
+  private readonly appleDark = new THREE.MeshStandardMaterial({ color: 0x922d27, roughness: 0.84 });
+  private readonly fence = new THREE.MeshStandardMaterial({ color: 0x765137, roughness: 1 });
+  private readonly crateWood = new THREE.MeshStandardMaterial({ color: 0x8a603e, roughness: 1 });
+
   create(group: THREE.Group, size: number, seed: number): void {
     const orchardSize = THREE.MathUtils.clamp(Math.floor(size), 1, 3);
+    const layout = this.layoutFor(orchardSize);
     const hash = (value: number): number => {
       const n = Math.sin(value * 12.9898 + seed * 78.233) * 43758.5453;
       return n - Math.floor(n);
     };
 
-    const soil = new THREE.MeshStandardMaterial({ color: 0x76563d, roughness: 1 });
-    const soilDark = new THREE.MeshStandardMaterial({ color: 0x594332, roughness: 1 });
-    const grass = new THREE.MeshStandardMaterial({ color: 0x6f8749, roughness: 1 });
-    const trunk = new THREE.MeshStandardMaterial({ color: 0x68442d, roughness: 0.96 });
-    const branch = new THREE.MeshStandardMaterial({ color: 0x513622, roughness: 0.98 });
-    const leaf = new THREE.MeshStandardMaterial({ color: 0x47703c, roughness: 0.9 });
-    const leafLight = new THREE.MeshStandardMaterial({ color: 0x668d4b, roughness: 0.9 });
-    const apple = new THREE.MeshStandardMaterial({ color: 0xb83b2f, roughness: 0.82 });
-    const appleDark = new THREE.MeshStandardMaterial({ color: 0x8f2d26, roughness: 0.86 });
-    const fence = new THREE.MeshStandardMaterial({ color: 0x765137, roughness: 1 });
+    group.userData.orchardSize = orchardSize;
+    group.userData.orchardSeed = seed;
+    group.userData.orchardVisualVersion = 2;
 
-    const fieldScale = 3.35 + (orchardSize - 1) * 0.25;
-    const field = new THREE.Mesh(
-      new THREE.BoxGeometry(fieldScale, 0.14, fieldScale),
-      soil,
-    );
-    field.position.y = 0.08;
-    field.receiveShadow = true;
-    group.add(field);
+    this.addGround(group, layout);
+    this.addPlantingRows(group, layout);
 
-    const border = new THREE.Mesh(
-      new THREE.BoxGeometry(fieldScale * 0.9, 0.035, fieldScale * 0.9),
-      grass,
-    );
-    border.position.y = 0.17;
-    border.receiveShadow = true;
-    group.add(border);
+    const innerSpan = layout.fieldScale - 1.18;
+    const xStep = layout.columns > 1 ? innerSpan / (layout.columns - 1) : 0;
+    const zStep = layout.rows > 1 ? innerSpan / (layout.rows - 1) : 0;
 
-    const rows = orchardSize === 1 ? 3 : orchardSize === 2 ? 4 : 5;
-    const spacing = fieldScale / (rows + 1);
-
-    for (let row = 0; row < rows; row += 1) {
-      const z = -fieldScale / 2 + spacing * (row + 1);
-      for (let col = 0; col < rows; col += 1) {
-        const x = -fieldScale / 2 + spacing * (col + 1);
-        const localSeed = row * 101 + col * 37;
-        const tree = new THREE.Group();
-        const scale = 0.86 + hash(localSeed + 1) * 0.28;
-        const rotation = (hash(localSeed + 2) - 0.5) * 0.22;
-
-        const trunkHeight = 0.92 * scale;
-        const trunkMesh = new THREE.Mesh(
-          new THREE.CylinderGeometry(0.13 * scale, 0.18 * scale, trunkHeight, 7),
-          trunk,
-        );
-        trunkMesh.position.y = 0.28 + trunkHeight / 2;
-        trunkMesh.castShadow = true;
-        tree.add(trunkMesh);
-
-        for (const [angle, length, height] of [
-          [0.25, 0.72, 0.86],
-          [-0.7, 0.62, 0.76],
-          [2.25, 0.58, 0.8],
-        ] as Array<[number, number, number]>) {
-          const limb = new THREE.Mesh(
-            new THREE.CylinderGeometry(0.045 * scale, 0.075 * scale, length * scale, 6),
-            branch,
-          );
-          limb.position.set(
-            Math.cos(angle) * length * 0.28 * scale,
-            height * scale,
-            Math.sin(angle) * length * 0.28 * scale,
-          );
-          limb.rotation.z = Math.sin(angle) * 0.8;
-          limb.rotation.x = Math.cos(angle) * 0.45;
-          limb.castShadow = true;
-          tree.add(limb);
+    for (let row = 0; row < layout.rows; row += 1) {
+      const z = -innerSpan / 2 + zStep * row;
+      for (let col = 0; col < layout.columns; col += 1) {
+        // Size 1 keeps one tree out of the front-center slot to make the entrance legible.
+        if (
+          orchardSize === 1 &&
+          row === layout.rows - 1 &&
+          col === Math.floor(layout.columns / 2)
+        ) {
+          continue;
         }
 
-        const canopy = new THREE.Mesh(
-          new THREE.DodecahedronGeometry(0.82 * scale, 1),
-          hash(localSeed + 3) > 0.5 ? leaf : leafLight,
+        const x = -innerSpan / 2 + xStep * col;
+        const localSeed = orchardSize * 1000 + row * 101 + col * 37;
+        this.addTree(
+          group,
+          x + (hash(localSeed + 50) - 0.5) * 0.08,
+          z + (hash(localSeed + 60) - 0.5) * 0.08,
+          layout.treeScale,
+          localSeed,
+          hash,
         );
-        canopy.position.y = 1.28 * scale;
-        canopy.scale.set(1.05, 0.86, 0.98);
-        canopy.castShadow = true;
-        tree.add(canopy);
-
-        if (hash(localSeed + 4) > 0.42) {
-          const appleCount = 1 + Math.floor(hash(localSeed + 5) * 4);
-          for (let appleIndex = 0; appleIndex < appleCount; appleIndex += 1) {
-            const a = hash(localSeed + 10 + appleIndex) * Math.PI * 2;
-            const radius = 0.42 + hash(localSeed + 20 + appleIndex) * 0.25;
-            const fruit = new THREE.Mesh(
-              new THREE.SphereGeometry(0.075 + hash(localSeed + 30 + appleIndex) * 0.025, 7, 6),
-              appleIndex % 3 === 0 ? appleDark : apple,
-            );
-            fruit.position.set(
-              Math.cos(a) * radius * scale,
-              (1.18 + hash(localSeed + 40 + appleIndex) * 0.48) * scale,
-              Math.sin(a) * radius * scale,
-            );
-            fruit.castShadow = true;
-            tree.add(fruit);
-          }
-        }
-
-        tree.position.set(
-          x + (hash(localSeed + 50) - 0.5) * 0.14,
-          0,
-          z + (hash(localSeed + 60) - 0.5) * 0.14,
-        );
-        tree.rotation.y = rotation;
-        group.add(tree);
       }
     }
 
-    // Narrow cultivation furrows make the field read as worked agricultural ground.
-    for (let i = 1; i < rows; i += 1) {
-      const offset = -fieldScale / 2 + spacing * i;
-      const furrow = new THREE.Mesh(
-        new THREE.BoxGeometry(0.055, 0.025, fieldScale * 0.84),
-        soilDark,
-      );
-      furrow.position.set(offset, 0.19, 0);
-      group.add(furrow);
+    this.addFence(group, layout.fieldScale);
+    this.addEntrancePath(group, layout.fieldScale);
+    this.addProduceCrate(group, layout.fieldScale, seed);
 
-      const crossFurrow = new THREE.Mesh(
-        new THREE.BoxGeometry(fieldScale * 0.84, 0.025, 0.055),
-        soilDark,
+    group.userData.orchardTreeLayout = {
+      columns: layout.columns,
+      rows: layout.rows,
+    };
+  }
+
+  private layoutFor(size: number): OrchardLayout {
+    if (size === 1) {
+      return { fieldScale: 3.34, columns: 3, rows: 3, treeScale: 0.9 };
+    }
+    if (size === 2) {
+      return { fieldScale: 3.58, columns: 4, rows: 3, treeScale: 0.82 };
+    }
+    return { fieldScale: 3.82, columns: 4, rows: 4, treeScale: 0.76 };
+  }
+
+  private addGround(group: THREE.Group, layout: OrchardLayout): void {
+    const grassBase = this.box(
+      this.grass,
+      layout.fieldScale,
+      0.12,
+      layout.fieldScale,
+    );
+    grassBase.position.y = 0.06;
+    grassBase.receiveShadow = true;
+    group.add(grassBase);
+
+    const cultivatedSize = layout.fieldScale - 0.28;
+    const cultivated = this.box(
+      this.soil,
+      cultivatedSize,
+      0.055,
+      cultivatedSize,
+    );
+    cultivated.position.y = 0.145;
+    cultivated.receiveShadow = true;
+    group.add(cultivated);
+  }
+
+  private addPlantingRows(group: THREE.Group, layout: OrchardLayout): void {
+    const innerSpan = layout.fieldScale - 1.18;
+    const xStep = layout.columns > 1 ? innerSpan / (layout.columns - 1) : 0;
+
+    for (let col = 0; col < layout.columns; col += 1) {
+      const x = -innerSpan / 2 + xStep * col;
+      const bed = this.box(this.soilDark, 0.42, 0.028, innerSpan + 0.3);
+      bed.position.set(x, 0.18, 0);
+      bed.receiveShadow = true;
+      group.add(bed);
+
+      const furrowLeft = this.box(this.packedEarth, 0.026, 0.012, innerSpan + 0.18);
+      furrowLeft.position.set(x - 0.15, 0.198, 0);
+      group.add(furrowLeft);
+
+      const furrowRight = furrowLeft.clone();
+      furrowRight.position.x = x + 0.15;
+      group.add(furrowRight);
+    }
+  }
+
+  private addTree(
+    group: THREE.Group,
+    x: number,
+    z: number,
+    baseScale: number,
+    localSeed: number,
+    hash: (value: number) => number,
+  ): void {
+    const tree = new THREE.Group();
+    const scale = baseScale * (0.9 + hash(localSeed + 1) * 0.18);
+    tree.rotation.y = (hash(localSeed + 2) - 0.5) * 0.26;
+
+    const trunkMesh = new THREE.Mesh(this.trunkGeometry, this.trunk);
+    trunkMesh.scale.setScalar(scale);
+    trunkMesh.position.y = 0.18 + 0.46 * scale;
+    trunkMesh.castShadow = true;
+    tree.add(trunkMesh);
+
+    const branchAngles = [0.35, 2.3, 4.35];
+    for (let index = 0; index < branchAngles.length; index += 1) {
+      const angle = branchAngles[index] + (hash(localSeed + 10 + index) - 0.5) * 0.34;
+      const limb = new THREE.Mesh(this.branchGeometry, this.branch);
+      limb.scale.setScalar(scale * (0.86 + hash(localSeed + 20 + index) * 0.18));
+      limb.position.set(
+        Math.cos(angle) * 0.19 * scale,
+        (0.78 + index * 0.055) * scale,
+        Math.sin(angle) * 0.19 * scale,
       );
-      crossFurrow.position.set(0, 0.195, offset);
-      group.add(crossFurrow);
+      limb.rotation.z = Math.sin(angle) * 0.9;
+      limb.rotation.x = Math.cos(angle) * 0.5;
+      limb.castShadow = true;
+      tree.add(limb);
     }
 
-    const fenceHeight = 0.5;
-    for (const side of [-1, 1]) {
-      for (let i = 0; i < 4; i += 1) {
-        const t = -fieldScale / 2 + 0.25 + i * ((fieldScale - 0.5) / 3);
-        for (const zSide of [side * (fieldScale / 2 - 0.08)]) {
-          const post = new THREE.Mesh(new THREE.BoxGeometry(0.08, fenceHeight, 0.08), fence);
-          post.position.set(t, fenceHeight / 2, zSide);
-          post.castShadow = true;
-          group.add(post);
-        }
+    const canopyMaterials = [this.leafDark, this.leaf, this.leafLight] as const;
+    const canopyVariant = Math.floor(hash(localSeed + 30) * canopyMaterials.length);
+    const mainCanopy = new THREE.Mesh(this.canopyGeometry, canopyMaterials[canopyVariant]);
+    mainCanopy.position.set(0, 1.23 * scale, 0);
+    mainCanopy.scale.set(1.08 * scale, 0.88 * scale, 1.02 * scale);
+    mainCanopy.castShadow = true;
+    tree.add(mainCanopy);
+
+    const sideCanopyA = new THREE.Mesh(
+      this.canopyGeometry,
+      canopyMaterials[(canopyVariant + 1) % canopyMaterials.length],
+    );
+    sideCanopyA.position.set(
+      (-0.25 + hash(localSeed + 31) * 0.08) * scale,
+      (1.14 + hash(localSeed + 32) * 0.08) * scale,
+      (hash(localSeed + 33) - 0.5) * 0.18 * scale,
+    );
+    sideCanopyA.scale.set(0.72 * scale, 0.68 * scale, 0.72 * scale);
+    sideCanopyA.castShadow = true;
+    tree.add(sideCanopyA);
+
+    const sideCanopyB = new THREE.Mesh(
+      this.canopyGeometry,
+      canopyMaterials[(canopyVariant + 2) % canopyMaterials.length],
+    );
+    sideCanopyB.position.set(
+      (0.25 - hash(localSeed + 34) * 0.08) * scale,
+      (1.13 + hash(localSeed + 35) * 0.09) * scale,
+      (hash(localSeed + 36) - 0.5) * 0.18 * scale,
+    );
+    sideCanopyB.scale.set(0.7 * scale, 0.66 * scale, 0.72 * scale);
+    sideCanopyB.castShadow = true;
+    tree.add(sideCanopyB);
+
+    if (hash(localSeed + 40) > 0.28) {
+      const appleCount = 2 + Math.floor(hash(localSeed + 41) * 2);
+      for (let appleIndex = 0; appleIndex < appleCount; appleIndex += 1) {
+        const angle = hash(localSeed + 50 + appleIndex) * Math.PI * 2;
+        const radius = (0.34 + hash(localSeed + 60 + appleIndex) * 0.12) * scale;
+        const fruit = new THREE.Mesh(
+          this.appleGeometry,
+          appleIndex % 3 === 0 ? this.appleDark : this.apple,
+        );
+        fruit.position.set(
+          Math.cos(angle) * radius,
+          (1.08 + hash(localSeed + 70 + appleIndex) * 0.3) * scale,
+          Math.sin(angle) * radius,
+        );
+        fruit.scale.setScalar(0.92 + hash(localSeed + 80 + appleIndex) * 0.18);
+        fruit.castShadow = true;
+        tree.add(fruit);
       }
     }
-    for (const side of [-1, 1]) {
-      const rail = new THREE.Mesh(
-        new THREE.BoxGeometry(fieldScale - 0.35, 0.075, 0.075),
-        fence,
-      );
-      rail.position.set(0, 0.34, side * (fieldScale / 2 - 0.08));
-      rail.castShadow = true;
-      group.add(rail);
+
+    tree.position.set(x, 0, z);
+    group.add(tree);
+  }
+
+  private addFence(group: THREE.Group, fieldScale: number): void {
+    const edge = fieldScale / 2 - 0.08;
+    const fenceHeight = 0.56;
+    const entranceGap = 0.9;
+    const gatePostX = entranceGap / 2;
+
+    const addPost = (x: number, z: number, height = fenceHeight): void => {
+      const post = this.box(this.fence, 0.085, height, 0.085);
+      post.position.set(x, height / 2, z);
+      post.castShadow = true;
+      group.add(post);
+    };
+
+    const addRailX = (centerX: number, z: number, length: number): void => {
+      for (const y of [0.3, 0.48]) {
+        const rail = this.box(this.fence, length, 0.065, 0.065);
+        rail.position.set(centerX, y, z);
+        rail.castShadow = true;
+        group.add(rail);
+      }
+    };
+
+    const addRailZ = (x: number, centerZ: number, length: number): void => {
+      for (const y of [0.3, 0.48]) {
+        const rail = this.box(this.fence, 0.065, 0.065, length);
+        rail.position.set(x, y, centerZ);
+        rail.castShadow = true;
+        group.add(rail);
+      }
+    };
+
+    addRailX(0, -edge, fieldScale - 0.16);
+    addRailZ(-edge, 0, fieldScale - 0.16);
+    addRailZ(edge, 0, fieldScale - 0.16);
+
+    const frontSegmentLength = edge - gatePostX;
+    addRailX(-(gatePostX + frontSegmentLength / 2), edge, frontSegmentLength);
+    addRailX(gatePostX + frontSegmentLength / 2, edge, frontSegmentLength);
+
+    const sidePostCount = Math.max(4, Math.round(fieldScale / 0.9) + 1);
+    for (let index = 0; index < sidePostCount; index += 1) {
+      const t = -edge + (index / (sidePostCount - 1)) * edge * 2;
+      addPost(-edge, t);
+      addPost(edge, t);
+      addPost(t, -edge);
     }
 
-    // Leave a subtle entrance gap so the orchard reads as an actual farm plot.
-    const entrance = new THREE.Mesh(
-      new THREE.BoxGeometry(0.62, 0.085, 0.12),
-      fence,
-    );
-    entrance.position.set(0, 0.34, fieldScale / 2 - 0.08);
-    entrance.visible = false;
-    group.add(entrance);
+    for (let index = 0; index < sidePostCount; index += 1) {
+      const t = -edge + (index / (sidePostCount - 1)) * edge * 2;
+      if (Math.abs(t) <= gatePostX + 0.08) continue;
+      addPost(t, edge);
+    }
+
+    // Taller entrance posts make the deliberately open access point visible at gameplay zoom.
+    addPost(-gatePostX, edge, 0.72);
+    addPost(gatePostX, edge, 0.72);
+  }
+
+  private addEntrancePath(group: THREE.Group, fieldScale: number): void {
+    const edge = fieldScale / 2 - 0.08;
+    const pathLength = Math.min(1.15, fieldScale * 0.31);
+    const path = this.box(this.packedEarth, 0.62, 0.035, pathLength);
+    path.position.set(0, 0.22, edge - pathLength / 2 + 0.04);
+    path.receiveShadow = true;
+    group.add(path);
+  }
+
+  private addProduceCrate(group: THREE.Group, fieldScale: number, seed: number): void {
+    const edge = fieldScale / 2 - 0.08;
+    const direction = seed % 2 === 0 ? 1 : -1;
+    const x = direction * 0.66;
+    const z = edge - 0.46;
+
+    const crate = this.box(this.crateWood, 0.42, 0.18, 0.34);
+    crate.position.set(x, 0.25, z);
+    crate.castShadow = true;
+    group.add(crate);
+
+    for (let index = 0; index < 3; index += 1) {
+      const fruit = new THREE.Mesh(
+        this.appleGeometry,
+        index === 0 ? this.appleDark : this.apple,
+      );
+      fruit.position.set(
+        x + (index - 1) * 0.11,
+        0.39 + (index === 1 ? 0.035 : 0),
+        z + (index % 2 === 0 ? 0.045 : -0.035),
+      );
+      fruit.scale.setScalar(0.86);
+      fruit.castShadow = true;
+      group.add(fruit);
+    }
+  }
+
+  private box(
+    material: THREE.Material,
+    width: number,
+    height: number,
+    depth: number,
+  ): THREE.Mesh {
+    const mesh = new THREE.Mesh(this.unitBox, material);
+    mesh.scale.set(width, height, depth);
+    return mesh;
   }
 }
