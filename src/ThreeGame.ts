@@ -22,6 +22,7 @@ import { FuturisticCastleRenderer } from './rendering/FuturisticCastleRenderer';
 import { getStructureFootprint } from './building/StructureFootprints';
 import { AudioManager } from './audio/AudioManager';
 import { audioEvents } from './audio/AudioEventBus';
+import { registerSystemAction } from './app/applicationActions';
 import type {
   AccessKind,
   GridCell,
@@ -8336,20 +8337,28 @@ export class ThreeGame {
     this.syncBattleSetupUI();
     this.updateBattleUI(this.battleSystem.status());
 
-    document.addEventListener('castlegame:open-help', () => {
+    const openHelp = (): void => {
       if (!this.settingsStore.get().interface.showHelp) {
         this.setStatus('Help is disabled in Settings');
         return;
       }
       help.hidden = false;
-    });
-    get<HTMLButtonElement>('help-close-button').onclick = () => {
-      help.hidden = true;
     };
-    get<HTMLButtonElement>('templates-button').onclick = () => {
+    const openTemplates = (): void => {
       this.syncTemplateAvailability();
       templates.hidden = false;
     };
+
+    document.addEventListener('castlegame:open-help', openHelp);
+    registerSystemAction('help', openHelp);
+    registerSystemAction('templates', openTemplates);
+    registerSystemAction('save', () => this.saveSystem.openSaveDialog());
+    registerSystemAction('load', () => this.saveSystem.openLoadDialog());
+
+    get<HTMLButtonElement>('help-close-button').onclick = () => {
+      help.hidden = true;
+    };
+    get<HTMLButtonElement>('templates-button').onclick = openTemplates;
     get<HTMLButtonElement>('game-mode-button').onclick = () => {
       const confirmRequired = this.settingsStore.get().interface.confirmDestructiveActions;
       if (!confirmRequired || confirm('Start a new game and choose a game mode? Current changes will be replaced.')) this.openGameModeSelector();
@@ -8377,16 +8386,8 @@ export class ThreeGame {
       };
     });
 
-    get<HTMLButtonElement>('save-button').onclick = () => this.save();
-    get<HTMLButtonElement>('load-button').onclick = () => {
-      this.clearSettlementAgents();
-      this.load();
-      this.selectedCell = null;
-      this.selectedKeepId = null;
-      this.undoStack.length = 0;
-      this.redoStack.length = 0;
-      this.redraw();
-    };
+    get<HTMLButtonElement>('save-button').onclick = () => this.saveSystem.openSaveDialog();
+    get<HTMLButtonElement>('load-button').onclick = () => this.saveSystem.openLoadDialog();
     get<HTMLButtonElement>('reset-button').onclick = () => {
       const confirmRequired = this.settingsStore.get().interface.confirmDestructiveActions;
       if (!confirmRequired || confirm('Reset the entire island and choose a game mode?')) {

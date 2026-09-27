@@ -195,13 +195,13 @@ export class SaveSystem {
     if (this.modal) return;
 
     const backdrop = document.createElement('div');
-    backdrop.className = 'modal-backdrop';
+    backdrop.className = 'modal-backdrop save-load-backdrop';
     backdrop.hidden = true;
     backdrop.innerHTML =
       '<section class="help-modal" role="dialog" aria-modal="true" aria-labelledby="save-load-title">' +
       '<div class="help-modal-header">' +
       '<div><div class="eyebrow">CASTLE ROLE · STORAGE</div><h2 id="save-load-title"></h2></div>' +
-      '<button type="button" class="icon-button" data-save-close aria-label="Close">×</button>' +
+      '<button type="button" class="icon-button" data-save-action="close" aria-label="Close">×</button>' +
       '</div>' +
       '<p class="template-intro" data-save-description></p>' +
       '<div data-save-list></div>' +

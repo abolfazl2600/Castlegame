@@ -149,3 +149,45 @@ test('Settings remains usable in fullscreen when browser automation supports it'
   });
   await expect(page.locator('#settings-modal')).toBeVisible();
 });
+
+
+test('Settings Save and Load actions open the dedicated storage dialog above Settings', async ({ page }) => {
+  await loadApp(page);
+  await openSettings(page);
+
+  await page.locator('[data-system-action="save"]').click();
+  await expect(page.locator('#settings-modal')).toBeHidden();
+  await expect(page.locator('.save-load-backdrop')).toBeVisible();
+  await expect(page.locator('#save-load-title')).toHaveText('Save Game');
+
+  const saveLayer = await page.locator('.save-load-backdrop').evaluate((element) => Number(getComputedStyle(element).zIndex));
+  expect(saveLayer).toBeGreaterThan(9999);
+
+  await page.locator('[data-save-action="close"]').click();
+  await expect(page.locator('.save-load-backdrop')).toBeHidden();
+
+  await openSettings(page);
+  await page.locator('[data-system-action="load"]').click();
+  await expect(page.locator('#settings-modal')).toBeHidden();
+  await expect(page.locator('.save-load-backdrop')).toBeVisible();
+  await expect(page.locator('#save-load-title')).toHaveText('Load Game');
+});
+
+test('Audio pane is navigable and unlocks the procedural audio engine', async ({ page }) => {
+  await loadApp(page);
+  await openSettings(page);
+
+  await expect.poll(() => page.evaluate(() => document.documentElement.dataset.audioEngine ?? '')).toBe('ready');
+
+  await page.locator('[data-settings-nav="audio"]').click();
+  const audioPane = page.locator('[data-settings-pane="audio"]');
+  await expect(audioPane).toBeVisible();
+
+  const master = audioPane.locator('[data-setting="masterVolume"]');
+  await master.evaluate((element) => {
+    const input = element as HTMLInputElement;
+    input.value = '0.42';
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+  });
+  await expect(audioPane.locator('[data-setting-output="masterVolume"]')).toHaveText('42%');
+});
