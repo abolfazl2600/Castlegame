@@ -521,6 +521,10 @@ export class ThreeGame {
           geometries.add(object.geometry);
           for (const material of Array.isArray(object.material) ? object.material : [object.material]) materials.add(material);
         });
+        const gl = this.renderer.getContext();
+        const debugInfo = gl.getExtension('WEBGL_debug_renderer_info');
+        const drawingBuffer = new THREE.Vector2();
+        this.renderer.getDrawingBufferSize(drawingBuffer);
         return {
           drawCalls: this.renderer.info.render.calls,
           triangles: this.renderer.info.render.triangles,
@@ -529,6 +533,15 @@ export class ThreeGame {
           gpuGeometries: this.renderer.info.memory.geometries,
           gpuTextures: this.renderer.info.memory.textures,
           lastRedrawMs: this.lastRedrawMs,
+          pixelRatio: this.renderer.getPixelRatio(),
+          drawingBuffer: { width: drawingBuffer.x, height: drawingBuffer.y },
+          gpu: {
+            vendor: String(debugInfo ? gl.getParameter(debugInfo.UNMASKED_VENDOR_WEBGL) : gl.getParameter(gl.VENDOR)),
+            renderer: String(debugInfo ? gl.getParameter(debugInfo.UNMASKED_RENDERER_WEBGL) : gl.getParameter(gl.RENDERER)),
+            version: String(gl.getParameter(gl.VERSION)),
+            shadingLanguageVersion: String(gl.getParameter(gl.SHADING_LANGUAGE_VERSION)),
+            maxTextureSize: Number(gl.getParameter(gl.MAX_TEXTURE_SIZE)),
+          },
         };
       };
       (window as unknown as { __castleVisualCamera: (position: { x: number; y: number; z: number; targetX: number; targetY: number; targetZ: number }) => void }).__castleVisualCamera = (position) => {
