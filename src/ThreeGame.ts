@@ -383,7 +383,7 @@ export class ThreeGame {
       setLoadedSaveVersion: (value) => { this.loadedSaveVersion = value; },
       setStoneStyle: (value) => { this.stoneStyle = value; },
       migrateKind: (kind, level) => this.migrateKind(kind, level),
-      isBuildingAvailable: (kind) => this.isBuildingAvailable(kind as TileKind),
+      isBuildingAvailableForMode: (mode, kind) => isBuildingAvailable(mode, kind as TileKind),
       key: (x, y) => this.key(x, y),
       updateGameModeUI: () => this.updateGameModeUI(),
       syncTemplateAvailability: () => this.syncTemplateAvailability(),
