@@ -21,9 +21,9 @@ export interface MilitaryTierDefinition {
 export const MILITARY_TIERS: readonly MilitaryTierDefinition[] = [
   {
     tier: 1,
-    name: 'Militia Garrison',
+    name: 'Field Camp',
     technology: 'Basic watch rotations, issued weapons, and local militia training',
-    requirement: 'Starting tier',
+    requirement: 'Build an Army Camp',
     unitHealthMultiplier: 1,
     unitDefenseMultiplier: 1,
     unitDamageMultiplier: 1,
@@ -36,9 +36,9 @@ export const MILITARY_TIERS: readonly MilitaryTierDefinition[] = [
   },
   {
     tier: 2,
-    name: 'Professional Guard',
+    name: 'Reinforced Camp',
     technology: 'Professional drills, shield formations, improved equipment, and faster response',
-    requirement: 'Unlock Military Tier 1 first',
+    requirement: 'Upgrade an Army Camp to Level 2',
     unitHealthMultiplier: 1.1,
     unitDefenseMultiplier: 1.12,
     unitDamageMultiplier: 1.08,
@@ -51,9 +51,9 @@ export const MILITARY_TIERS: readonly MilitaryTierDefinition[] = [
   },
   {
     tier: 3,
-    name: 'Royal Army',
+    name: 'Command Camp',
     technology: 'Veteran formations, reinforced armor, fortification corps, and coordinated siege defense',
-    requirement: 'Unlock Military Tier 2 first',
+    requirement: 'Upgrade an Army Camp to Level 3',
     unitHealthMultiplier: 1.2,
     unitDefenseMultiplier: 1.24,
     unitDamageMultiplier: 1.16,
@@ -66,9 +66,9 @@ export const MILITARY_TIERS: readonly MilitaryTierDefinition[] = [
   },
   {
     tier: 4,
-    name: 'Elite War Command',
+    name: 'Royal War Camp',
     technology: 'Elite troops, advanced targeting, hardened defenses, rapid logistics, and maximum battlefield coordination',
-    requirement: 'Unlock Military Tier 3 first',
+    requirement: 'Upgrade an Army Camp to Level 4',
     unitHealthMultiplier: 1.32,
     unitDefenseMultiplier: 1.38,
     unitDamageMultiplier: 1.28,
