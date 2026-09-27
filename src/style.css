@@ -1648,7 +1648,84 @@ kbd {
 .mode-card-icon { display:grid; place-items:center; width:58px; height:58px; border-radius:14px; background:rgba(110,182,194,.16); font-size:30px; }
 .mode-card strong { font-size:18px; }
 .mode-card small { color:rgba(226,241,244,.72); line-height:1.5; }
-@media (max-width:720px) { .mode-grid { grid-template-columns:1fr; } }
+
+.map-layout-modal { max-width: 980px; }
+.map-layout-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+  margin-top: 18px;
+}
+.map-layout-card {
+  display: grid;
+  grid-template-columns: 104px minmax(0, 1fr);
+  grid-template-rows: auto auto;
+  align-items: center;
+  gap: 5px 14px;
+  min-height: 142px;
+  padding: 16px;
+  border: 1px solid rgba(151,196,204,.26);
+  border-radius: 18px;
+  color: inherit;
+  background: rgba(10,24,34,.82);
+  text-align: left;
+  cursor: pointer;
+  transition: transform .15s ease, border-color .15s ease, background .15s ease;
+}
+.map-layout-card:hover,
+.map-layout-card.is-selected {
+  transform: translateY(-2px);
+  border-color: rgba(126,221,232,.72);
+  background: rgba(30,68,78,.72);
+}
+.map-layout-preview {
+  grid-row: 1 / span 2;
+  display: grid;
+  place-items: center;
+  width: 104px;
+  height: 96px;
+  overflow: hidden;
+  border-radius: 18px;
+  color: #eaffff;
+  font-size: 28px;
+  font-weight: 900;
+  letter-spacing: .08em;
+  box-shadow: inset 0 1px rgba(255,255,255,.14);
+}
+.map-layout-preview-island {
+  background: radial-gradient(circle at 50% 50%, #79a95d 0 37%, #c9b779 38% 45%, #3d90a4 46% 100%);
+}
+.map-layout-preview-mainland {
+  background: linear-gradient(100deg, #79a95d 0 62%, #c9b779 63% 70%, #3d90a4 71% 100%);
+}
+.map-layout-preview-peninsula {
+  background: linear-gradient(90deg, #367f99 0 25%, #c5b575 26% 31%, #77a65d 32% 68%, #c5b575 69% 74%, #367f99 75% 100%);
+}
+.map-layout-preview-twin-isles {
+  background:
+    radial-gradient(ellipse at 31% 48%, #79a95d 0 18%, #c9b779 19% 23%, transparent 24%),
+    radial-gradient(ellipse at 70% 54%, #79a95d 0 19%, #c9b779 20% 24%, transparent 25%),
+    #3d90a4;
+}
+.map-layout-card strong { align-self: end; font-size: 16px; }
+.map-layout-card small { align-self: start; color: rgba(226,241,244,.72); line-height: 1.45; }
+.template-card:disabled {
+  cursor: not-allowed;
+  opacity: .42;
+  transform: none;
+  filter: saturate(.55);
+}
+.template-card:disabled:hover {
+  border-color: rgba(255,255,255,.09);
+  background: linear-gradient(145deg, rgba(255,255,255,.055), rgba(255,255,255,.025));
+}
+
+@media (max-width:720px) {
+  .mode-grid,
+  .map-layout-grid { grid-template-columns:1fr; }
+  .map-layout-card { grid-template-columns: 82px minmax(0, 1fr); min-height: 112px; padding: 12px; }
+  .map-layout-preview { width: 82px; height: 78px; font-size: 22px; }
+}
 
 /* -------------------------------------------------------------------------
    Mobile UI foundation
