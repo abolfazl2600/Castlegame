@@ -4678,7 +4678,7 @@ export class ThreeGame {
 
     // The generated landing terminates at the same authoritative wall-top
     // elevation used by rendering and battle navigation.
-    return Math.max(1.4, targetWorldTop - ownGroundWorld);
+    return targetWorldTop - ownGroundWorld;
   }
 
   private makeGeneratedAccess(
