@@ -12,6 +12,7 @@ import { MedievalMaterials } from './rendering/MedievalMaterials';
 import { CASTLE_ARCHITECTURE_STYLE } from './rendering/CastleArchitectureStyle';
 import { WORLD_STYLE, styleTone } from './rendering/WorldStyle';
 import { RESIDENCE_LAYOUTS, SETTLEMENT_STYLE, settlementVariant, type ResidenceKind } from './rendering/SettlementStyle';
+import { getTemplateVisualPreset } from './rendering/TemplateVisualStyle';
 import { BattleSystem, getUnitCombatStats } from './battle/BattleSystem';
 import { MILITARY_TIERS, militaryTierDefinition, normalizeMilitaryTier, type MilitaryTier } from './battle/MilitaryProgression';
 import {
@@ -9653,6 +9654,7 @@ export class ThreeGame {
 
   private applyTemplate(template: string): void {
     const authoredLayoutTemplate = PLAYABLE_LAYOUT_TEMPLATES[template];
+    const visualPreset = getTemplateVisualPreset(template);
     if (this.mapLayoutId !== 'island' && template !== 'empty-land' && !authoredLayoutTemplate) {
       this.setStatus('Castle templates currently require Classic Island. Terrain templates remain available on this layout.');
       return;
@@ -9666,6 +9668,8 @@ export class ThreeGame {
       return;
     }
     this.recordHistory();
+    this.stoneStyle = visualPreset.stoneStyle;
+    this.towerBridgeKind = visualPreset.towerBridgeKind;
     if (authoredLayoutTemplate) {
       this.worldSeed = authoredLayoutTemplate.seed;
       this.setMapLayoutId(authoredLayoutTemplate.layoutId);
@@ -9831,7 +9835,6 @@ export class ThreeGame {
     if (template !== 'empty-land') this.seedNaturalProps();
 
     if (template === 'futuristic-castle') {
-      this.stoneStyle = 'darkStone';
       prepareArea(center - 10, center - 10, center + 10, center + 10, 0.05);
       place(center, center, 'futuristicCastle');
     } else if (template === 'empty-land') {
@@ -9843,8 +9846,6 @@ export class ThreeGame {
         }
       }
     } else if (template === 'mainland-frontier') {
-      this.stoneStyle = 'frontier';
-      this.towerBridgeKind = 'wood';
       prepareBuildableArea(4, 6, 15, 17, 0.08);
       prepareBuildableArea(8, 18, 10, 20, 0.04);
 
@@ -9877,7 +9878,6 @@ export class ThreeGame {
       }
       placeHarborTemplate('woodenPier', 'transportShip', SIZE - 4, center);
     } else if (template === 'coastal-peninsula') {
-      this.stoneStyle = 'limestone';
       prepareBuildableArea(7, 7, 16, 8, 0.16);
       prepareBuildableArea(8, 9, 14, 17, 0.12);
 
@@ -9902,8 +9902,6 @@ export class ThreeGame {
       placeHarborTemplate('fishingDock', 'fishingBoat', 5, center + 2);
       placeHarborTemplate('harbor', 'tradingBoat', SIZE - 5, center + 2);
     } else if (template === 'split-isles') {
-      this.stoneStyle = 'sandstone';
-      this.towerBridgeKind = 'wood';
       prepareBuildableArea(4, 8, 9, 12, 0.18);
       prepareBuildableArea(13, 10, 18, 15, 0.1);
 
@@ -10180,8 +10178,6 @@ export class ThreeGame {
         }
       }
     } else if (template === 'grand-citadel') {
-      this.stoneStyle = 'limestone';
-      this.towerBridgeKind = 'stone';
       prepareArea(center - 9, center - 8, center + 9, center + 8, 0.18);
 
       const minX = center - 7;
@@ -10209,8 +10205,6 @@ export class ThreeGame {
 
       for (let y = center + 1; y < maxY; y += 1) place(center, y, 'stoneRoad');
     } else if (template === 'dark-fortress') {
-      this.stoneStyle = 'darkStone';
-      this.towerBridgeKind = 'stone';
       prepareArea(center - 10, center - 9, center + 10, center + 9, 0.55);
 
       for (let y = center - 7; y <= center + 7; y += 1) {
@@ -10245,8 +10239,6 @@ export class ThreeGame {
 
       place(center, center + 6, 'stoneRoad');
     } else if (template === 'sandstone-oasis') {
-      this.stoneStyle = 'sandstone';
-      this.towerBridgeKind = 'stone';
       prepareArea(center - 10, center - 8, center + 10, center + 8, 0.05);
 
       const minX = center - 7;
@@ -10276,8 +10268,6 @@ export class ThreeGame {
         if (!this.services.state.getCell(x, center + 3)) place(x, center + 3, 'dirtRoad');
       }
     } else if (template === 'frontier-outpost') {
-      this.stoneStyle = 'frontier';
-      this.towerBridgeKind = 'wood';
       prepareArea(center - 10, center - 8, center + 10, center + 8, 0.12);
 
       placeWallRect(center - 7, center - 5, center + 7, center + 5, 'wall2', 2, {
@@ -10300,7 +10290,6 @@ export class ThreeGame {
       for (let y = center + 1; y < center + 5; y += 1) place(center, y, 'dirtRoad');
 
     } else if (template === 'bridge-stronghold') {
-      this.stoneStyle = 'limestone';
       prepareArea(center - 11, center - 8, center + 11, center + 8, 0.22);
 
       const towers = [
@@ -10333,7 +10322,6 @@ export class ThreeGame {
 
       for (let y = center + 2; y < center + 6; y += 1) place(center, y, 'stoneRoad');
     } else if (template === 'siege-academy') {
-      this.stoneStyle = 'darkStone';
       prepareArea(center - 12, center - 9, center + 12, center + 9, 0);
 
       placeWallRect(center - 7, center - 5, center + 7, center + 5, 'wall3', 3, {
@@ -10363,8 +10351,6 @@ export class ThreeGame {
       place(center, center - 6, 'ladder', 1, { rotation: 2 });
       for (let y = center + 6; y <= center + 9; y += 1) place(center, y, 'road');
     } else if (template === 'harbor-capital') {
-      this.stoneStyle = 'limestone';
-      this.towerBridgeKind = 'wood';
 
       const harbor = placeHarborTemplate('harbor', 'tradingBoat', SIZE - 5, center);
       const pier = placeHarborTemplate('woodenPier', 'transportShip', SIZE - 6, center - 6);
@@ -10394,7 +10380,6 @@ export class ThreeGame {
         if (!this.services.state.getCell(center, y)) place(center, y, 'road');
       }
     } else if (template === 'mountain-fortress') {
-      this.stoneStyle = 'frontier';
       prepareArea(center - 10, center - 9, center + 10, center + 9, 0.25);
 
       for (let y = center - 8; y <= center + 6; y += 1) {
@@ -10434,7 +10419,6 @@ export class ThreeGame {
 
       for (let y = center + 5; y <= center + 8; y += 1) place(center, y, 'stoneRoad');
     } else if (template === 'royal-city') {
-      this.stoneStyle = 'sandstone';
       prepareArea(center - 11, center - 9, center + 11, center + 9, 0);
 
       placeWallRect(center - 9, center - 7, center + 9, center + 7, 'wall1', 2, {
@@ -10466,8 +10450,6 @@ export class ThreeGame {
         if (!this.services.state.getCell(center - 3, y)) place(center - 3, y, 'dirtRoad');
       }
     } else if (template === 'architecture-gallery') {
-      this.stoneStyle = 'limestone';
-      this.towerBridgeKind = 'stone';
       prepareArea(center - 13, center - 10, center + 13, center + 10, 0.1);
 
       const galleryTowers: Array<{
@@ -10542,7 +10524,6 @@ export class ThreeGame {
         }
       }
     } else if (template === 'river-port-fort') {
-      this.stoneStyle = 'limestone';
       prepareArea(center - 9, center - 8, center + 8, center + 8, 0.08);
 
       for (let y = 2; y < SIZE - 2; y += 1) {
@@ -10574,7 +10555,6 @@ export class ThreeGame {
       placeHarborTemplate('smallDock', 'fishingBoat', SIZE - 4, center + 4);
       placeHarborTemplate('fishingDock', 'fishingBoat', SIZE - 5, center - 3);
     } else if (template === 'farming-duchy') {
-      this.stoneStyle = 'sandstone';
       prepareArea(center - 11, center - 9, center + 11, center + 9, 0);
 
       placeWallRect(center - 6, center - 4, center + 6, center + 4, 'wall1', 1, {
@@ -10603,8 +10583,6 @@ export class ThreeGame {
         if (!this.services.state.getCell(center, y)) place(center, y, 'road');
       }
     } else if (template === 'twin-keep') {
-      this.stoneStyle = 'darkStone';
-      this.towerBridgeKind = 'stone';
       prepareArea(center - 11, center - 8, center + 11, center + 8, 0.15);
 
       placeWallRect(center - 9, center - 6, center + 9, center + 6, 'wall3', 3, {
@@ -10624,7 +10602,6 @@ export class ThreeGame {
       place(center, center + 2, 'armyCamp');
       for (let y=center+1;y<center+6;y+=1) if(!this.services.state.getCell(center,y)) place(center,y,'stoneRoad');
     } else if (template === 'border-march') {
-      this.stoneStyle = 'frontier';
       prepareArea(center - 11, center - 9, center + 11, center + 9, 0.1);
 
       for (let y=center-8;y<=center+8;y+=1) {
@@ -10645,7 +10622,6 @@ export class ThreeGame {
         if(!this.services.state.getCell(center+8,y)) place(center+8,y,'tree',1+(y%3+3)%3);
       }
     } else if (template === 'forest-citadel') {
-      this.stoneStyle = 'limestone';
       prepareArea(center - 9, center - 8, center + 9, center + 8, 0.12);
 
       for(let y=2;y<SIZE-2;y+=1){
@@ -10668,7 +10644,6 @@ export class ThreeGame {
       place(center+3,center+2,'farm');
 
     } else if (template === 'cliff-watch') {
-      this.stoneStyle = 'darkStone';
       prepareArea(center - 10, center - 9, center + 10, center + 9, 0);
 
       for(let y=center-7;y<=center+5;y+=1){
@@ -10690,7 +10665,6 @@ export class ThreeGame {
       place(center-3,center+1,'armyCamp');
       for(let y=center-2;y<=center+4;y+=1) if(!this.services.state.getCell(center,y)) place(center,y,'stoneRoad');
     } else if (template === 'moat-palace') {
-      this.stoneStyle = 'sandstone';
       prepareArea(center - 11, center - 9, center + 11, center + 9, 0.05);
 
       placeWallRect(center-6,center-5,center+6,center+5,'wall1',2,{
@@ -10710,7 +10684,6 @@ export class ThreeGame {
       for(let y=center-1;y<=center+6;y+=1) if(!this.services.state.getCell(center,y)) place(center,y,'stoneRoad');
 
     } else if (template === 'merchant-republic') {
-      this.stoneStyle = 'limestone';
       prepareArea(center-11,center-9,center+11,center+9,0.04);
 
       placeWallRect(center-9,center-7,center+9,center+7,'wall1',2,{
@@ -10730,7 +10703,6 @@ export class ThreeGame {
       for(let y=center-6;y<=center+6;y+=1) if(!this.services.state.getCell(center,y)) place(center,y,'road');
       placeHarborTemplate('smallDock','fishingBoat',SIZE-5,center+5);
     } else if (template === 'war-camp') {
-      this.stoneStyle = 'frontier';
       prepareArea(center-11,center-9,center+11,center+9,0.08);
 
       placeWallRect(center-8,center-6,center+8,center+6,'wall2',2,{
@@ -10751,7 +10723,6 @@ export class ThreeGame {
       for(let x=center-7;x<=center+7;x+=1) if(!this.services.state.getCell(x,center+3)) place(x,center+3,'dirtRoad');
       for(let y=center-5;y<=center+5;y+=1) if(!this.services.state.getCell(center,y)) place(center,y,'road');
     } else if (template === 'island-monastery') {
-      this.stoneStyle = 'limestone';
       prepareArea(center-8,center-8,center+8,center+8,0.32);
 
       for(let y=center-7;y<=center+7;y+=1){
