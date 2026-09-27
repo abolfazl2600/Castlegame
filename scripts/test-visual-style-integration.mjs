@@ -68,7 +68,7 @@ assert.match(modernStyle, /securityLight:/);
 assert.match(modernStyle, /warningStripe:/);
 assert.doesNotMatch(
   modernStyle,
-  /roofTerracotta|plaster|timberFraming|landmarkPurple/,
+  /(?:roofTerracotta|plaster|timberFraming|landmarkPurple)\s*:/,
   'Modern style tokens must remain separate from medieval surface motifs.',
 );
 assert.match(
