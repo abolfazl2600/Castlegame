@@ -33,11 +33,11 @@ export function disposeHierarchy(
   options: WebGLDisposalOptions = {},
 ): void {
   root.traverse((object) => {
-    // 1. Dispose mesh/line/points geometry if not shared
-    const renderable = object as THREE.Mesh | THREE.Line | THREE.Points | THREE.Sprite;
-    if (renderable.geometry instanceof THREE.BufferGeometry) {
-      if (!options.isSharedGeometry || !options.isSharedGeometry(renderable.geometry)) {
-        renderable.geometry.dispose();
+    // 1. Dispose geometry if present and not shared
+    const geometry = (object as { geometry?: unknown }).geometry;
+    if (geometry instanceof THREE.BufferGeometry) {
+      if (!options.isSharedGeometry || !options.isSharedGeometry(geometry)) {
+        geometry.dispose();
       }
     }
 
