@@ -346,6 +346,7 @@ export class ThreeGame {
   private mapLayoutId: MapLayoutId = 'island';
   private selectedTool: ToolKind | null = 'wall1';
   private selectedCell: GridPoint | null = null;
+  private minimapCursor: GridPoint = { x: Math.floor(SIZE / 2), y: Math.floor(SIZE / 2) };
   private viewMode: ViewMode = 'world3d';
   private toolbarOpen = window.innerWidth > 760;
   private readonly saved3DCameraPosition = new THREE.Vector3(68, 80, 76);
@@ -1841,6 +1842,12 @@ export class ThreeGame {
       context.fillStyle = '#ffffff';
       context.fillRect(this.selectedCell.x, this.selectedCell.y, 1, 1);
     }
+    // A small contrasting ring remains legible over land, water and landmarks.
+    context.strokeStyle = '#102536';
+    context.lineWidth = 1;
+    context.strokeRect(this.minimapCursor.x - 1.5, this.minimapCursor.y - 1.5, 4, 4);
+    context.strokeStyle = '#8ce6ff';
+    context.strokeRect(this.minimapCursor.x - 0.5, this.minimapCursor.y - 0.5, 2, 2);
   }
 
   private getWallWeaponVisuals(): THREE.Object3D[] {
@@ -8906,12 +8913,29 @@ export class ThreeGame {
 
     get<HTMLButtonElement>('toolbar-close').onclick = () => this.setToolbarOpen(false);
     get<HTMLButtonElement>('toolbar-open').onclick = () => this.setToolbarOpen(true);
-    get<HTMLButtonElement>('minimap').onclick = (event) => {
+    const minimap = get<HTMLButtonElement>('minimap');
+    minimap.onkeydown = (event) => {
+      const direction: Record<string, GridPoint> = {
+        ArrowLeft: { x: -1, y: 0 }, ArrowRight: { x: 1, y: 0 },
+        ArrowUp: { x: 0, y: -1 }, ArrowDown: { x: 0, y: 1 },
+      };
+      const delta = direction[event.key];
+      if (!delta) return;
+      event.preventDefault();
+      this.minimapCursor = {
+        x: THREE.MathUtils.clamp(this.minimapCursor.x + delta.x, 0, SIZE - 1),
+        y: THREE.MathUtils.clamp(this.minimapCursor.y + delta.y, 0, SIZE - 1),
+      };
+      minimap.setAttribute('aria-label', `Map sector ${this.minimapCursor.x + 1}, ${this.minimapCursor.y + 1}; press Enter to move camera`);
+      this.renderMinimap();
+    };
+    minimap.onclick = (event) => {
       const canvas = get<HTMLCanvasElement>('minimap-canvas');
       const bounds = canvas.getBoundingClientRect();
       if (event.detail !== 0 && (event.clientX < bounds.left || event.clientX > bounds.right || event.clientY < bounds.top || event.clientY > bounds.bottom)) return;
-      const x = event.detail === 0 ? Math.floor(SIZE / 2) : Math.max(0, Math.min(SIZE - 1, Math.floor((event.clientX - bounds.left) / bounds.width * SIZE)));
-      const y = event.detail === 0 ? Math.floor(SIZE / 2) : Math.max(0, Math.min(SIZE - 1, Math.floor((event.clientY - bounds.top) / bounds.height * SIZE)));
+      const x = event.detail === 0 ? this.minimapCursor.x : Math.max(0, Math.min(SIZE - 1, Math.floor((event.clientX - bounds.left) / bounds.width * SIZE)));
+      const y = event.detail === 0 ? this.minimapCursor.y : Math.max(0, Math.min(SIZE - 1, Math.floor((event.clientY - bounds.top) / bounds.height * SIZE)));
+      this.minimapCursor = { x, y };
       const next = this.gridToWorld(x, y);
       const offset = this.camera.position.clone().sub(this.controls.target);
       this.controls.target.set(next.x, this.controls.target.y, next.z);
@@ -8919,6 +8943,8 @@ export class ThreeGame {
       this.controls.update();
       const hint = document.querySelector<HTMLElement>('.minimap-hint');
       if (hint) hint.textContent = `Viewing sector ${x + 1}, ${y + 1}`;
+      minimap.setAttribute('aria-label', `Map sector ${x + 1}, ${y + 1}; arrow keys choose sector, Enter moves camera`);
+      this.renderMinimap();
     };
     get<HTMLButtonElement>('view-2d-button').onclick = () => this.setViewMode('plan2d');
     get<HTMLButtonElement>('view-3d-button').onclick = () => this.setViewMode('world3d');

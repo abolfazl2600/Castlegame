@@ -33,6 +33,17 @@ test('world map renders terrain and moves camera on click', async ({ page }) => 
   await expect(page.locator('.minimap-hint')).toContainText('Viewing sector');
 });
 
+test('keyboard moves the map cursor and Enter navigates to that sector', async ({ page }) => {
+  await page.goto('/Castlegame/');
+  await expect(page.locator('#toolbar [data-build-none]')).toHaveCount(1);
+  const map = page.locator('#minimap');
+  await map.focus();
+  await map.press('ArrowRight');
+  await expect(map).toHaveAttribute('aria-label', /Map sector 13, 12; press Enter/);
+  await map.press('Enter');
+  await expect(page.locator('.minimap-hint')).toHaveText('Viewing sector 13, 12');
+});
+
 test('mobile map stays available with touch-sized build controls', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto('/Castlegame/');
