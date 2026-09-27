@@ -49,6 +49,7 @@ export interface SurvivalRuntimeState {
 export interface SurvivalLifecycleDependencies {
   readonly battleSystem: BattleSystem;
   readonly getBattleSetup: () => BattleSetup;
+  readonly getMilitaryTier?: () => BattleStartOptions['militaryTier'];
   readonly setStatus: (message: string) => void;
   readonly setAttackState: (active: boolean) => void;
   readonly onDefeat: () => void;
@@ -312,6 +313,7 @@ export class SurvivalGameMode implements GameModeLifecycle {
       // damage is cleared by Survival start/restart/end/cleanup and is never
       // committed to GameState.
       preserveSessionWallDamage: true,
+      militaryTier: this.dependencies.getMilitaryTier?.(),
     };
 
     this.runtime.currentWave = waveNumber;
