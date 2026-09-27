@@ -11234,7 +11234,7 @@ export class ThreeGame {
     const button = document.getElementById('military-upgrade') as HTMLButtonElement | null;
     if (tier) tier.textContent = `Tier ${this.militaryTier}`;
     if (name) name.textContent = current.name;
-    if (tech) tech.textContent = `${current.technology}. Defenders +${Math.round((current.unitDefenseMultiplier - 1) * 100)}% defense, walls +${Math.round((current.wallHealthMultiplier - 1) * 100)}% health, wall weapons +${Math.round((current.weaponDamageMultiplier - 1) * 100)}% damage.`;
+    if (tech) tech.textContent = `${current.technology}. Defenders +${Math.round((current.unitHealthMultiplier - 1) * 100)}% health, +${Math.round((current.unitDefenseMultiplier - 1) * 100)}% defense, +${Math.round((current.unitDamageMultiplier - 1) * 100)}% damage, +${Math.round((current.unitMoveSpeedMultiplier - 1) * 100)}% movement; walls +${Math.round((current.wallHealthMultiplier - 1) * 100)}% health; wall weapons +${Math.round((current.weaponDamageMultiplier - 1) * 100)}% damage and +${Math.round((current.weaponRangeMultiplier - 1) * 100)}% range.`;
     if (nextText) nextText.textContent = next ? `Next: Tier ${next.tier} · ${next.name} · ${next.technology}` : 'Maximum tier reached';
     if (button) { button.disabled = !next || this.battleSystem.isActive(); button.textContent = next ? `Unlock Tier ${next.tier}` : 'Fully upgraded'; }
     this.syncMilitaryMissileUI();
