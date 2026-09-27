@@ -126,6 +126,10 @@ interface WorkerAgent {
   taskKey?: string;
   homeX: number;
   homeZ: number;
+  path: GridPoint[];
+  pathIndex: number;
+  destinationGrid?: GridPoint;
+  repathMs: number;
 }
 
 interface SettlementAgent {
@@ -1585,7 +1589,15 @@ export class ThreeGame {
       const homeZ = 5.5;
       view.position.set(homeX, 0, homeZ);
       this.workerLayer.add(view);
-      this.workers.push({ id: i, view, homeX, homeZ });
+      this.workers.push({
+        id: i,
+        view,
+        homeX,
+        homeZ,
+        path: [],
+        pathIndex: 0,
+        repathMs: 0,
+      });
     }
   }
 
@@ -7945,6 +7957,16 @@ export class ThreeGame {
       if (agent.waitMs > 0) continue;
       this.setSettlementTarget(agent, agent.destinationGrid);
     }
+
+    // Moat workers share the same ground traversability rules as settlement
+    // agents. Keep their current world position, but discard only the route
+    // when walls/gates/terrain change so unrelated NPC state is preserved.
+    for (const worker of this.workers) {
+      worker.path.length = 0;
+      worker.pathIndex = 0;
+      worker.destinationGrid = undefined;
+      worker.repathMs = 0;
+    }
   }
 
   private settlementTraversabilitySignature(): string {
@@ -8128,6 +8150,14 @@ export class ThreeGame {
 
     const cell = this.services.state.getCell(x, y);
     if (!cell) return false;
+
+    // Intact walls/buildings remain solid. Gates are explicit navigation
+    // portals and are traversable only while their runtime state is open.
+    // Erased/destroyed wall cells naturally become passable because they no
+    // longer have a blocking cell.
+    if (cell.kind === 'gate') {
+      return !this.services.gateSystem.isGatePassable(x, y);
+    }
 
     return !ROAD_KINDS.includes(cell.kind as RoadKind);
   }
@@ -8339,11 +8369,69 @@ export class ThreeGame {
     deltaMs: number,
     speed: number,
   ): boolean {
-    const dx = targetX - worker.view.position.x;
-    const dz = targetZ - worker.view.position.z;
+    worker.repathMs = Math.max(0, worker.repathMs - deltaMs);
+
+    const start = this.worldToGrid(
+      worker.view.position.x,
+      worker.view.position.z,
+    );
+    const requestedGoal = this.worldToGrid(targetX, targetZ);
+    const goal = this.resolveSettlementDestination(requestedGoal, start);
+    const destinationChanged =
+      !worker.destinationGrid ||
+      worker.destinationGrid.x !== goal.x ||
+      worker.destinationGrid.y !== goal.y;
+    const nextPathPoint = worker.path[worker.pathIndex];
+    const routeInvalid =
+      !!nextPathPoint &&
+      this.isSettlementBlocked(nextPathPoint.x, nextPathPoint.y);
+    const routeFinished =
+      worker.path.length === 0 || worker.pathIndex >= worker.path.length;
+
+    if (
+      destinationChanged ||
+      routeInvalid ||
+      (routeFinished && worker.repathMs <= 0)
+    ) {
+      const path = this.findSettlementPath(start, goal);
+      const last = path[path.length - 1];
+      const reachesGoal =
+        !!last && last.x === goal.x && last.y === goal.y;
+
+      worker.destinationGrid = { ...goal };
+      worker.path = reachesGoal ? path : [];
+      worker.pathIndex =
+        reachesGoal && path.length > 1 ? 1 : path.length;
+      // Failed routes retry at a controlled cadence instead of every frame.
+      worker.repathMs = reachesGoal ? 300 : 650;
+    }
+
+    let moveX = targetX;
+    let moveZ = targetZ;
+
+    if (worker.pathIndex < worker.path.length) {
+      const waypoint = worker.path[worker.pathIndex];
+      const world = this.gridToWorld(waypoint.x, waypoint.y);
+      moveX = world.x;
+      moveZ = world.z;
+    } else if (
+      start.x !== goal.x ||
+      start.y !== goal.y
+    ) {
+      return false;
+    }
+
+    const dx = moveX - worker.view.position.x;
+    const dz = moveZ - worker.view.position.z;
     const distance = Math.hypot(dx, dz);
 
-    if (distance < 0.28) return true;
+    if (distance < 0.28) {
+      if (worker.pathIndex < worker.path.length) {
+        worker.pathIndex += 1;
+        return false;
+      }
+      return true;
+    }
 
     const step = Math.min(distance, speed * (deltaMs / 1000));
     worker.view.position.x += (dx / distance) * step;
