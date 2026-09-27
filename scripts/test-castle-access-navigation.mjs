@@ -130,7 +130,7 @@ assert.match(
 
 const generatedRenderer = between(
   threeGame,
-  'private makeGeneratedAccess(',
+  'private generatedAccessRise(',
   'private makeAccess(',
 );
 assert.match(
