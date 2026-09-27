@@ -365,6 +365,7 @@ export class ThreeGame {
   private minimapCursor: GridPoint = { x: Math.floor(SIZE / 2), y: Math.floor(SIZE / 2) };
   private viewMode: ViewMode = 'world3d';
   private toolbarOpen = window.innerWidth > 760;
+  private activeBuildCategory: string | null = null;
   private readonly saved3DCameraPosition = new THREE.Vector3(68, 80, 76);
   private readonly saved3DTarget = new THREE.Vector3(0, 0, 0);
   private wallThickness: WallThickness = 'medium';
@@ -1052,98 +1053,167 @@ export class ThreeGame {
     this.refreshBuildPanelForMode();
   }
 
+  private buildCategoryIcon(label: string): string {
+    const normalized = label.toLocaleLowerCase();
+    if (normalized.includes('castle') || normalized.includes('defense') || normalized.includes('fortress')) return '♜';
+    if (normalized.includes('military')) return '⚔';
+    if (normalized.includes('road') || normalized.includes('harbor') || normalized.includes('infrastructure')) return '↗';
+    if (normalized.includes('terrain') || normalized.includes('environment')) return '⌁';
+    if (normalized.includes('modern')) return '◈';
+    return '⌂';
+  }
+
   private refreshBuildPanelForMode(): void {
     const toolbar = document.getElementById('toolbar');
     if (!toolbar) return;
-
-    const openCategories = new Set(
-      [...toolbar.querySelectorAll<HTMLElement>('.tool-category.is-open')].map((category) => category.dataset.category),
-    );
-    toolbar.querySelectorAll<HTMLElement>('.tool-category').forEach((category) => category.remove());
 
     const modeConfig = getGameModeDefinition(this.gameMode);
     const toolDefinitions = new Map(
       TOOL_GROUPS.flatMap((group) => group.tools.map((tool) => [tool.id, tool] as const)),
     );
-    const noneButton = toolbar.querySelector<HTMLElement>('[data-build-none]');
+    const tabs = toolbar.querySelector<HTMLElement>('.build-category-tabs');
+    const sections = toolbar.querySelector<HTMLElement>('.build-tool-sections');
     const settings = toolbar.querySelector<HTMLElement>('.builder-settings');
-    if (!settings) return;
+    const noneButton = toolbar.querySelector<HTMLElement>('[data-build-none]');
+    const modeChip = toolbar.querySelector<HTMLElement>('#build-mode-chip');
+    if (!tabs || !sections || !settings) return;
 
-    const toolHtml = modeConfig.toolGroups.map((group) => {
-      const isOpen = openCategories.has(group.label) || group.toolIds.includes(this.selectedTool as ToolKind);
-      const buttons = group.toolIds
-        .map((toolId) => toolDefinitions.get(toolId))
-        .filter((tool): tool is ToolDefinition => Boolean(tool))
-        .map(
-          (tool) =>
-            '<button class="tool-button' +
-            (tool.id === this.selectedTool ? ' is-selected' : '') +
-            '" data-tool="' + tool.id + '" type="button" aria-pressed="' + (tool.id === this.selectedTool) + '">' +
-            '<span class="tool-icon">' + tool.icon + '</span>' +
-            '<span class="tool-copy"><strong>' + tool.label + '</strong><small>' + tool.detail + '</small></span>' +
-            '<kbd>' + tool.shortcut + '</kbd></button>',
-        )
-        .join('');
+    const groups = modeConfig.toolGroups
+      .map((group) => ({
+        label: group.label,
+        tools: group.toolIds
+          .map((toolId) => toolDefinitions.get(toolId))
+          .filter((tool): tool is ToolDefinition => Boolean(tool)),
+      }))
+      .filter((group) => group.tools.length > 0);
+
+    const selectedGroup = groups.find((group) =>
+      this.selectedTool !== null && group.tools.some((tool) => tool.id === this.selectedTool),
+    );
+    const availableCategories = new Set(groups.map((group) => group.label));
+    if (selectedGroup) {
+      this.activeBuildCategory = selectedGroup.label;
+    } else if (!this.activeBuildCategory || !availableCategories.has(this.activeBuildCategory)) {
+      this.activeBuildCategory = groups[0]?.label ?? null;
+    }
+
+    tabs.innerHTML = groups.map((group, index) => {
+      const active = group.label === this.activeBuildCategory;
+      return (
+        '<button class="build-category-tab' + (active ? ' is-active' : '') +
+        '" type="button" role="tab" aria-selected="' + active +
+        '" aria-controls="build-tool-panel-' + index +
+        '" data-build-category="' + group.label + '">' +
+        '<span aria-hidden="true">' + this.buildCategoryIcon(group.label) + '</span>' +
+        '<strong>' + group.label + '</strong>' +
+        '<small>' + group.tools.length + '</small>' +
+        '</button>'
+      );
+    }).join('');
+
+    sections.innerHTML = groups.map((group, index) => {
+      const active = group.label === this.activeBuildCategory;
+      const buttons = group.tools.map((tool) =>
+        '<button class="tool-button' + (tool.id === this.selectedTool ? ' is-selected' : '') +
+        '" data-tool="' + tool.id +
+        '" type="button" aria-pressed="' + (tool.id === this.selectedTool) +
+        '" title="' + tool.detail + '">' +
+        '<span class="tool-icon" aria-hidden="true">' + tool.icon + '</span>' +
+        '<span class="tool-copy"><strong>' + tool.label + '</strong><small>' + tool.detail + '</small></span>' +
+        '<kbd>' + tool.shortcut + '</kbd></button>'
+      ).join('');
 
       return (
-        '<section class="tool-category' + (isOpen ? ' is-open' : '') + '" data-category="' + group.label + '">' +
-        '<button class="tool-category-header" type="button" aria-expanded="' + isOpen + '">' +
-        '<span>' + group.label + '</span>' +
-        '<span class="tool-category-chevron" aria-hidden="true">▶</span>' +
-        '</button>' +
+        '<section id="build-tool-panel-' + index +
+        '" class="tool-category' + (active ? ' is-active' : '') +
+        '" role="tabpanel" data-category="' + group.label + '"' +
+        (active ? '' : ' hidden') + '>' +
+        '<div class="tool-category-label"><span>' + group.label + '</span><small>' + group.tools.length + ' tools</small></div>' +
         '<div class="tool-category-items">' + buttons + '</div>' +
         '</section>'
       );
     }).join('');
 
-    settings.insertAdjacentHTML('beforebegin', toolHtml);
+    modeChip!.textContent = modeConfig.label;
     settings.hidden = this.gameMode === 'modern';
-    this.filterBuildTools();
 
-    toolbar.querySelectorAll<HTMLButtonElement>('.tool-category-header').forEach((header) => {
-      header.onclick = () => {
-        const category = header.closest<HTMLElement>('.tool-category');
+    tabs.querySelectorAll<HTMLButtonElement>('[data-build-category]').forEach((button) => {
+      button.onclick = () => {
+        const category = button.dataset.buildCategory;
         if (!category) return;
-        const open = category.classList.toggle('is-open');
-        header.setAttribute('aria-expanded', String(open));
+        this.activeBuildCategory = category;
+        const search = toolbar.querySelector<HTMLInputElement>('#build-search');
+        if (search) search.value = '';
+        this.filterBuildTools();
       };
     });
 
-    toolbar.querySelectorAll<HTMLButtonElement>('[data-tool]').forEach((button) => {
+    sections.querySelectorAll<HTMLButtonElement>('[data-tool]').forEach((button) => {
       button.onclick = () => {
         this.selectTool(button.dataset.tool as ToolKind);
-        if (this.selectedTool === button.dataset.tool && window.matchMedia('(max-width: 760px)').matches) this.setToolbarOpen(false);
+        if (this.selectedTool === button.dataset.tool && window.matchMedia('(max-width: 760px)').matches) {
+          this.setToolbarOpen(false);
+        }
       };
     });
 
     noneButton?.classList.toggle('is-selected', this.selectedTool === null);
     noneButton?.setAttribute('aria-pressed', String(this.selectedTool === null));
     const activeLabel = toolbar.querySelector<HTMLElement>('#build-active-label');
-    if (activeLabel) activeLabel.textContent = this.selectedTool === null ? 'None' : (toolDefinitions.get(this.selectedTool)?.label ?? this.selectedTool);
+    if (activeLabel) {
+      activeLabel.textContent = this.selectedTool === null
+        ? 'Inspect'
+        : (toolDefinitions.get(this.selectedTool)?.label ?? this.selectedTool);
+    }
+
+    this.filterBuildTools();
     for (const extension of this.extensions) extension.onBuildPanelRefreshed?.();
   }
 
   private filterBuildTools(): void {
     const toolbar = document.getElementById('toolbar');
     if (!toolbar) return;
-    const query = (toolbar.querySelector<HTMLInputElement>('#build-search')?.value ?? '').trim().toLocaleLowerCase();
+
+    const search = toolbar.querySelector<HTMLInputElement>('#build-search');
+    const query = (search?.value ?? '').trim().toLocaleLowerCase();
+    const searching = query.length > 0;
+    const matchingCategories = new Set<string>();
     let matches = 0;
+
+    toolbar.classList.toggle('is-searching', searching);
+
     toolbar.querySelectorAll<HTMLElement>('.tool-category').forEach((category) => {
       let categoryMatches = 0;
       category.querySelectorAll<HTMLButtonElement>('[data-tool]').forEach((button) => {
-        const found = !query || (button.textContent ?? '').toLocaleLowerCase().includes(query);
+        const found = !searching || (button.textContent ?? '').toLocaleLowerCase().includes(query);
         button.hidden = !found;
         if (found) categoryMatches += 1;
       });
-      category.hidden = categoryMatches === 0;
+
+      const categoryName = category.dataset.category ?? '';
+      if (categoryMatches > 0) matchingCategories.add(categoryName);
       matches += categoryMatches;
-      if (query && categoryMatches) {
-        category.classList.add('is-open');
-        category.querySelector('.tool-category-header')?.setAttribute('aria-expanded', 'true');
-      }
+
+      const active = searching
+        ? categoryMatches > 0
+        : categoryName === this.activeBuildCategory;
+      category.hidden = !active;
+      category.classList.toggle('is-active', active);
+      category.setAttribute('aria-hidden', String(!active));
     });
+
+    toolbar.querySelectorAll<HTMLButtonElement>('[data-build-category]').forEach((tab) => {
+      const categoryName = tab.dataset.buildCategory ?? '';
+      const active = !searching && categoryName === this.activeBuildCategory;
+      tab.classList.toggle('is-active', active);
+      tab.setAttribute('aria-selected', String(active));
+      tab.hidden = searching && !matchingCategories.has(categoryName);
+    });
+
     const empty = toolbar.querySelector<HTMLElement>('#build-search-empty');
-    if (empty) empty.hidden = !query || matches > 0;
+    if (empty) empty.hidden = !searching || matches > 0;
+    const clear = toolbar.querySelector<HTMLButtonElement>('#build-search-clear');
+    if (clear) clear.hidden = !searching;
   }
 
   private registerBuiltInGameModes(): void {
@@ -8837,82 +8907,42 @@ export class ThreeGame {
     this.renderGameModeSelection();
 
     const noneHtml =
-      '<button class="tool-button tool-button-none is-selected" data-build-none="true" type="button" aria-pressed="true">' +
-      '<span class="tool-icon">✕</span>' +
-      '<span class="tool-copy"><strong>None</strong><small>No build tool · free camera / inspect</small></span>' +
-      '<kbd>Esc</kbd></button>';
-
-    const modeConfig = getGameModeDefinition(this.gameMode);
-    const toolDefinitions = new Map(TOOL_GROUPS.flatMap((group) => group.tools.map((tool) => [tool.id, tool] as const)));
-    const toolHtml = modeConfig.toolGroups.map((group, index) => {
-      const isDefaultOpen = index === 0;
-      const buttons = group.toolIds
-        .map((toolId) => toolDefinitions.get(toolId))
-        .filter((tool): tool is ToolDefinition => Boolean(tool))
-        .map(
-          (tool) =>
-            '<button class="tool-button' +
-            (tool.id === this.selectedTool ? ' is-selected' : '') +
-            '" type="button" aria-pressed="' + (tool.id === this.selectedTool) + '" data-tool="' +
-            tool.id +
-            '">' +
-            '<span class="tool-icon">' +
-            tool.icon +
-            '</span>' +
-            '<span class="tool-copy"><strong>' +
-            tool.label +
-            '</strong><small>' +
-            tool.detail +
-            '</small></span>' +
-            '<kbd>' +
-            tool.shortcut +
-            '</kbd></button>',
-        )
-        .join('');
-
-      return (
-        '<section class="tool-category' +
-        (isDefaultOpen ? ' is-open' : '') +
-        '" data-category="' +
-        group.label +
-        '">' +
-        '<button class="tool-category-header" type="button" aria-expanded="' +
-        (isDefaultOpen ? 'true' : 'false') +
-        '">' +
-        '<span>' +
-        group.label +
-        '</span>' +
-        '<span class="tool-category-chevron" aria-hidden="true">▶</span>' +
-        '</button>' +
-        '<div class="tool-category-items">' +
-        buttons +
-        '</div>' +
-        '</section>'
-      );
-    }).join('');
+      '<button class="build-inspect-button is-selected" data-build-none="true" type="button" aria-pressed="true">' +
+      '<span aria-hidden="true">◎</span><strong>Inspect</strong><kbd>Esc</kbd></button>';
 
     toolbar.innerHTML =
-      '<div class="toolbar-title"><div><span>Build</span><small>Modular engineering</small></div><button id="toolbar-close" class="toolbar-close" type="button" aria-label="Close build panel">×</button></div>' +
-      '<label class="build-search"><span>Find a tool</span><input id="build-search" type="search" placeholder="Search buildings, roads, terrain…" autocomplete="off" /></label>' +
-      '<div id="build-search-empty" class="build-search-empty" hidden>No matching tools. Try another name.</div>' +
-      '<div class="build-active" role="status" aria-live="polite">Active tool: <strong id="build-active-label">None</strong></div>' +
+      '<div class="toolbar-title">' +
+      '<div class="toolbar-heading"><span>Build</span><small>Choose a tool and place it</small></div>' +
+      '<div class="toolbar-title-actions"><span id="build-mode-chip" class="build-mode-chip"></span>' +
+      '<button id="toolbar-close" class="toolbar-close" type="button" aria-label="Close build panel">×</button></div>' +
+      '</div>' +
+      '<label class="build-search">' +
+      '<span class="build-search-icon" aria-hidden="true">⌕</span>' +
+      '<input id="build-search" type="search" aria-label="Search build tools" placeholder="Search tools…" autocomplete="off" />' +
+      '<button id="build-search-clear" class="build-search-clear" type="button" aria-label="Clear tool search" hidden>×</button>' +
+      '</label>' +
+      '<div class="build-context-row">' +
+      '<div class="build-active" role="status" aria-live="polite"><span class="build-active-dot"></span><span>Active</span><strong id="build-active-label">Inspect</strong></div>' +
       noneHtml +
-      toolHtml +
+      '</div>' +
+      '<div class="build-category-tabs" role="tablist" aria-label="Build tool categories"></div>' +
+      '<div id="build-search-empty" class="build-search-empty" hidden>No tools match that search.</div>' +
+      '<div class="build-tool-sections"></div>' +
       '<div class="builder-settings">' +
-      '<section class="settings-section build-settings-section is-open">' +
-      '<button class="settings-section-header" type="button" aria-expanded="true">' +
-      '<span class="settings-section-title">Build Settings</span>' +
-      '<span id="build-settings-summary" class="settings-section-summary">Wall · Tower · Keep · Terrain</span>' +
+      '<section class="settings-section build-settings-section">' +
+      '<button class="settings-section-header" type="button" aria-expanded="false">' +
+      '<span class="settings-section-title">Tool Options</span>' +
+      '<span id="build-settings-summary" class="settings-section-summary">Advanced adjustments</span>' +
       '<span class="settings-section-chevron" aria-hidden="true">▶</span>' +
       '</button>' +
       '<div class="settings-section-items">' +
+      '<div class="settings-title">Wall</div>' +
       '<label class="settings-row"><span>Thickness</span><select id="wall-thickness">' +
       '<option value="thin">Thin</option><option value="medium" selected>Medium</option><option value="thick">Thick</option>' +
       '</select></label>' +
       '<label class="settings-check"><input id="wall-battlement" type="checkbox" checked /><span>Battlement</span></label>' +
       '<label class="settings-check"><input id="wall-walkway" type="checkbox" /><span>Top Walkway</span></label>' +
       '<div class="settings-actions"><button id="selected-down" type="button">− Height</button><button id="selected-up" type="button">+ Height</button></div>' +
-      '</div>' +
       '<div class="settings-title">Castle Architecture</div>' +
       '<label class="settings-row"><span>Stone Style</span><select id="castle-stone-style">' +
       '<option value="limestone" selected>Limestone</option><option value="darkStone">Dark Stone</option>' +
@@ -8921,8 +8951,8 @@ export class ThreeGame {
       '<label class="settings-row"><span>Tower Bridge</span><select id="tower-bridge-kind">' +
       '<option value="stone" selected>Stone Bridge</option><option value="wood">Wooden Bridge</option>' +
       '</select></label>' +
-      '<div class="settings-hint">Foundations, buttresses and machicolations are generated automatically from height, terrain and structure importance.</div>' +
-      '<div class="settings-title">Tower Builder</div>' +
+      '<div class="settings-hint">Foundations, buttresses and machicolations are generated automatically.</div>' +
+      '<div class="settings-title">Tower</div>' +
       '<label class="settings-row"><span>Base</span><select id="tower-shape">' +
       '<option value="square">Square Tower</option><option value="round" selected>Round Tower</option>' +
       '<option value="octagonal">Octagonal Tower</option><option value="corner">Corner Tower</option>' +
@@ -8932,7 +8962,7 @@ export class ThreeGame {
       '<option value="conical">Conical Roof</option><option value="hipped">Hipped Roof</option>' +
       '<option value="pyramidal">Pyramidal Roof</option><option value="timberRoof">Timber Roof</option>' +
       '<option value="flat">Flat Platform</option><option value="watch">Watch Platform</option></select></label>' +
-      '<div class="settings-title">Modular Keep</div>' +
+      '<div class="settings-title">Keep</div>' +
       '<label class="settings-row"><span>Width</span><select id="keep-width">' +
       '<option value="2">2 tiles</option><option value="3" selected>3 tiles</option><option value="4">4 tiles</option><option value="5">5 tiles</option><option value="6">6 tiles</option>' +
       '</select></label>' +
@@ -8949,7 +8979,6 @@ export class ThreeGame {
       '<label class="settings-check"><input id="keep-battlements" type="checkbox" checked /><span>Keep Battlements</span></label>' +
       '<div class="settings-actions"><button id="keep-floor-down" type="button">− Keep Floor</button><button id="keep-floor-up" type="button">+ Keep Floor</button></div>' +
       '<div class="settings-actions"><button id="keep-rotate" type="button">↻ Keep 90°</button><button id="keep-remove" type="button">Remove Keep</button></div>' +
-      '<div class="settings-hint">Keep details are automatic: entrance, windows, arrow slits, stairs, flags and internal floor-access metadata.</div>' +
       '<div class="settings-title">Terrain Brush</div>' +
       '<label class="settings-row"><span>Brush Size</span><select id="brush-size">' +
       '<option value="1">1 tile</option><option value="2" selected>2 tiles</option><option value="3">3 tiles</option><option value="4">4 tiles</option>' +
@@ -8959,32 +8988,23 @@ export class ThreeGame {
       '<div class="move-pad"><button id="move-up" type="button">↑</button><button id="move-left" type="button">←</button><button id="move-down" type="button">↓</button><button id="move-right" type="button">→</button></div>' +
       '<div class="settings-actions"><button id="rotate-selected" type="button">↻ Rotate</button><button id="undo-button" type="button">Undo</button></div>' +
       '<div class="settings-actions"><button id="redo-button" type="button">Redo</button><button id="select-clear" type="button">Clear Select</button></div>' +
-      '<div class="settings-hint">Walls: drag A→B. Terrain tools also support drag strokes. Ctrl+Z / Ctrl+Y undo and redo.</div>' +
-      '</div>';
+      '<div class="settings-hint">Walls and terrain support drag gestures. Ctrl+Z / Ctrl+Y undo and redo.</div>' +
+      '</div></section></div>';
 
     const builderSettings = toolbar.querySelector<HTMLElement>('.builder-settings');
     if (builderSettings) builderSettings.hidden = this.gameMode === 'modern';
-    toolbar.querySelector<HTMLInputElement>('#build-search')?.addEventListener('input', () => this.filterBuildTools());
 
-    toolbar.querySelectorAll<HTMLButtonElement>('.tool-category-header').forEach((header) => {
-      header.onclick = () => {
-        const category = header.closest<HTMLElement>('.tool-category');
-        if (!category) return;
-        const open = category.classList.toggle('is-open');
-        header.setAttribute('aria-expanded', String(open));
-      };
+    const buildSearch = toolbar.querySelector<HTMLInputElement>('#build-search');
+    buildSearch?.addEventListener('input', () => this.filterBuildTools());
+    toolbar.querySelector<HTMLButtonElement>('#build-search-clear')?.addEventListener('click', () => {
+      if (!buildSearch) return;
+      buildSearch.value = '';
+      this.filterBuildTools();
+      buildSearch.focus();
     });
 
     document.querySelector<HTMLButtonElement>('[data-build-none]')?.addEventListener('click', () => this.selectTool(null));
-
-    toolbar.querySelectorAll<HTMLButtonElement>('[data-tool]').forEach((button) => {
-      button.onclick = () => {
-        this.selectTool(button.dataset.tool as ToolKind);
-        if (this.selectedTool === button.dataset.tool && window.matchMedia('(max-width: 760px)').matches) {
-          this.setToolbarOpen(false);
-        }
-      };
-    });
+    this.refreshBuildPanelForMode();
 
     get<HTMLButtonElement>('toolbar-close').onclick = () => this.setToolbarOpen(false);
     get<HTMLButtonElement>('toolbar-open').onclick = () => this.setToolbarOpen(true);
@@ -11542,9 +11562,16 @@ export class ThreeGame {
     const noneButton = document.querySelector('[data-build-none]');
     noneButton?.classList.toggle('is-selected', tool === null);
     noneButton?.setAttribute('aria-pressed', String(tool === null));
+
+    if (tool !== null) {
+      const category = getGameModeDefinition(this.gameMode).toolGroups.find((group) => group.toolIds.includes(tool));
+      if (category) this.activeBuildCategory = category.label;
+    }
+
     const activeLabel = document.getElementById('build-active-label');
-    if (activeLabel) activeLabel.textContent = tool === null ? 'None' : (document.querySelector<HTMLElement>('[data-tool="' + tool + '"] .tool-copy strong')?.textContent ?? tool);
-    this.setStatus(tool === null ? 'No Build Tool Selected · free camera / inspect' : 'Selected: ' + tool);
+    if (activeLabel) activeLabel.textContent = tool === null ? 'Inspect' : (document.querySelector<HTMLElement>('[data-tool="' + tool + '"] .tool-copy strong')?.textContent ?? tool);
+    this.filterBuildTools();
+    this.setStatus(tool === null ? 'Inspect mode · free camera / select objects' : 'Selected: ' + tool);
     for (const extension of this.extensions) extension.onToolSelected?.(tool);
   }
 
