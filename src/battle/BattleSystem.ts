@@ -1286,12 +1286,26 @@ export class BattleSystem {
         }
       } else {
         const verticalDifference = Math.abs(runtime.position.y - target.position.y);
-        if (distance <= runtime.stats.attackRange && verticalDifference <= 1.5) {
+        const hasAttackVisibility = this.hasUnitAttackVisibility(runtime, target);
+        if (
+          distance <= runtime.stats.attackRange &&
+          verticalDifference <= 1.5 &&
+          hasAttackVisibility
+        ) {
           runtime.data.state = 'attacking';
           if (runtime.attackTimer <= 0) this.meleeAttack(runtime, target);
         } else if (runtime.surface === 'ground') {
-          const attackPosition = this.meleeApproachPoint(runtime, target);
-          const moved = this.moveTowardTarget(runtime, attackPosition, delta);
+          const attackPosition = hasAttackVisibility
+            ? this.meleeApproachPoint(runtime, target)
+            : target.position;
+          const moved = this.moveTowardTarget(
+            runtime,
+            attackPosition,
+            delta,
+            hasAttackVisibility
+              ? runtime.stats.attackRange * 0.9
+              : 0.4,
+          );
           if (!moved && runtime.data.faction === 'attacker') {
             if (!this.updateSiegeGroundAttacker(runtime, delta)) {
               this.followAttackerObjective(runtime, delta);
