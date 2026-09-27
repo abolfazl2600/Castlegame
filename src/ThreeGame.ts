@@ -8168,11 +8168,13 @@ export class ThreeGame {
         return;
       }
 
+      if (!this.ensureConstructionAffordable(this.selectedTool)) return;
       this.recordHistory();
       this.services.state.setCell(gx, gy, this.selectedTool, 1, {
         rotation: direction.rotation,
         shipKind: this.maritimeSystem.defaultShip(this.selectedTool) ?? undefined,
       });
+      this.spendConstructionCost(this.selectedTool);
       this.finishBuild();
       this.setStatus('Maritime structure placed · orientation matched to coastline');
       return;
@@ -8213,15 +8215,19 @@ export class ThreeGame {
 
     if (this.selectedTool === 'mine') {
       if (current === 'mountain') {
+        if (!this.ensureConstructionAffordable('mine')) return;
         this.recordHistory();
         this.services.state.setCell(gx, gy, 'mine', 1);
+        this.spendConstructionCost('mine');
         this.finishBuild();
         return;
       }
 
       if (!current && terrain === 'mountain') {
+        if (!this.ensureConstructionAffordable('mine')) return;
         this.recordHistory();
         this.services.state.setCell(gx, gy, 'mine', 1);
+        this.spendConstructionCost('mine');
         this.finishBuild();
       }
       return;
@@ -8243,9 +8249,11 @@ export class ThreeGame {
         return;
       }
       if (!current && terrain === 'plains') {
+        if (!this.ensureConstructionAffordable('appleOrchard')) return;
         this.recordHistory();
         const size = 1 + ((gx * 7 + gy * 11) % 3);
         this.services.state.setCell(gx, gy, 'appleOrchard', size);
+        this.spendConstructionCost('appleOrchard');
         this.finishBuild();
         this.setStatus(`Apple Orchard placed · size ${size}`);
       }
@@ -8282,6 +8290,7 @@ export class ThreeGame {
       if (current && !this.isWallFamily(current)) return;
       if (!current && !this.canBuildFortificationOnTerrain(terrain)) return;
 
+      if (!this.ensureConstructionAffordable('tower')) return;
       this.recordHistory();
       const compatibleTop = this.compatibleTowerTop(this.towerShape, this.towerTop);
       this.towerTop = compatibleTop;
@@ -8289,6 +8298,7 @@ export class ThreeGame {
         towerShape: this.towerShape,
         towerTop: compatibleTop,
       });
+      this.spendConstructionCost('tower');
       this.finishBuild();
       return;
     }
@@ -8303,10 +8313,12 @@ export class ThreeGame {
         this.setStatus('Cow Barn requires open plains');
         return;
       }
+      if (!this.ensureConstructionAffordable('cowBarn')) return;
       this.recordHistory();
-      this.services.state.setCell(gx, gy, 'cowBarn', 99);
+      this.services.state.setCell(gx, gy, 'cowBarn', 1);
+      this.spendConstructionCost('cowBarn');
       this.finishBuild();
-      this.setStatus('Cow Barn placed · livestock yard active');
+      this.setStatus('Cow Barn placed · Level 1 livestock yard active');
       return;
     }
     if (!this.isBuildingAvailable(selectedTile)) {
@@ -8322,32 +8334,38 @@ export class ThreeGame {
         this.setStatus('Market needs a clear 3×3 land area');
         return;
       }
+      if (!this.ensureConstructionAffordable('market')) return;
       this.recordHistory();
       this.services.state.setCell(gx, gy, 'market', 1);
+      this.spendConstructionCost('market');
       this.finishBuild();
       return;
     }
 
     if (current) {
       if (selectedFortification && currentFortification) {
+        if (!this.ensureConstructionAffordable(selectedTile)) return;
         this.recordHistory();
         this.services.state.setCell(gx, gy, selectedTile, cell?.level ?? 1, {
           wallLinks: cell?.wallLinks,
           rotation: cell?.rotation,
           rotationMode: 'auto',
         });
+        this.spendConstructionCost(selectedTile);
         this.finishBuild();
       }
       return;
     }
 
     if (!this.canBuildOnTerrain(this.selectedTool, terrain)) return;
+    if (!this.ensureConstructionAffordable(selectedTile)) return;
     this.recordHistory();
     if (selectedTile === 'gate') {
       this.services.state.setCell(gx, gy, selectedTile, 1, { rotationMode: 'auto' });
     } else {
       this.services.state.setCell(gx, gy, selectedTile, 1);
     }
+    this.spendConstructionCost(selectedTile);
     this.finishBuild();
   }
 
