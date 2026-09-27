@@ -1,0 +1,53 @@
+{
+  "issue": 64,
+  "currentCommit": "d6c1f08af774a81c3f5e684f3de926235bf28b73",
+  "beforePhase5Commit": "153f47603c039c44d4323440dcc5495e35264cce",
+  "currentArtifactRunId": 36324784016,
+  "beforeArtifactRunId": 36322972254,
+  "capturedAt": "2026-09-27T14:45:00Z",
+  "environment": {
+    "browser": "Chromium 144.0.7559.96",
+    "os": "Debian GNU/Linux 13 container on Linux 6.18.44",
+    "renderer": "ANGLE / Vulkan SwiftShader (software)",
+    "viewport": "1365x900",
+    "graphicsQuality": "high",
+    "deviceScaleFactor": 1,
+    "note": "These numbers are acceptance-audit evidence from one software-rendered environment. They are useful for reproducibility and relative scene cost, not as target hardware FPS. The repository visual:baseline command samples 120 frames on the review machine."
+  },
+  "denseScene": {
+    "sampleCount": 11,
+    "frameMedianMs": 1133.3,
+    "frameP95Ms": 2533.18,
+    "drawCalls": 9888,
+    "triangles": 239354,
+    "sceneGeometries": 5410,
+    "sceneMaterials": 431,
+    "gpuGeometries": 4744,
+    "gpuTextures": 6,
+    "lastRedrawMs": 223.3
+  },
+  "combatScene": {
+    "battleSetup": {
+      "attackers": 32,
+      "defenders": 30,
+      "attackerSwordsmen": 12,
+      "attackerArchers": 8,
+      "attackerSpearmen": 8,
+      "attackerCrossbowmen": 4,
+      "defenderSwordsmen": 10,
+      "defenderArchers": 8,
+      "defenderSpearmen": 8,
+      "defenderCrossbowmen": 4
+    },
+    "sampleCount": 21,
+    "frameMedianMs": 900.0,
+    "frameP95Ms": 1083.3,
+    "drawCalls": 2650,
+    "triangles": 69748,
+    "sceneGeometries": 2206,
+    "sceneMaterials": 214,
+    "gpuGeometries": 1683,
+    "gpuTextures": 6,
+    "lastRedrawMs": 75.8
+  }
+}
