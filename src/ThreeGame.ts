@@ -7369,10 +7369,12 @@ export class ThreeGame {
     let assignmentChanged = false;
 
     if (agent.role === 'farmer') {
-      const currentHomeStillExists = currentHomes.has(
-        this.key(agent.home.x, agent.home.y),
-      );
-      if (!currentHomeStillExists) {
+      const currentHomeMatchesFallback =
+        agent.home.x === spec.home.x && agent.home.y === spec.home.y;
+      const currentHomeStillValid =
+        currentHomes.has(this.key(agent.home.x, agent.home.y)) ||
+        currentHomeMatchesFallback;
+      if (!currentHomeStillValid) {
         agent.home = { ...spec.home };
         assignmentChanged = true;
       }
