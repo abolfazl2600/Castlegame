@@ -20,7 +20,7 @@ export interface GameModeDefinition {
 
 const MEDIEVAL_BUILDINGS: readonly TileKind[] = [
   'wall1','wall2','wall3','gate','tower',
-  'road','dirtRoad','stoneRoad','smallDock','woodenPier','harbor','fishingDock',
+  'road','dirtRoad','stoneRoad','harbor',
   'cottage','house','manor','villa','farm','cowBarn','appleOrchard','armyCamp',
   'market','basilica','windmill','mine','mountain','tree','rock','hut','moat',
   'stoneStairs','woodenStairs','ramp','ladder',
@@ -53,7 +53,7 @@ export const GAME_MODE_CONFIG: Record<GameMode, GameModeDefinition> = {
       { label: 'Buildings', toolIds: ['cottage','house','manor','villa','market','basilica','farm','cowBarn','appleOrchard','windmill','mine','hut'] },
       { label: 'Military', toolIds: ['armyCamp'] },
       { label: 'Environment', toolIds: COMMON_WORLD_TOOLS },
-      { label: 'Roads & Harbor', toolIds: ['road','dirtRoad','stoneRoad','smallDock','woodenPier','harbor','fishingDock'] },
+      { label: 'Roads & Harbor', toolIds: ['road','dirtRoad','stoneRoad','harbor'] },
     ],
     availableTools: [...MEDIEVAL_BUILDINGS, 'keep','towerBridge','mountainRange',...COMMON_WORLD_TOOLS],
     availableBuildingKinds: [...MEDIEVAL_BUILDINGS, 'tree','rock','mountain'],
@@ -69,7 +69,7 @@ export const GAME_MODE_CONFIG: Record<GameMode, GameModeDefinition> = {
       { label: 'Buildings', toolIds: ['cottage','house','manor','villa','market','basilica','farm','cowBarn','appleOrchard','windmill','mine','hut'] },
       { label: 'Military', toolIds: ['armyCamp'] },
       { label: 'Environment', toolIds: COMMON_WORLD_TOOLS },
-      { label: 'Roads & Harbor', toolIds: ['road','dirtRoad','stoneRoad','smallDock','woodenPier','harbor','fishingDock'] },
+      { label: 'Roads & Harbor', toolIds: ['road','dirtRoad','stoneRoad','harbor'] },
     ],
     availableTools: [...MEDIEVAL_BUILDINGS, 'keep','towerBridge','mountainRange',...COMMON_WORLD_TOOLS],
     availableBuildingKinds: [...MEDIEVAL_BUILDINGS, 'tree','rock','mountain'],
@@ -101,7 +101,7 @@ export const GAME_MODE_CONFIG: Record<GameMode, GameModeDefinition> = {
     toolGroups: [
       { label: 'Castle & Defense', toolIds: ['wall1','wall2','wall3','gate','tower','towerBridge','keep','moat'] },
       { label: 'Buildings', toolIds: ['cottage','house','manor','villa','market','basilica','farm','cowBarn','appleOrchard','windmill','mine','hut'] },
-      { label: 'Roads & Harbor', toolIds: ['road','dirtRoad','stoneRoad','smallDock','woodenPier','harbor','fishingDock'] },
+      { label: 'Roads & Harbor', toolIds: ['road','dirtRoad','stoneRoad','harbor'] },
       { label: 'Military', toolIds: ['armyCamp'] },
       { label: 'Environment', toolIds: ['tree','rock','mountain'] },
       { label: 'Terrain', toolIds: ['mountainRange','river','land','raise','lower','flatten','smooth','hill','cliff','erase'] },
