@@ -136,17 +136,18 @@ test('Sandbox runtime load exposes both medieval and modern tools', async ({ pag
   await expect(page.locator('#toolbar [data-tool="river"]')).toHaveCount(1);
 });
 
-test('farm extension reinstalls its tool after a mode-specific toolbar rebuild', async ({ page }) => {
+test('Cow Barn uses the standard build tool across mode-specific toolbar rebuilds', async ({ page }) => {
   await loadApplication(page);
-  await expect(page.locator('#toolbar [data-cow-barn]')).toHaveCount(1);
+  await expect(page.locator('#toolbar [data-tool="cowBarn"]')).toHaveCount(1);
+  await expect(page.locator('#toolbar [data-cow-barn]')).toHaveCount(0);
 
   await writeAutosave(page, 'modern');
   await invokeRuntimeLoadWithoutReload(page);
-  await expect(page.locator('#toolbar [data-cow-barn]')).toHaveCount(0);
+  await expect(page.locator('#toolbar [data-tool="cowBarn"]')).toHaveCount(0);
 
   await writeAutosave(page, 'medieval');
   await invokeRuntimeLoadWithoutReload(page);
-  await expect(page.locator('#toolbar [data-cow-barn]')).toHaveCount(1);
+  await expect(page.locator('#toolbar [data-tool="cowBarn"]')).toHaveCount(1);
 });
 
 test('same-mode runtime load replaces categories without duplicates', async ({ page }) => {
