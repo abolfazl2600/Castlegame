@@ -2784,7 +2784,7 @@ export class ThreeGame {
     else if (HARBOR_KINDS.includes(cell.kind as HarborKind)) this.makeHarbor(group, cell.kind as HarborKind, cell.x, cell.y, cell);
     else if (WALL_KINDS.includes(cell.kind as WallKind)) {
       this.makeWall(group, cell.kind as WallKind, cell.x, cell.y, cell);
-    } else if (cell.kind === 'gate') this.makeGate(group, cell.x, cell.y);
+    } else if (cell.kind === 'gate') this.makeGate(group, cell.x, cell.y, cell);
     else if (cell.kind === 'tower') this.makeTower(group, cell.x, cell.y, cell);
 
     else if (cell.kind === 'farm') this.makeFarm(group);
@@ -4069,12 +4069,15 @@ export class ThreeGame {
     );
   }
 
-  private makeGate(group: THREE.Group, gx: number, gy: number): THREE.Group {
-    const wallMaterial = this.medievalMaterials.castleStone(this.stoneStyle, 'body', gx, gy);
-    const foundation = this.medievalMaterials.castleStone(this.stoneStyle, 'foundation', gx, gy);
-    const woodMaterial = this.medievalMaterials.timber;
-    const darkWood = this.medievalMaterials.timberDark;
-    const shadow = this.medievalMaterials.arrowVoid;
+  private resolveGateOrientation(
+    gx: number,
+    gy: number,
+    cell?: GridCell,
+  ): { vertical: boolean; rotation: number } {
+    const manualRotation = ((cell?.rotation ?? 0) % 4 + 4) % 4;
+    if (cell?.rotationMode === 'manual') {
+      return { vertical: manualRotation % 2 === 1, rotation: manualRotation };
+    }
 
     const horizontalNeighbors =
       Number(this.isWallFamily(this.kindAt(gx - 1, gy))) +
@@ -4082,7 +4085,35 @@ export class ThreeGame {
     const verticalNeighbors =
       Number(this.isWallFamily(this.kindAt(gx, gy - 1))) +
       Number(this.isWallFamily(this.kindAt(gx, gy + 1)));
-    const vertical = verticalNeighbors > horizontalNeighbors;
+
+    let vertical: boolean;
+    if (verticalNeighbors !== horizontalNeighbors) {
+      vertical = verticalNeighbors > horizontalNeighbors;
+    } else if (horizontalNeighbors + verticalNeighbors > 0 && cell?.rotation !== undefined) {
+      vertical = manualRotation % 2 === 1;
+    } else if (horizontalNeighbors + verticalNeighbors > 0) {
+      vertical = ((gx + gy) & 1) === 1;
+    } else {
+      vertical = manualRotation % 2 === 1;
+    }
+
+    return { vertical, rotation: vertical ? 1 : 0 };
+  }
+
+  private makeGate(
+    group: THREE.Group,
+    gx: number,
+    gy: number,
+    cell: GridCell,
+  ): THREE.Group {
+    const wallMaterial = this.medievalMaterials.castleStone(this.stoneStyle, 'body', gx, gy);
+    const foundation = this.medievalMaterials.castleStone(this.stoneStyle, 'foundation', gx, gy);
+    const woodMaterial = this.medievalMaterials.timber;
+    const darkWood = this.medievalMaterials.timberDark;
+    const shadow = this.medievalMaterials.arrowVoid;
+
+    const orientation = this.resolveGateOrientation(gx, gy, cell);
+    const vertical = orientation.vertical;
 
     const core = new THREE.Group();
     const door = new THREE.Group();
@@ -6476,6 +6507,7 @@ export class ThreeGame {
     this.recordHistory();
     this.services.state.updateCell(this.selectedCell.x, this.selectedCell.y, {
       rotation: ((cell.rotation ?? 0) + 1) % 4,
+      ...(cell.kind === 'gate' ? { rotationMode: 'manual' as const } : {}),
     });
     this.redraw();
     this.scheduleSave();
@@ -7688,7 +7720,11 @@ export class ThreeGame {
     if (current) {
       if (selectedFortification && currentFortification) {
         this.recordHistory();
-        this.services.state.setCell(gx, gy, selectedTile, cell?.level ?? 1);
+        this.services.state.setCell(gx, gy, selectedTile, cell?.level ?? 1, {
+          wallLinks: cell?.wallLinks,
+          rotation: cell?.rotation,
+          rotationMode: 'auto',
+        });
         this.finishBuild();
       }
       return;
@@ -7696,7 +7732,9 @@ export class ThreeGame {
 
     if (!this.canBuildOnTerrain(this.selectedTool, terrain)) return;
     this.recordHistory();
-    this.services.state.setCell(gx, gy, selectedTile, 1);
+    this.services.state.setCell(gx, gy, selectedTile, 1, selectedTile === 'gate'
+      ? { rotationMode: 'auto' }
+      : undefined);
     this.finishBuild();
   }
 
