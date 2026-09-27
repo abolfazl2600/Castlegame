@@ -27,7 +27,7 @@ const MEDIEVAL_BUILDINGS: readonly TileKind[] = [
 ];
 
 const COMMON_WORLD_TOOLS: readonly ToolKind[] = [
-  'tree','rock','mountain','mountainRange','river','land','raise','lower','flatten','smooth','dig','hill','cliff','erase',
+  'tree','rock','mountain','mountainRange','river','land','raise','lower','flatten','smooth','hill','cliff','erase',
 ];
 
 const SANDBOX_BUILDINGS: readonly TileKind[] = [
@@ -104,7 +104,7 @@ export const GAME_MODE_CONFIG: Record<GameMode, GameModeDefinition> = {
       { label: 'Roads & Harbor', toolIds: ['road','dirtRoad','stoneRoad','smallDock','woodenPier','harbor','fishingDock'] },
       { label: 'Military', toolIds: ['armyCamp'] },
       { label: 'Environment', toolIds: ['tree','rock','mountain'] },
-      { label: 'Terrain', toolIds: ['mountainRange','river','land','raise','lower','flatten','smooth','dig','hill','cliff','erase'] },
+      { label: 'Terrain', toolIds: ['mountainRange','river','land','raise','lower','flatten','smooth','hill','cliff','erase'] },
       { label: 'Modern', toolIds: ['futuristicCastle'] },
     ],
     availableTools: SANDBOX_TOOLS,
