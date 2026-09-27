@@ -6,7 +6,7 @@
   "scripts": {
     "test:gate-orientation": "node scripts/test-gate-orientation.mjs",
     "dev": "vite",
-    "build": "npm run test:gate-orientation && npm run test:battle-state-boundary && npm run test:missile-capability && npm run test:castle-access-navigation && npm run test:castle-architecture-style && npm run test:settlement-lifecycle && npm run test:farm-worker-visibility && npm run test:river-water-visibility && npm run test:build-tool-registry && npm run test:cross-mode-save-loading && npm run test:settings-bootstrap-order && npm run test:save-mode-ui-sync && npm run test:modern-fortress-terrain-protection && npm run test:god-mode && npm run test:orchard-visual-contract && tsc --noEmit && vite build",
+    "build": "npm run test:gate-orientation && npm run test:battle-state-boundary && npm run test:missile-capability && npm run test:castle-access-navigation && npm run test:castle-architecture-style && npm run test:settlement-lifecycle && npm run test:map-layouts && npm run test:farm-worker-visibility && npm run test:river-water-visibility && npm run test:build-tool-registry && npm run test:cross-mode-save-loading && npm run test:settings-bootstrap-order && npm run test:save-mode-ui-sync && npm run test:modern-fortress-terrain-protection && npm run test:god-mode && npm run test:orchard-visual-contract && tsc --noEmit && vite build",
     "preview": "vite preview",
     "test:battle-state-boundary": "node scripts/test-battle-state-boundary.mjs",
     "test:missile-capability": "node scripts/test-missile-capability.mjs",
@@ -22,7 +22,8 @@
     "test:god-mode": "node scripts/test-god-mode.mjs",
     "test:farm-worker-visibility": "node scripts/test-farm-worker-visibility.mjs",
     "test:orchard-visual-contract": "node scripts/test-orchard-visual-contract.mjs",
-    "test:castle-architecture-style": "node scripts/test-castle-architecture-style.mjs"
+    "test:castle-architecture-style": "node scripts/test-castle-architecture-style.mjs",
+    "test:map-layouts": "node scripts/test-map-layouts.mjs"
   },
   "dependencies": {
     "three": "^0.180.0"
