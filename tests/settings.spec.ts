@@ -151,7 +151,7 @@ test('Settings remains usable in fullscreen when browser automation supports it'
 });
 
 
-test('Settings Save and Load actions open the dedicated storage dialog above Settings', async ({ page }) => {
+test('Settings Save action opens the dedicated storage dialog above Settings', async ({ page }) => {
   await loadApp(page);
   await openSettings(page);
 
@@ -165,12 +165,19 @@ test('Settings Save and Load actions open the dedicated storage dialog above Set
 
   await page.locator('[data-save-action="close"]').click();
   await expect(page.locator('.save-load-backdrop')).toBeHidden();
+});
 
+test('Settings Load action opens the dedicated storage dialog above Settings', async ({ page }) => {
+  await loadApp(page);
   await openSettings(page);
+
   await page.locator('[data-system-action="load"]').click();
   await expect(page.locator('#settings-modal')).toBeHidden();
   await expect(page.locator('.save-load-backdrop')).toBeVisible();
   await expect(page.locator('#save-load-title')).toHaveText('Load Game');
+
+  const loadLayer = await page.locator('.save-load-backdrop').evaluate((element) => Number(getComputedStyle(element).zIndex));
+  expect(loadLayer).toBeGreaterThan(9999);
 });
 
 test('Audio pane is navigable and unlocks the procedural audio engine', async ({ page }) => {
