@@ -97,7 +97,7 @@ class MockGroup {
 {
   const sharedGeo = new MockBufferGeometry();
   const sharedMat = new MockMaterial();
-  const sharedTex = new MockTexture pain?();
+  const sharedTex = new MockTexture();
   const unsharedMat = new MockMaterial(sharedTex);
   const unsharedGeo = new MockBufferGeometry();
 
