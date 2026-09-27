@@ -2,7 +2,8 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { createRequire } from 'node:module';
 const require = createRequire(import.meta.url);
-const ts = require('typescript');
+const typescriptModule = require('typescript');
+const ts = typescriptModule.default ?? typescriptModule;
 
 const [missileSource, gameState, battleSystem, threeGame, saveSystem, html, coreTypes] = await Promise.all([
   readFile(new URL('../src/battle/MissileCapability.ts', import.meta.url), 'utf8'),
