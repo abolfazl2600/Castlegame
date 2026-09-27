@@ -6325,19 +6325,26 @@ export class ThreeGame {
     const timber = this.environmentMaterial('cow-barn-upgrade-timber', 0x63452f, 1);
     const timberDark = this.environmentMaterial('cow-barn-upgrade-timber-dark', 0x473124, 1);
     const stone = this.environmentMaterial('cow-barn-upgrade-stone', SETTLEMENT_STYLE.foundation, 1);
+    const stoneDark = this.environmentMaterial('cow-barn-upgrade-stone-dark', 0x747a6d, 1);
     const hay = this.environmentMaterial('cow-barn-upgrade-hay', 0xc69d4d, 1);
     const water = this.environmentMaterial('cow-barn-upgrade-water', 0x4e95a3, 0.42);
     const hide = this.environmentMaterial('cow-barn-cow-hide', 0x6a4a36, 0.96);
     const hideLight = this.environmentMaterial('cow-barn-cow-hide-light', 0xd6c9b6, 0.96);
     const roof = this.environmentMaterial('cow-barn-upgrade-roof', 0x9e5437, 0.96);
+    const roofDark = this.environmentMaterial('cow-barn-upgrade-roof-dark', 0x6f3d2d, 1);
+    const sack = this.environmentMaterial('cow-barn-upgrade-sack', 0xb99a67, 1);
+    const iron = this.environmentMaterial('cow-barn-upgrade-iron', 0x596064, 0.82);
+    const royalCloth = this.environmentMaterial('cow-barn-upgrade-royal-cloth', 0x74504b, 0.94);
 
-    const addCow = (x: number, z: number, rotation = 0): void => {
+    const addCow = (x: number, z: number, rotation = 0, light = false): void => {
       const cow = new THREE.Group();
       cow.position.set(x, 0, z);
       cow.rotation.y = rotation;
       group.add(cow);
-      this.addBox(cow, 0.5, 0.34, 0.76, hide, 0, 2.63, 0);
-      this.addBox(cow, 0.34, 0.3, 0.32, hideLight, 0, 2.72, -0.48);
+      const bodyMaterial = light ? hideLight : hide;
+      const headMaterial = light ? hide : hideLight;
+      this.addBox(cow, 0.5, 0.34, 0.76, bodyMaterial, 0, 2.63, 0);
+      this.addBox(cow, 0.34, 0.3, 0.32, headMaterial, 0, 2.72, -0.48);
       for (const sx of [-0.17, 0.17]) {
         for (const sz of [-0.22, 0.22]) {
           this.addBox(cow, 0.07, 0.38, 0.07, timberDark, sx, 2.34, sz);
@@ -6345,68 +6352,192 @@ export class ThreeGame {
       }
     };
 
-    // Every level reads clearly as livestock infrastructure.
-    this.addBox(group, 1.18, 0.2, 0.42, timberDark, 0.82, 2.42, -0.14);
-    this.addBox(group, 1.0, 0.08, 0.28, water, 0.82, 2.54, -0.14);
-    addCow(0.95, 0.82, Math.PI);
-    if (normalizedLevel >= 2) addCow(-1.05, 0.82, 0.12);
-    if (normalizedLevel >= 3) addCow(1.02, 1.38, Math.PI * 0.85);
-    if (normalizedLevel >= 4) addCow(-0.98, 1.4, -0.18);
+    const addHayBale = (x: number, z: number, y = 2.5, scale = 1): void => {
+      const bale = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.23 * scale, 0.23 * scale, 0.42 * scale, 9),
+        hay,
+      );
+      bale.rotation.z = Math.PI / 2;
+      bale.position.set(x, y, z);
+      bale.castShadow = true;
+      group.add(bale);
+    };
+
+    const addBarrel = (x: number, z: number, y = 2.5): void => {
+      const barrel = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.2, 0.48, 10), timberDark);
+      barrel.position.set(x, y, z);
+      barrel.castShadow = true;
+      group.add(barrel);
+      this.addBox(group, 0.43, 0.035, 0.035, iron, x, y + 0.1, z);
+      this.addBox(group, 0.43, 0.035, 0.035, iron, x, y - 0.1, z);
+    };
+
+    const addFenceRun = (
+      x: number,
+      z: number,
+      length: number,
+      horizontal: boolean,
+      material: THREE.Material,
+      postCount: number,
+      railY = 2.62,
+    ): void => {
+      const railWidth = horizontal ? length : 0.07;
+      const railDepth = horizontal ? 0.07 : length;
+      this.addBox(group, railWidth, 0.07, railDepth, material, x, railY, z);
+      this.addBox(group, railWidth, 0.07, railDepth, material, x, railY + 0.3, z);
+      for (let index = 0; index < postCount; index += 1) {
+        const t = postCount === 1 ? 0.5 : index / (postCount - 1);
+        const px = horizontal ? x - length / 2 + t * length : x;
+        const pz = horizontal ? z : z - length / 2 + t * length;
+        this.addBox(group, 0.08, 0.74, 0.08, material, px, 2.55, pz);
+      }
+    };
+
+    const addBarnBlock = (
+      x: number,
+      z: number,
+      width: number,
+      depth: number,
+      height: number,
+      foundationMaterial: THREE.Material,
+      wallMaterial: THREE.Material,
+      roofMaterial: THREE.Material,
+      roofHeight: number,
+    ): void => {
+      this.addBox(group, width + 0.18, 0.24, depth + 0.18, foundationMaterial, x, 2.42, z);
+      this.addBox(group, width, height, depth, wallMaterial, x, 2.52 + height / 2, z);
+      const barnRoof = new THREE.Mesh(new THREE.ConeGeometry(width * 0.68, roofHeight, 4), roofMaterial);
+      barnRoof.rotation.y = Math.PI / 4;
+      barnRoof.scale.z = Math.max(0.72, depth / Math.max(0.1, width));
+      barnRoof.position.set(x, 2.54 + height + roofHeight / 2, z);
+      barnRoof.castShadow = true;
+      barnRoof.receiveShadow = true;
+      group.add(barnRoof);
+    };
+
+    // Level 1 — Cattle Shed: compact, rustic and intentionally sparse.
+    // Keep the silhouette low and the yard lightly furnished so later levels read immediately larger.
+    this.addBox(group, 1.12, 0.2, 0.4, timberDark, 0.86, 2.42, -0.12);
+    this.addBox(group, 0.96, 0.08, 0.26, water, 0.86, 2.54, -0.12);
+    addFenceRun(0, 1.58, 2.65, true, timberDark, 4);
+    addFenceRun(-1.34, 0.92, 1.32, false, timberDark, 3);
+    addHayBale(-1.28, -1.24, 2.5, 0.9);
+    addCow(0.92, 0.78, Math.PI);
+    group.userData.cowBarnVisualVariant = 'cattle-shed';
 
     if (normalizedLevel >= 2) {
-      // Level 2: expanded hay storage and a timber feeding canopy.
-      for (const [x, z] of [[1.42, -1.2], [1.12, -1.18], [1.28, -0.92]] as Array<[number, number]>) {
-        const bale = new THREE.Mesh(new THREE.CylinderGeometry(0.23, 0.23, 0.42, 9), hay);
-        bale.rotation.z = Math.PI / 2;
-        bale.position.set(x, 2.5, z);
-        bale.castShadow = true;
-        group.add(bale);
+      // Level 2 — Reinforced Barn: larger timber mass, expanded yard, feeding canopy,
+      // larger herd and a much denser hay/feed work area.
+      addBarnBlock(-0.55, -0.78, 2.18, 1.42, 1.5, stoneDark, timber, roof, 0.82);
+
+      for (const x of [0.58, 1.58]) {
+        this.addBox(group, 0.1, 1.08, 0.1, timber, x, 2.84, -0.9);
       }
-      for (const x of [0.76, 1.52]) {
-        this.addBox(group, 0.09, 0.92, 0.09, timber, x, 2.78, -0.76);
+      for (const z of [-1.28, -0.52]) {
+        this.addBox(group, 0.1, 1.08, 0.1, timber, 1.08, 2.84, z);
       }
-      const canopy = this.addBox(group, 1.08, 0.09, 0.86, roof, 1.14, 3.24, -0.76);
-      canopy.rotation.z = -0.06;
+      const canopy = this.addBox(group, 1.28, 0.1, 1.04, roof, 1.08, 3.35, -0.9);
+      canopy.rotation.z = -0.07;
+
+      addFenceRun(0.1, 1.76, 3.25, true, timber, 5, 2.68);
+      addFenceRun(-1.55, 1.12, 1.32, false, timber, 3, 2.68);
+      addFenceRun(1.64, 1.12, 1.32, false, timber, 3, 2.68);
+
+      for (const [x, z, scale] of [
+        [1.52, -1.42, 1],
+        [1.2, -1.38, 1],
+        [1.38, -1.08, 0.95],
+        [0.98, -1.15, 0.82],
+      ] as Array<[number, number, number]>) {
+        addHayBale(x, z, 2.5, scale);
+      }
+      this.addBox(group, 0.36, 0.28, 0.28, sack, -1.44, 2.51, -1.36);
+
+      addCow(-0.9, 0.78, 0.18, true);
+      addCow(1.18, 1.28, Math.PI * 0.86);
+      group.userData.cowBarnVisualVariant = 'reinforced-barn';
     }
 
     if (normalizedLevel >= 3) {
-      // Level 3+: the original shed becomes a substantial stone-footed barn.
-      const width = normalizedLevel >= 4 ? 2.88 : 2.42;
-      const height = normalizedLevel >= 4 ? 2.12 : 1.72;
-      const depth = normalizedLevel >= 4 ? 1.82 : 1.58;
-      this.addBox(group, width + 0.18, 0.28, depth + 0.18, stone, -0.42, 2.42, -0.72);
-      this.addBox(group, width, height, depth, timber, -0.42, 2.52 + height / 2, -0.72);
-      this.addBox(group, 0.82, 1.12, 0.08, timberDark, -0.42, 2.98, -0.72 - depth / 2 - 0.05);
-      const mainRoof = new THREE.Mesh(
-        new THREE.ConeGeometry(width * 0.66, normalizedLevel >= 4 ? 1.18 : 0.92, 4),
-        roof,
-      );
-      mainRoof.rotation.y = Math.PI / 4;
-      mainRoof.scale.z = Math.max(0.7, depth / width);
-      mainRoof.position.set(-0.42, 2.58 + height + (normalizedLevel >= 4 ? 0.58 : 0.46), -0.72);
-      mainRoof.castShadow = true;
-      group.add(mainRoof);
+      // Level 3 — Expanded Stockyard: twin-building silhouette, stone-backed main barn,
+      // covered pen, more livestock, storage and dedicated work props.
+      addBarnBlock(-0.48, -0.72, 2.82, 1.78, 1.96, stone, timber, roofDark, 1.02);
+      addBarnBlock(1.12, 0.42, 1.28, 1.12, 1.28, stoneDark, timber, roof, 0.7);
+
+      // Main barn doors and exposed timber framing create a stronger front silhouette.
+      this.addBox(group, 0.9, 1.22, 0.09, timberDark, -0.48, 3.08, -1.65);
+      for (const x of [-1.42, 0.46]) {
+        this.addBox(group, 0.08, 1.5, 0.08, timberDark, x, 3.22, -1.66);
+      }
+      this.addBox(group, 2.02, 0.08, 0.08, timberDark, -0.48, 3.7, -1.66);
+
+      // Covered stock pen.
+      for (const x of [-1.46, -0.52, 0.42]) {
+        this.addBox(group, 0.09, 1.18, 0.09, timber, x, 2.9, 1.03);
+      }
+      const penRoof = this.addBox(group, 2.05, 0.1, 0.86, roof, -0.52, 3.44, 1.03);
+      penRoof.rotation.z = 0.05;
+
+      addFenceRun(-0.45, 1.84, 3.72, true, timberDark, 6, 2.72);
+      addFenceRun(-1.82, 0.92, 1.86, false, timberDark, 4, 2.72);
+      addFenceRun(1.82, 1.18, 1.34, false, timberDark, 3, 2.72);
+
+      addBarrel(1.54, -1.14);
+      addBarrel(1.28, -1.36);
+      this.addBox(group, 0.42, 0.32, 0.34, sack, 0.88, 2.51, -1.47);
+      this.addBox(group, 0.46, 0.36, 0.38, sack, 0.48, 2.53, -1.45);
+      this.addBox(group, 0.9, 0.12, 0.48, timberDark, 1.18, 2.47, 1.52);
+      this.addBox(group, 0.78, 0.06, 0.35, hay, 1.18, 2.56, 1.52);
+
+      addCow(-1.18, 1.24, -0.08);
+      addCow(0.12, 1.35, Math.PI * 0.9, true);
+      group.userData.cowBarnVisualVariant = 'expanded-stockyard';
     }
 
     if (normalizedLevel >= 4) {
-      // Level 4: silo and formal stone entrance make the stockyard unmistakably elite.
-      const silo = new THREE.Mesh(new THREE.CylinderGeometry(0.44, 0.5, 2.05, 12), stone);
-      silo.position.set(1.3, 3.35, -1.24);
+      // Level 4 — Royal Stockyard: unmistakable final form with larger barn mass,
+      // silo, formal stone gate, premium storage and the largest herd.
+      addBarnBlock(-0.38, -0.62, 3.18, 1.96, 2.2, stone, timberDark, roofDark, 1.18);
+      addBarnBlock(1.22, 0.56, 1.5, 1.18, 1.48, stone, timber, roof, 0.78);
+
+      const silo = new THREE.Mesh(new THREE.CylinderGeometry(0.48, 0.54, 2.22, 12), stone);
+      silo.position.set(1.34, 3.48, -1.24);
       silo.castShadow = true;
       group.add(silo);
-      const siloRoof = new THREE.Mesh(new THREE.ConeGeometry(0.58, 0.72, 12), roof);
-      siloRoof.position.set(1.3, 4.74, -1.24);
+      const siloRoof = new THREE.Mesh(new THREE.ConeGeometry(0.62, 0.78, 12), roofDark);
+      siloRoof.position.set(1.34, 4.98, -1.24);
       siloRoof.castShadow = true;
       group.add(siloRoof);
 
-      for (const x of [-0.34, 0.34]) {
-        this.addBox(group, 0.18, 1.34, 0.18, stone, x, 2.92, 1.72);
+      // Formal gate and estate marker.
+      for (const x of [-0.46, 0.46]) {
+        this.addBox(group, 0.22, 1.48, 0.22, stone, x, 2.98, 1.78);
       }
-      this.addBox(group, 0.86, 0.18, 0.18, stone, 0, 3.54, 1.72);
-      this.addBox(group, 0.62, 0.08, 0.08, timberDark, 0, 3.28, 1.72);
+      this.addBox(group, 1.16, 0.22, 0.22, stone, 0, 3.64, 1.78);
+      this.addBox(group, 0.88, 0.09, 0.09, timberDark, 0, 3.36, 1.78);
+      this.addBox(group, 0.38, 0.5, 0.06, royalCloth, 0.56, 3.5, 1.76);
+
+      // Premium logistics corner: feed chest, barrels and raised hay stack.
+      this.addBox(group, 0.82, 0.56, 0.62, timberDark, -1.42, 2.62, -1.42);
+      addBarrel(-1.62, -0.9, 2.52);
+      addHayBale(-1.3, -0.92, 2.54, 1.05);
+      addHayBale(-1.02, -0.9, 2.54, 1.05);
+      addHayBale(-1.16, -0.9, 2.84, 0.92);
+
+      addFenceRun(0, 1.9, 3.9, true, stoneDark, 6, 2.72);
+      addCow(-1.28, 1.5, 0.08, true);
+      addCow(0.78, 1.52, -0.22);
+      group.userData.cowBarnVisualVariant = 'royal-stockyard';
     }
 
     group.userData.cowBarnLevel = normalizedLevel;
+    group.userData.cowBarnVisualProgression = {
+      level: normalizedLevel,
+      herdSize: normalizedLevel === 1 ? 1 : normalizedLevel === 2 ? 3 : normalizedLevel === 3 ? 5 : 7,
+      hasExpandedFence: normalizedLevel >= 2,
+      hasSecondaryBarn: normalizedLevel >= 3,
+      hasSiloAndFormalGate: normalizedLevel >= 4,
+    };
     return group;
   }
 

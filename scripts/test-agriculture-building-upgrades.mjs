@@ -31,7 +31,20 @@ assert.ok(threeGame.includes("this.makeHouse(group, 'cowBarn', gx, gy)"));
 assert.ok(threeGame.includes('group.userData.cowBarnLevel = normalizedLevel'));
 assert.ok(threeGame.includes('Level 2: expanded hay storage and a timber feeding canopy.'));
 assert.ok(threeGame.includes('Level 3+: the original shed becomes a substantial stone-footed barn.'));
-assert.ok(threeGame.includes('Level 4: silo and formal stone entrance make the stockyard unmistakably elite.'));
+assert.ok(threeGame.includes('Level 1 — Cattle Shed: compact, rustic and intentionally sparse.'));
+assert.ok(threeGame.includes('Level 2 — Reinforced Barn: larger timber mass, expanded yard, feeding canopy,'));
+assert.ok(threeGame.includes('Level 3 — Expanded Stockyard: twin-building silhouette, stone-backed main barn,'));
+assert.ok(threeGame.includes('Level 4 — Royal Stockyard: unmistakable final form with larger barn mass,'));
+assert.ok(threeGame.includes("group.userData.cowBarnVisualVariant = 'cattle-shed'"));
+assert.ok(threeGame.includes("group.userData.cowBarnVisualVariant = 'reinforced-barn'"));
+assert.ok(threeGame.includes("group.userData.cowBarnVisualVariant = 'expanded-stockyard'"));
+assert.ok(threeGame.includes("group.userData.cowBarnVisualVariant = 'royal-stockyard'"));
+assert.ok(threeGame.includes('const addFenceRun = ('));
+assert.ok(threeGame.includes('const addBarnBlock = ('));
+assert.ok(threeGame.includes('herdSize: normalizedLevel === 1 ? 1 : normalizedLevel === 2 ? 3 : normalizedLevel === 3 ? 5 : 7'));
+assert.ok(threeGame.includes('hasExpandedFence: normalizedLevel >= 2'));
+assert.ok(threeGame.includes('hasSecondaryBarn: normalizedLevel >= 3'));
+assert.ok(threeGame.includes('hasSiloAndFormalGate: normalizedLevel >= 4'));
 
 assert.ok(threeGame.includes('agriculture-upgrade-card'));
 assert.ok(threeGame.includes('data-agriculture-level="1"'));
@@ -48,4 +61,4 @@ assert.ok(css.includes('.agriculture-upgrade-card'));
 assert.ok(css.includes('.agriculture-level-track'));
 assert.ok(css.includes('.agriculture-upgrade-button'));
 
-console.log('Farm and Cow Barn upgrades are sequential, four-level, Build-panel driven, save-compatible, and visually distinct.');
+console.log('Farm and Cow Barn upgrades are sequential, save-compatible, and Cow Barn levels have strong structural visual progression.');
