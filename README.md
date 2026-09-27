@@ -94,9 +94,9 @@ The castle system now treats foundations, defensive details, roof silhouettes, s
 - **Contextual buttresses:** wall supports select among Simple, Heavy, Stepped, and Angled forms based on height, thickness, wall material, connections, and deterministic local variation.
 - **Global castle stone styles:** Limestone, Dark Stone, Sandstone, and Rough Frontier styles recolor/retexture walls, gates, towers, foundations, battlements, Stair Towers, Keeps, and stone Tower Bridges without changing structural geometry.
 - **Tower Bridges:** select Tower Bridge (D), choose the first main tower, then a second compatible tower. Distance, alignment, platform height, and intervening structures are validated. Stone bridges use masonry decks/parapets/supports; Wooden bridges use planks, beams, posts, and rails.
-- **Stair Towers:** Stair Tower (E) snaps to an adjacent wall with an active Top Walkway, stores the detected access height, and regenerates a narrow tower with foundation, door, arrow slits, implied internal stairs, and a small defensive roof/platform.
+- **Stair Towers:** tall masonry Wall Walks can receive a Stair Tower automatically when compact vertical access is more appropriate than long exterior stairs or a ramp. Generated Stair Towers attach flush to the wall, inherit the castle stone style, face the wall automatically, and terminate at the exact Wall Walk elevation.
 - **Elevated navigation:** Wall Walks, tower platforms, Tower Bridges, and Stair Towers are connected in the battle navigation graph. Swordsmen can use Stair Towers to transition between ground and elevated combat, while valid bridges connect separated tower platforms.
-- **Persistence and history:** Stone Style, Tower Bridges, Stair Towers, roof choices, and access heights are saved. Undo/Redo snapshots include the global style and bridge connections; automatic supports remain part of their parent structure rather than generating separate history operations.
+- **Persistence and history:** Stone Style, Tower Bridges, roof choices, and player-authored architecture are saved. Generated Stair Towers are derived from that architecture, are not serialized as standalone buildings, and regenerate deterministically after load. Undo/Redo tracks the parent wall and terrain state rather than separate Stair Tower objects.
 - Procedural architectural variation is deterministic, and shared materials are reused to avoid thousands of independent masonry assets.
 
 
@@ -402,7 +402,7 @@ Selection considers connection angle, wall height, thickness, number of connecte
 
 ## Automatic Castle Access
 
-Manual Stone Stairs, Wooden Stairs, Ramp, and Ladder tools are no longer part of the primary Build menu.
+Manual Stone Stairs, Wooden Stairs, Ramp, and Ladder tools are no longer part of the primary Build menu. Stair Towers are also automatic architecture and are never manually placed or rotated.
 
 The automatic access system analyzes connected fortification networks after architectural changes.
 
@@ -411,7 +411,9 @@ The automatic access system analyzes connected fortification networks after arch
 - Important towers/gates are preferred anchors.
 - Stone stairs are preferred when there is enough space.
 - Wooden stairs, ramps, or ladders are chosen when space/height requires them.
-- Old saves containing manually placed access pieces still load and render.
+- Tall masonry walls can receive a compact wall-integrated Stair Tower when that is the better vertical-access solution.
+- Rendering and BattleNavigation consume the same generated-access records.
+- Old saves containing manual stairs/ramps/ladders still load; legacy `stairTower` cells are removed during migration and valid access regenerates from the castle layout.
 
 Automatic access is derived from parent architecture and is not stored as hundreds of independent objects.
 
