@@ -9146,6 +9146,12 @@ export class ThreeGame {
       '<small id="army-camp-upgrade-description">Select an Army Camp to inspect its level.</small>' +
       '<button id="army-camp-upgrade-button" class="army-camp-upgrade-button" type="button">Upgrade to Level 2</button>' +
       '</section>' +
+      '<section id="agriculture-upgrade-card" class="agriculture-upgrade-card" aria-label="Selected agriculture building upgrade" hidden>' +
+      '<div class="agriculture-upgrade-heading"><div><span id="agriculture-upgrade-type" class="eyebrow">SELECTED AGRICULTURE BUILDING</span><strong id="agriculture-upgrade-name">Farm · Level 1</strong></div><span id="agriculture-upgrade-badge">1 / 4</span></div>' +
+      '<div class="agriculture-level-track" aria-hidden="true"><span data-agriculture-level="1"></span><span data-agriculture-level="2"></span><span data-agriculture-level="3"></span><span data-agriculture-level="4"></span></div>' +
+      '<small id="agriculture-upgrade-description">Select a Farm or Cow Barn to inspect its level.</small>' +
+      '<button id="agriculture-upgrade-button" class="agriculture-upgrade-button" type="button">Upgrade to Level 2</button>' +
+      '</section>' +
       '<section class="settings-section build-settings-section">' +
       '<button class="settings-section-header" type="button" aria-expanded="false">' +
       '<span class="settings-section-title">Tool Options</span>' +
@@ -9398,6 +9404,7 @@ export class ThreeGame {
     get<HTMLButtonElement>('move-right').onclick = () => this.moveSelected(1, 0);
     get<HTMLButtonElement>('rotate-selected').onclick = () => this.rotateSelected();
     get<HTMLButtonElement>('army-camp-upgrade-button').onclick = () => this.upgradeSelectedArmyCamp();
+    get<HTMLButtonElement>('agriculture-upgrade-button').onclick = () => this.upgradeSelectedAgricultureBuilding();
     get<HTMLButtonElement>('undo-button').onclick = () => this.undo();
     get<HTMLButtonElement>('redo-button').onclick = () => this.redo();
     get<HTMLButtonElement>('select-clear').onclick = () => {
@@ -9871,12 +9878,102 @@ export class ThreeGame {
     this.setStatus(`Keep built · ${keep.width}×${keep.depth} · ${keep.floors} floors · details generated automatically`);
   }
 
+  private agricultureLevelDefinition(kind: AgricultureUpgradeKind, level: number): AgricultureUpgradeLevel {
+    const normalized = Math.max(1, Math.min(AGRICULTURE_MAX_LEVEL, Math.floor(level)));
+    return AGRICULTURE_UPGRADE_LEVELS[kind][normalized - 1];
+  }
+
+  private syncAgricultureUpgradeUI(): void {
+    const card = document.getElementById('agriculture-upgrade-card');
+    if (!card) return;
+
+    const cell = this.selectedCell
+      ? this.services.state.getCell(this.selectedCell.x, this.selectedCell.y)
+      : undefined;
+    const selectedBuilding =
+      cell?.kind === 'farm' || cell?.kind === 'cowBarn'
+        ? cell
+        : undefined;
+
+    card.hidden = !selectedBuilding;
+    if (!selectedBuilding) return;
+
+    const kind = selectedBuilding.kind as AgricultureUpgradeKind;
+    const level = Math.max(1, Math.min(AGRICULTURE_MAX_LEVEL, selectedBuilding.level ?? 1));
+    const definition = this.agricultureLevelDefinition(kind, level);
+    const next = level < AGRICULTURE_MAX_LEVEL
+      ? this.agricultureLevelDefinition(kind, level + 1)
+      : undefined;
+    const type = document.getElementById('agriculture-upgrade-type');
+    const name = document.getElementById('agriculture-upgrade-name');
+    const badge = document.getElementById('agriculture-upgrade-badge');
+    const description = document.getElementById('agriculture-upgrade-description');
+    const button = document.getElementById('agriculture-upgrade-button') as HTMLButtonElement | null;
+    const buildingLabel = kind === 'farm' ? 'Farm' : 'Cow Barn';
+
+    if (type) type.textContent = kind === 'farm' ? 'SELECTED FARM' : 'SELECTED COW BARN';
+    if (name) name.textContent = `${definition.name} · Level ${level}`;
+    if (badge) badge.textContent = `${level} / ${AGRICULTURE_MAX_LEVEL}`;
+    if (description) {
+      description.textContent = next
+        ? `${definition.description} Next: ${next.name}.`
+        : `${definition.description} Maximum building level reached.`;
+    }
+    card.querySelectorAll<HTMLElement>('[data-agriculture-level]').forEach((step) => {
+      const stepLevel = Number(step.dataset.agricultureLevel ?? 0);
+      step.classList.toggle('is-complete', stepLevel <= level);
+      step.classList.toggle('is-current', stepLevel === level);
+    });
+    if (button) {
+      button.disabled = !next || this.battleSystem.isActive();
+      button.textContent = next
+        ? `Upgrade ${buildingLabel} to Level ${next.level} · ${next.name}`
+        : 'Maximum Level';
+    }
+  }
+
+  private upgradeSelectedAgricultureBuilding(): void {
+    if (this.battleSystem.isActive()) {
+      this.setStatus('Finish or reset the battle before upgrading agriculture buildings');
+      return;
+    }
+    if (!this.selectedCell) {
+      this.setStatus('Select a Farm or Cow Barn first');
+      return;
+    }
+
+    const cell = this.services.state.getCell(this.selectedCell.x, this.selectedCell.y);
+    if (!cell || (cell.kind !== 'farm' && cell.kind !== 'cowBarn')) {
+      this.setStatus('Select a Farm or Cow Barn first');
+      this.syncAgricultureUpgradeUI();
+      return;
+    }
+
+    const kind = cell.kind as AgricultureUpgradeKind;
+    const currentLevel = Math.max(1, Math.min(AGRICULTURE_MAX_LEVEL, cell.level ?? 1));
+    if (currentLevel >= AGRICULTURE_MAX_LEVEL) {
+      this.setStatus(`${kind === 'farm' ? 'Farm' : 'Cow Barn'} is already at Level 4`);
+      this.syncAgricultureUpgradeUI();
+      return;
+    }
+
+    const nextLevel = currentLevel + 1;
+    this.recordHistory();
+    this.services.state.setLevel(this.selectedCell.x, this.selectedCell.y, nextLevel);
+    this.redraw();
+    this.scheduleSave();
+    this.setStatus(
+      `${kind === 'farm' ? 'Farm' : 'Cow Barn'} upgraded to Level ${nextLevel} · ${this.agricultureLevelDefinition(kind, nextLevel).name}`,
+    );
+  }
+
   private armyCampLevelDefinition(level: number): (typeof ARMY_CAMP_LEVELS)[number] {
     const normalized = Math.max(1, Math.min(ARMY_CAMP_MAX_LEVEL, Math.floor(level)));
     return ARMY_CAMP_LEVELS[normalized - 1];
   }
 
   private syncArmyCampUpgradeUI(): void {
+    this.syncAgricultureUpgradeUI();
     const card = document.getElementById('army-camp-upgrade-card');
     if (!card) return;
 
@@ -9963,9 +10060,13 @@ export class ThreeGame {
 
     const cell = this.services.state.getCell(this.selectedCell.x, this.selectedCell.y);
     if (!cell || (!WALL_KINDS.includes(cell.kind as WallKind) && cell.kind !== 'tower')) {
-      this.setStatus(cell?.kind === 'armyCamp'
-        ? 'Use the Army Camp Upgrade button in Build Settings'
-        : 'Selected tile is not a wall or tower');
+      this.setStatus(
+        cell?.kind === 'armyCamp'
+          ? 'Use the Army Camp Upgrade button in Build Settings'
+          : cell?.kind === 'farm' || cell?.kind === 'cowBarn'
+            ? 'Use the agriculture Upgrade button in Build Settings'
+            : 'Selected tile is not a wall or tower',
+      );
       return;
     }
 
