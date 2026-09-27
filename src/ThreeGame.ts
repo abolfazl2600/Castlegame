@@ -1219,6 +1219,11 @@ export class ThreeGame {
       tab.hidden = searching && !matchingCategories.has(categoryName);
     });
 
+    if (!searching) {
+      toolbar.querySelector<HTMLButtonElement>('[data-build-category].is-active')
+        ?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+    }
+
     const empty = toolbar.querySelector<HTMLElement>('#build-search-empty');
     if (empty) empty.hidden = !searching || matches > 0;
     const clear = toolbar.querySelector<HTMLButtonElement>('#build-search-clear');
@@ -9033,6 +9038,20 @@ export class ThreeGame {
       this.filterBuildTools();
       buildSearch.focus();
     });
+
+    const buildCategoryTabs = toolbar.querySelector<HTMLElement>('.build-category-tabs');
+    buildCategoryTabs?.addEventListener('wheel', (event) => {
+      if (buildCategoryTabs.scrollWidth <= buildCategoryTabs.clientWidth + 1) return;
+      const delta = Math.abs(event.deltaX) > Math.abs(event.deltaY) ? event.deltaX : event.deltaY;
+      if (delta === 0) return;
+
+      const before = buildCategoryTabs.scrollLeft;
+      buildCategoryTabs.scrollLeft += delta;
+      if (buildCategoryTabs.scrollLeft !== before) {
+        event.preventDefault();
+        event.stopPropagation();
+      }
+    }, { passive: false });
 
     document.querySelector<HTMLButtonElement>('[data-build-none]')?.addEventListener('click', () => this.selectTool(null));
     this.refreshBuildPanelForMode();
