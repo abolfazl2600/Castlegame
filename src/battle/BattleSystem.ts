@@ -9,6 +9,9 @@ import { BattleObjectiveSystem } from './objectives/BattleObjectiveSystem';
 import { DEFAULT_BATTLE_SCENARIO } from './objectives/BattleObjectiveDefinitions';
 import type { BattleScenario, ObjectiveBuildingSnapshot, ObjectivePositionSnapshot } from './objectives/BattleObjectiveTypes';
 import type {
+  BattleMissileLaunchOptions,
+  BattleMissileLaunchResult,
+  BattleMissileTarget,
   BattleResult,
   BattleSetup,
   BattleStatus,
@@ -135,6 +138,17 @@ interface ArrowProjectile {
   damage: number;
   speed: number;
   life: number;
+}
+
+interface MissileProjectile {
+  view: THREE.Group;
+  targetId: string;
+  start: THREE.Vector3;
+  targetPoint: THREE.Vector3;
+  elapsed: number;
+  duration: number;
+  impactRadius: number;
+  damage: number;
 }
 
 interface WallAccessTransition {
@@ -309,6 +323,7 @@ export class BattleSystem {
   private readonly relations = new FactionRelations();
   private readonly units = new Map<string, UnitRuntime>();
   private readonly arrows: ArrowProjectile[] = [];
+  private readonly missiles: MissileProjectile[] = [];
   private readonly sharedGeometries: THREE.BufferGeometry[] = [];
   private readonly sharedMaterials: THREE.Material[] = [];
   private readonly bodyGeometry = this.geometry(new THREE.CylinderGeometry(0.22, 0.29, 0.68, 7));
@@ -327,8 +342,13 @@ export class BattleSystem {
   private readonly arrowGeometry = this.geometry(new THREE.CylinderGeometry(0.022, 0.022, 0.68, 5));
   private readonly rifleGeometry = this.geometry(new THREE.BoxGeometry(0.08, 0.08, 0.9));
   private readonly rifleStockGeometry = this.geometry(new THREE.BoxGeometry(0.13, 0.11, 0.32));
+  private readonly missileBodyGeometry = this.geometry(new THREE.CylinderGeometry(0.1, 0.14, 1.25, 8));
+  private readonly missileNoseGeometry = this.geometry(new THREE.ConeGeometry(0.14, 0.32, 8));
+  private readonly missileBlastGeometry = this.geometry(new THREE.SphereGeometry(1, 12, 8));
   private readonly tacticalMaterial = this.material(new THREE.MeshStandardMaterial({ color: 0x334039, roughness: 0.9 }));
   private readonly rifleMaterial = this.material(new THREE.MeshStandardMaterial({ color: 0x1d2322, roughness: 0.46, metalness: 0.52 }));
+  private readonly missileMaterial = this.material(new THREE.MeshStandardMaterial({ color: 0xcfd7d8, roughness: 0.38, metalness: 0.62 }));
+  private readonly missileNoseMaterial = this.material(new THREE.MeshStandardMaterial({ color: 0xb34d3f, roughness: 0.52, metalness: 0.35 }));
   private readonly skinMaterial = this.material(new THREE.MeshStandardMaterial({ color: 0xd8aa82, roughness: 0.94 }));
   private readonly metalMaterial = this.material(new THREE.MeshStandardMaterial({ color: 0x757b7d, roughness: 0.64, metalness: 0.34 }));
   private readonly swordMaterial = this.material(new THREE.MeshStandardMaterial({ color: 0xb7bec1, roughness: 0.48, metalness: 0.54 }));
@@ -525,6 +545,7 @@ export class BattleSystem {
       this.layer.remove(arrow.view);
     }
     this.arrows.length = 0;
+    this.clearMissiles();
 
     if (this.objectiveMarker) {
       this.layer.remove(this.objectiveMarker);
@@ -588,6 +609,7 @@ export class BattleSystem {
 
     this.updateWallWeapons(delta);
     this.updateProjectiles(delta);
+    this.updateMissiles(delta);
     this.updateCapture(delta);
     this.cleanupDead(delta);
     this.animateObjective(timeMs);
@@ -599,6 +621,81 @@ export class BattleSystem {
     }
 
     this.checkVictory();
+  }
+
+  getMissileTargets(range: number): BattleMissileTarget[] {
+    const maximumRange = Math.max(0, Number.isFinite(range) ? range : 0);
+    const result: BattleMissileTarget[] = [];
+
+    for (const runtime of this.units.values()) {
+      if (runtime.data.faction !== 'attacker' || runtime.data.state === 'dead') continue;
+      const distance = Math.hypot(
+        runtime.position.x - this.objectiveWorld.x,
+        runtime.position.z - this.objectiveWorld.z,
+      );
+      result.push({
+        id: runtime.data.id,
+        unitType: runtime.data.unitType,
+        health: runtime.data.health,
+        maxHealth: runtime.data.maxHealth,
+        distance,
+        inRange: distance <= maximumRange,
+      });
+    }
+
+    return result.sort((a, b) => a.distance - b.distance);
+  }
+
+  launchMissile(targetId: string, options: BattleMissileLaunchOptions): BattleMissileLaunchResult {
+    if (this.mode !== 'running') {
+      return { ok: false, message: 'Missiles can only launch while a battle is running' };
+    }
+
+    const target = this.units.get(targetId);
+    if (!target || target.data.state === 'dead' || target.data.faction !== 'attacker') {
+      return { ok: false, message: 'Select a valid hostile target' };
+    }
+
+    const range = Math.max(0, Number(options.range) || 0);
+    const impactRadius = Math.max(0.5, Number(options.impactRadius) || 0.5);
+    const damage = Math.max(0, Number(options.damage) || 0);
+    const distance = Math.hypot(
+      target.position.x - this.objectiveWorld.x,
+      target.position.z - this.objectiveWorld.z,
+    );
+    if (distance > range) {
+      return { ok: false, message: 'Selected hostile target is outside missile range' };
+    }
+    if (damage <= 0) {
+      return { ok: false, message: 'Missile payload is unavailable' };
+    }
+
+    const start = this.objectiveWorld.clone();
+    start.y += 5.5;
+    const targetPoint = target.position.clone();
+    targetPoint.y += 0.55;
+
+    const view = new THREE.Group();
+    const body = new THREE.Mesh(this.missileBodyGeometry, this.missileMaterial);
+    const nose = new THREE.Mesh(this.missileNoseGeometry, this.missileNoseMaterial);
+    nose.position.y = 0.78;
+    view.add(body, nose);
+    view.position.copy(start);
+    view.scale.setScalar(1.15);
+    this.layer.add(view);
+
+    this.missiles.push({
+      view,
+      targetId,
+      start,
+      targetPoint,
+      elapsed: 0,
+      duration: THREE.MathUtils.clamp(distance / 34, 0.85, 1.8),
+      impactRadius,
+      damage,
+    });
+
+    return { ok: true, message: `Missile launched at ${target.data.unitType}` };
   }
 
   status(): BattleStatus {
@@ -3731,6 +3828,56 @@ export class BattleSystem {
     if (target.data.health <= 0) this.killUnit(target);
   }
 
+  private updateMissiles(delta: number): void {
+    for (let index = this.missiles.length - 1; index >= 0; index -= 1) {
+      const missile = this.missiles[index];
+      const target = this.units.get(missile.targetId);
+      if (target && target.data.faction === 'attacker' && target.data.state !== 'dead') {
+        missile.targetPoint.copy(target.position);
+        missile.targetPoint.y += 0.55;
+      }
+
+      missile.elapsed += delta;
+      const progress = THREE.MathUtils.clamp(missile.elapsed / missile.duration, 0, 1);
+      missile.view.position.lerpVectors(missile.start, missile.targetPoint, progress);
+      missile.view.position.y += Math.sin(progress * Math.PI) * 9;
+      missile.view.rotation.z = Math.atan2(
+        missile.targetPoint.x - missile.view.position.x,
+        Math.max(0.001, missile.targetPoint.y - missile.view.position.y),
+      );
+
+      if (progress < 1) continue;
+      this.resolveMissileImpact(missile);
+      this.missiles.splice(index, 1);
+    }
+  }
+
+  private resolveMissileImpact(missile: MissileProjectile): void {
+    const impact = missile.targetPoint.clone();
+
+    for (const runtime of this.units.values()) {
+      if (runtime.data.faction !== 'attacker' || runtime.data.state === 'dead') continue;
+      const distance = Math.hypot(runtime.position.x - impact.x, runtime.position.z - impact.z);
+      if (distance > missile.impactRadius) continue;
+      const falloff = 1 - THREE.MathUtils.clamp(distance / missile.impactRadius, 0, 1);
+      this.applyDamage(runtime, missile.damage * (0.45 + falloff * 0.55));
+    }
+
+    this.layer.remove(missile.view);
+    const blast = new THREE.Mesh(this.missileBlastGeometry, this.objectiveMaterial);
+    blast.position.copy(impact);
+    blast.position.y += 0.45;
+    blast.scale.setScalar(Math.max(1.2, missile.impactRadius * 0.38));
+    this.layer.add(blast);
+    window.setTimeout(() => this.layer.remove(blast), 220);
+    this.emitStatus();
+  }
+
+  private clearMissiles(): void {
+    for (const missile of this.missiles) this.layer.remove(missile.view);
+    this.missiles.length = 0;
+  }
+
   private updateProjectiles(delta: number): void {
     for (let i = this.arrows.length - 1; i >= 0; i -= 1) {
       const arrow = this.arrows[i];
@@ -3856,6 +4003,7 @@ export class BattleSystem {
 
     this.objectiveSystem.stop();
     this.clearSiegeState();
+    this.clearMissiles();
     this.emitStatus();
   }
 

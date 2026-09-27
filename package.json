@@ -6,9 +6,10 @@
   "scripts": {
     "test:gate-orientation": "node scripts/test-gate-orientation.mjs",
     "dev": "vite",
-    "build": "npm run test:gate-orientation && npm run test:battle-state-boundary && npm run test:castle-access-navigation && npm run test:settlement-lifecycle && npm run test:farm-worker-visibility && npm run test:river-water-visibility && npm run test:build-tool-registry && npm run test:cross-mode-save-loading && npm run test:settings-bootstrap-order && npm run test:save-mode-ui-sync && npm run test:modern-fortress-terrain-protection && npm run test:god-mode && npm run test:orchard-visual-contract && tsc --noEmit && vite build",
+    "build": "npm run test:gate-orientation && npm run test:battle-state-boundary && npm run test:missile-capability && npm run test:castle-access-navigation && npm run test:settlement-lifecycle && npm run test:farm-worker-visibility && npm run test:river-water-visibility && npm run test:build-tool-registry && npm run test:cross-mode-save-loading && npm run test:settings-bootstrap-order && npm run test:save-mode-ui-sync && npm run test:modern-fortress-terrain-protection && npm run test:god-mode && npm run test:orchard-visual-contract && tsc --noEmit && vite build",
     "preview": "vite preview",
     "test:battle-state-boundary": "node scripts/test-battle-state-boundary.mjs",
+    "test:missile-capability": "node scripts/test-missile-capability.mjs",
     "test:castle-access-navigation": "node scripts/test-castle-access-navigation.mjs",
     "test:settlement-lifecycle": "node scripts/test-settlement-lifecycle.mjs",
     "test:river-water-visibility": "node scripts/test-river-water-visibility.mjs",

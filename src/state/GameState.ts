@@ -1,5 +1,6 @@
-import type { GridCell, TileKind } from '../core/types';
+import type { GridCell, MissileInventoryState, TileKind } from '../core/types';
 import type { GameMode } from '../core/GameMode';
+import { defaultMissileState, normalizeMissileState } from '../battle/MissileCapability';
 
 export interface CellEntry extends GridCell {
   x: number;
@@ -9,6 +10,7 @@ export interface CellEntry extends GridCell {
 export class GameState {
   private gameMode: GameMode = 'medieval';
   private readonly cells = new Map<string, GridCell>();
+  private missiles: MissileInventoryState = defaultMissileState();
 
   private key(x: number, y: number): string {
     return `${x},${y}`;
@@ -20,6 +22,14 @@ export class GameState {
 
   setGameMode(mode: GameMode): void {
     this.gameMode = mode;
+  }
+
+  getMissileState(): MissileInventoryState {
+    return { ...this.missiles };
+  }
+
+  setMissileState(value?: Partial<MissileInventoryState> | null): void {
+    this.missiles = normalizeMissileState(value);
   }
 
   getCell(x: number, y: number): GridCell | undefined {
