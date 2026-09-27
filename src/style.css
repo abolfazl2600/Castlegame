@@ -280,10 +280,23 @@ h1 { margin: 3px 0 0; font-size: 22px; line-height: 1; letter-spacing: -.035em; 
   display: flex;
   gap: 5px;
   overflow-x: auto;
-  padding: 1px 0 3px;
-  scrollbar-width: none;
+  overflow-y: hidden;
+  padding: 1px 0 5px;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(119, 218, 255, .28) transparent;
+  overscroll-behavior-x: contain;
+  scroll-behavior: smooth;
+  -webkit-overflow-scrolling: touch;
 }
-.build-category-tabs::-webkit-scrollbar { display: none; }
+.build-category-tabs::-webkit-scrollbar { height: 4px; }
+.build-category-tabs::-webkit-scrollbar-track { background: transparent; }
+.build-category-tabs::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: rgba(119, 218, 255, .24);
+}
+.build-category-tabs::-webkit-scrollbar-thumb:hover {
+  background: rgba(119, 218, 255, .42);
+}
 .build-category-tab {
   flex: 0 0 auto;
   min-height: 31px;

@@ -62,6 +62,13 @@ assert.doesNotMatch(game, /No Build Tool Selected/);
 
 assert.match(css, /\.tool-category-items \{[\s\S]*?grid-template-columns: repeat\(2, minmax\(0, 1fr\)\)/);
 assert.match(css, /\.build-category-tabs \{[\s\S]*?overflow-x: auto/);
+assert.match(css, /\.build-category-tabs \{[\s\S]*?overflow-y: hidden/);
+assert.match(css, /\.build-category-tabs \{[\s\S]*?scrollbar-width: thin/);
+assert.match(css, /\.build-category-tabs::\-webkit-scrollbar \{ height: 4px; \}/);
+assert.match(game, /buildCategoryTabs\?\.addEventListener\('wheel'/);
+assert.match(game, /buildCategoryTabs\.scrollLeft \+= delta/);
+assert.match(game, /\{ passive: false \}/);
+assert.match(game, /scrollIntoView\(\{ block: 'nearest', inline: 'nearest' \}\)/);
 assert.match(css, /\.build-category-tab\.is-active/);
 assert.match(css, /\.settings-section-items \{[\s\S]*?display: none/);
 assert.match(css, /\.settings-section\.is-open \.settings-section-items \{ display: grid; \}/);
