@@ -6098,7 +6098,8 @@ export class ThreeGame {
     this.addSettlementBox(group, 0.9, 0.08, 0.08, wood, x, 3.14, z);
   }
 
-  private makeFarm(group: THREE.Group): THREE.Group {
+  private makeFarm(group: THREE.Group, level = 1): THREE.Group {
+    const normalizedLevel = Math.max(1, Math.min(AGRICULTURE_MAX_LEVEL, Math.floor(level)));
     const soil = this.environmentMaterial('farm-soil', SETTLEMENT_STYLE.soil, 1);
     const wetSoil = this.environmentMaterial('farm-wet-soil', 0x59483a, 1);
     const cropGreen = this.environmentMaterial('farm-crop-green', 0x6f9c4f, 0.96);
@@ -6112,6 +6113,9 @@ export class ThreeGame {
     const basket = this.environmentMaterial('farm-basket', 0x8b5f35, 1);
     const sack = this.environmentMaterial('farm-sack', 0xb89b6a, 1);
     const iron = this.environmentMaterial('farm-tool-iron', 0x5b6160, 0.78);
+    const stone = this.environmentMaterial('farm-upgrade-stone', SETTLEMENT_STYLE.foundation, 1);
+    const roof = this.environmentMaterial('farm-upgrade-roof', SETTLEMENT_STYLE.roof[1], 0.96);
+    const cloth = this.environmentMaterial('farm-upgrade-cloth', 0xc9b07b, 0.96);
 
     this.addBox(group, 3.7, 0.14, 3.7, soil, 0, 2.23, 0);
 
@@ -6241,7 +6245,154 @@ export class ThreeGame {
     this.addBox(group, 2.54, 0.08, 0.08, wood, -0.58, 2.51, -1.78);
     this.addBox(group, 0.72, 0.08, 0.08, wood, 1.42, 2.51, -1.78);
 
+    if (normalizedLevel >= 2) {
+      // Level 2: visible irrigation expansion and a covered work station.
+      this.addBox(group, 0.18, 0.1, 3.08, stone, 1.58, 2.35, 0);
+      this.addBox(group, 0.1, 0.055, 2.86, water, 1.58, 2.42, 0);
+      for (const x of [-1.5, -0.82]) {
+        this.addBox(group, 0.08, 0.86, 0.08, woodDark, x, 2.79, 0.92);
+      }
+      const workRoof = this.addBox(group, 0.92, 0.08, 0.84, cloth, -1.16, 3.2, 0.92);
+      workRoof.rotation.z = -0.08;
+      this.addBox(group, 0.64, 0.12, 0.34, wood, -1.16, 2.5, 0.92);
+    }
+
+    if (normalizedLevel >= 3) {
+      // Level 3: the small shed grows into a proper timber granary.
+      this.addBox(group, 1.18, 0.22, 1.02, stone, -1.2, 2.39, -1.36);
+      this.addBox(group, 1.08, 1.42, 0.92, wood, -1.2, 3.14, -1.36);
+      this.addBox(group, 0.82, 0.16, 0.06, woodDark, -1.2, 2.78, -1.84);
+      const granaryRoof = new THREE.Mesh(
+        new THREE.ConeGeometry(0.86, 0.74, 4),
+        roof,
+      );
+      granaryRoof.rotation.y = Math.PI / 4;
+      granaryRoof.scale.z = 0.86;
+      granaryRoof.position.set(-1.2, 4.22, -1.36);
+      granaryRoof.castShadow = true;
+      group.add(granaryRoof);
+
+      for (const [x, z] of [[0.92, 1.02], [1.18, 1.02], [1.05, 1.3]] as Array<[number, number]>) {
+        this.addBox(group, 0.32, 0.28, 0.32, wood, x, 2.51, z);
+      }
+    }
+
+    if (normalizedLevel >= 4) {
+      // Level 4: a stone-backed estate storehouse and formal farm gate.
+      this.addBox(group, 1.36, 0.28, 1.08, stone, 1.12, 2.42, -1.18);
+      this.addBox(group, 1.22, 1.58, 0.96, this.environmentMaterial('farm-estate-plaster', 0xd8cda9, 0.96), 1.12, 3.28, -1.18);
+      const estateRoof = new THREE.Mesh(
+        new THREE.ConeGeometry(0.92, 0.82, 4),
+        roof,
+      );
+      estateRoof.rotation.y = Math.PI / 4;
+      estateRoof.scale.z = 0.82;
+      estateRoof.position.set(1.12, 4.5, -1.18);
+      estateRoof.castShadow = true;
+      group.add(estateRoof);
+
+      for (const x of [0.72, 1.08]) {
+        this.addBox(group, 0.12, 1.28, 0.12, stone, x, 2.88, -1.77);
+      }
+      this.addBox(group, 0.54, 0.14, 0.14, woodDark, 0.9, 3.46, -1.77);
+      this.addBox(group, 0.06, 0.78, 0.06, woodDark, 0.9, 3.82, -1.77);
+      this.addBox(group, 0.34, 0.24, 0.04, cloth, 1.08, 3.98, -1.77);
+    }
+
     group.userData.activeFarm = true;
+    group.userData.farmLevel = normalizedLevel;
+    return group;
+  }
+
+  private makeCowBarn(group: THREE.Group, level: number, gx: number, gy: number): THREE.Group {
+    const normalizedLevel = Math.max(1, Math.min(AGRICULTURE_MAX_LEVEL, Math.floor(level)));
+    this.makeHouse(group, 'cowBarn', gx, gy);
+
+    const timber = this.environmentMaterial('cow-barn-upgrade-timber', 0x63452f, 1);
+    const timberDark = this.environmentMaterial('cow-barn-upgrade-timber-dark', 0x473124, 1);
+    const stone = this.environmentMaterial('cow-barn-upgrade-stone', SETTLEMENT_STYLE.foundation, 1);
+    const hay = this.environmentMaterial('cow-barn-upgrade-hay', 0xc69d4d, 1);
+    const water = this.environmentMaterial('cow-barn-upgrade-water', 0x4e95a3, 0.42);
+    const hide = this.environmentMaterial('cow-barn-cow-hide', 0x6a4a36, 0.96);
+    const hideLight = this.environmentMaterial('cow-barn-cow-hide-light', 0xd6c9b6, 0.96);
+    const roof = this.environmentMaterial('cow-barn-upgrade-roof', 0x9e5437, 0.96);
+
+    const addCow = (x: number, z: number, rotation = 0): void => {
+      const cow = new THREE.Group();
+      cow.position.set(x, 0, z);
+      cow.rotation.y = rotation;
+      group.add(cow);
+      this.addBox(cow, 0.5, 0.34, 0.76, hide, 0, 2.63, 0);
+      this.addBox(cow, 0.34, 0.3, 0.32, hideLight, 0, 2.72, -0.48);
+      for (const sx of [-0.17, 0.17]) {
+        for (const sz of [-0.22, 0.22]) {
+          this.addBox(cow, 0.07, 0.38, 0.07, timberDark, sx, 2.34, sz);
+        }
+      }
+    };
+
+    // Every level reads clearly as livestock infrastructure.
+    this.addBox(group, 1.18, 0.2, 0.42, timberDark, 0.82, 2.42, -0.14);
+    this.addBox(group, 1.0, 0.08, 0.28, water, 0.82, 2.54, -0.14);
+    addCow(0.95, 0.82, Math.PI);
+    if (normalizedLevel >= 2) addCow(-1.05, 0.82, 0.12);
+    if (normalizedLevel >= 3) addCow(1.02, 1.38, Math.PI * 0.85);
+    if (normalizedLevel >= 4) addCow(-0.98, 1.4, -0.18);
+
+    if (normalizedLevel >= 2) {
+      // Level 2: expanded hay storage and a timber feeding canopy.
+      for (const [x, z] of [[1.42, -1.2], [1.12, -1.18], [1.28, -0.92]] as Array<[number, number]>) {
+        const bale = new THREE.Mesh(new THREE.CylinderGeometry(0.23, 0.23, 0.42, 9), hay);
+        bale.rotation.z = Math.PI / 2;
+        bale.position.set(x, 2.5, z);
+        bale.castShadow = true;
+        group.add(bale);
+      }
+      for (const x of [0.76, 1.52]) {
+        this.addBox(group, 0.09, 0.92, 0.09, timber, x, 2.78, -0.76);
+      }
+      const canopy = this.addBox(group, 1.08, 0.09, 0.86, roof, 1.14, 3.24, -0.76);
+      canopy.rotation.z = -0.06;
+    }
+
+    if (normalizedLevel >= 3) {
+      // Level 3+: the original shed becomes a substantial stone-footed barn.
+      const width = normalizedLevel >= 4 ? 2.88 : 2.42;
+      const height = normalizedLevel >= 4 ? 2.12 : 1.72;
+      const depth = normalizedLevel >= 4 ? 1.82 : 1.58;
+      this.addBox(group, width + 0.18, 0.28, depth + 0.18, stone, -0.42, 2.42, -0.72);
+      this.addBox(group, width, height, depth, timber, -0.42, 2.52 + height / 2, -0.72);
+      this.addBox(group, 0.82, 1.12, 0.08, timberDark, -0.42, 2.98, -0.72 - depth / 2 - 0.05);
+      const mainRoof = new THREE.Mesh(
+        new THREE.ConeGeometry(width * 0.66, normalizedLevel >= 4 ? 1.18 : 0.92, 4),
+        roof,
+      );
+      mainRoof.rotation.y = Math.PI / 4;
+      mainRoof.scale.z = Math.max(0.7, depth / width);
+      mainRoof.position.set(-0.42, 2.58 + height + (normalizedLevel >= 4 ? 0.58 : 0.46), -0.72);
+      mainRoof.castShadow = true;
+      group.add(mainRoof);
+    }
+
+    if (normalizedLevel >= 4) {
+      // Level 4: silo and formal stone entrance make the stockyard unmistakably elite.
+      const silo = new THREE.Mesh(new THREE.CylinderGeometry(0.44, 0.5, 2.05, 12), stone);
+      silo.position.set(1.3, 3.35, -1.24);
+      silo.castShadow = true;
+      group.add(silo);
+      const siloRoof = new THREE.Mesh(new THREE.ConeGeometry(0.58, 0.72, 12), roof);
+      siloRoof.position.set(1.3, 4.74, -1.24);
+      siloRoof.castShadow = true;
+      group.add(siloRoof);
+
+      for (const x of [-0.34, 0.34]) {
+        this.addBox(group, 0.18, 1.34, 0.18, stone, x, 2.92, 1.72);
+      }
+      this.addBox(group, 0.86, 0.18, 0.18, stone, 0, 3.54, 1.72);
+      this.addBox(group, 0.62, 0.08, 0.08, timberDark, 0, 3.28, 1.72);
+    }
+
+    group.userData.cowBarnLevel = normalizedLevel;
     return group;
   }
 
