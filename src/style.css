@@ -1811,17 +1811,6 @@ kbd {
 }
 
 
-.world-counters {
-  left: 9px;
-  bottom: 9px;
-  gap: 4px;
-}
-
-.world-counters span {
-  padding: 6px 8px;
-  font-size: 8px;
-}
-
 .battle-panel {
   right: 9px;
   bottom: 9px;
@@ -1909,12 +1898,6 @@ kbd {
   .camera-view-controls {
     top: 47px;
     right: 7px;
-  }
-
-
-  .world-counters {
-    left: 7px;
-    bottom: 7px;
   }
 }
 
@@ -2083,7 +2066,6 @@ kbd {
   .settings-row select { min-height:42px; }
   .range-wrap input[type=range] { min-height:32px; }
   .view-mode-switch,.camera-view-controls { display:none; }
-  .world-counters { left:max(8px,var(--mobile-safe-left)); right:auto; bottom:calc(var(--mobile-dock-height) + var(--mobile-safe-bottom) + 46px); max-width:calc(100% - 16px); }
   .battle-panel,.god-mode-panel { left:max(8px,var(--mobile-safe-left)); right:max(8px,var(--mobile-safe-right)); bottom:calc(var(--mobile-dock-height) + var(--mobile-safe-bottom) + 7px); width:auto; max-width:none; max-height:min(70dvh,680px); padding:12px; }
   .battle-close,.battle-stepper button,.battle-actions button { min-width:44px; min-height:44px; }
   .help-modal,.template-modal,.mode-modal { max-height:calc(100dvh - var(--mobile-safe-top) - var(--mobile-safe-bottom) - 16px); margin-top:var(--mobile-safe-top); margin-bottom:var(--mobile-safe-bottom); }
