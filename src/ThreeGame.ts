@@ -117,6 +117,7 @@ interface WorkerAgent {
 }
 
 interface SettlementAgent {
+  key: string;
   id: number;
   role: 'citizen' | 'farmer';
   view: THREE.Group;
@@ -125,11 +126,20 @@ interface SettlementAgent {
   position: THREE.Vector3;
   target: THREE.Vector3;
   targetGrid: GridPoint;
+  destinationGrid: GridPoint;
   waitMs: number;
   phase: 'home' | 'work' | 'wander';
   speed: number;
   anim: number;
   path: GridPoint[];
+}
+
+interface SettlementAgentSpec {
+  key: string;
+  role: SettlementAgent['role'];
+  home: GridPoint;
+  work?: GridPoint;
+  seed: number;
 }
 
 interface HistorySnapshot {
@@ -269,6 +279,7 @@ export class ThreeGame {
   private readonly workers: WorkerAgent[] = [];
   private readonly settlementAgents: SettlementAgent[] = [];
   private nextSettlementAgentId = 1;
+  private settlementNavigationSignature = '';
   private readonly riverTexture: THREE.CanvasTexture;
   private readonly riverWaterMaterial: THREE.MeshStandardMaterial;
   private readonly oceanTexture: THREE.CanvasTexture;
@@ -751,10 +762,8 @@ export class ThreeGame {
     this.elevationOverrides.clear();
     this.moatTasks.clear();
     this.clearGroup(this.workerLayer);
-    this.clearGroup(this.settlementLayer);
     this.workers.length = 0;
-    this.settlementAgents.length = 0;
-    this.nextSettlementAgentId = 1;
+    this.clearSettlementAgents();
     this.battleSystem.reset(false);
     this.undoStack.length = 0;
     this.redoStack.length = 0;
@@ -1313,7 +1322,7 @@ export class ThreeGame {
     }
 
     this.renderPlanLayer(cells);
-    this.refreshSettlementAgents(cells);
+    this.reconcileSettlementAgents(cells);
     this.updatePopulationUI();
 
     this.animatedFlags = [];
@@ -7250,47 +7259,78 @@ export class ThreeGame {
     this.scheduleSave();
   }
 
-  private refreshSettlementAgents(
+  private reconcileSettlementAgents(
     cells: ReturnType<GameState['entries']>,
   ): void {
-    this.clearGroup(this.settlementLayer);
-    this.settlementAgents.length = 0;
-    this.nextSettlementAgentId = 1;
-
-    const homes = cells.filter((cell) =>
-      cell.kind === 'cottage' ||
-      cell.kind === 'house' ||
-      cell.kind === 'manor' ||
-      cell.kind === 'villa',
+    const desired = this.buildDesiredSettlementAgents(cells);
+    const existingByKey = new Map(
+      this.settlementAgents.map((agent) => [agent.key, agent] as const),
     );
-    const farms = cells.filter((cell) => cell.kind === 'farm' || cell.kind === 'appleOrchard' || cell.kind === 'cowBarn');
+    const currentHomes = new Set(
+      cells
+        .filter((cell) => this.isSettlementHomeKind(cell.kind))
+        .map((cell) => this.key(cell.x, cell.y)),
+    );
+    const nextNavigationSignature = this.settlementTraversabilitySignature();
+    const navigationChanged =
+      this.settlementNavigationSignature !== '' &&
+      this.settlementNavigationSignature !== nextNavigationSignature;
 
+    for (const spec of desired) {
+      const existing = existingByKey.get(spec.key);
+      if (existing) {
+        this.updateSettlementAssignment(existing, spec, currentHomes);
+        existingByKey.delete(spec.key);
+        continue;
+      }
+
+      this.spawnSettlementAgentFromSpec(spec);
+    }
+
+    for (const removed of existingByKey.values()) {
+      this.removeSettlementAgent(removed);
+    }
+
+    this.settlementNavigationSignature = nextNavigationSignature;
+    if (navigationChanged) this.invalidateSettlementPaths();
+
+    this.settlementLayer.visible =
+      this.viewMode === 'world3d' && !this.battleSystem.isActive();
+  }
+
+  private buildDesiredSettlementAgents(
+    cells: ReturnType<GameState['entries']>,
+  ): SettlementAgentSpec[] {
+    const homes = cells
+      .filter((cell) => this.isSettlementHomeKind(cell.kind))
+      .sort((a, b) => a.x - b.x || a.y - b.y);
+    const farms = cells
+      .filter((cell) => this.isSettlementWorkKind(cell.kind))
+      .sort((a, b) => a.x - b.x || a.y - b.y);
+    const result: SettlementAgentSpec[] = [];
     const maxVisibleAgents = 40;
 
     for (const home of homes) {
-      if (this.settlementAgents.length >= maxVisibleAgents) break;
       const desired =
         home.kind === 'manor'
           ? 4
-          : home.kind === 'house'
+          : home.kind === 'house' || home.kind === 'villa'
             ? 3
-            : home.kind === 'villa'
-              ? 3
-              : 2;
+            : 2;
 
-      for (let i = 0; i < desired; i += 1) {
-        if (this.settlementAgents.length >= maxVisibleAgents) break;
-        this.spawnSettlementAgent(
-          'citizen',
-          { x: home.x, y: home.y },
-          undefined,
-          home.x * 97 + home.y * 53 + i * 17,
-        );
+      for (let slot = 0; slot < desired; slot += 1) {
+        if (result.length >= maxVisibleAgents) return result;
+        result.push({
+          key: `citizen:${home.x},${home.y}:${slot}`,
+          role: 'citizen',
+          home: { x: home.x, y: home.y },
+          seed: home.x * 97 + home.y * 53 + slot * 17,
+        });
       }
     }
 
     for (const farm of farms) {
-      if (this.settlementAgents.length >= maxVisibleAgents) break;
+      if (result.length >= maxVisibleAgents) break;
 
       let homePoint: GridPoint = { x: farm.x, y: farm.y };
       let best = Number.POSITIVE_INFINITY;
@@ -7302,39 +7342,81 @@ export class ThreeGame {
         }
       }
 
-      this.spawnSettlementAgent(
-        'farmer',
-        homePoint,
-        { x: farm.x, y: farm.y },
-        farm.x * 131 + farm.y * 71,
-      );
-
-      if (this.settlementAgents.length < maxVisibleAgents && homes.length > 0) {
-        this.spawnSettlementAgent(
-          'farmer',
-          homePoint,
-          { x: farm.x, y: farm.y },
-          farm.x * 149 + farm.y * 83 + 11,
-        );
+      const farmerSlots = homes.length > 0 ? 2 : 1;
+      for (let slot = 0; slot < farmerSlots; slot += 1) {
+        if (result.length >= maxVisibleAgents) break;
+        result.push({
+          key: `farmer:${farm.x},${farm.y}:${slot}`,
+          role: 'farmer',
+          home: { ...homePoint },
+          work: { x: farm.x, y: farm.y },
+          seed:
+            slot === 0
+              ? farm.x * 131 + farm.y * 71
+              : farm.x * 149 + farm.y * 83 + 11,
+        });
       }
     }
 
-    this.settlementLayer.visible =
-      this.viewMode === 'world3d' && !this.battleSystem.isActive();
+    return result;
   }
 
-  private spawnSettlementAgent(
-    role: SettlementAgent['role'],
-    home: GridPoint,
-    work: GridPoint | undefined,
-    seed: number,
+  private updateSettlementAssignment(
+    agent: SettlementAgent,
+    spec: SettlementAgentSpec,
+    currentHomes: Set<string>,
   ): void {
+    let assignmentChanged = false;
+
+    if (agent.role === 'farmer') {
+      const currentHomeStillExists = currentHomes.has(
+        this.key(agent.home.x, agent.home.y),
+      );
+      if (!currentHomeStillExists) {
+        agent.home = { ...spec.home };
+        assignmentChanged = true;
+      }
+
+      if (
+        spec.work &&
+        (
+          !agent.work ||
+          agent.work.x !== spec.work.x ||
+          agent.work.y !== spec.work.y
+        )
+      ) {
+        agent.work = { ...spec.work };
+        assignmentChanged = true;
+      }
+    } else if (
+      agent.home.x !== spec.home.x ||
+      agent.home.y !== spec.home.y
+    ) {
+      agent.home = { ...spec.home };
+      assignmentChanged = true;
+    }
+
+    if (!assignmentChanged || agent.waitMs > 0) return;
+
+    if (agent.role === 'farmer') {
+      const destination =
+        agent.phase === 'work' && agent.work
+          ? agent.work
+          : agent.home;
+      this.setSettlementTarget(agent, destination);
+      return;
+    }
+
+    this.setSettlementTarget(agent, agent.destinationGrid);
+  }
+
+  private spawnSettlementAgentFromSpec(spec: SettlementAgentSpec): void {
     const id = this.nextSettlementAgentId++;
-    const view = this.createSettlementPerson(role, seed);
-    const world = this.gridToWorld(home.x, home.y);
+    const view = this.createSettlementPerson(spec.role, spec.seed);
+    const world = this.gridToWorld(spec.home.x, spec.home.y);
     const offsetX = ((id % 3) - 1) * 0.42;
     const offsetZ = ((Math.floor(id / 3) % 3) - 1) * 0.38;
-    const y = 2.24 + this.terrainElevation(home.x, home.y);
+    const y = 2.24 + this.terrainElevation(spec.home.x, spec.home.y);
     const position = new THREE.Vector3(
       world.x + offsetX,
       y,
@@ -7343,25 +7425,82 @@ export class ThreeGame {
     view.position.copy(position);
     this.settlementLayer.add(view);
 
-    const agent: SettlementAgent = {
+    this.settlementAgents.push({
+      key: spec.key,
       id,
-      role,
+      role: spec.role,
       view,
-      home: { ...home },
-      work: work ? { ...work } : undefined,
+      home: { ...spec.home },
+      work: spec.work ? { ...spec.work } : undefined,
       position: position.clone(),
       target: position.clone(),
-      targetGrid: { ...home },
-      waitMs: 350 + Math.abs(seed % 900),
+      targetGrid: { ...spec.home },
+      destinationGrid: { ...spec.home },
+      waitMs: 350 + Math.abs(spec.seed % 900),
       phase: 'home',
-      speed: role === 'farmer' ? 1.55 : 1.25 + (Math.abs(seed) % 4) * 0.08,
-      anim: Math.abs(seed % 1000) * 0.013,
+      speed:
+        spec.role === 'farmer'
+          ? 1.55
+          : 1.25 + (Math.abs(spec.seed) % 4) * 0.08,
+      anim: Math.abs(spec.seed % 1000) * 0.013,
       path: [],
-    };
-
-    this.settlementAgents.push(agent);
+    });
   }
 
+  private removeSettlementAgent(agent: SettlementAgent): void {
+    this.settlementLayer.remove(agent.view);
+    agent.view.traverse((object) => {
+      if (object instanceof THREE.Mesh) object.geometry.dispose();
+    });
+
+    const index = this.settlementAgents.indexOf(agent);
+    if (index >= 0) this.settlementAgents.splice(index, 1);
+  }
+
+  private clearSettlementAgents(): void {
+    for (const agent of [...this.settlementAgents]) {
+      this.removeSettlementAgent(agent);
+    }
+    this.nextSettlementAgentId = 1;
+    this.settlementNavigationSignature = '';
+  }
+
+  private invalidateSettlementPaths(): void {
+    for (const agent of this.settlementAgents) {
+      agent.path.length = 0;
+      if (agent.waitMs > 0) continue;
+      this.setSettlementTarget(agent, agent.destinationGrid);
+    }
+  }
+
+  private settlementTraversabilitySignature(): string {
+    const blocked: string[] = [];
+
+    for (let y = 0; y < SIZE; y += 1) {
+      for (let x = 0; x < SIZE; x += 1) {
+        if (this.isSettlementBlocked(x, y)) blocked.push(this.key(x, y));
+      }
+    }
+
+    return blocked.join('|');
+  }
+
+  private isSettlementHomeKind(kind: TileKind): boolean {
+    return (
+      kind === 'cottage' ||
+      kind === 'house' ||
+      kind === 'manor' ||
+      kind === 'villa'
+    );
+  }
+
+  private isSettlementWorkKind(kind: TileKind): boolean {
+    return (
+      kind === 'farm' ||
+      kind === 'appleOrchard' ||
+      kind === 'cowBarn'
+    );
+  }
   private createSettlementPerson(
     role: SettlementAgent['role'],
     seed: number,
@@ -7495,6 +7634,7 @@ export class ThreeGame {
   ): void {
     const start = this.worldToGrid(agent.position.x, agent.position.z);
     const resolved = this.resolveSettlementDestination(point, start);
+    agent.destinationGrid = { ...resolved };
     agent.targetGrid = { ...resolved };
     agent.path = this.findSettlementPath(start, resolved);
     if (agent.path.length > 0) {
@@ -8148,6 +8288,7 @@ export class ThreeGame {
 
     get<HTMLButtonElement>('save-button').onclick = () => this.save();
     get<HTMLButtonElement>('load-button').onclick = () => {
+      this.clearSettlementAgents();
       this.load();
       this.selectedCell = null;
       this.selectedKeepId = null;
@@ -8553,6 +8694,7 @@ export class ThreeGame {
       return;
     }
     this.recordHistory();
+    this.clearSettlementAgents();
     this.services.state.clear();
     this.services.keepSystem.clear();
     this.towerBridges.clear();
@@ -9560,6 +9702,7 @@ export class ThreeGame {
 
   private applyTerrainTemplate(template: string): void {
     this.recordHistory();
+    this.clearSettlementAgents();
     this.services.state.clear();
     this.services.keepSystem.clear();
     this.towerBridges.clear();
