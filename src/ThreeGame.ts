@@ -7732,9 +7732,11 @@ export class ThreeGame {
 
     if (!this.canBuildOnTerrain(this.selectedTool, terrain)) return;
     this.recordHistory();
-    this.services.state.setCell(gx, gy, selectedTile, 1, selectedTile === 'gate'
-      ? { rotationMode: 'auto' }
-      : undefined);
+    if (selectedTile === 'gate') {
+      this.services.state.setCell(gx, gy, selectedTile, 1, { rotationMode: 'auto' });
+    } else {
+      this.services.state.setCell(gx, gy, selectedTile, 1);
+    }
     this.finishBuild();
   }
 
