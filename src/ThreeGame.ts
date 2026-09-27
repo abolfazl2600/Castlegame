@@ -6451,9 +6451,7 @@ export class ThreeGame {
       ] as Array<[number, number, number]>) {
         addHayBale(x, z, 2.5, scale);
       }
-      this.addBox(group, 0.36, 0.28, 0.28, sack, -1.44, -999, -1.36);
-      const feedSack = group.children[group.children.length - 1] as THREE.Object3D;
-      feedSack.position.y = 2.51;
+      this.addBox(group, 0.36, 0.28, 0.28, sack, -1.44, 2.51, -1.36);
 
       addCow(-0.9, 0.78, 0.18, true);
       addCow(1.18, 1.28, Math.PI * 0.86);
