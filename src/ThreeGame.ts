@@ -7031,7 +7031,13 @@ export class ThreeGame {
 
         this.recordHistory();
         if (removableNatural) this.services.state.removeCell(gx, gy);
+
+        // Manual river carving must always produce visible water. A previous
+        // Lower/Dig elevation override can push the river mesh below the
+        // island grass surface, making a valid river tile look dry.
+        this.elevationOverrides.delete(overrideKey);
         this.terrainOverrides.set(overrideKey, 'river');
+
         this.finishBuild();
         this.setStatus('River water created · no source connection required');
         return;
