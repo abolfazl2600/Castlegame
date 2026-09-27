@@ -30,13 +30,15 @@ const workflow = await readFile(new URL('../.github/workflows/visual-baseline.ym
 
 for (const capture of [
   'reference-normal-desktop',
-  'reference-near-desktop',
-  'reference-far-desktop',
   'reference-normal-mobile',
   'dense-normal-desktop',
 ]) {
   assert.ok(baseline.includes(capture), `Visual baseline must capture ${capture}`);
 }
+assert.ok(
+  baseline.includes('reference-${view}-desktop') && baseline.includes("Object.entries(REFERENCE_CAMERA)"),
+  'Visual baseline must capture the fixed near/far desktop camera entries.',
+);
 for (const field of ['frameMedianMs', 'frameP95Ms', 'drawCallsMedian', 'triangles', 'sceneGeometries',
   'sceneMaterials', 'gpuGeometries', 'gpuTextures', 'redrawMs', 'heapBytes', 'drawingBuffer', 'gpu']) {
   assert.ok(baseline.includes(field), `Visual baseline must record ${field}`);
