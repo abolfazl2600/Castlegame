@@ -166,6 +166,18 @@ const TOOL_GROUPS: Array<{ label: string; tools: ToolDefinition[] }> = [
     ],
   },
   {
+    label: 'Modern & Futuristic',
+    tools: [
+      {
+        id: 'futuristicCastle',
+        icon: '🏙️',
+        label: 'Modern Fortress',
+        detail: 'Place a large futuristic defensive complex',
+        shortcut: 'E',
+      },
+    ],
+  },
+  {
     label: 'Residential',
     tools: [
       { id: 'cottage', icon: '🏠', label: 'Cottage Cluster', detail: '3 small cottages + village props', shortcut: '7' },
@@ -8389,6 +8401,7 @@ export class ThreeGame {
         '9': 'manor',
         '0': 'villa',
         f: 'farm',
+        e: 'futuristicCastle',
         w: 'windmill',
         y: 'appleOrchard',
         a: 'armyCamp',
