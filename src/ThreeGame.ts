@@ -259,6 +259,7 @@ export class ThreeGame {
   private readonly planMaterials = new Map<string, THREE.MeshBasicMaterial>();
   private readonly environmentMaterials = new Map<string, THREE.MeshStandardMaterial>();
   private readonly buildObjectsByCell = new Map<string, THREE.Object3D>();
+  private generatedCastleAccess: GeneratedAccess[] | null = null;
   private readonly battleSystem: BattleSystem;
   private readonly groundHit = new THREE.Mesh(
     new THREE.PlaneGeometry(WORLD, WORLD),
@@ -1209,10 +1210,12 @@ export class ThreeGame {
   }
 
   private getGeneratedCastleAccess(): GeneratedAccess[] {
+    if (this.generatedCastleAccess) return this.generatedCastleAccess;
+
     const cells = this.services.state.entries();
     const keeps = this.services.keepSystem.entries();
 
-    return this.services.castleAccessSystem.generate(
+    this.generatedCastleAccess = this.services.castleAccessSystem.generate(
       cells,
       keeps,
       {
@@ -1230,9 +1233,15 @@ export class ThreeGame {
           Boolean(this.services.keepSystem.findAtCell(x, y)),
       },
     );
+
+    return this.generatedCastleAccess;
   }
 
   private redraw(): void {
+    // Derived castle access follows architecture/terrain lifecycle. Redraw is
+    // the invalidation boundary; rendering then materializes the canonical
+    // array that BattleNavigation will consume unchanged.
+    this.generatedCastleAccess = null;
     this.clearGroup(this.terrainLayer);
     this.clearGroup(this.buildLayer);
     this.services.gateSystem.clear();
@@ -1275,10 +1284,7 @@ export class ThreeGame {
       const group = new THREE.Group();
       const position = this.gridToWorld(access.x, access.y);
       group.position.set(position.x, this.terrainElevation(access.x, access.y), position.z);
-      this.makeAccess(group, access.kind, access.x, access.y, {
-        kind: access.kind,
-        rotation: access.rotation,
-      });
+      this.makeGeneratedAccess(group, access);
       this.buildLayer.add(group);
     }
 
@@ -4661,14 +4667,177 @@ export class ThreeGame {
     return this.findAccessSnap(gx, gy)?.rise ?? 3.8;
   }
 
+  private generatedAccessRise(access: GeneratedAccess): number {
+    const target = this.services.state.getCell(access.targetX, access.targetY);
+    if (!target) return 3.8;
+
+    const targetWorldTop =
+      this.terrainElevation(access.targetX, access.targetY) +
+      this.fortificationTopLocal(target);
+    const ownGroundWorld = this.terrainElevation(access.x, access.y) + 2.22;
+
+    // The generated landing terminates at the same authoritative wall-top
+    // elevation used by rendering and battle navigation.
+    return targetWorldTop - ownGroundWorld;
+  }
+
+  private makeGeneratedAccess(
+    group: THREE.Group,
+    access: GeneratedAccess,
+  ): THREE.Group {
+    group.rotation.y = access.rotation * Math.PI / 2;
+    group.userData.generatedCastleAccess = access;
+
+    const rise = this.generatedAccessRise(access);
+    if (access.kind === 'stairTower') {
+      return this.makeStairTower(group, access, rise);
+    }
+
+    return this.makeAccess(
+      group,
+      access.kind,
+      access.x,
+      access.y,
+      { kind: access.kind, rotation: access.rotation },
+      rise,
+    );
+  }
+
+  private makeStairTower(
+    group: THREE.Group,
+    access: GeneratedAccess,
+    rise: number,
+  ): THREE.Group {
+    const body = this.medievalMaterials.castleStone(
+      this.stoneStyle,
+      'body',
+      access.targetX,
+      access.targetY,
+    );
+    const walkway = this.medievalMaterials.castleStone(
+      this.stoneStyle,
+      'walkway',
+      access.targetX,
+      access.targetY,
+    );
+    const foundation = this.medievalMaterials.castleStone(
+      this.stoneStyle,
+      'foundation',
+      access.targetX,
+      access.targetY,
+    );
+    const doorway = this.environmentMaterial('stair-tower-door', 0x2f2924, 1);
+
+    const groundY = 2.22;
+    const landingY = groundY + rise;
+    const bodyTop = Math.max(groundY + 2.2, landingY - 0.18);
+    const bodyHeight = bodyTop - groundY;
+
+    const target = this.services.state.getCell(access.targetX, access.targetY);
+    const wallHalfDepth =
+      target && WALL_KINDS.includes(target.kind as WallKind)
+        ? this.wallThicknessValue(
+            target.kind as WallKind,
+            target.thickness ?? 'medium',
+          ) / 2
+        : 1.1;
+    const wallFaceZ = -TILE + wallHalfDepth;
+    const outerFaceZ = 1.42;
+    const bodyDepth = outerFaceZ - wallFaceZ + 0.18;
+    const bodyCenterZ = (outerFaceZ + wallFaceZ) / 2;
+
+    // The body itself reaches the real wall face (with a tiny overlap), so
+    // even the thickest supported wall cannot leave a visible vertical gap.
+    this.addBox(
+      group,
+      3.65,
+      0.46,
+      bodyDepth + 0.22,
+      foundation,
+      0,
+      2.01,
+      bodyCenterZ - 0.04,
+    );
+    this.addBox(
+      group,
+      3.38,
+      bodyHeight,
+      bodyDepth,
+      body,
+      0,
+      groundY + bodyHeight / 2,
+      bodyCenterZ,
+    );
+
+    // Ground entrance faces away from the wall; rotation is derived from the
+    // target wall face and never exposed to the player.
+    this.addBox(group, 1.08, 1.86, 0.08, doorway, 0, groundY + 0.93, outerFaceZ + 0.01);
+
+    // Top surface equals landingY exactly. The narrow landing continues from
+    // the tower body into the wall footprint so the rendered and logical wall
+    // walk surfaces meet at the same target.
+    this.addBox(
+      group,
+      3.56,
+      0.24,
+      bodyDepth + 0.08,
+      walkway,
+      0,
+      landingY - 0.12,
+      bodyCenterZ,
+    );
+    const landingEndZ = -TILE - 0.08;
+    const landingStartZ = wallFaceZ + 0.18;
+    const landingDepth = Math.abs(landingEndZ - landingStartZ);
+    this.addBox(
+      group,
+      1.92,
+      0.24,
+      landingDepth,
+      walkway,
+      0,
+      landingY - 0.12,
+      (landingStartZ + landingEndZ) / 2,
+    );
+
+    const parapetY = landingY + 0.32;
+    for (const x of [-1.62, 1.62]) {
+      this.addBox(group, 0.24, 0.64, bodyDepth - 0.2, body, x, parapetY, bodyCenterZ + 0.08);
+      this.addBox(
+        group,
+        0.2,
+        0.54,
+        landingDepth,
+        body,
+        x * 0.56,
+        landingY + 0.27,
+        (landingStartZ + landingEndZ) / 2,
+      );
+    }
+    this.addBox(group, 3.4, 0.64, 0.24, body, 0, parapetY, outerFaceZ - 0.1);
+
+    // Leave the wall-facing side open; defenders step directly onto the
+    // connected wall-walk node.
+    for (const x of [-1.25, 0, 1.25]) {
+      this.addBox(group, 0.54, 0.42, 0.5, body, x, landingY + 0.84, 1.28);
+    }
+    for (const z of [-1.35, -0.25, 0.82]) {
+      this.addBox(group, 0.5, 0.42, 0.54, body, -1.58, landingY + 0.84, z);
+      this.addBox(group, 0.5, 0.42, 0.54, body, 1.58, landingY + 0.84, z);
+    }
+
+    return group;
+  }
+
   private makeAccess(
     group: THREE.Group,
     kind: AccessKind,
     gx: number,
     gy: number,
     cell: GridCell,
+    riseOverride?: number,
   ): THREE.Group {
-    const rise = this.accessRiseForRotation(gx, gy, cell.rotation ?? 0);
+    const rise = riseOverride ?? this.accessRiseForRotation(gx, gy, cell.rotation ?? 0);
     const stone = new THREE.MeshStandardMaterial({ color: 0xb7afa4, roughness: 0.92 });
     const wood = new THREE.MeshStandardMaterial({ color: 0x815b3d, roughness: 0.94 });
     const metal = new THREE.MeshStandardMaterial({ color: 0x66737b, metalness: 0.34, roughness: 0.58 });
@@ -7586,6 +7755,9 @@ export class ThreeGame {
   }
 
   private migrateKind(kind: string, level: number): { kind: TileKind; level: number } | null {
+    // Legacy manually authored Stair Towers are intentionally discarded.
+    // CastleAccessSystem deterministically regenerates valid derived access.
+    if (kind === 'stairTower') return null;
     if (kind === 'marketStall' || kind === 'smallMarket' || kind === 'marketHall') return { kind: 'market', level: 1 };
     if (kind === 'wall') return { kind: 'wall1', level };
     if (kind === 'mountain1') return { kind: 'mountain', level: 1 };
