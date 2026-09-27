@@ -707,6 +707,36 @@ kbd { min-width: 23px; text-align: center; padding: 3px 5px; border-radius: 6px;
   backdrop-filter: blur(18px);
 }
 
+.god-mode-panel {
+  position: absolute;
+  right: 16px;
+  bottom: 16px;
+  z-index: 13;
+  width: min(360px, calc(100% - 32px));
+  max-height: calc(100% - 118px);
+  overflow: auto;
+  display: grid;
+  gap: 10px;
+  padding: 14px;
+  border: 1px solid rgba(255, 126, 87, .32);
+  border-radius: 18px;
+  background: linear-gradient(180deg, rgba(36, 24, 31, .98), rgba(19, 14, 23, .97));
+  box-shadow: 0 22px 64px rgba(0,0,0,.44), inset 0 1px rgba(255,255,255,.055);
+  backdrop-filter: blur(18px);
+}
+
+.god-mode-panel[hidden] { display: none; }
+.god-mode-instructions, .god-mode-feedback { margin: 0; color: rgba(255, 236, 224, .72); font-size: 11px; line-height: 1.45; }
+.god-mode-actions { display: grid; gap: 7px; }
+.god-mode-action { display: grid; gap: 3px; text-align: left; padding: 9px 10px; border: 1px solid rgba(255,255,255,.1); border-radius: 10px; color: #fff4ef; background: rgba(255,255,255,.045); cursor: pointer; }
+.god-mode-action small { color: rgba(255, 225, 213, .64); font-size: 10px; }
+.god-mode-action.is-selected { border-color: rgba(255, 137, 96, .72); background: rgba(204, 72, 48, .2); }
+.god-mode-action:disabled { cursor: not-allowed; opacity: .46; }
+.god-mode-target { padding: 9px 10px; border: 1px solid rgba(255, 156, 119, .2); border-radius: 10px; color: #ffd7c6; background: rgba(255, 107, 74, .1); font-size: 10px; line-height: 1.35; }
+.god-mode-actions-footer { display: flex; justify-content: flex-end; gap: 7px; }
+.god-mode-actions-footer .battle-primary { border-color: rgba(255, 152, 112, .5); background: linear-gradient(135deg, #c14d3c, #913032); }
+.god-mode-actions-footer button:disabled { cursor: not-allowed; opacity: .42; }
+
 .battle-panel[hidden] { display: none; }
 
 .battle-panel-header {
@@ -1523,7 +1553,7 @@ kbd {
   .range-wrap input[type=range] { min-height:32px; }
   .view-mode-switch,.camera-view-controls { display:none; }
   .world-counters { left:max(8px,var(--mobile-safe-left)); right:auto; bottom:calc(var(--mobile-dock-height) + var(--mobile-safe-bottom) + 46px); max-width:calc(100% - 16px); }
-  .battle-panel { left:max(8px,var(--mobile-safe-left)); right:max(8px,var(--mobile-safe-right)); bottom:calc(var(--mobile-dock-height) + var(--mobile-safe-bottom) + 7px); width:auto; max-width:none; max-height:min(70dvh,680px); padding:12px; }
+  .battle-panel,.god-mode-panel { left:max(8px,var(--mobile-safe-left)); right:max(8px,var(--mobile-safe-right)); bottom:calc(var(--mobile-dock-height) + var(--mobile-safe-bottom) + 7px); width:auto; max-width:none; max-height:min(70dvh,680px); padding:12px; }
   .battle-close,.battle-stepper button,.battle-actions button { min-width:44px; min-height:44px; }
   .help-modal,.template-modal,.mode-modal { max-height:calc(100dvh - var(--mobile-safe-top) - var(--mobile-safe-bottom) - 16px); margin-top:var(--mobile-safe-top); margin-bottom:var(--mobile-safe-bottom); }
   .modal-backdrop { padding:max(8px,var(--mobile-safe-top)) max(8px,var(--mobile-safe-right)) max(8px,var(--mobile-safe-bottom)) max(8px,var(--mobile-safe-left)); }

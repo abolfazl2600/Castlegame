@@ -24,6 +24,13 @@ import { getStructureFootprint } from './building/StructureFootprints';
 import { AudioManager } from './audio/AudioManager';
 import { audioEvents } from './audio/AudioEventBus';
 import { registerSystemAction } from './app/applicationActions';
+import {
+  GodModeActionRegistry,
+  createFutureGodModeAction,
+  type GodModeActionContext,
+  type GodModeExecutionResult,
+  type GodModeTarget,
+} from './godmode/GodModeSystem';
 import type {
   AccessKind,
   GridCell,
@@ -292,6 +299,9 @@ export class ThreeGame {
   private readonly workerLayer = new THREE.Group();
   private readonly settlementLayer = new THREE.Group();
   private readonly battleLayer = new THREE.Group();
+  private readonly godModeLayer = new THREE.Group();
+  private readonly godModeMarkerLayer = new THREE.Group();
+  private readonly godModeActions = new GodModeActionRegistry();
   private readonly planMaterials = new Map<string, THREE.MeshBasicMaterial>();
   private readonly environmentMaterials = new Map<string, THREE.MeshStandardMaterial>();
   private readonly buildObjectsByCell = new Map<string, THREE.Object3D>();
@@ -355,6 +365,11 @@ export class ThreeGame {
 
   private readonly undoStack: HistorySnapshot[] = [];
   private readonly redoStack: HistorySnapshot[] = [];
+  private godModeOpen = false;
+  private godModeActionId = 'missileStrike';
+  private godModeTarget: GodModeTarget | null = null;
+  private godModeHover: GridPoint | null = null;
+  private readonly godModeEffects: Array<{ group: THREE.Group; elapsed: number; duration: number }> = [];
   private terrainStrokeActive = false;
   private terrainStrokeChanged = false;
   private terrainStrokeSnapshot: HistorySnapshot | null = null;
@@ -487,6 +502,8 @@ export class ThreeGame {
     this.scene.add(this.workerLayer);
     this.scene.add(this.settlementLayer);
     this.scene.add(this.battleLayer);
+    this.scene.add(this.godModeLayer);
+    this.scene.add(this.godModeMarkerLayer);
     this.planLayer.visible = false;
 
     this.battleSystem = new BattleSystem(
@@ -512,6 +529,7 @@ export class ThreeGame {
     );
 
     this.registerBuiltInGameModes();
+    this.registerGodModeActions();
 
     this.groundHit.rotation.x = -Math.PI / 2;
     this.groundHit.position.y = 2.05;
@@ -582,6 +600,272 @@ export class ThreeGame {
     return isBuildingAvailable(this.gameMode, kind);
   }
 
+  private registerGodModeActions(): void {
+    this.godModeActions.register({
+      id: 'missileStrike',
+      label: 'Missile Strike',
+      description: 'Target one building and call down a direct missile impact.',
+      availableModes: ['sandbox'],
+      enabled: true,
+      validateTarget: (target, context) => {
+        if (!target) return 'Select a building in the world.';
+        const cell = context.getCell(target.anchor);
+        if (!cell) return 'The selected building no longer exists.';
+        if (!context.isDestructible(cell.kind)) return 'This object cannot be damaged by a missile.';
+        if ((cell.damage ?? 0) >= 1) return 'This building is already destroyed.';
+        return null;
+      },
+      execute: (target, context) => context.executeMissileStrike(target),
+    });
+    this.godModeActions.register(createFutureGodModeAction(
+      'flood',
+      'Flood',
+      'Reserved for an area event that will interact with terrain and structures.',
+    ));
+    this.godModeActions.register(createFutureGodModeAction(
+      'earthquake',
+      'Earthquake',
+      'Reserved for an area event that will affect terrain, buildings and people.',
+    ));
+  }
+
+  private godModeContext(): GodModeActionContext {
+    return {
+      mode: this.gameMode,
+      getCell: (point) => this.services.state.getCell(point.x, point.y),
+      isDestructible: (kind) => this.services.destructibleBuildingSystem.isDestructible(kind),
+      executeMissileStrike: (target) => this.executeMissileStrike(target),
+    };
+  }
+
+  private isGodModeTargeting(): boolean {
+    return this.godModeOpen && this.gameMode === 'sandbox' && this.godModeActionId === 'missileStrike';
+  }
+
+  private resolveGodModeTarget(point: GridPoint): GodModeTarget | null {
+    const direct = this.services.state.getCell(point.x, point.y);
+    if (direct) {
+      return {
+        anchor: { x: point.x, y: point.y },
+        kind: direct.kind,
+        footprint: getStructureFootprint(direct.kind, point.x, point.y)
+          .filter((item) => item.x >= 0 && item.y >= 0 && item.x < SIZE && item.y < SIZE),
+      };
+    }
+
+    // Modern Fortress is one authoritative anchor with a 9×9 protected
+    // footprint. Clicking any rendered footprint tile resolves to that anchor.
+    for (const cell of this.services.state.entries()) {
+      const footprint = getStructureFootprint(cell.kind, cell.x, cell.y);
+      if (footprint.some((item) => item.x === point.x && item.y === point.y)) {
+        return {
+          anchor: { x: cell.x, y: cell.y },
+          kind: cell.kind,
+          footprint: footprint.filter((item) => item.x >= 0 && item.y >= 0 && item.x < SIZE && item.y < SIZE),
+        };
+      }
+    }
+
+    return null;
+  }
+
+  private setGodModeTarget(point: GridPoint | null): void {
+    this.godModeHover = point;
+    this.godModeTarget = point ? this.resolveGodModeTarget(point) : null;
+    this.renderGodModeTargetMarker();
+    this.updateGodModeUI();
+  }
+
+  private selectGodModeAction(actionId: string): void {
+    const action = this.godModeActions.get(actionId);
+    if (!action || !this.godModeActions.isAvailable(actionId, this.gameMode)) {
+      this.setStatus('God Mode action is unavailable in ' + getGameModeDefinition(this.gameMode).label);
+      return;
+    }
+    this.godModeActionId = actionId;
+    this.setGodModeTarget(null);
+    this.setStatus(`${action.label} ready · select a building`);
+  }
+
+  private openGodMode(): void {
+    if (this.gameMode !== 'sandbox') {
+      this.setStatus('God Mode is available in Sandbox only');
+      return;
+    }
+    this.godModeOpen = true;
+    this.godModeActionId = 'missileStrike';
+    this.setGodModeTarget(null);
+    const panel = document.getElementById('god-mode-panel');
+    if (panel) panel.hidden = false;
+    this.updateGodModeUI();
+    this.setStatus('God Mode ready · choose an action');
+  }
+
+  private closeGodMode(): void {
+    this.godModeOpen = false;
+    this.setGodModeTarget(null);
+    const panel = document.getElementById('god-mode-panel');
+    if (panel) panel.hidden = true;
+    this.setStatus('God Mode closed');
+  }
+
+  private cancelGodModeTarget(): void {
+    this.setGodModeTarget(null);
+    this.setStatus('God Mode target cleared');
+  }
+
+  private confirmGodModeAction(): void {
+    const action = this.godModeActions.get(this.godModeActionId);
+    if (!action || !this.godModeTarget) {
+      this.setStatus('Select a valid building first');
+      return;
+    }
+    const context = this.godModeContext();
+    const reason = action.validateTarget(this.godModeTarget, context);
+    if (reason) {
+      this.setStatus(reason);
+      this.updateGodModeUI();
+      return;
+    }
+    const result = action.execute(this.godModeTarget, context);
+    this.setStatus(result.message);
+    if (result.ok) this.setGodModeTarget(null);
+  }
+
+  private updateGodModeUI(): void {
+    const action = this.godModeActions.get(this.godModeActionId);
+    const targetLabel = document.getElementById('god-mode-target');
+    const feedback = document.getElementById('god-mode-feedback');
+    const confirm = document.getElementById('god-mode-confirm') as HTMLButtonElement | null;
+    const cancel = document.getElementById('god-mode-cancel') as HTMLButtonElement | null;
+    const preview = this.godModeTarget;
+    if (targetLabel) {
+      targetLabel.textContent = preview
+        ? `Target: ${preview.kind} · anchor ${preview.anchor.x},${preview.anchor.y} · ${preview.footprint.length} tile footprint`
+        : 'Target: none · click a building in the world';
+    }
+    if (feedback) {
+      feedback.textContent = action
+        ? (preview ? (action.validateTarget(preview, this.godModeContext()) ?? 'Ready to confirm') : action.description)
+        : 'Choose an action';
+    }
+    if (confirm) confirm.disabled = !preview || !action || !this.godModeActions.isAvailable(this.godModeActionId, this.gameMode);
+    if (cancel) cancel.disabled = !preview;
+    document.querySelectorAll<HTMLButtonElement>('[data-god-action]').forEach((button) => {
+      button.classList.toggle('is-selected', button.dataset.godAction === this.godModeActionId);
+    });
+  }
+
+  private renderGodModeTargetMarker(): void {
+    this.clearGroup(this.godModeMarkerLayer);
+    const target = this.godModeTarget;
+    if (!target || !this.godModeOpen) return;
+    const material = new THREE.MeshBasicMaterial({
+      color: 0xff6b4a,
+      transparent: true,
+      opacity: 0.72,
+      wireframe: true,
+      depthTest: false,
+    });
+    for (const point of target.footprint) {
+      const marker = new THREE.Mesh(new THREE.BoxGeometry(TILE * 0.88, 0.18, TILE * 0.88), material);
+      const world = this.gridToWorld(point.x, point.y);
+      marker.position.set(world.x, this.terrainElevation(point.x, point.y) + 0.3, world.z);
+      marker.userData.godModeMarker = true;
+      this.godModeMarkerLayer.add(marker);
+    }
+  }
+
+  private executeMissileStrike(target: GodModeTarget): GodModeExecutionResult {
+    const cell = this.services.state.getCell(target.anchor.x, target.anchor.y);
+    if (!cell) return { ok: false, message: 'The selected building no longer exists.' };
+    if (!this.services.destructibleBuildingSystem.isDestructible(cell.kind)) {
+      return { ok: false, message: 'This object cannot be damaged by a missile.' };
+    }
+
+    this.recordHistory();
+    const damageAmount = this.services.destructibleBuildingSystem.maxHealth(cell.kind, cell.level ?? 1) * 0.72;
+    const nextDamage = this.services.destructibleBuildingSystem.applyDamage(cell, damageAmount);
+    const destroyed = nextDamage >= 1;
+    if (destroyed) {
+      if (cell.kind === 'tower') this.removeTowerBridgesAt(target.anchor.x, target.anchor.y);
+      this.services.state.removeCell(target.anchor.x, target.anchor.y);
+    } else {
+      this.services.state.updateCell(target.anchor.x, target.anchor.y, { damage: nextDamage });
+    }
+
+    this.createMissileStrikeEffect(target);
+    this.redraw();
+    this.scheduleSave();
+    return {
+      ok: true,
+      message: destroyed ? `Missile strike destroyed ${cell.kind} · occupancy cleared` : `Missile strike hit ${cell.kind} · damage ${(nextDamage * 100).toFixed(0)}%`,
+      damage: nextDamage,
+      destroyed,
+    };
+  }
+
+  private createMissileStrikeEffect(target: GodModeTarget): void {
+    const group = new THREE.Group();
+    const center = this.gridToWorld(target.anchor.x, target.anchor.y);
+    const elevation = this.terrainElevation(target.anchor.x, target.anchor.y);
+    group.position.set(center.x, elevation, center.z);
+    const missileMaterial = new THREE.MeshBasicMaterial({ color: 0xffd08a });
+    const smokeMaterial = new THREE.MeshBasicMaterial({ color: 0x452f2a, transparent: true, opacity: 0.7 });
+    const missile = new THREE.Mesh(new THREE.CylinderGeometry(0.11, 0.16, 1.8, 8), missileMaterial);
+    missile.position.y = 34;
+    group.add(missile);
+    const plume = new THREE.Mesh(new THREE.SphereGeometry(0.55, 8, 6), smokeMaterial);
+    plume.position.y = 1.6;
+    plume.scale.set(1.8, 0.7, 1.8);
+    group.add(plume);
+    const ring = new THREE.Mesh(
+      new THREE.RingGeometry(0.35, 0.52, 24),
+      new THREE.MeshBasicMaterial({ color: 0xff6b3d, transparent: true, opacity: 0.9, side: THREE.DoubleSide }),
+    );
+    ring.rotation.x = -Math.PI / 2;
+    ring.position.y = 0.25;
+    group.add(ring);
+    this.godModeLayer.add(group);
+    this.godModeEffects.push({ group, elapsed: 0, duration: 1100 });
+    while (this.godModeEffects.length > 4) {
+      const oldest = this.godModeEffects.shift();
+      if (oldest) {
+        this.clearGroup(oldest.group);
+        this.godModeLayer.remove(oldest.group);
+      }
+    }
+  }
+
+  private updateGodModeEffects(deltaMs: number): void {
+    for (let index = this.godModeEffects.length - 1; index >= 0; index -= 1) {
+      const effect = this.godModeEffects[index];
+      effect.elapsed += deltaMs;
+      const progress = THREE.MathUtils.clamp(effect.elapsed / effect.duration, 0, 1);
+      const missile = effect.group.children[0];
+      const plume = effect.group.children[1];
+      const ring = effect.group.children[2];
+      if (missile) missile.position.y = 34 * (1 - Math.min(1, progress * 1.35));
+      if (plume) {
+        plume.scale.setScalar(1 + progress * 2.4);
+        if ((plume as THREE.Mesh).material instanceof THREE.MeshBasicMaterial) {
+          ((plume as THREE.Mesh).material as THREE.MeshBasicMaterial).opacity = 0.7 * (1 - progress);
+        }
+      }
+      if (ring) {
+        ring.scale.setScalar(1 + progress * 5);
+        if ((ring as THREE.Mesh).material instanceof THREE.MeshBasicMaterial) {
+          ((ring as THREE.Mesh).material as THREE.MeshBasicMaterial).opacity = 0.9 * (1 - progress);
+        }
+      }
+      if (progress >= 1) {
+        this.clearGroup(effect.group);
+        this.godModeLayer.remove(effect.group);
+        this.godModeEffects.splice(index, 1);
+      }
+    }
+  }
+
   private updateGameModeUI(): void {
     const label = document.getElementById('game-mode-label');
     const button = document.getElementById('game-mode-button');
@@ -590,6 +874,14 @@ export class ThreeGame {
     if (button) button.setAttribute('aria-label', 'Current game mode: ' + config.label);
     const battleButton = document.getElementById('battle-button');
     if (battleButton) battleButton.hidden = this.gameMode === 'modern';
+    const godModeButton = document.getElementById('god-mode-button');
+    if (godModeButton) godModeButton.hidden = this.gameMode !== 'sandbox';
+    const godModePanel = document.getElementById('god-mode-panel');
+    if (godModePanel && this.gameMode !== 'sandbox') {
+      godModePanel.hidden = true;
+      this.godModeOpen = false;
+      this.setGodModeTarget(null);
+    }
   }
 
   private syncTemplateAvailability(): void {
@@ -1823,6 +2115,8 @@ export class ThreeGame {
     this.buildLayer.visible = !planMode;
     this.workerLayer.visible = !planMode;
     this.settlementLayer.visible = !planMode && !this.battleSystem.isActive();
+    this.godModeLayer.visible = !planMode;
+    this.godModeMarkerLayer.visible = !planMode;
 
     if (planMode) {
       this.camera.up.set(0, 1, 0);
@@ -6160,6 +6454,13 @@ export class ThreeGame {
         if (this.battleSystem.isActive()) return;
 
         const cell = this.pickGridCell(event);
+        if (this.isGodModeTargeting()) {
+          this.setGodModeTarget(cell);
+          this.setStatus(cell ? 'God Mode target selected · confirm the action' : 'Click a building to target it');
+          event.preventDefault();
+          event.stopPropagation();
+          return;
+        }
         if (cell && this.selectedTool !== null && this.selectedTool !== 'towerBridge') this.beginLongPress(event, cell);
 
         if (this.selectedTool !== null && this.isWallTool(this.selectedTool)) {
@@ -6225,6 +6526,24 @@ export class ThreeGame {
     canvas.addEventListener(
       'pointermove',
       (event) => {
+        if (this.isGodModeTargeting() && !this.wallDragStart && !this.roadDragStart && !this.terrainStrokeActive) {
+          const cell = this.pickGridCell(event);
+          if (cell && (cell.x !== this.godModeHover?.x || cell.y !== this.godModeHover?.y)) {
+            this.godModeHover = cell;
+            const candidate = this.resolveGodModeTarget(cell);
+            if (
+              candidate?.anchor.x !== this.godModeTarget?.anchor.x ||
+              candidate?.anchor.y !== this.godModeTarget?.anchor.y
+            ) {
+              this.godModeTarget = candidate;
+              this.renderGodModeTargetMarker();
+              this.updateGodModeUI();
+            }
+          }
+          event.preventDefault();
+          event.stopPropagation();
+          return;
+        }
         this.cancelLongPressOnMovement(event);
 
         if (this.wallDragStart) {
@@ -6302,6 +6621,12 @@ export class ThreeGame {
       'pointerup',
       (event) => {
         if (event.button !== 0) return;
+
+        if (this.isGodModeTargeting()) {
+          event.preventDefault();
+          event.stopPropagation();
+          return;
+        }
 
         const longPressTriggered = this.longPressTriggered;
         this.cancelLongPress();
@@ -8320,6 +8645,18 @@ export class ThreeGame {
       battlePanel.hidden = true;
     };
 
+    get<HTMLButtonElement>('god-mode-button').onclick = () => this.openGodMode();
+    get<HTMLButtonElement>('god-mode-close').onclick = () => this.closeGodMode();
+    get<HTMLButtonElement>('god-mode-confirm').onclick = () => this.confirmGodModeAction();
+    get<HTMLButtonElement>('god-mode-cancel').onclick = () => this.cancelGodModeTarget();
+    document.querySelectorAll<HTMLButtonElement>('[data-god-action]').forEach((button) => {
+      button.onclick = () => {
+        const actionId = button.dataset.godAction;
+        if (actionId) this.selectGodModeAction(actionId);
+      };
+    });
+    this.updateGodModeUI();
+
     document.querySelectorAll<HTMLButtonElement>('[data-battle-field]').forEach((button) => {
       button.onclick = () => {
         const field = button.dataset.battleField as keyof BattleSetup | undefined;
@@ -8509,6 +8846,7 @@ export class ThreeGame {
       if (event.key === 'Escape') {
         help.hidden = true;
         templates.hidden = true;
+        if (this.godModeOpen) this.closeGodMode();
         this.selectTool(null);
       }
     });
@@ -10253,6 +10591,7 @@ export class ThreeGame {
     this.battleSystem.update(deltaMs, time);
     this.services.session.update(deltaMs, time);
     this.updateLongPress(time);
+    this.updateGodModeEffects(deltaMs);
     if (!settings.interface.reducedMotion && settings.graphics.effectsEnabled) {
       this.services.windmillSystem.update(deltaMs / 1000);
       this.riverTexture.offset.y -= deltaMs * 0.00032;
