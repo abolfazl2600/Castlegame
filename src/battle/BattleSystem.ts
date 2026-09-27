@@ -17,8 +17,9 @@ import type {
   Faction,
   UnitType,
 } from './types';
+import { defenderUnitStats, militaryTierDefinition, normalizeMilitaryTier, type MilitaryTier } from './MilitaryProgression';
 
-type CoreUnitType = 'swordsman' | 'archer' | 'spearman' | 'crossbowman' | 'modernSoldier';
+export type CoreUnitType = 'swordsman' | 'archer' | 'spearman' | 'crossbowman' | 'modernSoldier';
 
 export interface BattleWorldContext {
   size: number;
@@ -165,6 +166,7 @@ export interface BattleStartOptions {
    * Intended for multi-wave sessions such as Survival; never writes to GameState.
    */
   readonly preserveSessionWallDamage?: boolean;
+  readonly militaryTier?: MilitaryTier;
 }
 
 export function getUnitCombatStats(unitType: UnitType): BattleUnitStats | undefined {
@@ -384,6 +386,7 @@ export class BattleSystem {
   private attackerSpawnTimer = 0;
   private attackerSpawnBatchSize = 1;
   private battleSpeed = DEFAULT_BATTLE_SPEED;
+  private militaryTier: MilitaryTier = 1;
   private readonly objectiveSystem = new BattleObjectiveSystem();
 
   constructor(
@@ -421,6 +424,7 @@ export class BattleSystem {
   start(setup: BattleSetup, options: BattleStartOptions = {}): void {
     const preserveSessionWallDamage = options.preserveSessionWallDamage === true;
     this.resetRuntime(false, preserveSessionWallDamage);
+    this.militaryTier = normalizeMilitaryTier(options.militaryTier ?? 1);
     this.mode = 'running';
     this.battleSpeed = DEFAULT_BATTLE_SPEED;
     this.captureSeconds = 0;
@@ -937,7 +941,8 @@ export class BattleSystem {
     gridY: number,
     surface: 'ground' | 'wall',
   ): UnitRuntime {
-    const stats = UNIT_COMBAT_STATS[unitType];
+    const baseStats = UNIT_COMBAT_STATS[unitType];
+    const stats = faction === 'defender' ? defenderUnitStats(baseStats, this.militaryTier) : baseStats;
     const id = `${faction}-${unitType}-${this.units.size + 1}-${Math.floor(position.x * 31 + position.z * 17)}`;
     const view = this.createUnitView(faction, unitType);
     view.position.copy(position);
@@ -2026,7 +2031,7 @@ export class BattleSystem {
       cell.thickness === 'thick' ? 1.28 :
       1;
     const level = Math.max(1, cell.level ?? 1);
-    return Math.round(base * thickness * (1 + (level - 1) * 0.18));
+    return Math.round(base * thickness * (1 + (level - 1) * 0.18) * militaryTierDefinition(this.militaryTier).wallHealthMultiplier);
   }
 
   private clearSiegeState(): void {
@@ -3554,7 +3559,8 @@ export class BattleSystem {
       for (const candidate of this.units.values()) {
         if (candidate.data.faction !== 'attacker' || candidate.data.state === 'dead') continue;
         const distance = Math.hypot(candidate.position.x - origin.x, candidate.position.z - origin.z);
-        if (distance > weapon.range * this.world.tileSize) continue;
+        const tier = militaryTierDefinition(this.militaryTier);
+        if (distance > weapon.range * tier.weaponRangeMultiplier * this.world.tileSize) continue;
         if (distance < bestDistance) { bestDistance = distance; target = candidate; }
       }
 
@@ -3567,8 +3573,9 @@ export class BattleSystem {
       }
 
       if (!target || nextTimer > 0) continue;
-      this.applyDamage(target, 18);
-      this.wallWeaponTimers.set(key, 0.95);
+      const tier = militaryTierDefinition(this.militaryTier);
+      this.applyDamage(target, 18 * tier.weaponDamageMultiplier);
+      this.wallWeaponTimers.set(key, 0.95 * tier.weaponCooldownMultiplier);
 
       const flash = new THREE.Mesh(new THREE.SphereGeometry(0.09, 6, 5), this.objectiveMaterial);
       flash.position.lerpVectors(origin, target.position, 0.18);
