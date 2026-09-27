@@ -8955,6 +8955,10 @@ export class ThreeGame {
       '<div class="build-active" role="status" aria-live="polite"><span class="build-active-dot"></span><span>Active</span><strong id="build-active-label">Inspect</strong></div>' +
       noneHtml +
       '</div>' +
+      '<div class="build-world-summary" role="group" aria-label="Population and army">' +
+      '<span class="build-world-stat build-world-population"><span class="build-world-stat-icon" aria-hidden="true">♟</span><b id="city-population">Population: 0</b></span>' +
+      '<span class="build-world-stat build-world-army"><span class="build-world-stat-icon" aria-hidden="true">⚔</span><b id="military-population">Army: 0</b></span>' +
+      '</div>' +
       '<div class="build-category-tabs" role="tablist" aria-label="Build tool categories"></div>' +
       '<div id="build-search-empty" class="build-search-empty" hidden>No tools match that search.</div>' +
       '<div class="build-tool-sections"></div>' +

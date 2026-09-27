@@ -222,6 +222,52 @@ h1 { margin: 3px 0 0; font-size: 22px; line-height: 1; letter-spacing: -.035em; 
   align-items: center;
   gap: 7px;
 }
+
+.build-world-summary {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+}
+.build-world-stat {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 36px;
+  padding: 7px 9px;
+  border: 1px solid rgba(255,255,255,.065);
+  border-radius: 11px;
+  color: rgba(232, 247, 252, .82);
+  background: rgba(255,255,255,.025);
+}
+.build-world-stat-icon {
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  width: 23px;
+  height: 23px;
+  border-radius: 8px;
+  color: #bcecff;
+  background: rgba(78, 184, 226, .1);
+  font-size: 11px;
+}
+.build-world-stat b {
+  min-width: 0;
+  overflow: hidden;
+  font-size: 9px;
+  font-weight: 850;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.build-world-army {
+  border-color: rgba(219,102,104,.12);
+  background: rgba(151,65,71,.045);
+}
+.build-world-army .build-world-stat-icon {
+  color: #ffd8d5;
+  background: rgba(219,102,104,.1);
+}
+
 .build-active {
   min-width: 0;
   flex: 1 1 auto;
@@ -1463,34 +1509,6 @@ h1 { margin: 3px 0 0; font-size: 22px; line-height: 1; letter-spacing: -.035em; 
 }
 
 
-.world-counters {
-  position: absolute;
-  left: 14px;
-  bottom: 14px;
-  z-index: 8;
-  display: inline-flex;
-  gap: 7px;
-  pointer-events: none;
-}
-
-.world-counters span {
-  padding: 8px 11px;
-  border: 1px solid rgba(255,255,255,.1);
-  border-radius: 999px;
-  color: #eefaff;
-  background: rgba(5,23,36,.76);
-  backdrop-filter: blur(12px);
-  box-shadow: 0 9px 24px rgba(0,0,0,.22);
-  font-size: 10px;
-  font-weight: 800;
-  letter-spacing: .02em;
-}
-
-#military-population {
-  color: #ffd8d5;
-  border-color: rgba(219,102,104,.18);
-}
-
 .long-press-indicator {
   position: fixed;
   z-index: 100;
@@ -1527,16 +1545,17 @@ h1 { margin: 3px 0 0; font-size: 22px; line-height: 1; letter-spacing: -.035em; 
 }
 
 @media (max-width: 760px) {
-  .world-counters {
-    left: 9px;
-    bottom: 9px;
-    gap: 5px;
+  .build-world-summary { gap: 5px; }
+  .build-world-stat {
+    min-height: 34px;
+    padding: 6px 7px;
+    gap: 6px;
   }
-
-  .world-counters span {
-    padding: 7px 9px;
-    font-size: 9px;
+  .build-world-stat-icon {
+    width: 21px;
+    height: 21px;
   }
+  .build-world-stat b { font-size: 8.5px; }
 
   .long-press-indicator {
     width: 64px;
@@ -1792,17 +1811,6 @@ kbd {
 }
 
 
-.world-counters {
-  left: 9px;
-  bottom: 9px;
-  gap: 4px;
-}
-
-.world-counters span {
-  padding: 6px 8px;
-  font-size: 8px;
-}
-
 .battle-panel {
   right: 9px;
   bottom: 9px;
@@ -1890,12 +1898,6 @@ kbd {
   .camera-view-controls {
     top: 47px;
     right: 7px;
-  }
-
-
-  .world-counters {
-    left: 7px;
-    bottom: 7px;
   }
 }
 
@@ -2064,7 +2066,6 @@ kbd {
   .settings-row select { min-height:42px; }
   .range-wrap input[type=range] { min-height:32px; }
   .view-mode-switch,.camera-view-controls { display:none; }
-  .world-counters { left:max(8px,var(--mobile-safe-left)); right:auto; bottom:calc(var(--mobile-dock-height) + var(--mobile-safe-bottom) + 46px); max-width:calc(100% - 16px); }
   .battle-panel,.god-mode-panel { left:max(8px,var(--mobile-safe-left)); right:max(8px,var(--mobile-safe-right)); bottom:calc(var(--mobile-dock-height) + var(--mobile-safe-bottom) + 7px); width:auto; max-width:none; max-height:min(70dvh,680px); padding:12px; }
   .battle-close,.battle-stepper button,.battle-actions button { min-width:44px; min-height:44px; }
   .help-modal,.template-modal,.mode-modal { max-height:calc(100dvh - var(--mobile-safe-top) - var(--mobile-safe-bottom) - 16px); margin-top:var(--mobile-safe-top); margin-bottom:var(--mobile-safe-bottom); }
