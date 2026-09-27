@@ -419,7 +419,6 @@ export class BattleSystem {
   }
 
   start(setup: BattleSetup, options: BattleStartOptions = {}): void {
-    this.navigation.invalidate();
     const preserveSessionWallDamage = options.preserveSessionWallDamage === true;
     this.resetRuntime(false, preserveSessionWallDamage);
     this.mode = 'running';

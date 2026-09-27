@@ -104,10 +104,11 @@ export class CastleAccessSystem {
         const placement = this.findPlacement(target, context);
         if (!placement) continue;
 
+        const kind = this.chooseKind(target, placement.clearance);
         result.push({
           x: placement.x,
           y: placement.y,
-          kind: this.chooseKind(target, placement.clearance),
+          kind,
           rotation: placement.rotation,
           targetX: target.x,
           targetY: target.y,
@@ -208,8 +209,6 @@ export class CastleAccessSystem {
           clearance += 1;
         }
 
-        // Prefer faces with fewer adjacent obstructions. This keeps generated
-        // towers/stairs away from corners, gates and neighboring structures.
         const sideObstructions = [
           { x: x + option.dy, y: y + option.dx },
           { x: x - option.dy, y: y - option.dx },

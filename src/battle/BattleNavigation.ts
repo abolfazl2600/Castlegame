@@ -417,101 +417,65 @@ export class BattleNavigation {
 
   stairTowerAccessNodes(): Array<{ top: WallNavNode; ground: NavPoint }> {
     const nodes = this.wallPlatformNodes();
+    const nodesByKey = new Map(
+      nodes.map((node) => [this.key(node.x, node.y), node] as const),
+    );
     const result: Array<{ top: WallNavNode; ground: NavPoint }> = [];
 
-    for (const node of nodes) {
+    const addAccess = (top: WallNavNode, ground: NavPoint): void => {
+      if (!this.isGroundWalkable(ground.x, ground.y)) return;
       if (
-        node.kind !== 'tower' &&
-        node.kind !== 'gate' &&
-        !this.hasDedicatedWallAccess(node)
+        result.some(
+          (item) =>
+            item.top.x === top.x &&
+            item.top.y === top.y &&
+            item.ground.x === ground.x &&
+            item.ground.y === ground.y,
+        )
       ) {
-        continue;
+        return;
       }
 
-      const groundCandidates = [
+      result.push({ top, ground });
+    };
+
+    // Manual castle access is persisted as a GridCell. The exact access cell
+    // is the ground-side endpoint; do not substitute an arbitrary neighbor.
+    for (const node of nodes) {
+      const adjacent = [
         { x: node.x + 1, y: node.y },
         { x: node.x - 1, y: node.y },
         { x: node.x, y: node.y + 1 },
         { x: node.x, y: node.y - 1 },
-      ]
-        .filter((point) => this.isGroundWalkable(point.x, point.y))
-        .sort(
-          (a, b) =>
-            this.heuristic(a, this.castleObjective()) -
-            this.heuristic(b, this.castleObjective()),
-        );
+      ];
 
-      const ground = groundCandidates[0];
-      if (ground) result.push({ top: node, ground });
+      for (const ground of adjacent) {
+        const cell = this.context.cellAt(ground.x, ground.y);
+        if (!cell || !this.isCastleAccessKind(cell.kind)) continue;
+        addAccess(node, ground);
+      }
     }
 
-    // Generated access is derived from the wall network and is not stored as
-    // a GridCell. Expose it to the same movement path used by legacy access.
+    // Generated access is derived architecture and is not stored as GridCell.
+    // Only create a transition when the generated entry targets a real
+    // defensive platform node. This prevents invisible tower/gate teleports.
     for (const access of this.context.generatedAccess?.() ?? []) {
-      const topCell = this.context.cellAt(access.targetX, access.targetY);
-      if (!topCell) continue;
+      const top = nodesByKey.get(this.key(access.targetX, access.targetY));
+      if (!top) continue;
 
-      const top: WallNavNode = {
-        x: access.targetX,
-        y: access.targetY,
-        kind: topCell.kind,
-        worldY:
-          this.context.elevationAt(access.targetX, access.targetY) +
-          this.context.fortificationTopAt(access.targetX, access.targetY, topCell) +
-          0.28,
-      };
-      const ground = { x: access.x, y: access.y };
-      if (!this.isGroundWalkable(ground.x, ground.y)) continue;
-
-      if (!result.some((item) =>
-        item.top.x === top.x &&
-        item.top.y === top.y &&
-        item.ground.x === ground.x &&
-        item.ground.y === ground.y
-      )) {
-        result.push({ top, ground });
-      }
+      addAccess(top, { x: access.x, y: access.y });
     }
 
     return result;
   }
 
-  private hasDedicatedWallAccess(node: WallNavNode): boolean {
-    if (
-      node.kind !== 'wall1' &&
-      node.kind !== 'wall2' &&
-      node.kind !== 'wall3'
-    ) {
-      return false;
-    }
-
-    const candidates = [
-      { x: node.x + 1, y: node.y },
-      { x: node.x - 1, y: node.y },
-      { x: node.x, y: node.y + 1 },
-      { x: node.x, y: node.y - 1 },
-    ];
-
-    return candidates.some((point) => {
-      const cell = this.context.cellAt(point.x, point.y);
-      if (!cell) return false;
-      if (
-        cell.kind === 'stoneStairs' ||
-        cell.kind === 'woodenStairs' ||
-        cell.kind === 'ramp' ||
-        cell.kind === 'ladder'
-      ) {
-        return true;
-      }
-
-      return (this.context.generatedAccess?.() ?? []).some(
-        (access) =>
-          access.x === point.x &&
-          access.y === point.y &&
-          access.targetX === node.x &&
-          access.targetY === node.y,
-      );
-    });
+  private isCastleAccessKind(kind: TileKind): boolean {
+    return (
+      kind === 'stoneStairs' ||
+      kind === 'woodenStairs' ||
+      kind === 'ramp' ||
+      kind === 'ladder'
+    );
   }
 
   private reconstruct(nodes: Map<string, SearchNode>, endKey: string): NavPoint[] {

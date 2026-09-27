@@ -96,7 +96,7 @@ The castle system now treats foundations, defensive details, roof silhouettes, s
 - **Tower Bridges:** select Tower Bridge (D), choose the first main tower, then a second compatible tower. Distance, alignment, platform height, and intervening structures are validated. Stone bridges use masonry decks/parapets/supports; Wooden bridges use planks, beams, posts, and rails.
 - **Stair Towers:** tall masonry Wall Walks can receive a Stair Tower automatically when compact vertical access is more appropriate than long exterior stairs or a ramp. Generated Stair Towers attach flush to the wall, inherit the castle stone style, face the wall automatically, and terminate at the exact Wall Walk elevation.
 - **Elevated navigation:** Wall Walks, tower platforms, Tower Bridges, and Stair Towers are connected in the battle navigation graph. Swordsmen can use Stair Towers to transition between ground and elevated combat, while valid bridges connect separated tower platforms.
-- **Persistence and history:** Stone Style, Tower Bridges, roof choices, and player-authored architecture are saved. Generated Stair Towers are derived from that architecture, are not serialized as standalone buildings, and are regenerated deterministically after load. Undo/Redo therefore tracks the parent wall/terrain state rather than separate Stair Tower objects.
+- **Persistence and history:** Stone Style, Tower Bridges, roof choices, and player-authored architecture are saved. Generated Stair Towers are derived from that architecture, are not serialized as standalone buildings, and regenerate deterministically after load. Undo/Redo tracks the parent wall and terrain state rather than separate Stair Tower objects.
 - Procedural architectural variation is deterministic, and shared materials are reused to avoid thousands of independent masonry assets.
 
 
@@ -413,7 +413,7 @@ The automatic access system analyzes connected fortification networks after arch
 - Wooden stairs, ramps, or ladders are chosen when space/height requires them.
 - Tall masonry walls can receive a compact wall-integrated Stair Tower when that is the better vertical-access solution.
 - Rendering and BattleNavigation consume the same generated-access records.
-- Old saves containing manual stairs/ramps/ladders still load; legacy `stairTower` cells are removed during migration and valid access is regenerated from the castle layout.
+- Old saves containing manual stairs/ramps/ladders still load; legacy `stairTower` cells are removed during migration and valid access regenerates from the castle layout.
 
 Automatic access is derived from parent architecture and is not stored as hundreds of independent objects.
 
