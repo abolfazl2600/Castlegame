@@ -17,6 +17,7 @@ export const TEMPLATE_VISUAL_PRESETS: Readonly<Record<string, TemplateVisualPres
   'mainland-frontier': { stoneStyle: 'frontier', towerBridgeKind: 'wood', family: 'medieval' },
   'coastal-peninsula': { stoneStyle: 'limestone', towerBridgeKind: 'stone', family: 'medieval' },
   'split-isles': { stoneStyle: 'sandstone', towerBridgeKind: 'wood', family: 'medieval' },
+  'carcassonne': { stoneStyle: 'limestone', towerBridgeKind: 'stone', family: 'medieval' },
   'empty-land': { stoneStyle: 'limestone', towerBridgeKind: 'stone', family: 'medieval' },
   'small-castle': { stoneStyle: 'limestone', towerBridgeKind: 'stone', family: 'medieval' },
   'motte-bailey': { stoneStyle: 'frontier', towerBridgeKind: 'wood', family: 'medieval' },
