@@ -41,7 +41,7 @@ export interface SaveLoadHost {
   setLoadedSaveVersion(value: number): void;
   setStoneStyle(value: StoneStyle): void;
   migrateKind(kind: string, level: number): { kind: string; level: number } | null;
-  isBuildingAvailable(kind: string): boolean;
+  isBuildingAvailableForMode(mode: GameMode, kind: string): boolean;
   key(x: number, y: number): string;
   syncModeDependentUI(): void;
   setStatus(message: string): void;
@@ -465,7 +465,7 @@ export class SaveSystem {
     for (const cell of data.cells ?? []) {
       if (!validGrid(cell.x, cell.y)) continue;
       const migration = this.host.migrateKind(cell.kind, cell.level ?? 1);
-      if (!migration || !this.host.isBuildingAvailable(migration.kind)) continue;
+      if (!migration || !this.host.isBuildingAvailableForMode(loadedMode, migration.kind)) continue;
       cells.push({
         x: cell.x,
         y: cell.y,
