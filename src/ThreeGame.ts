@@ -341,7 +341,6 @@ export class ThreeGame {
   private readonly shallowWaterMaterial: THREE.MeshStandardMaterial;
 
   private mapLayoutId: MapLayoutId = 'island';
-  private pendingNewGameMode: GameMode | null = null;
   private selectedTool: ToolKind | null = 'wall1';
   private selectedCell: GridPoint | null = null;
   private viewMode: ViewMode = 'world3d';
@@ -1111,7 +1110,6 @@ export class ThreeGame {
   }
 
   private openGameModeSelector(): void {
-    this.pendingNewGameMode = null;
     const layoutModal = document.getElementById('map-layout-modal');
     if (layoutModal) layoutModal.hidden = true;
     this.renderGameModeSelection();
@@ -1129,7 +1127,6 @@ export class ThreeGame {
   }
 
   private openMapLayoutSelector(mode: GameMode): void {
-    this.pendingNewGameMode = mode;
     const modeModal = document.getElementById('game-mode-modal');
     if (modeModal) modeModal.hidden = true;
 
@@ -1153,7 +1150,8 @@ export class ThreeGame {
     grid.querySelectorAll<HTMLButtonElement>('[data-map-layout]').forEach((button) => {
       button.onclick = () => {
         const layoutId = normalizeMapLayoutId(button.dataset.mapLayout);
-        this.startNewGameWithMode(mode, layoutId);
+        this.setMapLayoutId(layoutId);
+        this.startNewGameWithMode(mode);
       };
     });
 
@@ -1200,7 +1198,7 @@ export class ThreeGame {
     this.redraw();
   }
 
-  private startNewGameWithMode(mode: GameMode, layoutId: MapLayoutId = this.mapLayoutId): void {
+  private startNewGameWithMode(mode: GameMode): void {
     const session = this.services.session;
     if (session.getStatus() === 'running' || session.getStatus() === 'paused') {
       session.end();
@@ -1231,7 +1229,6 @@ export class ThreeGame {
     if (modeModal) modeModal.hidden = true;
     const layoutModal = document.getElementById('map-layout-modal');
     if (layoutModal) layoutModal.hidden = true;
-    this.pendingNewGameMode = null;
     const templates = document.getElementById('templates-modal');
     if (templates) templates.hidden = false;
     this.selectTool(null);
