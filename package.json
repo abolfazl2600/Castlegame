@@ -26,7 +26,8 @@
     "test:orchard-visual-contract": "node scripts/test-orchard-visual-contract.mjs",
     "test:castle-architecture-style": "node scripts/test-castle-architecture-style.mjs",
     "test:map-layouts": "node scripts/test-map-layouts.mjs",
-    "test:regression": "npm run test:gate-orientation && npm run test:battle-state-boundary && npm run test:missile-capability && npm run test:castle-access-navigation && npm run test:castle-architecture-style && npm run test:settlement-lifecycle && npm run test:map-layouts && npm run test:farm-worker-visibility && npm run test:river-water-visibility && npm run test:build-tool-registry && npm run test:cross-mode-save-loading && npm run test:settings-bootstrap-order && npm run test:save-mode-ui-sync && npm run test:modern-fortress-terrain-protection && npm run test:god-mode && npm run test:orchard-visual-contract",
+    "test:playable-layout-templates": "node scripts/test-playable-layout-templates.mjs",
+    "test:regression": "npm run test:gate-orientation && npm run test:battle-state-boundary && npm run test:missile-capability && npm run test:castle-access-navigation && npm run test:castle-architecture-style && npm run test:settlement-lifecycle && npm run test:map-layouts && npm run test:playable-layout-templates && npm run test:farm-worker-visibility && npm run test:river-water-visibility && npm run test:build-tool-registry && npm run test:cross-mode-save-loading && npm run test:settings-bootstrap-order && npm run test:save-mode-ui-sync && npm run test:modern-fortress-terrain-protection && npm run test:god-mode && npm run test:orchard-visual-contract",
     "test:ci": "npm run test:missile-capability && npm run test:cross-mode-save-loading && npm run test:settings-bootstrap-order"
   },
   "dependencies": {

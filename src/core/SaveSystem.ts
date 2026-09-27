@@ -37,6 +37,8 @@ export interface SaveLoadHost {
   getGameMode(): GameMode;
   getMapLayoutId(): MapLayoutId;
   setMapLayoutId(value: MapLayoutId): void;
+  getWorldSeed(): number;
+  setWorldSeed(value: number): void;
   getStoneStyle(): StoneStyle;
   getWorldSeeded(): boolean;
   getBattleSetup?(): SavedBattleSetup;
@@ -62,6 +64,7 @@ interface RawSave {
   updatedAt?: number;
   gameMode?: unknown;
   mapLayoutId?: unknown;
+  worldSeed?: unknown;
   cells?: SavedGame['cells'];
   keeps?: KeepState[];
   stoneStyle?: StoneStyle;
@@ -429,6 +432,7 @@ export class SaveSystem {
       version: SAVE_VERSION,
       gameMode: this.host.getGameMode(),
       mapLayoutId: this.host.getMapLayoutId(),
+      worldSeed: this.host.getWorldSeed(),
       updatedAt: Date.now(),
       cells: this.host.state.entries(),
       keeps: this.host.keepSystem.entries(),
@@ -474,6 +478,7 @@ export class SaveSystem {
   private applyData(data: SavedGame): void {
     const loadedMode: GameMode = isGameMode(data.gameMode) ? data.gameMode : 'medieval';
     this.host.setMapLayoutId(validMapLayoutId(data.mapLayoutId) ? data.mapLayoutId : 'island');
+    this.host.setWorldSeed(normalizeWorldSeed(data.worldSeed));
     const cells: Array<ReturnType<GameState['entries']>[number]> = [];
 
     for (const cell of data.cells ?? []) {
@@ -587,6 +592,7 @@ export class SaveSystem {
         version: Number(parsed.version ?? 0),
         gameMode: isGameMode(parsed.gameMode) ? parsed.gameMode : undefined,
         mapLayoutId: validMapLayoutId(parsed.mapLayoutId) ? parsed.mapLayoutId : 'island',
+        worldSeed: normalizeWorldSeed(parsed.worldSeed),
         updatedAt: Number(parsed.updatedAt ?? Date.now()),
         cells: parsed.cells ?? [],
         keeps: parsed.keeps ?? [],
@@ -631,6 +637,7 @@ function normalizeRecord(raw: RawSave, target: SaveTarget): SaveRecord | null {
     version: Number(raw.version ?? 0),
     gameMode: isGameMode(raw.gameMode) ? raw.gameMode : undefined,
     mapLayoutId: validMapLayoutId(raw.mapLayoutId) ? raw.mapLayoutId : 'island',
+    worldSeed: normalizeWorldSeed(raw.worldSeed),
     updatedAt: Number(raw.updatedAt ?? Date.now()),
     cells: raw.cells,
     keeps: raw.keeps,
@@ -678,6 +685,11 @@ function normalizeBattleSetup(input: SavedBattleSetup): SavedBattleSetup {
 
 function validGrid(x: number, y: number): boolean {
   return Number.isInteger(x) && Number.isInteger(y) && x >= 0 && y >= 0 && x < WORLD_COLS && y < WORLD_COLS;
+}
+
+function normalizeWorldSeed(value: unknown): number {
+  const numeric = Number(value);
+  return Number.isFinite(numeric) ? Math.trunc(numeric) : 0;
 }
 
 function validMapLayoutId(value: unknown): value is MapLayoutId {

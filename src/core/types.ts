@@ -134,6 +134,7 @@ export interface SavedGame {
   version: number;
   gameMode?: GameMode;
   mapLayoutId?: MapLayoutId;
+  worldSeed?: number;
   updatedAt: number;
   cells: Array<{
     x: number;
