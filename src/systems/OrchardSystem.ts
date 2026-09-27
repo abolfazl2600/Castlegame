@@ -59,7 +59,7 @@ export class OrchardSystem {
     this.addGround(group, layout);
     this.addPlantingRows(group, layout);
 
-    const innerSpan = layout.fieldScale - 0.96;
+    const innerSpan = layout.fieldScale - 1.18;
     const xStep = layout.columns > 1 ? innerSpan / (layout.columns - 1) : 0;
     const zStep = layout.rows > 1 ? innerSpan / (layout.rows - 1) : 0;
 
@@ -132,7 +132,7 @@ export class OrchardSystem {
   }
 
   private addPlantingRows(group: THREE.Group, layout: OrchardLayout): void {
-    const innerSpan = layout.fieldScale - 0.96;
+    const innerSpan = layout.fieldScale - 1.18;
     const xStep = layout.columns > 1 ? innerSpan / (layout.columns - 1) : 0;
 
     for (let col = 0; col < layout.columns; col += 1) {
