@@ -100,7 +100,11 @@ test('Medieval to Modern runtime load rebuilds toolbar and clears stale selectio
   await invokeRuntimeLoadWithoutReload(page);
 
   await expect(page.locator('#game-mode-label')).toHaveText('Modern Fortress');
-  await expect(page.locator('#battle-button')).toBeHidden();
+  await expect(page.locator('#battle-button')).toBeVisible();
+  await page.locator('#military-button').click();
+  await expect(page.locator('#battle-panel')).toBeVisible();
+  await expect(page.locator('#military-missile-lock')).toHaveText('LOCKED · TIER 4');
+  await expect(page.locator('#military-missile-produce')).toBeDisabled();
   await expect(page.locator('#toolbar [data-tool="futuristicCastle"]')).toHaveCount(1);
   await expect(page.locator('#toolbar [data-tool="wall1"]')).toHaveCount(0);
   await expect(page.locator('#toolbar [data-build-none]')).toHaveClass(/is-selected/);
