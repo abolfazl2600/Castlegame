@@ -14,6 +14,7 @@ import type { GameState } from '../state/GameState';
 import type { KeepSystem } from '../building/KeepSystem';
 import { APPLICATION_METADATA } from '../app/applicationMetadata';
 import type {
+  EconomyResourceState,
   KeepState,
   MapLayoutId,
   SavedBattleSetup,
@@ -45,6 +46,8 @@ export interface SaveLoadHost {
   setBattleSetup?(value: SavedBattleSetup): void;
   getMilitaryTier?(): number;
   setMilitaryTier?(value: number): void;
+  getEconomyState?(): EconomyResourceState;
+  setEconomyState?(value?: Partial<EconomyResourceState> | null): void;
   setWorldSeeded(value: boolean): void;
   setLoadedSaveVersion(value: number): void;
   setStoneStyle(value: StoneStyle): void;
@@ -75,6 +78,7 @@ interface RawSave {
   battleSetup?: SavedBattleSetup;
   militaryTier?: number;
   missiles?: SavedGame['missiles'];
+  economy?: EconomyResourceState;
 }
 
 export class SaveSystem {
@@ -444,6 +448,7 @@ export class SaveSystem {
       battleSetup: this.host.getBattleSetup ? { ...this.host.getBattleSetup() } : readBattleSetupFromDom(),
       militaryTier: this.host.getMilitaryTier?.() ?? 1,
       missiles: this.host.state.getMissileState(),
+      economy: this.host.getEconomyState?.(),
     };
   }
 
@@ -542,6 +547,7 @@ export class SaveSystem {
     }
     this.host.setMilitaryTier?.(data.militaryTier ?? 1);
     this.host.state.setMissileState(data.missiles);
+    this.host.setEconomyState?.(data.economy);
     this.host.syncModeDependentUI();
   }
 
@@ -604,6 +610,7 @@ export class SaveSystem {
         battleSetup: parsed.battleSetup,
         militaryTier: parsed.militaryTier,
         missiles: parsed.missiles,
+        economy: parsed.economy,
       };
       const data: SavedGame = parsed.data ?? legacyData;
       if (!validMapLayoutId(data.mapLayoutId)) data.mapLayoutId = 'island';
@@ -649,6 +656,7 @@ function normalizeRecord(raw: RawSave, target: SaveTarget): SaveRecord | null {
     battleSetup: raw.battleSetup,
     militaryTier: raw.militaryTier,
     missiles: raw.missiles,
+    economy: raw.economy,
   } : undefined);
   if (!data || !Array.isArray(data.cells)) return null;
 
