@@ -100,7 +100,7 @@ assert.doesNotMatch(
 const newGameFlow = between(
   threeGame,
   'private handleGameModeSelection(',
-  'private renderGameModeSelection(',
+  'private resetWorldForMode(',
 );
 assert.match(
   newGameFlow,
