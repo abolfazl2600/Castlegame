@@ -5085,13 +5085,15 @@ export class ThreeGame {
 
     const existing = this.existingTowerBridge(start, point);
     if (existing) {
-      this.recordHistory();
-      this.towerBridges.delete(existing.id);
+      this.selectedTowerBridgeId = existing.id;
+      this.selectedCell = null;
+      this.selectedKeepId = null;
       this.towerBridgeStart = null;
       this.towerBridgeHover = null;
       this.clearGroup(this.wallPreviewLayer);
-      this.finishBuild();
-      this.setStatus('Tower Bridge removed · Undo available');
+      this.syncArmyCampUpgradeUI();
+      const level = Math.max(1, Math.min(FORTIFICATION_MAX_LEVEL, Math.floor(existing.level ?? 1)));
+      this.setStatus(`Tower Bridge selected · Level ${level} · upgrade or remove it from Build Settings`);
       return;
     }
 
@@ -5112,17 +5114,22 @@ export class ThreeGame {
       bx: point.x,
       by: point.y,
       kind: this.towerBridgeKind,
+      level: 1,
     };
     this.towerBridges.set(bridge.id, bridge);
+    this.selectedTowerBridgeId = bridge.id;
+    this.selectedCell = null;
+    this.selectedKeepId = null;
     this.spendConstructionCost('towerBridge');
     this.towerBridgeStart = null;
     this.towerBridgeHover = null;
     this.clearGroup(this.wallPreviewLayer);
     this.finishBuild();
+    this.syncArmyCampUpgradeUI();
     this.setStatus(
       bridge.kind === 'stone'
-        ? 'Stone Tower Bridge built'
-        : 'Wooden Tower Bridge built',
+        ? 'Stone Tower Bridge built · Level 1 · upgrade available'
+        : 'Wooden Tower Bridge built · Level 1 · upgrade available',
     );
   }
 
@@ -5193,6 +5200,8 @@ export class ThreeGame {
 
   private makeTowerBridge(bridge: TowerBridgeState): THREE.Group {
     const group = new THREE.Group();
+    const level = Math.max(1, Math.min(FORTIFICATION_MAX_LEVEL, Math.floor(bridge.level ?? 1)));
+    const deckScale = 1 + (level - 1) * 0.1;
     const aCell = this.services.state.getCell(bridge.ax, bridge.ay);
     const bCell = this.services.state.getCell(bridge.bx, bridge.by);
     if (aCell?.kind !== 'tower' || bCell?.kind !== 'tower') return group;
@@ -5219,15 +5228,22 @@ export class ThreeGame {
       const walkway = this.medievalMaterials.castleStone(this.stoneStyle, 'walkway', bridge.ax, bridge.ay);
       const support = this.medievalMaterials.castleStone(this.stoneStyle, 'foundation', bridge.ax, bridge.ay);
 
-      this.addBridgeBeamBetween(group, start, end, CASTLE_ARCHITECTURE_STYLE.bridge.stoneDeckWidth, 0.34, walkway);
+      this.addBridgeBeamBetween(
+        group,
+        start,
+        end,
+        CASTLE_ARCHITECTURE_STYLE.bridge.stoneDeckWidth * deckScale,
+        0.34 + (level - 1) * 0.035,
+        walkway,
+      );
       for (const sign of [-1, 1]) {
-        const offset = side.clone().multiplyScalar(sign * CASTLE_ARCHITECTURE_STYLE.bridge.stoneRailOffset);
+        const offset = side.clone().multiplyScalar(sign * CASTLE_ARCHITECTURE_STYLE.bridge.stoneRailOffset * deckScale);
         const railStart = start.clone().add(offset).add(new THREE.Vector3(0, 0.38, 0));
         const railEnd = end.clone().add(offset).add(new THREE.Vector3(0, 0.38, 0));
         this.addBridgeBeamBetween(group, railStart, railEnd, CASTLE_ARCHITECTURE_STYLE.bridge.stoneRailWidth, CASTLE_ARCHITECTURE_STYLE.bridge.stoneRailHeight, stone);
       }
 
-      const supportCount = Math.max(1, Math.floor(span / 6));
+      const supportCount = Math.max(1, Math.floor(span / Math.max(3.8, 6 - (level - 1) * 0.7)));
       for (let i = 1; i <= supportCount; i += 1) {
         const t = i / (supportCount + 1);
         const center = start.clone().lerp(end, t);
@@ -5254,22 +5270,22 @@ export class ThreeGame {
         const t1 = (i + 0.9) / plankCount;
         const p0 = start.clone().lerp(end, t0);
         const p1 = start.clone().lerp(end, t1);
-        this.addBridgeBeamBetween(group, p0, p1, CASTLE_ARCHITECTURE_STYLE.bridge.woodDeckWidth, 0.18, wood);
+        this.addBridgeBeamBetween(group, p0, p1, CASTLE_ARCHITECTURE_STYLE.bridge.woodDeckWidth * deckScale, 0.18 + (level - 1) * 0.025, wood);
       }
 
       for (const sign of [-1, 1]) {
-        const offset = side.clone().multiplyScalar(sign * CASTLE_ARCHITECTURE_STYLE.bridge.woodRailOffset);
+        const offset = side.clone().multiplyScalar(sign * CASTLE_ARCHITECTURE_STYLE.bridge.woodRailOffset * deckScale);
         const railStart = start.clone().add(offset).add(new THREE.Vector3(0, 0.62, 0));
         const railEnd = end.clone().add(offset).add(new THREE.Vector3(0, 0.62, 0));
         this.addBridgeBeamBetween(group, railStart, railEnd, 0.11, 0.11, dark);
       }
 
-      const postCount = Math.max(3, Math.floor(span / 2.2));
+      const postCount = Math.max(3, Math.floor(span / Math.max(1.35, 2.2 - (level - 1) * 0.22)));
       for (let i = 0; i <= postCount; i += 1) {
         const t = i / postCount;
         const center = start.clone().lerp(end, t);
         for (const sign of [-1, 1]) {
-          const offset = side.clone().multiplyScalar(sign * CASTLE_ARCHITECTURE_STYLE.bridge.woodRailOffset);
+          const offset = side.clone().multiplyScalar(sign * CASTLE_ARCHITECTURE_STYLE.bridge.woodRailOffset * deckScale);
           const post = this.addBridgeBeamBetween(
             group,
             center.clone().add(offset).add(new THREE.Vector3(0, 0.1, 0)),
@@ -5283,7 +5299,79 @@ export class ThreeGame {
       }
     }
 
-    group.userData.towerBridge = { ...bridge };
+    const frameMaterial = bridge.kind === 'stone'
+      ? this.medievalMaterials.castleStone(this.stoneStyle, 'alt', bridge.ax, bridge.ay)
+      : this.medievalMaterials.timberDark;
+    const metal = this.medievalMaterials.iron;
+    const railOffset = (bridge.kind === 'stone'
+      ? CASTLE_ARCHITECTURE_STYLE.bridge.stoneRailOffset
+      : CASTLE_ARCHITECTURE_STYLE.bridge.woodRailOffset) * deckScale;
+
+    if (level >= 2) {
+      const tieCount = Math.max(2, Math.floor(span / 3.1));
+      for (let i = 1; i <= tieCount; i += 1) {
+        const center = start.clone().lerp(end, i / (tieCount + 1)).add(new THREE.Vector3(0, -0.12, 0));
+        const left = center.clone().add(side.clone().multiplyScalar(-railOffset * 0.92));
+        const right = center.clone().add(side.clone().multiplyScalar(railOffset * 0.92));
+        this.addBridgeBeamBetween(group, left, right, 0.16, 0.16, frameMaterial);
+      }
+    }
+
+    if (level >= 3) {
+      for (const sign of [-1, 1]) {
+        const offset = side.clone().multiplyScalar(sign * railOffset);
+        const upperStart = start.clone().add(offset).add(new THREE.Vector3(0, 1.08, 0));
+        const upperEnd = end.clone().add(offset).add(new THREE.Vector3(0, 1.08, 0));
+        this.addBridgeBeamBetween(group, upperStart, upperEnd, 0.13, 0.13, frameMaterial);
+      }
+
+      const guardCount = Math.max(2, Math.floor(span / 4));
+      for (let i = 1; i <= guardCount; i += 1) {
+        const center = start.clone().lerp(end, i / (guardCount + 1));
+        for (const sign of [-1, 1]) {
+          const base = center.clone().add(side.clone().multiplyScalar(sign * railOffset));
+          this.addBridgeBeamBetween(
+            group,
+            base.clone().add(new THREE.Vector3(0, 0.18, 0)),
+            base.clone().add(new THREE.Vector3(0, 1.42, 0)),
+            0.14,
+            0.14,
+            frameMaterial,
+          );
+        }
+      }
+    }
+
+    if (level >= 4) {
+      for (const t of [0.3, 0.7]) {
+        const center = start.clone().lerp(end, t);
+        const leftBase = center.clone().add(side.clone().multiplyScalar(-railOffset));
+        const rightBase = center.clone().add(side.clone().multiplyScalar(railOffset));
+        const leftTop = leftBase.clone().add(new THREE.Vector3(0, 1.86, 0));
+        const rightTop = rightBase.clone().add(new THREE.Vector3(0, 1.86, 0));
+        this.addBridgeBeamBetween(group, leftBase.clone().add(new THREE.Vector3(0, 0.18, 0)), leftTop, 0.15, 0.15, metal);
+        this.addBridgeBeamBetween(group, rightBase.clone().add(new THREE.Vector3(0, 0.18, 0)), rightTop, 0.15, 0.15, metal);
+        this.addBridgeBeamBetween(group, leftTop, rightTop, 0.15, 0.15, metal);
+      }
+
+      const center = start.clone().lerp(end, 0.5);
+      const pole = this.addBox(group, 0.07, 2.0, 0.07, metal, center.x, center.y + 1.0, center.z);
+      pole.rotation.y = Math.atan2(horizontal.x, horizontal.z);
+      const pennant = this.addBox(
+        group,
+        0.78,
+        0.34,
+        0.05,
+        this.medievalMaterials.roofTile,
+        center.x + horizontal.x * 0.38,
+        center.y + 1.68,
+        center.z + horizontal.z * 0.38,
+      );
+      pennant.rotation.y = Math.atan2(horizontal.x, horizontal.z);
+      pennant.userData.castleFlag = { phase: bridge.id * 0.61 };
+    }
+
+    group.userData.towerBridge = { ...bridge, level };
     return group;
   }
 
@@ -5294,6 +5382,7 @@ export class ThreeGame {
         (bridge.bx === x && bridge.by === y)
       ) {
         this.towerBridges.delete(id);
+        if (this.selectedTowerBridgeId === id) this.selectedTowerBridgeId = null;
       }
     }
   }
@@ -11023,6 +11112,7 @@ export class ThreeGame {
         bx: b.x,
         by: b.y,
         kind,
+        level: 1,
       };
       this.towerBridges.set(bridge.id, bridge);
     };
