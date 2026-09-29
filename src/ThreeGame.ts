@@ -12,7 +12,14 @@ import { BasilicaRenderer } from './rendering/BasilicaRenderer';
 import { MedievalMaterials } from './rendering/MedievalMaterials';
 import { CASTLE_ARCHITECTURE_STYLE } from './rendering/CastleArchitectureStyle';
 import { WORLD_STYLE, styleTone } from './rendering/WorldStyle';
-import { RESIDENCE_LAYOUTS, SETTLEMENT_STYLE, settlementVariant, type ResidenceKind } from './rendering/SettlementStyle';
+import {
+  RESIDENCE_LAYOUTS,
+  RESIDENCE_VISUAL_LEVELS,
+  RESIDENCE_VISUAL_VARIANTS,
+  SETTLEMENT_STYLE,
+  settlementVariant,
+  type ResidenceKind,
+} from './rendering/SettlementStyle';
 import { getTemplateVisualPreset } from './rendering/TemplateVisualStyle';
 import { upgradeVisualProfile } from './rendering/UpgradeVisualLanguage';
 import { BattleSystem, getUnitCombatStats } from './battle/BattleSystem';
@@ -298,7 +305,7 @@ const TOOL_GROUPS: Array<{ label: string; tools: ToolDefinition[] }> = [
     tools: [
       { id: 'farm', icon: '🌾', label: 'Farm', detail: 'Upgradeable crop farm · 4 visual levels', shortcut: 'F' },
       { id: 'cowBarn', icon: '🐄', label: 'Cow Barn', detail: 'Upgradeable cattle farm · 4 visual levels', shortcut: '-' },
-      { id: 'appleOrchard', icon: '🍎', label: 'Apple Orchard', detail: 'Procedural apple trees · orchard plot', shortcut: 'Y' },
+      { id: 'appleOrchard', icon: '🍎', label: 'Apple Orchard', detail: 'Four visual maturity levels · procedural apple trees', shortcut: 'Y' },
       { id: 'windmill', icon: '⚙️', label: 'Medieval Windmill', detail: 'Four-sail working mill · continuous rotation', shortcut: 'W' },
     ],
   },
@@ -5803,6 +5810,8 @@ export class ThreeGame {
 
 
   private makeMarketBuilding(group: THREE.Group, gx: number, gy: number): THREE.Group {
+    group.userData.settlementFamily = 'market';
+    group.userData.settlementReadabilityClass = 'landmark';
     const timber = this.environmentMaterial('market-timber', 0x65452f, 0.98);
     const timberLight = this.environmentMaterial('market-timber-light', 0x8a623d, 0.96);
     const woodDark = this.environmentMaterial('market-wood-dark', 0x473022, 1);
@@ -6023,6 +6032,13 @@ export class ThreeGame {
     gx: number,
     gy: number,
   ): THREE.Group {
+    if (kind !== 'cowBarn') {
+      const visualLevel = RESIDENCE_VISUAL_LEVELS[kind];
+      group.userData.upgradeVisualProfile = upgradeVisualProfile(visualLevel);
+      group.userData.residenceVisualLevel = visualLevel;
+      group.userData.residenceVisualVariant = RESIDENCE_VISUAL_VARIANTS[kind];
+    }
+
     const pathMaterial = this.environmentMaterial('village-path', 0xa98d70, 1);
     const pathDark = this.environmentMaterial('village-path-dark', 0x826b55, 1);
     const fenceMaterial = this.environmentMaterial('village-fence', 0x6f4e37, 1);
@@ -6069,6 +6085,19 @@ export class ThreeGame {
       garden.position.set(1.05, 2.27, 0.98);
       group.add(garden);
       this.addVillageWell(group, 1.04, 0.92);
+
+      // Level 4 residential landmark: the tall corner pavilion receives a
+      // visible cupola, so Villa reads as the final tier from normal zoom.
+      const cupolaWall = this.environmentMaterial('villa-landmark-cupola-wall', SETTLEMENT_STYLE.stone, 0.96);
+      const cupolaRoof = this.environmentMaterial('villa-landmark-cupola-roof', SETTLEMENT_STYLE.roof[2], 0.94);
+      this.addSettlementBox(group, 0.5, 0.72, 0.5, cupolaWall, 1.2, 5.72, -0.92);
+      const cupola = new THREE.Mesh(new THREE.ConeGeometry(0.47, 0.7, 4), cupolaRoof);
+      cupola.rotation.y = Math.PI / 4;
+      cupola.position.set(1.2, 6.43, -0.92);
+      cupola.castShadow = true;
+      cupola.receiveShadow = true;
+      group.add(cupola);
+      group.userData.residenceLandmark = 'corner-cupola';
     }
 
     // Edge fences, benches, barrels and market-like clutter give the block a
@@ -8949,21 +8978,21 @@ export class ThreeGame {
       if (current === 'appleOrchard') {
         const nextSize = event.shiftKey
           ? Math.max(1, (cell?.level ?? 1) - 1)
-          : Math.min(3, (cell?.level ?? 1) + 1);
+          : Math.min(4, (cell?.level ?? 1) + 1);
         if (nextSize === (cell?.level ?? 1)) {
-          this.setStatus(event.shiftKey ? 'Apple Orchard is already at minimum size' : 'Apple Orchard is already at maximum size');
+          this.setStatus(event.shiftKey ? 'Apple Orchard is already at Level 1' : 'Apple Orchard is already at Level 4 · Estate Orchard');
           return;
         }
         this.recordHistory();
         this.services.state.setCell(gx, gy, 'appleOrchard', nextSize);
         this.finishBuild();
-        this.setStatus(`Apple Orchard size: ${nextSize}`);
+        this.setStatus(`Apple Orchard visual level: ${nextSize}`);
         return;
       }
       if (!current && terrain === 'plains') {
         if (!this.ensureConstructionAffordable('appleOrchard')) return;
         this.recordHistory();
-        const size = 1 + ((gx * 7 + gy * 11) % 3);
+        const size = 1 + ((gx * 7 + gy * 11) % 4);
         this.services.state.setCell(gx, gy, 'appleOrchard', size);
         this.spendConstructionCost('appleOrchard');
         this.finishBuild();
