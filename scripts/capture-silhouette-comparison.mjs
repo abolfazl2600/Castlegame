@@ -7,7 +7,8 @@ const outFlag = process.argv.indexOf('--out');
 const output = outFlag === -1 ? 'visual-baselines/silhouette' : process.argv[outFlag + 1];
 if (!output) throw new Error('Pass an output folder after --out');
 
-const url = 'http://127.0.0.1:4173/Castlegame/';
+const port = process.env.VISUAL_PORT ?? '4173';
+const url = `http://127.0.0.1:${port}/Castlegame/`;
 let server;
 
 async function waitForServer() {
@@ -62,7 +63,7 @@ async function capture(browser, name, viewport) {
 
 try {
   await mkdir(output, { recursive: true });
-  server = spawn('npm', ['run', 'preview', '--', '--host', '127.0.0.1', '--port', '4173'], {
+  server = spawn('npm', ['run', 'preview', '--', '--host', '127.0.0.1', '--port', port], {
     stdio: 'ignore',
   });
   await waitForServer();
