@@ -9681,13 +9681,6 @@ export class ThreeGame {
     );
   }
 
-  private isSettlementWorkKind(kind: TileKind): boolean {
-    return (
-      kind === 'farm' ||
-      kind === 'appleOrchard' ||
-      kind === 'cowBarn'
-    );
-  }
   private createSettlementPerson(
     role: SettlementAgent['role'],
     seed: number,
