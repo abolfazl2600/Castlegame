@@ -4,11 +4,11 @@
 
 This is the final integration/QA pass for the completed Visual Readability series.
 
-Phases #134, #135, and #136 are now implemented on `main`:
+Phases #134, #135, and #136 are complete and implemented on `main`:
 
-- #134 — centralized ambient world motion
-- #135 — deterministic seasonal/environment transitions with save/load state
-- #136 — distance-aware rendering budgets for desktop/mobile, shadow caps, raster scaling, and animation scaling
+- #134 — complete — centralized ambient world motion
+- #135 — complete — deterministic seasonal/environment transitions with save/load state
+- #136 — complete — distance-aware rendering budgets for desktop/mobile, shadow caps, raster scaling, and animation scaling
 
 The final QA therefore validates these systems together rather than treating #135/#136 as deferred work.
 
@@ -54,6 +54,10 @@ The visual benchmark diagnostics now expose the active `DistanceDetailBudgetSyst
 - Strategic captures select the strategic band.
 - Mobile landscape selects the mobile budget profile.
 - Active shadow casters never exceed the current band cap.
+- Active high-detail meshes never exceed the current band cap.
+- Measured and estimated draw calls are validated against the active distance-band budget.
+- Dense strategic scenes must be cheaper than dense normal scenes.
+- Dense mobile normal/strategic fixtures select the stricter mobile profile.
 - The active environment and budget state are stored in `metrics.json`.
 
 The runner also continues recording frame time, draw calls, triangles, scene materials, redraw time, and UI coverage. Headless Chromium uses ANGLE/SwiftShader, so absolute frame-time numbers are regression evidence rather than physical-GPU FPS promises.
@@ -104,4 +108,4 @@ The final pass is considered coherent when:
 - reference screenshots and metrics are emitted for regression comparison
 - any remaining measured performance defect is isolated into a focused follow-up issue
 
-Current focused follow-up: #158 tracks enforcement of dense-scene draw-call and high-detail-mesh budgets that #136 documented but did not fully enforce.
+#158 is implemented on this branch: dense-scene draw-call and high-detail-mesh budgets are now actively enforced and validated by final QA.
