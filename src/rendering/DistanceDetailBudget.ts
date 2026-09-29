@@ -102,8 +102,7 @@ function parentHasReadabilityPriority(object: THREE.Object3D): boolean {
     if (
       current.userData.defenseSilhouette ||
       current.userData.settlementReadabilityClass === 'landmark' ||
-      current.userData.cellKind === 'keep' ||
-      current.userData.cellKind === 'futuristicCastle'
+      current.userData.cellKind === 'keep'
     ) return true;
     current = current.parent;
   }
