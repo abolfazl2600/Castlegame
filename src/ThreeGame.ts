@@ -632,6 +632,8 @@ export class ThreeGame {
           gpuTextures: this.renderer.info.memory.textures,
           lastRedrawMs: this.lastRedrawMs,
           ambientMotion: this.ambientMotion.stats(),
+          visualBudget: this.distanceDetailBudget.snapshot(),
+          environment: this.environmentSystem.visualState(),
           pixelRatio: this.renderer.getPixelRatio(),
           drawingBuffer: { width: drawingBuffer.x, height: drawingBuffer.y },
           gpu: {
