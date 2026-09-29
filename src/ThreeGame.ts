@@ -121,6 +121,34 @@ const HARBOR_LEVELS = [
 ] as const;
 const HARBOR_MAX_LEVEL = HARBOR_LEVELS.length;
 
+type FortificationUpgradeKind = 'tower' | 'gate' | 'towerBridge';
+interface FortificationUpgradeLevel {
+  level: 1 | 2 | 3 | 4;
+  name: string;
+  description: string;
+}
+const FORTIFICATION_UPGRADE_LEVELS: Record<FortificationUpgradeKind, readonly FortificationUpgradeLevel[]> = {
+  tower: [
+    { level: 1, name: 'Watch Tower', description: 'A practical defensive tower with a basic fighting platform and simple firing positions.' },
+    { level: 2, name: 'Reinforced Tower', description: 'Stronger masonry bands, improved upper defenses, and a more substantial silhouette mark the first major upgrade.' },
+    { level: 3, name: 'Command Tower', description: 'A projecting defense gallery, richer stonework, and command details make the tower visibly more advanced.' },
+    { level: 4, name: 'Royal Bastion', description: 'The tallest, most refined tower form adds a fortified crown, metal detailing, and prominent standards.' },
+  ],
+  gate: [
+    { level: 1, name: 'Castle Gate', description: 'A functional timber gate set into a compact stone gateway.' },
+    { level: 2, name: 'Reinforced Gate', description: 'Heavier masonry, iron door reinforcement, and stronger side supports improve the entrance defense.' },
+    { level: 3, name: 'Guarded Gatehouse', description: 'A taller gatehouse with machicolation-style supports, firing positions, and a more imposing upper defense.' },
+    { level: 4, name: 'Royal Gatehouse', description: 'Twin elevated guard turrets, formal standards, and premium defensive detailing create a landmark entrance.' },
+  ],
+  towerBridge: [
+    { level: 1, name: 'Tower Walk', description: 'A simple elevated crossing between two compatible towers.' },
+    { level: 2, name: 'Reinforced Bridge', description: 'A broader deck with denser supports and stronger side protection improves the crossing.' },
+    { level: 3, name: 'Fortified Skyway', description: 'Guard frames, reinforced rails, and structural bracing give the bridge a mature defensive profile.' },
+    { level: 4, name: 'Royal Tower Bridge', description: 'A prestigious fortified crossing with overhead guard frames, metal accents, and visible standards.' },
+  ],
+};
+const FORTIFICATION_MAX_LEVEL = 4;
+
 const BUILDING_KINDS: TileKind[] = [
   'wall1',
   'wall2',
@@ -237,7 +265,7 @@ const TOOL_GROUPS: Array<{ label: string; tools: ToolDefinition[] }> = [
       { id: 'wall3', icon: '🛡️', label: 'Reinforced Wall', detail: 'Drag A → B · heavy defense', shortcut: '3' },
       { id: 'gate', icon: '🚪', label: 'Gate', detail: 'Snaps into fortification lines', shortcut: '4' },
       { id: 'tower', icon: '🏰', label: 'Modular Tower', detail: '5 bases · medieval roof modules', shortcut: '5' },
-      { id: 'towerBridge', icon: '🌉', label: 'Tower Bridge', detail: 'Select two compatible towers', shortcut: 'D' },
+      { id: 'towerBridge', icon: '🌉', label: 'Tower Bridge', detail: 'Build or select between two compatible towers', shortcut: 'D' },
       { id: 'keep', icon: '🏯', label: 'Modular Keep', detail: 'Width · depth · floors · roof', shortcut: 'P' },
       { id: 'moat', icon: '💧', label: 'Moat', detail: 'Workers excavate queued tiles', shortcut: 'Q' },
     ],
@@ -412,6 +440,7 @@ export class ThreeGame {
   private towerBridgeHover: GridPoint | null = null;
   private readonly towerBridges = new Map<number, TowerBridgeState>();
   private nextTowerBridgeId = 1;
+  private selectedTowerBridgeId: number | null = null;
   private keepWidth = 3;
   private keepDepth = 3;
   private keepFloors = 3;
@@ -1391,6 +1420,7 @@ export class ThreeGame {
     this.services.keepSystem.clear();
     this.towerBridges.clear();
     this.nextTowerBridgeId = 1;
+    this.selectedTowerBridgeId = null;
     this.towerBridgeStart = null;
     this.towerBridgeHover = null;
     this.clearGroup(this.wallPreviewLayer);
@@ -4558,10 +4588,13 @@ export class ThreeGame {
     gy: number,
     cell: GridCell,
   ): THREE.Group {
+    const safeLevel = Math.max(1, Math.min(FORTIFICATION_MAX_LEVEL, Math.floor(cell.level ?? 1)));
     const wallMaterial = this.medievalMaterials.castleStone(this.stoneStyle, 'body', gx, gy);
     const foundation = this.medievalMaterials.castleStone(this.stoneStyle, 'foundation', gx, gy);
+    const accentStone = this.medievalMaterials.castleStone(this.stoneStyle, 'alt', gx, gy);
     const woodMaterial = this.medievalMaterials.timber;
     const darkWood = this.medievalMaterials.timberDark;
+    const iron = this.medievalMaterials.iron;
     const shadow = this.medievalMaterials.arrowVoid;
 
     const orientation = this.resolveGateOrientation(gx, gy, cell);
@@ -4572,10 +4605,16 @@ export class ThreeGame {
     const gateStyle = CASTLE_ARCHITECTURE_STYLE.gate;
     const gateHalfWidth = gateStyle.width / 2;
     const pierX = gateHalfWidth - gateStyle.pierWidth / 2;
+    const levelRise = (safeLevel - 1) * 0.55;
+    const gateBodyHeight = gateStyle.bodyHeight + levelRise;
+    const gateBodyCenterY = 5.22 + levelRise / 2;
+    const topBandY = 7.28 + levelRise;
+    const walkwayY = 7.72 + levelRise;
+    const battlementY = 7.78 + levelRise;
     this.addBox(core, gateStyle.width, 0.82, gateStyle.depth, foundation, 0, 2.15, 0);
-    this.addBox(core, gateStyle.pierWidth, gateStyle.bodyHeight, gateStyle.depth - 0.18, wallMaterial, -pierX, 5.22, 0);
-    this.addBox(core, gateStyle.pierWidth, gateStyle.bodyHeight, gateStyle.depth - 0.18, wallMaterial, pierX, 5.22, 0);
-    this.addBox(core, gateStyle.width, gateStyle.topBandHeight, gateStyle.depth - 0.12, wallMaterial, 0, 7.28, 0);
+    this.addBox(core, gateStyle.pierWidth, gateBodyHeight, gateStyle.depth - 0.18, wallMaterial, -pierX, gateBodyCenterY, 0);
+    this.addBox(core, gateStyle.pierWidth, gateBodyHeight, gateStyle.depth - 0.18, wallMaterial, pierX, gateBodyCenterY, 0);
+    this.addBox(core, gateStyle.width, gateStyle.topBandHeight, gateStyle.depth - 0.12, wallMaterial, 0, topBandY, 0);
 
     this.addBox(door, gateStyle.openingWidth, gateStyle.openingHeight, 0.2, shadow, 0, 4.2, -gateStyle.depth / 2 + 0.07);
     this.addBox(door, gateStyle.openingWidth - 0.17, gateStyle.openingHeight - 0.15, 0.24, woodMaterial, 0, 4.18, -gateStyle.depth / 2 - 0.05);
@@ -4587,9 +4626,95 @@ export class ThreeGame {
     }
     core.add(door);
 
-    this.addBox(core, gateStyle.width + 0.2, gateStyle.walkwayThickness, gateStyle.depth + 0.08, this.medievalMaterials.castleStone(this.stoneStyle, 'walkway', gx, gy), 0, 7.72, 0);
-    this.addTowerCrenellatedEdge(core, gateStyle.width - 0.46, 0, -(gateStyle.depth / 2 - 0.3), 7.78, 0, wallMaterial);
-    this.addTowerCrenellatedEdge(core, gateStyle.width - 0.46, 0, gateStyle.depth / 2 - 0.3, 7.78, Math.PI, wallMaterial);
+    this.addBox(core, gateStyle.width + 0.2, gateStyle.walkwayThickness, gateStyle.depth + 0.08, this.medievalMaterials.castleStone(this.stoneStyle, 'walkway', gx, gy), 0, walkwayY, 0);
+    this.addTowerCrenellatedEdge(core, gateStyle.width - 0.46, 0, -(gateStyle.depth / 2 - 0.3), battlementY, 0, wallMaterial);
+    this.addTowerCrenellatedEdge(core, gateStyle.width - 0.46, 0, gateStyle.depth / 2 - 0.3, battlementY, Math.PI, wallMaterial);
+
+    if (safeLevel >= 2) {
+      for (const y of [3.45, 4.25, 5.05]) {
+        this.addBox(door, gateStyle.openingWidth - 0.26, 0.09, 0.39, iron, 0, y, -1.4);
+      }
+      for (const sign of [-1, 1]) {
+        this.addTaperedButtress(
+          core,
+          sign * (gateHalfWidth - 0.18),
+          4.08,
+          0,
+          3.65,
+          0.42,
+          0.78,
+          accentStone,
+        );
+      }
+    }
+
+    if (safeLevel >= 3) {
+      const corbelY = walkwayY - 0.5;
+      for (const x of [-1.45, -0.48, 0.48, 1.45]) {
+        for (const zSign of [-1, 1]) {
+          this.addBox(
+            core,
+            0.34,
+            0.62,
+            0.46,
+            accentStone,
+            x,
+            corbelY,
+            zSign * (gateStyle.depth / 2 + 0.08),
+          );
+        }
+      }
+      for (const x of [-pierX, pierX]) {
+        for (const zSign of [-1, 1]) {
+          this.addBox(
+            core,
+            0.16,
+            0.72,
+            0.08,
+            shadow,
+            x,
+            topBandY - 0.45,
+            zSign * (gateStyle.depth / 2 + 0.02),
+          );
+        }
+      }
+    }
+
+    if (safeLevel >= 4) {
+      const turretHeight = 1.85;
+      const turretRadius = 0.72;
+      for (const sign of [-1, 1]) {
+        const turret = new THREE.Mesh(
+          new THREE.CylinderGeometry(turretRadius, turretRadius * 1.06, turretHeight, 12),
+          wallMaterial,
+        );
+        turret.position.set(sign * (gateHalfWidth - 0.26), walkwayY + turretHeight / 2 - 0.05, 0);
+        turret.castShadow = true;
+        turret.receiveShadow = true;
+        core.add(turret);
+
+        const crown = new THREE.Mesh(
+          new THREE.CylinderGeometry(turretRadius * 1.12, turretRadius * 1.12, 0.24, 12),
+          accentStone,
+        );
+        crown.position.set(sign * (gateHalfWidth - 0.26), walkwayY + turretHeight - 0.02, 0);
+        crown.castShadow = true;
+        core.add(crown);
+
+        this.addBox(core, 0.07, 1.85, 0.07, iron, sign * (gateHalfWidth - 0.26), walkwayY + turretHeight + 0.82, 0);
+        const flag = this.addBox(
+          core,
+          0.72,
+          0.34,
+          0.05,
+          this.medievalMaterials.roofTile,
+          sign * (gateHalfWidth - 0.26) + 0.36,
+          walkwayY + turretHeight + 1.35,
+          0,
+        );
+        flag.userData.castleFlag = { phase: gx * 0.37 + gy * 0.23 + sign };
+      }
+    }
 
     if (vertical) core.rotation.y = Math.PI / 2;
     group.add(core);
@@ -4622,7 +4747,7 @@ export class ThreeGame {
   }
 
   private makeTower(group: THREE.Group, gx: number, gy: number, cell: GridCell): THREE.Group {
-    const level = cell.level ?? 1;
+    const level = Math.max(1, Math.min(FORTIFICATION_MAX_LEVEL, Math.floor(cell.level ?? 1)));
     const shape = cell.towerShape ?? 'round';
     const top = cell.towerTop ?? 'battlement';
     const height = (shape === 'watch' ? 6.4 : 7.4) + Math.max(0, level - 1) * CASTLE_ARCHITECTURE_STYLE.tower.levelRise;
@@ -4788,6 +4913,57 @@ export class ThreeGame {
       );
     }
 
+    if (level >= 2) {
+      const crestY = topY - 1.18;
+      const crestOffset = openingRadius + 0.055;
+      const north = this.addBox(group, 0.48, 0.68, 0.12, stoneAccent, 0, crestY, -crestOffset);
+      const south = this.addBox(group, 0.48, 0.68, 0.12, stoneAccent, 0, crestY, crestOffset);
+      const west = this.addBox(group, 0.12, 0.68, 0.48, stoneAccent, -crestOffset, crestY, 0);
+      const east = this.addBox(group, 0.12, 0.68, 0.48, stoneAccent, crestOffset, crestY, 0);
+      north.rotation.y = 0;
+      south.rotation.y = Math.PI;
+      west.rotation.y = Math.PI / 2;
+      east.rotation.y = -Math.PI / 2;
+    }
+
+    if (level >= 3) {
+      if (squareLike) {
+        this.addBox(group, width + 0.72, 0.24, width + 0.72, stoneAccent, 0, topY - 0.38, 0);
+      } else {
+        const segments = shape === 'octagonal' ? 8 : shape === 'watch' ? 12 : 20;
+        const gallery = new THREE.Mesh(
+          new THREE.CylinderGeometry(radius * 1.2, radius * 1.2, 0.24, segments),
+          stoneAccent,
+        );
+        gallery.position.y = topY - 0.38;
+        gallery.castShadow = true;
+        gallery.receiveShadow = true;
+        group.add(gallery);
+      }
+    }
+
+    if (level >= 4) {
+      if (squareLike) {
+        this.addBox(group, width + 0.92, 0.22, width + 0.92, darkStone, 0, topY + 0.04, 0);
+      } else {
+        const segments = shape === 'octagonal' ? 8 : shape === 'watch' ? 12 : 20;
+        const crown = new THREE.Mesh(
+          new THREE.CylinderGeometry(radius * 1.28, radius * 1.28, 0.22, segments),
+          darkStone,
+        );
+        crown.position.y = topY + 0.04;
+        crown.castShadow = true;
+        group.add(crown);
+      }
+
+      for (const sign of [-1, 1]) {
+        const poleX = sign * Math.min(1.05, openingRadius * 0.55);
+        this.addBox(group, 0.07, 2.05, 0.07, metal, poleX, topY + 1.05, 0);
+        const pennant = this.addBox(group, 0.7, 0.32, 0.05, roofMaterial, poleX + 0.35, topY + 1.72, 0);
+        pennant.userData.castleFlag = { phase: gx * 0.29 + gy * 0.43 + sign * 0.7 };
+      }
+    }
+
     this.addTowerTop(group, shape, top, topY, squareLike ? width : radius, stone, roofMaterial, wood, metal);
 
     const autoFlag =
@@ -4894,7 +5070,7 @@ export class ThreeGame {
       this.towerBridgeStart = { ...point };
       this.towerBridgeHover = null;
       this.clearGroup(this.wallPreviewLayer);
-      this.setStatus('Tower Bridge: select the second compatible tower');
+      this.setStatus('Tower Bridge: select the second tower · an existing connection will be selected for upgrades');
       return;
     }
 
@@ -4909,13 +5085,15 @@ export class ThreeGame {
 
     const existing = this.existingTowerBridge(start, point);
     if (existing) {
-      this.recordHistory();
-      this.towerBridges.delete(existing.id);
+      this.selectedTowerBridgeId = existing.id;
+      this.selectedCell = null;
+      this.selectedKeepId = null;
       this.towerBridgeStart = null;
       this.towerBridgeHover = null;
       this.clearGroup(this.wallPreviewLayer);
-      this.finishBuild();
-      this.setStatus('Tower Bridge removed · Undo available');
+      this.syncArmyCampUpgradeUI();
+      const level = Math.max(1, Math.min(FORTIFICATION_MAX_LEVEL, Math.floor(existing.level ?? 1)));
+      this.setStatus(`Tower Bridge selected · Level ${level} · upgrade or remove it from Build Settings`);
       return;
     }
 
@@ -4936,17 +5114,22 @@ export class ThreeGame {
       bx: point.x,
       by: point.y,
       kind: this.towerBridgeKind,
+      level: 1,
     };
     this.towerBridges.set(bridge.id, bridge);
+    this.selectedTowerBridgeId = bridge.id;
+    this.selectedCell = null;
+    this.selectedKeepId = null;
     this.spendConstructionCost('towerBridge');
     this.towerBridgeStart = null;
     this.towerBridgeHover = null;
     this.clearGroup(this.wallPreviewLayer);
     this.finishBuild();
+    this.syncArmyCampUpgradeUI();
     this.setStatus(
       bridge.kind === 'stone'
-        ? 'Stone Tower Bridge built'
-        : 'Wooden Tower Bridge built',
+        ? 'Stone Tower Bridge built · Level 1 · upgrade available'
+        : 'Wooden Tower Bridge built · Level 1 · upgrade available',
     );
   }
 
@@ -5017,6 +5200,8 @@ export class ThreeGame {
 
   private makeTowerBridge(bridge: TowerBridgeState): THREE.Group {
     const group = new THREE.Group();
+    const level = Math.max(1, Math.min(FORTIFICATION_MAX_LEVEL, Math.floor(bridge.level ?? 1)));
+    const deckScale = 1 + (level - 1) * 0.1;
     const aCell = this.services.state.getCell(bridge.ax, bridge.ay);
     const bCell = this.services.state.getCell(bridge.bx, bridge.by);
     if (aCell?.kind !== 'tower' || bCell?.kind !== 'tower') return group;
@@ -5043,15 +5228,22 @@ export class ThreeGame {
       const walkway = this.medievalMaterials.castleStone(this.stoneStyle, 'walkway', bridge.ax, bridge.ay);
       const support = this.medievalMaterials.castleStone(this.stoneStyle, 'foundation', bridge.ax, bridge.ay);
 
-      this.addBridgeBeamBetween(group, start, end, CASTLE_ARCHITECTURE_STYLE.bridge.stoneDeckWidth, 0.34, walkway);
+      this.addBridgeBeamBetween(
+        group,
+        start,
+        end,
+        CASTLE_ARCHITECTURE_STYLE.bridge.stoneDeckWidth * deckScale,
+        0.34 + (level - 1) * 0.035,
+        walkway,
+      );
       for (const sign of [-1, 1]) {
-        const offset = side.clone().multiplyScalar(sign * CASTLE_ARCHITECTURE_STYLE.bridge.stoneRailOffset);
+        const offset = side.clone().multiplyScalar(sign * CASTLE_ARCHITECTURE_STYLE.bridge.stoneRailOffset * deckScale);
         const railStart = start.clone().add(offset).add(new THREE.Vector3(0, 0.38, 0));
         const railEnd = end.clone().add(offset).add(new THREE.Vector3(0, 0.38, 0));
         this.addBridgeBeamBetween(group, railStart, railEnd, CASTLE_ARCHITECTURE_STYLE.bridge.stoneRailWidth, CASTLE_ARCHITECTURE_STYLE.bridge.stoneRailHeight, stone);
       }
 
-      const supportCount = Math.max(1, Math.floor(span / 6));
+      const supportCount = Math.max(1, Math.floor(span / Math.max(3.8, 6 - (level - 1) * 0.7)));
       for (let i = 1; i <= supportCount; i += 1) {
         const t = i / (supportCount + 1);
         const center = start.clone().lerp(end, t);
@@ -5078,22 +5270,22 @@ export class ThreeGame {
         const t1 = (i + 0.9) / plankCount;
         const p0 = start.clone().lerp(end, t0);
         const p1 = start.clone().lerp(end, t1);
-        this.addBridgeBeamBetween(group, p0, p1, CASTLE_ARCHITECTURE_STYLE.bridge.woodDeckWidth, 0.18, wood);
+        this.addBridgeBeamBetween(group, p0, p1, CASTLE_ARCHITECTURE_STYLE.bridge.woodDeckWidth * deckScale, 0.18 + (level - 1) * 0.025, wood);
       }
 
       for (const sign of [-1, 1]) {
-        const offset = side.clone().multiplyScalar(sign * CASTLE_ARCHITECTURE_STYLE.bridge.woodRailOffset);
+        const offset = side.clone().multiplyScalar(sign * CASTLE_ARCHITECTURE_STYLE.bridge.woodRailOffset * deckScale);
         const railStart = start.clone().add(offset).add(new THREE.Vector3(0, 0.62, 0));
         const railEnd = end.clone().add(offset).add(new THREE.Vector3(0, 0.62, 0));
         this.addBridgeBeamBetween(group, railStart, railEnd, 0.11, 0.11, dark);
       }
 
-      const postCount = Math.max(3, Math.floor(span / 2.2));
+      const postCount = Math.max(3, Math.floor(span / Math.max(1.35, 2.2 - (level - 1) * 0.22)));
       for (let i = 0; i <= postCount; i += 1) {
         const t = i / postCount;
         const center = start.clone().lerp(end, t);
         for (const sign of [-1, 1]) {
-          const offset = side.clone().multiplyScalar(sign * CASTLE_ARCHITECTURE_STYLE.bridge.woodRailOffset);
+          const offset = side.clone().multiplyScalar(sign * CASTLE_ARCHITECTURE_STYLE.bridge.woodRailOffset * deckScale);
           const post = this.addBridgeBeamBetween(
             group,
             center.clone().add(offset).add(new THREE.Vector3(0, 0.1, 0)),
@@ -5107,7 +5299,79 @@ export class ThreeGame {
       }
     }
 
-    group.userData.towerBridge = { ...bridge };
+    const frameMaterial = bridge.kind === 'stone'
+      ? this.medievalMaterials.castleStone(this.stoneStyle, 'alt', bridge.ax, bridge.ay)
+      : this.medievalMaterials.timberDark;
+    const metal = this.medievalMaterials.iron;
+    const railOffset = (bridge.kind === 'stone'
+      ? CASTLE_ARCHITECTURE_STYLE.bridge.stoneRailOffset
+      : CASTLE_ARCHITECTURE_STYLE.bridge.woodRailOffset) * deckScale;
+
+    if (level >= 2) {
+      const tieCount = Math.max(2, Math.floor(span / 3.1));
+      for (let i = 1; i <= tieCount; i += 1) {
+        const center = start.clone().lerp(end, i / (tieCount + 1)).add(new THREE.Vector3(0, -0.12, 0));
+        const left = center.clone().add(side.clone().multiplyScalar(-railOffset * 0.92));
+        const right = center.clone().add(side.clone().multiplyScalar(railOffset * 0.92));
+        this.addBridgeBeamBetween(group, left, right, 0.16, 0.16, frameMaterial);
+      }
+    }
+
+    if (level >= 3) {
+      for (const sign of [-1, 1]) {
+        const offset = side.clone().multiplyScalar(sign * railOffset);
+        const upperStart = start.clone().add(offset).add(new THREE.Vector3(0, 1.08, 0));
+        const upperEnd = end.clone().add(offset).add(new THREE.Vector3(0, 1.08, 0));
+        this.addBridgeBeamBetween(group, upperStart, upperEnd, 0.13, 0.13, frameMaterial);
+      }
+
+      const guardCount = Math.max(2, Math.floor(span / 4));
+      for (let i = 1; i <= guardCount; i += 1) {
+        const center = start.clone().lerp(end, i / (guardCount + 1));
+        for (const sign of [-1, 1]) {
+          const base = center.clone().add(side.clone().multiplyScalar(sign * railOffset));
+          this.addBridgeBeamBetween(
+            group,
+            base.clone().add(new THREE.Vector3(0, 0.18, 0)),
+            base.clone().add(new THREE.Vector3(0, 1.42, 0)),
+            0.14,
+            0.14,
+            frameMaterial,
+          );
+        }
+      }
+    }
+
+    if (level >= 4) {
+      for (const t of [0.3, 0.7]) {
+        const center = start.clone().lerp(end, t);
+        const leftBase = center.clone().add(side.clone().multiplyScalar(-railOffset));
+        const rightBase = center.clone().add(side.clone().multiplyScalar(railOffset));
+        const leftTop = leftBase.clone().add(new THREE.Vector3(0, 1.86, 0));
+        const rightTop = rightBase.clone().add(new THREE.Vector3(0, 1.86, 0));
+        this.addBridgeBeamBetween(group, leftBase.clone().add(new THREE.Vector3(0, 0.18, 0)), leftTop, 0.15, 0.15, metal);
+        this.addBridgeBeamBetween(group, rightBase.clone().add(new THREE.Vector3(0, 0.18, 0)), rightTop, 0.15, 0.15, metal);
+        this.addBridgeBeamBetween(group, leftTop, rightTop, 0.15, 0.15, metal);
+      }
+
+      const center = start.clone().lerp(end, 0.5);
+      const pole = this.addBox(group, 0.07, 2.0, 0.07, metal, center.x, center.y + 1.0, center.z);
+      pole.rotation.y = Math.atan2(horizontal.x, horizontal.z);
+      const pennant = this.addBox(
+        group,
+        0.78,
+        0.34,
+        0.05,
+        this.medievalMaterials.roofTile,
+        center.x + horizontal.x * 0.38,
+        center.y + 1.68,
+        center.z + horizontal.z * 0.38,
+      );
+      pennant.rotation.y = Math.atan2(horizontal.x, horizontal.z);
+      pennant.userData.castleFlag = { phase: bridge.id * 0.61 };
+    }
+
+    group.userData.towerBridge = { ...bridge, level };
     return group;
   }
 
@@ -5118,6 +5382,7 @@ export class ThreeGame {
         (bridge.bx === x && bridge.by === y)
       ) {
         this.towerBridges.delete(id);
+        if (this.selectedTowerBridgeId === id) this.selectedTowerBridgeId = null;
       }
     }
   }
@@ -5515,10 +5780,14 @@ export class ThreeGame {
 
     if (cell.kind === 'tower') {
       const base = (cell.towerShape ?? 'round') === 'watch' ? 6.4 : 7.4;
-      return 2.58 + base + Math.max(0, (cell.level ?? 1) - 1) * 2.15;
+      const level = Math.max(1, Math.min(FORTIFICATION_MAX_LEVEL, Math.floor(cell.level ?? 1)));
+      return 2.58 + base + Math.max(0, level - 1) * 2.15;
     }
 
-    if (cell.kind === 'gate') return 7.85;
+    if (cell.kind === 'gate') {
+      const level = Math.max(1, Math.min(FORTIFICATION_MAX_LEVEL, Math.floor(cell.level ?? 1)));
+      return 7.85 + (level - 1) * 0.55;
+    }
     return 5.9;
   }
 
@@ -7120,6 +7389,7 @@ export class ThreeGame {
 
     this.selectedCell = null;
     this.selectedKeepId = null;
+    this.selectedTowerBridgeId = null;
     this.towerBridgeStart = null;
     this.towerBridgeHover = null;
     const stoneSelect = document.getElementById('castle-stone-style') as HTMLSelectElement | null;
@@ -8296,6 +8566,7 @@ export class ThreeGame {
     const gx = point.x;
     const gy = point.y;
     this.selectedCell = point;
+    this.selectedTowerBridgeId = null;
 
     const cell = this.services.state.getCell(gx, gy);
     const current = cell?.kind;
@@ -8515,9 +8786,15 @@ export class ThreeGame {
 
     if (this.selectedTool === 'tower') {
       if (current === 'tower') {
+        const currentLevel = Math.max(1, Math.min(FORTIFICATION_MAX_LEVEL, Math.floor(cell?.level ?? 1)));
         const nextLevel = event.shiftKey
-          ? Math.max(1, (cell?.level ?? 1) - 1)
-          : (cell?.level ?? 1) + 1;
+          ? Math.max(1, currentLevel - 1)
+          : Math.min(FORTIFICATION_MAX_LEVEL, currentLevel + 1);
+        if (nextLevel === currentLevel) {
+          this.setStatus(event.shiftKey ? 'Tower is already at Level 1' : 'Tower is already at Level 4 · Royal Bastion');
+          this.syncArmyCampUpgradeUI();
+          return;
+        }
 
         this.recordHistory();
         const compatibleTop = this.compatibleTowerTop(this.towerShape, this.towerTop);
@@ -8528,6 +8805,7 @@ export class ThreeGame {
           towerTop: compatibleTop,
         });
         this.finishBuild();
+        this.setStatus(`Tower changed to Level ${nextLevel} · ${this.fortificationLevelDefinition('tower', nextLevel).name}`);
         return;
       }
 
@@ -8590,7 +8868,10 @@ export class ThreeGame {
       if (selectedFortification && currentFortification) {
         if (!this.ensureConstructionAffordable(selectedTile)) return;
         this.recordHistory();
-        this.services.state.setCell(gx, gy, selectedTile, cell?.level ?? 1, {
+        const inheritedLevel = selectedTile === 'gate'
+          ? Math.max(1, Math.min(FORTIFICATION_MAX_LEVEL, Math.floor(cell?.level ?? 1)))
+          : cell?.level ?? 1;
+        this.services.state.setCell(gx, gy, selectedTile, inheritedLevel, {
           wallLinks: cell?.wallLinks,
           rotation: cell?.rotation,
           rotationMode: 'auto',
@@ -9500,6 +9781,9 @@ export class ThreeGame {
       if (kind === 'harbor') return { kind: 'harbor', level: 4 };
     }
     if (kind === 'harbor') return { kind: 'harbor', level: Math.max(1, Math.min(HARBOR_MAX_LEVEL, level)) };
+    if (kind === 'tower' || kind === 'gate') {
+      return { kind, level: Math.max(1, Math.min(FORTIFICATION_MAX_LEVEL, level)) };
+    }
     if (kind === 'armyCamp') return { kind: 'armyCamp', level: Math.max(1, Math.min(ARMY_CAMP_MAX_LEVEL, level)) };
     if (kind === 'farm' || kind === 'cowBarn') {
       return { kind, level: Math.max(1, Math.min(AGRICULTURE_MAX_LEVEL, level)) };
@@ -9550,6 +9834,12 @@ export class ThreeGame {
       '<div id="build-search-empty" class="build-search-empty" hidden>No tools match that search.</div>' +
       '<div class="build-tool-sections"></div>' +
       '<div class="builder-settings">' +
+      '<section id="fortification-upgrade-card" class="fortification-upgrade-card" aria-label="Selected fortification upgrade" hidden>' +
+      '<div class="fortification-upgrade-heading"><div><span id="fortification-upgrade-type" class="eyebrow">SELECTED FORTIFICATION</span><strong id="fortification-upgrade-name">Fortification · Level 1</strong></div><span id="fortification-upgrade-badge">1 / 4</span></div>' +
+      '<div class="fortification-level-track" aria-hidden="true"><span data-fortification-level="1"></span><span data-fortification-level="2"></span><span data-fortification-level="3"></span><span data-fortification-level="4"></span></div>' +
+      '<small id="fortification-upgrade-description">Select a Modular Tower or Gate. For a Tower Bridge, choose the Bridge tool and select both connected towers.</small>' +
+      '<div class="fortification-upgrade-actions"><button id="fortification-upgrade-button" class="fortification-upgrade-button" type="button">Upgrade to Level 2</button><button id="fortification-remove-bridge-button" class="fortification-remove-bridge-button" type="button" hidden>Remove Bridge</button></div>' +
+      '</section>' +
       '<section id="army-camp-upgrade-card" class="army-camp-upgrade-card" aria-label="Selected Army Camp upgrade" hidden>' +
       '<div class="army-camp-upgrade-heading"><div><span class="eyebrow">SELECTED MILITARY BUILDING</span><strong id="army-camp-upgrade-name">Army Camp · Level 1</strong></div><span id="army-camp-upgrade-badge">1 / 4</span></div>' +
       '<div class="army-camp-level-track" aria-hidden="true"><span data-camp-level="1"></span><span data-camp-level="2"></span><span data-camp-level="3"></span><span data-camp-level="4"></span></div>' +
@@ -9917,6 +10207,8 @@ export class ThreeGame {
     get<HTMLButtonElement>('move-down').onclick = () => this.moveSelected(0, 1);
     get<HTMLButtonElement>('move-right').onclick = () => this.moveSelected(1, 0);
     get<HTMLButtonElement>('rotate-selected').onclick = () => this.rotateSelected();
+    get<HTMLButtonElement>('fortification-upgrade-button').onclick = () => this.upgradeSelectedFortification();
+    get<HTMLButtonElement>('fortification-remove-bridge-button').onclick = () => this.removeSelectedTowerBridge();
     get<HTMLButtonElement>('army-camp-upgrade-button').onclick = () => this.upgradeSelectedArmyCamp();
     get<HTMLButtonElement>('agriculture-upgrade-button').onclick = () => this.upgradeSelectedAgricultureBuilding();
     get<HTMLButtonElement>('harbor-upgrade-button').onclick = () => this.upgradeSelectedHarbor();
@@ -9925,6 +10217,7 @@ export class ThreeGame {
     get<HTMLButtonElement>('select-clear').onclick = () => {
       this.selectedCell = null;
       this.selectedKeepId = null;
+      this.selectedTowerBridgeId = null;
       this.syncArmyCampUpgradeUI();
       this.setStatus('Selection cleared');
     };
@@ -10056,6 +10349,7 @@ export class ThreeGame {
       this.load();
       this.selectedCell = null;
       this.selectedKeepId = null;
+      this.selectedTowerBridgeId = null;
       this.undoStack.length = 0;
       this.redoStack.length = 0;
       this.redraw();
@@ -10211,6 +10505,7 @@ export class ThreeGame {
   private selectKeep(keep: KeepState): void {
     this.selectedKeepId = keep.id;
     this.selectedCell = null;
+    this.selectedTowerBridgeId = null;
     this.syncArmyCampUpgradeUI();
     this.keepWidth = keep.width;
     this.keepDepth = keep.depth;
@@ -10396,6 +10691,168 @@ export class ThreeGame {
     this.setStatus(`Keep built · ${keep.width}×${keep.depth} · ${keep.floors} floors · details generated automatically`);
   }
 
+  private fortificationLevelDefinition(kind: FortificationUpgradeKind, level: number): FortificationUpgradeLevel {
+    const normalized = Math.max(1, Math.min(FORTIFICATION_MAX_LEVEL, Math.floor(level)));
+    return FORTIFICATION_UPGRADE_LEVELS[kind][normalized - 1];
+  }
+
+  private syncFortificationUpgradeUI(): void {
+    const card = document.getElementById('fortification-upgrade-card');
+    if (!card) return;
+
+    let kind: FortificationUpgradeKind | undefined;
+    let level = 1;
+
+    if (this.selectedTowerBridgeId !== null) {
+      const bridge = this.towerBridges.get(this.selectedTowerBridgeId);
+      if (bridge) {
+        kind = 'towerBridge';
+        level = Math.max(1, Math.min(FORTIFICATION_MAX_LEVEL, Math.floor(bridge.level ?? 1)));
+      } else {
+        this.selectedTowerBridgeId = null;
+      }
+    }
+
+    if (!kind && this.selectedCell) {
+      const cell = this.services.state.getCell(this.selectedCell.x, this.selectedCell.y);
+      if (cell?.kind === 'tower' || cell?.kind === 'gate') {
+        kind = cell.kind;
+        level = Math.max(1, Math.min(FORTIFICATION_MAX_LEVEL, Math.floor(cell.level ?? 1)));
+      }
+    }
+
+    card.hidden = !kind;
+    if (!kind) return;
+
+    const definition = this.fortificationLevelDefinition(kind, level);
+    const next = level < FORTIFICATION_MAX_LEVEL
+      ? this.fortificationLevelDefinition(kind, level + 1)
+      : undefined;
+    const labels: Record<FortificationUpgradeKind, string> = {
+      tower: 'Modular Tower',
+      gate: 'Gate',
+      towerBridge: 'Tower Bridge',
+    };
+    const eyebrowLabels: Record<FortificationUpgradeKind, string> = {
+      tower: 'SELECTED MODULAR TOWER',
+      gate: 'SELECTED GATE',
+      towerBridge: 'SELECTED TOWER BRIDGE',
+    };
+    const type = document.getElementById('fortification-upgrade-type');
+    const name = document.getElementById('fortification-upgrade-name');
+    const badge = document.getElementById('fortification-upgrade-badge');
+    const description = document.getElementById('fortification-upgrade-description');
+    const button = document.getElementById('fortification-upgrade-button') as HTMLButtonElement | null;
+    const removeButton = document.getElementById('fortification-remove-bridge-button') as HTMLButtonElement | null;
+
+    if (type) type.textContent = eyebrowLabels[kind];
+    if (name) name.textContent = `${definition.name} · Level ${level}`;
+    if (badge) badge.textContent = `${level} / ${FORTIFICATION_MAX_LEVEL}`;
+    if (description) {
+      description.textContent = next
+        ? `${definition.description} Next: ${next.name}.`
+        : `${definition.description} Maximum fortification level reached.`;
+    }
+
+    card.querySelectorAll<HTMLElement>('[data-fortification-level]').forEach((step) => {
+      const stepLevel = Number(step.dataset.fortificationLevel ?? 0);
+      step.classList.toggle('is-complete', stepLevel <= level);
+      step.classList.toggle('is-current', stepLevel === level);
+    });
+
+    if (button) {
+      button.disabled = !next || this.battleSystem.isActive();
+      button.textContent = next
+        ? `Upgrade ${labels[kind]} to Level ${next.level} · ${next.name}`
+        : 'Maximum Level';
+    }
+    if (removeButton) {
+      removeButton.hidden = kind !== 'towerBridge';
+      removeButton.disabled = this.battleSystem.isActive();
+    }
+  }
+
+  private upgradeSelectedFortification(): void {
+    if (this.battleSystem.isActive()) {
+      this.setStatus('Finish or reset the battle before upgrading fortifications');
+      return;
+    }
+
+    if (this.selectedTowerBridgeId !== null) {
+      const bridge = this.towerBridges.get(this.selectedTowerBridgeId);
+      if (!bridge) {
+        this.selectedTowerBridgeId = null;
+        this.syncFortificationUpgradeUI();
+        this.setStatus('Select a Tower Bridge first');
+        return;
+      }
+
+      const currentLevel = Math.max(1, Math.min(FORTIFICATION_MAX_LEVEL, Math.floor(bridge.level ?? 1)));
+      if (currentLevel >= FORTIFICATION_MAX_LEVEL) {
+        this.setStatus('Tower Bridge is already at Level 4 · Royal Tower Bridge');
+        this.syncFortificationUpgradeUI();
+        return;
+      }
+
+      const nextLevel = currentLevel + 1;
+      this.recordHistory();
+      this.towerBridges.set(bridge.id, { ...bridge, level: nextLevel });
+      this.redraw();
+      this.scheduleSave();
+      this.setStatus(`Tower Bridge upgraded to Level ${nextLevel} · ${this.fortificationLevelDefinition('towerBridge', nextLevel).name}`);
+      return;
+    }
+
+    if (!this.selectedCell) {
+      this.setStatus('Select a Modular Tower, Gate, or Tower Bridge first');
+      return;
+    }
+
+    const cell = this.services.state.getCell(this.selectedCell.x, this.selectedCell.y);
+    if (!cell || (cell.kind !== 'tower' && cell.kind !== 'gate')) {
+      this.setStatus('Select a Modular Tower, Gate, or Tower Bridge first');
+      this.syncFortificationUpgradeUI();
+      return;
+    }
+
+    const kind = cell.kind as 'tower' | 'gate';
+    const currentLevel = Math.max(1, Math.min(FORTIFICATION_MAX_LEVEL, Math.floor(cell.level ?? 1)));
+    if (currentLevel >= FORTIFICATION_MAX_LEVEL) {
+      this.setStatus(`${kind === 'tower' ? 'Modular Tower' : 'Gate'} is already at Level 4 · ${this.fortificationLevelDefinition(kind, 4).name}`);
+      this.syncFortificationUpgradeUI();
+      return;
+    }
+
+    const nextLevel = currentLevel + 1;
+    this.recordHistory();
+    this.services.state.setLevel(this.selectedCell.x, this.selectedCell.y, nextLevel);
+    this.redraw();
+    this.scheduleSave();
+    this.setStatus(
+      `${kind === 'tower' ? 'Modular Tower' : 'Gate'} upgraded to Level ${nextLevel} · ${this.fortificationLevelDefinition(kind, nextLevel).name}`,
+    );
+  }
+
+  private removeSelectedTowerBridge(): void {
+    if (this.battleSystem.isActive()) {
+      this.setStatus('Finish or reset the battle before removing the Tower Bridge');
+      return;
+    }
+    if (this.selectedTowerBridgeId === null || !this.towerBridges.has(this.selectedTowerBridgeId)) {
+      this.selectedTowerBridgeId = null;
+      this.syncFortificationUpgradeUI();
+      this.setStatus('Select a Tower Bridge first');
+      return;
+    }
+
+    this.recordHistory();
+    this.towerBridges.delete(this.selectedTowerBridgeId);
+    this.selectedTowerBridgeId = null;
+    this.redraw();
+    this.scheduleSave();
+    this.setStatus('Tower Bridge removed · Undo available');
+  }
+
   private harborLevelDefinition(level: number): (typeof HARBOR_LEVELS)[number] {
     const normalized = Math.max(1, Math.min(HARBOR_MAX_LEVEL, Math.floor(level)));
     return HARBOR_LEVELS[normalized - 1];
@@ -10572,6 +11029,7 @@ export class ThreeGame {
   }
 
   private syncArmyCampUpgradeUI(): void {
+    this.syncFortificationUpgradeUI();
     this.syncAgricultureUpgradeUI();
     this.syncHarborUpgradeUI();
     const card = document.getElementById('army-camp-upgrade-card');
@@ -10672,8 +11130,16 @@ export class ThreeGame {
       return;
     }
 
+    const currentLevel = Math.max(1, Math.floor(cell.level ?? 1));
+    const nextLevel = cell.kind === 'tower'
+      ? Math.max(1, Math.min(FORTIFICATION_MAX_LEVEL, currentLevel + delta))
+      : Math.max(1, currentLevel + delta);
+    if (nextLevel === currentLevel) {
+      this.setStatus(cell.kind === 'tower' ? 'Tower levels are limited to 1–4' : `Height level: ${currentLevel}`);
+      return;
+    }
+
     this.recordHistory();
-    const nextLevel = Math.max(1, (cell.level ?? 1) + delta);
     this.services.state.setLevel(this.selectedCell.x, this.selectedCell.y, nextLevel);
     this.redraw();
     this.scheduleSave();
@@ -10709,6 +11175,7 @@ export class ThreeGame {
     this.services.keepSystem.clear();
     this.towerBridges.clear();
     this.nextTowerBridgeId = 1;
+    this.selectedTowerBridgeId = null;
     this.towerBridgeStart = null;
     this.towerBridgeHover = null;
     this.clearGroup(this.wallPreviewLayer);
@@ -10842,6 +11309,7 @@ export class ThreeGame {
         bx: b.x,
         by: b.y,
         kind,
+        level: 1,
       };
       this.towerBridges.set(bridge.id, bridge);
     };
@@ -11939,6 +12407,7 @@ export class ThreeGame {
     this.services.keepSystem.clear();
     this.towerBridges.clear();
     this.nextTowerBridgeId = 1;
+    this.selectedTowerBridgeId = null;
     this.towerBridgeStart = null;
     this.towerBridgeHover = null;
     this.clearGroup(this.wallPreviewLayer);
