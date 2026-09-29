@@ -8,6 +8,7 @@ import type {
 } from '../core/types';
 
 export type CastleBlockKind = 'wall' | 'gate' | 'tower';
+export type CastleTopology = 'isolated' | 'end' | 'straight' | 'corner' | 't-junction' | '4-way' | 'multi-junction';
 
 export interface CastleTraversalMetadata {
   walkableTop: boolean;
@@ -26,6 +27,9 @@ export interface CastleBlockState {
   height: number;
   damage: number;
   links: WallDirection[];
+  topology: CastleTopology;
+  /** Clockwise angle from north to the first connected arm, in degrees. */
+  orientation: number;
   corner: boolean;
   stoneStyle: StoneStyle;
   traversal: CastleTraversalMetadata;
@@ -44,6 +48,7 @@ export interface CastleBlockSnapshot {
 }
 
 const CASTLE_KINDS = new Set<string>(['wall1', 'wall2', 'wall3', 'gate', 'tower']);
+const DIRECTIONS: WallDirection[] = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'];
 
 function key(x: number, y: number): string {
   return `${x},${y}`;
@@ -75,16 +80,31 @@ function isCorner(links: WallDirection[]): boolean {
   return cardinalLinks.some((a) => cardinalLinks.some((b) => a !== b && !oppositePairs.has(`${a}:${b}`)));
 }
 
+function topologyFor(links: WallDirection[]): CastleTopology {
+  if (links.length === 0) return 'isolated';
+  if (links.length === 1) return 'end';
+  if (links.length === 2) {
+    return (DIRECTIONS.indexOf(links[0]) + 4) % 8 === DIRECTIONS.indexOf(links[1])
+      ? 'straight' : 'corner';
+  }
+  if (links.length === 3) return 't-junction';
+  if (links.length === 4) return '4-way';
+  return 'multi-junction';
+}
+
 function normalizedLinks(
   cell: { x: number; y: number; wallLinks?: WallDirection[] },
-  byCell: Map<string, { x: number; y: number; kind: string }>,
+  byCell: Map<string, { x: number; y: number; kind: string; wallLinks?: WallDirection[] }>,
 ): WallDirection[] {
-  if (cell.wallLinks && cell.wallLinks.length > 0) return [...cell.wallLinks];
-  const directions: WallDirection[] = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'];
-  return directions.filter((direction) => {
+  return DIRECTIONS.filter((direction) => {
+    if (!cell.wallLinks?.length && direction.length > 1) return false;
     const vector = connectionVector(direction);
     const neighbor = byCell.get(key(cell.x + vector.x, cell.y + vector.y));
-    return Boolean(neighbor && CASTLE_KINDS.has(neighbor.kind));
+    if (!neighbor || !CASTLE_KINDS.has(neighbor.kind)) return false;
+    const opposite = DIRECTIONS[(DIRECTIONS.indexOf(direction) + 4) % 8];
+    // Legacy cells infer connections; explicit links must agree at both ends.
+    return (!cell.wallLinks?.length || cell.wallLinks.includes(direction)) &&
+      (!neighbor.wallLinks?.length || neighbor.wallLinks.includes(opposite));
   });
 }
 
@@ -148,6 +168,8 @@ export class CastleBlockSystem {
         height: level,
         damage: Math.max(0, Math.min(1, Number(cell.damage ?? 0))),
         links,
+        topology: topologyFor(links),
+        orientation: links.length ? DIRECTIONS.indexOf(links[0]) * 45 : 0,
         corner: kind === 'wall' && isCorner(links),
         stoneStyle,
         traversal: {
