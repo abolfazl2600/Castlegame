@@ -45,7 +45,7 @@ assert.match(qa, /width:\s*740,\s*height:\s*390/);
 assert.match(qa, /starter-normal-mobile-landscape/);
 assert.match(qa, /castle-battle-normal-desktop/);
 assert.match(qa, /dense-strategic-desktop/);
-assert.match(qa, /knownFocusedFollowups:\s*\[134, 135, 136\]/);
+assert.match(qa, /knownFocusedFollowups:\s*\[135, 136\]/);
 assert.match(qa, /maxUiCoverage/);
 assert.match(qa, /maxFrameP95Ms/);
 assert.match(qa, /maxDrawCalls/);
@@ -81,7 +81,7 @@ assert.match(ambientMotion, /registerFlag/);
 assert.doesNotMatch(animate, /riverTexture\.offset/);
 assert.doesNotMatch(animate, /oceanTexture\.offset/);
 
-assert.match(docs, /#134/);
+assert.match(docs, /#134 is now complete/);
 assert.match(docs, /#135/);
 assert.match(docs, /#136/);
 assert.match(docs, /not marked complete/i);
