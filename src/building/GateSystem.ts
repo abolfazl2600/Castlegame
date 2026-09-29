@@ -9,6 +9,7 @@ interface GateRuntime {
   state: GateState;
   progress: number;
   targetClosed: boolean;
+  manualOpen: boolean;
   guards: THREE.Group[];
 }
 
@@ -41,6 +42,7 @@ export class GateSystem {
     root: THREE.Group,
     door: THREE.Group,
     vertical: boolean,
+    manualOpen = true,
   ): void {
     const key = this.key(x, y);
     const existing = this.gates.get(key);
@@ -51,16 +53,14 @@ export class GateSystem {
       key,
       root,
       door,
-      state: 'open',
-      progress: 0,
-      targetClosed: this.attackActive,
+      state: manualOpen && !this.attackActive ? 'open' : 'closed',
+      progress: manualOpen && !this.attackActive ? 0 : 1,
+      targetClosed: this.attackActive || !manualOpen,
+      manualOpen,
       guards,
     };
 
-    if (runtime.targetClosed) {
-      runtime.state = 'closing';
-      runtime.progress = 0;
-    }
+    if (runtime.targetClosed) door.position.y = -3.25;
 
     this.gates.set(key, runtime);
   }
@@ -70,11 +70,22 @@ export class GateSystem {
     this.attackActive = active;
 
     for (const gate of this.gates.values()) {
-      if (gate.targetClosed === active) continue;
-      gate.targetClosed = active;
-      gate.state = active ? 'closing' : 'opening';
+      const closed = active || !gate.manualOpen;
+      if (gate.targetClosed === closed) continue;
+      gate.targetClosed = closed;
+      gate.state = closed ? 'closing' : 'opening';
     }
 
+  }
+
+  setManualOpen(x: number, y: number, open: boolean): void {
+    const gate = this.gates.get(this.key(x, y));
+    if (!gate) return;
+    gate.manualOpen = open;
+    const closed = this.attackActive || !open;
+    if (gate.targetClosed === closed) return;
+    gate.targetClosed = closed;
+    gate.state = closed ? 'closing' : 'opening';
   }
 
   isGatePassable(x: number, y: number): boolean {
