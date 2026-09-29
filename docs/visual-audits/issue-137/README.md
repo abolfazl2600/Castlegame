@@ -2,124 +2,104 @@
 
 ## Scope
 
-This is the final integration/QA pass for the currently implemented visual systems.
+This is the final integration/QA pass for the completed Visual Readability series.
 
-The user explicitly requested execution of #137 while #135 and #136 are still open. Those two issues are therefore treated as **focused follow-up work**, not silently marked complete and not folded into this issue.
+Phases #134, #135, and #136 are now implemented on `main`:
 
-- #134 — ambient world-motion layer is now implemented and covered by regression tests
-- #135 — seasonal/environment-state transitions remain focused follow-up work
-- #136 — distance-aware detail / LOD / formal visual performance budgets remain focused follow-up work
+- #134 — centralized ambient world motion
+- #135 — deterministic seasonal/environment transitions with save/load state
+- #136 — distance-aware rendering budgets for desktop/mobile, shadow caps, raster scaling, and animation scaling
 
-The final QA verifies the systems that already exist and records those remaining areas as focused follow-ups rather than reopening a broad visual rewrite. In particular, #136 production performance targets are measured and reported here but are not falsely treated as complete.
+The final QA therefore validates these systems together rather than treating #135/#136 as deferred work.
 
 ## Authoritative camera references
 
-The final QA uses the shared camera contract from `WORLD_STYLE`:
+The QA uses the shared `WORLD_STYLE` camera contract:
 
 - Near inspection: 48
 - Normal gameplay: 104
 - Maximum strategic: 148
 
-Normal gameplay is the primary composition. Strategic zoom is checked separately for usefulness and scene readability.
+Normal gameplay remains the primary composition. Strategic zoom is captured separately and must activate the strategic distance budget without hiding silhouette-defining geometry.
 
 ## Deterministic scene matrix
 
-The final runner uses fixed save fixtures and seed `6001`.
+The runner uses fixed save fixtures and seed `6001`.
 
 | Fixture | Purpose |
 | --- | --- |
-| Starter | Small early settlement, basic roads/agriculture/defense |
-| Dense | Mature medieval settlement and mixed building-family recognition |
-| Castle | Large defensive composition, Keep, Wall 1/2/3, towers, gate, persistent wall-damage states |
-| Farm | Level 1–4 Farm, Cattle Farm, Orchard and Army Camp progression in one scene |
-| Harbor | Unified Harbor Levels 1–4 plus nearby settlement landmarks |
-| Modern | Modern Mode using the currently supported Futuristic Castle architecture |
-| Mobile landscape | Starter settlement at 740×390 with touch controls |
-| Castle battle | Castle fixture with a deterministic large battle started before capture |
-| Dense strategic | Dense settlement at the maximum strategic camera reference |
+| Starter | Small early settlement, roads/agriculture/basic defense |
+| Dense | Mature medieval city and mixed building-family recognition |
+| Castle | Large defensive composition with Keep, walls, towers, gate, and damage states |
+| Farm | Level 1–4 Farm, Cattle Farm, Orchard, and Army Camp progression |
+| Harbor | Unified Harbor Levels 1–4 |
+| Modern | Modern Mode with the supported Futuristic Castle |
+| Mobile landscape | Starter settlement at 740×390 using touch controls |
+| Castle battle | Deterministic active battle |
+| Dense strategic | Dense city at maximum strategic camera distance |
+| Dense autumn | Dense city with saved autumn environment state |
+| Farm winter | Upgrade-heavy farm district with saved winter environment state |
 
-## Existing living-world motion checked in this phase
+## Living-world and season coverage
 
-The currently implemented ambient-motion path remains active when visual effects are enabled and Reduced Motion is off:
+The final pass verifies the centralized ambient-motion route for windmills, water texture flow, flags, citizens, and workers. Reduced Motion and Effects gates remain part of the contract.
 
-- Windmill rotation
-- River texture movement
-- Ocean texture movement
-- Castle flag movement
-- Settlement/citizen and worker movement where applicable
+Seasonal coverage is now part of the final visual evidence. The QA injects saved environment progress values and verifies that the rendered game reports the expected active seasonal state. This confirms #135 participates in the same save/load + render path used by normal gameplay.
 
-#134 is now complete. The final QA validates its centralized ambient-motion path, including quality, distance, Reduced Motion and Effects gates.
+## Distance-aware performance coverage
 
-## Seasons/environment states
+The visual benchmark diagnostics now expose the active `DistanceDetailBudgetSystem` snapshot. Final QA verifies:
 
-There is no complete saved seasonal/environment-state system yet.
+- Normal captures select the gameplay distance band.
+- Strategic captures select the strategic band.
+- Mobile landscape selects the mobile budget profile.
+- Active shadow casters never exceed the current band cap.
+- The active environment and budget state are stored in `metrics.json`.
 
-That is intentionally left to #135 and is **not marked complete by #137**. The current QA verifies the present world palette/material coherence only.
+The runner also continues recording frame time, draw calls, triangles, scene materials, redraw time, and UI coverage. Headless Chromium uses ANGLE/SwiftShader, so absolute frame-time numbers are regression evidence rather than physical-GPU FPS promises.
 
-## Distance-aware detail / LOD
+## Recorded integration thresholds
 
-The game already has shared camera references and graphics-quality settings, but the dedicated distance-aware LOD/budget system remains #136.
-
-#137 therefore measures and stores current dense-scene costs, while #136 remains the focused optimization task.
-
-## Performance and UI budgets
-
-The headless CI runner uses Chromium ANGLE/SwiftShader, so absolute frame-time values are not treated as physical-GPU FPS promises. The runner records the #136 production targets for every scenario and reports misses as focused performance follow-up work. #137 only hard-fails on integration/UI obstruction regressions while #136 remains open.
-
-Recorded desktop production targets:
+Desktop:
 
 - P95 frame time ≤ 220 ms
 - median draw calls ≤ 1800
 - triangles ≤ 1,200,000
 - scene materials ≤ 260
 - initial redraw ≤ 1800 ms
-- fixed/sticky UI screen coverage ≤ 32%
+- fixed/sticky UI coverage ≤ 32%
 
-Recorded mobile production targets:
+Mobile landscape:
 
 - P95 frame time ≤ 260 ms
 - median draw calls ≤ 1800
 - triangles ≤ 1,200,000
 - scene materials ≤ 260
 - initial redraw ≤ 2100 ms
-- fixed/sticky UI screen coverage ≤ 44%
+- fixed/sticky UI coverage ≤ 44%
 
-The final coherence runner uses four short frame samples per scene so all nine required visual fixtures can complete reliably on software-rendered CI. These samples are regression evidence, not benchmark-grade profiling. The recorded production targets remain owned by #136.
+UI obstruction and invalid active-budget state are hard failures. Performance measurements are retained in the artifact so any remaining production optimization defect can be filed as a focused follow-up rather than hidden inside a broad visual rewrite.
 
 ## Reference evidence
 
-The workflow `Final Visual Coherence QA` stores an artifact containing:
+The `Final Visual Coherence QA` workflow stores:
 
-- all final reference screenshots
+- all reference screenshots
 - `metrics.json`
 - generated `summary.md`
 
-Artifact screenshots:
-
-- `starter-normal-desktop.png`
-- `dense-normal-desktop.png`
-- `castle-normal-desktop.png`
-- `farm-normal-desktop.png`
-- `harbor-normal-desktop.png`
-- `modern-normal-desktop.png`
-- `dense-strategic-desktop.png`
-- `castle-battle-normal-desktop.png`
-- `starter-normal-mobile-landscape.png`
-
-The artifact/run identifier is added to this document and to issue #137 after the workflow succeeds.
+The workflow now runs when the final-QA code changes and when the core seasonal, distance-budget, or main render integration paths change.
 
 ## Acceptance interpretation
 
-This phase is complete when:
+The final pass is considered coherent when:
 
-- all supported major building families are represented in the deterministic QA fixtures
-- the Farm/Cattle/Orchard/Army Camp Level 1–4 strips remain present in the final fixture
-- the Harbor Level 1–4 progression remains present
-- defensive damage and battle are captured
-- Modern Mode has a dedicated capture using actually supported modern content
-- desktop Normal and Strategic captures are measured against the documented #136 production targets
-- mobile landscape passes the hard UI coverage check and is measured against the documented #136 performance targets
-- final screenshots and metrics are stored as a workflow artifact
-- remaining broad future visual systems are represented by focused issues rather than hidden inside #137
-
-#135 and #136 remain open and are **not marked complete** by this QA pass.
+- all supported major building families remain recognizable at normal zoom
+- Level 1–4 upgrade fixtures remain visually distinct
+- battle damage and defensive silhouettes remain readable
+- normal/strategic camera states activate the correct rendering budget
+- mobile selects the mobile rendering profile without excessive UI obstruction
+- autumn/winter fixtures render through the saved seasonal environment state
+- ambient motion remains centralized and accessibility-gated
+- reference screenshots and metrics are emitted for regression comparison
+- any remaining measured performance defect is isolated into a focused follow-up issue
