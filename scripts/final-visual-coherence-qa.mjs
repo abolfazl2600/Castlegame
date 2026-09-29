@@ -15,6 +15,7 @@ if (!output) throw new Error('Pass an output folder after --out');
 
 const url = process.env.VISUAL_BASE_URL ?? 'http://127.0.0.1:4173/Castlegame/';
 const local = !process.env.VISUAL_BASE_URL;
+const GAME_MEMORY_BUDGET_BYTES = 2 * 1024 * 1024 * 1024;
 let server;
 
 export const FINAL_QA_BUDGETS = {
@@ -25,6 +26,7 @@ export const FINAL_QA_BUDGETS = {
     maxSceneMaterials: 260,
     maxRedrawMs: 1800,
     maxUiCoverage: 0.32,
+    maxHeapBytes: GAME_MEMORY_BUDGET_BYTES,
   },
   mobileLandscape: {
     maxFrameP95Ms: 260,
@@ -33,6 +35,7 @@ export const FINAL_QA_BUDGETS = {
     maxSceneMaterials: 260,
     maxRedrawMs: 2100,
     maxUiCoverage: 0.44,
+    maxHeapBytes: GAME_MEMORY_BUDGET_BYTES,
   },
 };
 
@@ -169,6 +172,7 @@ async function captureScenario(browser, {
   battle = false,
   touch = false,
   quality = 'high',
+  environmentProgress = null,
 }) {
   const context = await browser.newContext({
     viewport,
@@ -181,6 +185,9 @@ async function captureScenario(browser, {
   page.setDefaultTimeout(15000);
   page.setDefaultNavigationTimeout(20000);
   const save = createVisualScene(scene);
+  if (typeof environmentProgress === 'number') {
+    save.data.environment = { cycleDays: 48, day: 0, progress: environmentProgress };
+  }
   console.log(`Starting final QA capture: ${name}`);
 
   await page.addInitScript(({ record, graphicsQuality, touchMode }) => {
@@ -254,6 +261,9 @@ async function captureScenario(browser, {
     redrawMs: Number(resources.lastRedrawMs.toFixed(2)),
     uiCoverage: Number(uiCoverage.toFixed(4)),
     heapBytes,
+    visualBudget: resources.visualBudget ?? null,
+    environment: resources.environment ?? null,
+    environmentProgress,
   };
 
   console.log(
@@ -280,6 +290,7 @@ function budgetViolations(result, budget) {
   if (result.sceneMaterials > budget.maxSceneMaterials) violations.push(`materials ${result.sceneMaterials} > ${budget.maxSceneMaterials}`);
   if (result.redrawMs > budget.maxRedrawMs) violations.push(`redraw ${result.redrawMs}ms > ${budget.maxRedrawMs}ms`);
   if (result.uiCoverage > budget.maxUiCoverage) violations.push(`UI coverage ${(result.uiCoverage * 100).toFixed(1)}% > ${(budget.maxUiCoverage * 100).toFixed(1)}%`);
+  if (result.heapBytes !== null && result.heapBytes > budget.maxHeapBytes) violations.push(`JS heap ${Math.round(result.heapBytes / 1024 / 1024)} MiB > 2048 MiB`);
   return violations;
 }
 
@@ -295,7 +306,7 @@ try {
 
   const browser = await chromium.launch({
     headless: true,
-    args: ['--enable-webgl', '--use-gl=angle', '--use-angle=swiftshader'],
+    args: ['--enable-webgl', '--use-gl=angle', '--use-angle=swiftshader', '--js-flags=--max-old-space-size=2048'],
   });
 
   try {
@@ -335,6 +346,38 @@ try {
       touch: true,
     }));
 
+    results.push(await captureScenario(browser, {
+      scene: 'dense',
+      viewport: mobileLandscape,
+      camera: REFERENCE_CAMERA.normal,
+      name: 'dense-normal-mobile-landscape',
+      touch: true,
+    }));
+
+    results.push(await captureScenario(browser, {
+      scene: 'dense',
+      viewport: mobileLandscape,
+      camera: REFERENCE_CAMERA.far,
+      name: 'dense-strategic-mobile-landscape',
+      touch: true,
+    }));
+
+    results.push(await captureScenario(browser, {
+      scene: 'dense',
+      viewport: desktop,
+      camera: REFERENCE_CAMERA.normal,
+      name: 'dense-autumn-normal-desktop',
+      environmentProgress: 0.51,
+    }));
+
+    results.push(await captureScenario(browser, {
+      scene: 'farm',
+      viewport: desktop,
+      camera: REFERENCE_CAMERA.normal,
+      name: 'farm-winter-normal-desktop',
+      environmentProgress: 0.76,
+    }));
+
     const checks = [];
     for (const result of results) {
       const budget = result.touch ? FINAL_QA_BUDGETS.mobileLandscape : FINAL_QA_BUDGETS.desktopNormal;
@@ -342,6 +385,42 @@ try {
       const hardViolations = result.uiCoverage > budget.maxUiCoverage
         ? [`UI coverage ${(result.uiCoverage * 100).toFixed(1)}% > ${(budget.maxUiCoverage * 100).toFixed(1)}%`]
         : [];
+      if (result.heapBytes !== null && result.heapBytes > budget.maxHeapBytes) {
+        hardViolations.push(`JS heap ${Math.round(result.heapBytes / 1024 / 1024)} MiB > 2048 MiB`);
+      }
+      if (!result.visualBudget?.budget) {
+        hardViolations.push('missing active distance-detail budget diagnostics');
+      } else {
+        if (result.visualBudget.memoryBudgetBytes !== GAME_MEMORY_BUDGET_BYTES) {
+          hardViolations.push('runtime memory budget is not fixed at 2 GiB');
+        }
+        if (result.visualBudget.activeShadowCasters > result.visualBudget.budget.shadowCasters) {
+          hardViolations.push(
+            `shadow casters ${result.visualBudget.activeShadowCasters} > active cap ${result.visualBudget.budget.shadowCasters}`,
+          );
+        }
+        if (result.visualBudget.activeHighDetailMeshes > result.visualBudget.budget.highDetailMeshes) {
+          hardViolations.push(
+            `high-detail meshes ${result.visualBudget.activeHighDetailMeshes} > active cap ${result.visualBudget.budget.highDetailMeshes}`,
+          );
+        }
+        if (!Number.isFinite(result.visualBudget.estimatedDrawCalls)) {
+          hardViolations.push('missing finite estimated draw-call diagnostics');
+        }
+        if (result.drawCallsMedian > result.visualBudget.budget.drawCalls) {
+          hardViolations.push(
+            `measured draws ${result.drawCallsMedian} > active cap ${result.visualBudget.budget.drawCalls}`,
+          );
+        }
+        const expectedBand = result.screenshot.includes('strategic') ? 'strategic' : 'gameplay';
+        if (result.visualBudget.band !== expectedBand) {
+          hardViolations.push(`distance band ${result.visualBudget.band} != expected ${expectedBand}`);
+        }
+        if (result.touch && !result.visualBudget.mobile) hardViolations.push('mobile fixture did not select mobile rendering budget');
+      }
+      if (typeof result.environmentProgress === 'number' && !result.environment?.season) {
+        hardViolations.push('seasonal fixture did not expose an environment season');
+      }
       checks.push({
         screenshot: result.screenshot,
         passed: hardViolations.length === 0,
@@ -350,6 +429,29 @@ try {
         productionBudgetPassed: violations.length === 0,
       });
     }
+
+    const compareDenseBands = (normalName, strategicName) => {
+      const normal = results.find((entry) => entry.screenshot === normalName);
+      const strategic = results.find((entry) => entry.screenshot === strategicName);
+      const strategicCheck = checks.find((entry) => entry.screenshot === strategicName);
+      if (!normal || !strategic || !strategicCheck) return;
+      const normalDetail = normal.visualBudget?.activeHighDetailMeshes ?? Number.POSITIVE_INFINITY;
+      const strategicDetail = strategic.visualBudget?.activeHighDetailMeshes ?? Number.POSITIVE_INFINITY;
+      if (strategic.drawCallsMedian >= normal.drawCallsMedian) {
+        strategicCheck.hardViolations.push(
+          `strategic draw calls ${strategic.drawCallsMedian} are not cheaper than normal ${normal.drawCallsMedian}`,
+        );
+      }
+      if (strategicDetail >= normalDetail) {
+        strategicCheck.hardViolations.push(
+          `strategic high-detail meshes ${strategicDetail} are not cheaper than normal ${normalDetail}`,
+        );
+      }
+      strategicCheck.passed = strategicCheck.hardViolations.length === 0;
+    };
+
+    compareDenseBands('dense-normal-desktop.jpg', 'dense-strategic-desktop.jpg');
+    compareDenseBands('dense-normal-mobile-landscape.jpg', 'dense-strategic-mobile-landscape.jpg');
 
     const report = {
       schemaVersion: 1,
@@ -370,7 +472,8 @@ try {
         totalMemoryBytes: os.totalmem(),
       },
       budgets: FINAL_QA_BUDGETS,
-      knownFocusedFollowups: [135, 136],
+      memoryBudgetBytes: GAME_MEMORY_BUDGET_BYTES,
+      knownFocusedFollowups: [],
       battleSetup: BATTLE_SETUP,
       captures: results.map((entry) => entry.screenshot),
       checks,
@@ -390,7 +493,7 @@ try {
     const productionBudgetFailures = checks.filter((check) => !check.productionBudgetPassed).length;
     console.log(
       `Final visual QA captured ${results.length} scenarios across ${FINAL_QA_SCENES.length} core scenes. ` +
-      `${productionBudgetFailures} scenario(s) remain above #136 production performance targets.`,
+      `${productionBudgetFailures} scenario(s) remain above the recorded production performance targets.`,
     );
   } finally {
     await browser.close();

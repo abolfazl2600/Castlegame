@@ -21,12 +21,25 @@ assert.match(budget, /pixelRatioScale:\s*0\.78/, 'desktop strategic raster scale
 assert.match(budget, /pixelRatioScale:\s*0\.62/, 'mobile strategic raster scale changed unexpectedly');
 assert.match(budget, /parentHasReadabilityPriority/, 'silhouette/readability shadow priority is required');
 assert.match(budget, /invalidate\(\): void/, 'scene redraws must be able to invalidate the active budget');
-assert.doesNotMatch(budget, /\.visible\s*=\s*false/, 'distance governor must not hide silhouette geometry');
+assert.match(budget, /isSuppressibleMicroDetail/, 'distance governor must classify suppressible micro-detail explicitly');
+assert.match(budget, /parentHasReadabilityPriority/, 'silhouette-defining geometry must be protected from suppression');
+assert.match(budget, /candidate\.mesh\.visible = false/, 'micro-detail budget must actively suppress excess detail');
+assert.match(budget, /activeHighDetailMeshes/, 'active high-detail mesh diagnostics are required');
+assert.match(budget, /estimatedDrawCalls/, 'estimated draw-call diagnostics are required');
+assert.match(budget, /detailDrawAllowance/, 'detail draw allowance must keep normal and strategic LOD budgets distinct');
+assert.match(budget, /detailBudgetRoot/, 'distance governor must budget detail per logical structure or unit root');
+assert.match(budget, /current\.userData\.cellKey/, 'building roots must participate in per-structure LOD budgeting');
+assert.match(budget, /current\.userData\.visualRefs/, 'battle unit roots must participate in per-unit LOD budgeting');
+assert.match(budget, /previousFrameOverBudget/, 'dynamic scene growth must trigger budget reapplication when renderer calls exceed the active cap');
+assert.match(budget, /GAME_MEMORY_BUDGET_BYTES\s*=\s*2 \* 1024 \* 1024 \* 1024/, 'runtime JS memory budget must be fixed at 2 GiB');
+assert.match(budget, /resolveMemoryPressure/, 'memory pressure must be detected before the 2 GiB ceiling is reached');
+assert.match(budget, /memoryAdjustedBudget/, 'memory pressure must reduce rendering work before the hard ceiling');
 
 assert.match(game, /DistanceDetailBudgetSystem/, 'ThreeGame must own the distance budget governor');
 assert.match(game, /distanceDetailBudget\.update\(/, 'distance budget must update from the render loop');
 assert.match(game, /distanceDetailBudget\.invalidate\(\)/, 'redraw must invalidate the budget for newly-created meshes');
 assert.match(game, /budgetScale:\s*visualBudget\.budget\.animationScale/, 'animation budget must feed ambient motion');
+assert.match(game, /visualBudget: this\.distanceDetailBudget\.snapshot\(\)/, 'visual diagnostics must expose the enforced detail budget snapshot');
 assert.match(game, /controlScheme === 'touch'/, 'touch/mobile preset selection must be supported');
 
 assert.match(ambient, /budgetScale\?: number/, 'ambient motion options must accept budget scaling');
