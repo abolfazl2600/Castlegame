@@ -95,6 +95,7 @@ export interface GridCell {
   rotation?: number;
   rotationMode?: GateRotationMode;
   wallLinks?: WallDirection[];
+  gateOpen?: boolean;
   shipKind?: ShipKind;
   accessHeight?: number;
   /** Persistent building damage ratio: 0 = healthy, 1 = destroyed. */
@@ -211,6 +212,7 @@ export interface SavedGame {
     rotation?: number;
     rotationMode?: GateRotationMode;
     wallLinks?: WallDirection[];
+    gateOpen?: boolean;
     shipKind?: ShipKind;
     accessHeight?: number;
     damage?: number;
