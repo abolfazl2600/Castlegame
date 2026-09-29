@@ -96,6 +96,19 @@ export class AmbientMotionSystem {
     this.smokes.length = 0;
   }
 
+  unregisterSubtree(root: THREE.Object3D): void {
+    const objects = new Set<THREE.Object3D>();
+    root.traverse((object) => objects.add(object));
+    for (const entries of [this.flags, this.sways, this.bobs, this.smokes]) {
+      for (let i = entries.length - 1; i >= 0; i -= 1) {
+        if (objects.has(entries[i].object)) {
+          this.restoreEntries([entries[i]]);
+          entries.splice(i, 1);
+        }
+      }
+    }
+  }
+
   update(deltaMs: number, timeMs: number, options: AmbientMotionOptions): number {
     const intensity = this.motionScale(options);
     if (intensity <= 0) {
