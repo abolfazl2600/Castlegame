@@ -2055,6 +2055,19 @@ export class ThreeGame {
         const phase = Number(object.userData.castleFlag?.phase ?? 0);
         this.ambientMotion.registerFlag(object, phase);
       }
+      if (object.userData.ambientSway) {
+        const sway = object.userData.ambientSway as {
+          phase?: number;
+          amplitude?: number;
+          speed?: number;
+        };
+        this.ambientMotion.registerSway(
+          object,
+          Number(sway.phase ?? 0),
+          Number(sway.amplitude ?? 0.02),
+          Number(sway.speed ?? 0.001),
+        );
+      }
     });
     if (this.visualBenchmark) this.lastRedrawMs = performance.now() - redrawStart;
   }
@@ -7060,6 +7073,12 @@ export class ThreeGame {
       const flame = new THREE.Mesh(new THREE.ConeGeometry(0.16 * scale, 0.46 * scale, 7), fire);
       flame.position.set(x, 2.62 + 0.18 * scale, z);
       group.add(flame);
+      this.ambientMotion.registerSway(
+        flame,
+        Math.abs(x * 0.61 + z * 0.43),
+        0.055,
+        0.0038,
+      );
     };
 
     const addBanner = (x: number, z: number, scale = 1, material = canvasDark): void => {
