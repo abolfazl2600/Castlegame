@@ -121,6 +121,34 @@ const HARBOR_LEVELS = [
 ] as const;
 const HARBOR_MAX_LEVEL = HARBOR_LEVELS.length;
 
+type FortificationUpgradeKind = 'tower' | 'gate' | 'towerBridge';
+interface FortificationUpgradeLevel {
+  level: 1 | 2 | 3 | 4;
+  name: string;
+  description: string;
+}
+const FORTIFICATION_UPGRADE_LEVELS: Record<FortificationUpgradeKind, readonly FortificationUpgradeLevel[]> = {
+  tower: [
+    { level: 1, name: 'Watch Tower', description: 'A practical defensive tower with a basic fighting platform and simple firing positions.' },
+    { level: 2, name: 'Reinforced Tower', description: 'Stronger masonry bands, improved upper defenses, and a more substantial silhouette mark the first major upgrade.' },
+    { level: 3, name: 'Command Tower', description: 'A projecting defense gallery, richer stonework, and command details make the tower visibly more advanced.' },
+    { level: 4, name: 'Royal Bastion', description: 'The tallest, most refined tower form adds a fortified crown, metal detailing, and prominent standards.' },
+  ],
+  gate: [
+    { level: 1, name: 'Castle Gate', description: 'A functional timber gate set into a compact stone gateway.' },
+    { level: 2, name: 'Reinforced Gate', description: 'Heavier masonry, iron door reinforcement, and stronger side supports improve the entrance defense.' },
+    { level: 3, name: 'Guarded Gatehouse', description: 'A taller gatehouse with machicolation-style supports, firing positions, and a more imposing upper defense.' },
+    { level: 4, name: 'Royal Gatehouse', description: 'Twin elevated guard turrets, formal standards, and premium defensive detailing create a landmark entrance.' },
+  ],
+  towerBridge: [
+    { level: 1, name: 'Tower Walk', description: 'A simple elevated crossing between two compatible towers.' },
+    { level: 2, name: 'Reinforced Bridge', description: 'A broader deck with denser supports and stronger side protection improves the crossing.' },
+    { level: 3, name: 'Fortified Skyway', description: 'Guard frames, reinforced rails, and structural bracing give the bridge a mature defensive profile.' },
+    { level: 4, name: 'Royal Tower Bridge', description: 'A prestigious fortified crossing with overhead guard frames, metal accents, and visible standards.' },
+  ],
+};
+const FORTIFICATION_MAX_LEVEL = 4;
+
 const BUILDING_KINDS: TileKind[] = [
   'wall1',
   'wall2',
@@ -412,6 +440,7 @@ export class ThreeGame {
   private towerBridgeHover: GridPoint | null = null;
   private readonly towerBridges = new Map<number, TowerBridgeState>();
   private nextTowerBridgeId = 1;
+  private selectedTowerBridgeId: number | null = null;
   private keepWidth = 3;
   private keepDepth = 3;
   private keepFloors = 3;
@@ -1391,6 +1420,7 @@ export class ThreeGame {
     this.services.keepSystem.clear();
     this.towerBridges.clear();
     this.nextTowerBridgeId = 1;
+    this.selectedTowerBridgeId = null;
     this.towerBridgeStart = null;
     this.towerBridgeHover = null;
     this.clearGroup(this.wallPreviewLayer);
@@ -7120,6 +7150,7 @@ export class ThreeGame {
 
     this.selectedCell = null;
     this.selectedKeepId = null;
+    this.selectedTowerBridgeId = null;
     this.towerBridgeStart = null;
     this.towerBridgeHover = null;
     const stoneSelect = document.getElementById('castle-stone-style') as HTMLSelectElement | null;
@@ -9500,6 +9531,9 @@ export class ThreeGame {
       if (kind === 'harbor') return { kind: 'harbor', level: 4 };
     }
     if (kind === 'harbor') return { kind: 'harbor', level: Math.max(1, Math.min(HARBOR_MAX_LEVEL, level)) };
+    if (kind === 'tower' || kind === 'gate') {
+      return { kind, level: Math.max(1, Math.min(FORTIFICATION_MAX_LEVEL, level)) };
+    }
     if (kind === 'armyCamp') return { kind: 'armyCamp', level: Math.max(1, Math.min(ARMY_CAMP_MAX_LEVEL, level)) };
     if (kind === 'farm' || kind === 'cowBarn') {
       return { kind, level: Math.max(1, Math.min(AGRICULTURE_MAX_LEVEL, level)) };
@@ -10709,6 +10743,7 @@ export class ThreeGame {
     this.services.keepSystem.clear();
     this.towerBridges.clear();
     this.nextTowerBridgeId = 1;
+    this.selectedTowerBridgeId = null;
     this.towerBridgeStart = null;
     this.towerBridgeHover = null;
     this.clearGroup(this.wallPreviewLayer);
@@ -11939,6 +11974,7 @@ export class ThreeGame {
     this.services.keepSystem.clear();
     this.towerBridges.clear();
     this.nextTowerBridgeId = 1;
+    this.selectedTowerBridgeId = null;
     this.towerBridgeStart = null;
     this.towerBridgeHover = null;
     this.clearGroup(this.wallPreviewLayer);
