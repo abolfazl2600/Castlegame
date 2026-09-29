@@ -9834,6 +9834,12 @@ export class ThreeGame {
       '<div id="build-search-empty" class="build-search-empty" hidden>No tools match that search.</div>' +
       '<div class="build-tool-sections"></div>' +
       '<div class="builder-settings">' +
+      '<section id="fortification-upgrade-card" class="fortification-upgrade-card" aria-label="Selected fortification upgrade" hidden>' +
+      '<div class="fortification-upgrade-heading"><div><span id="fortification-upgrade-type" class="eyebrow">SELECTED FORTIFICATION</span><strong id="fortification-upgrade-name">Fortification · Level 1</strong></div><span id="fortification-upgrade-badge">1 / 4</span></div>' +
+      '<div class="fortification-level-track" aria-hidden="true"><span data-fortification-level="1"></span><span data-fortification-level="2"></span><span data-fortification-level="3"></span><span data-fortification-level="4"></span></div>' +
+      '<small id="fortification-upgrade-description">Select a Modular Tower, Gate, or Tower Bridge to inspect its level.</small>' +
+      '<div class="fortification-upgrade-actions"><button id="fortification-upgrade-button" class="fortification-upgrade-button" type="button">Upgrade to Level 2</button><button id="fortification-remove-bridge-button" class="fortification-remove-bridge-button" type="button" hidden>Remove Bridge</button></div>' +
+      '</section>' +
       '<section id="army-camp-upgrade-card" class="army-camp-upgrade-card" aria-label="Selected Army Camp upgrade" hidden>' +
       '<div class="army-camp-upgrade-heading"><div><span class="eyebrow">SELECTED MILITARY BUILDING</span><strong id="army-camp-upgrade-name">Army Camp · Level 1</strong></div><span id="army-camp-upgrade-badge">1 / 4</span></div>' +
       '<div class="army-camp-level-track" aria-hidden="true"><span data-camp-level="1"></span><span data-camp-level="2"></span><span data-camp-level="3"></span><span data-camp-level="4"></span></div>' +
@@ -10201,6 +10207,8 @@ export class ThreeGame {
     get<HTMLButtonElement>('move-down').onclick = () => this.moveSelected(0, 1);
     get<HTMLButtonElement>('move-right').onclick = () => this.moveSelected(1, 0);
     get<HTMLButtonElement>('rotate-selected').onclick = () => this.rotateSelected();
+    get<HTMLButtonElement>('fortification-upgrade-button').onclick = () => this.upgradeSelectedFortification();
+    get<HTMLButtonElement>('fortification-remove-bridge-button').onclick = () => this.removeSelectedTowerBridge();
     get<HTMLButtonElement>('army-camp-upgrade-button').onclick = () => this.upgradeSelectedArmyCamp();
     get<HTMLButtonElement>('agriculture-upgrade-button').onclick = () => this.upgradeSelectedAgricultureBuilding();
     get<HTMLButtonElement>('harbor-upgrade-button').onclick = () => this.upgradeSelectedHarbor();
@@ -10683,6 +10691,168 @@ export class ThreeGame {
     this.setStatus(`Keep built · ${keep.width}×${keep.depth} · ${keep.floors} floors · details generated automatically`);
   }
 
+  private fortificationLevelDefinition(kind: FortificationUpgradeKind, level: number): FortificationUpgradeLevel {
+    const normalized = Math.max(1, Math.min(FORTIFICATION_MAX_LEVEL, Math.floor(level)));
+    return FORTIFICATION_UPGRADE_LEVELS[kind][normalized - 1];
+  }
+
+  private syncFortificationUpgradeUI(): void {
+    const card = document.getElementById('fortification-upgrade-card');
+    if (!card) return;
+
+    let kind: FortificationUpgradeKind | undefined;
+    let level = 1;
+
+    if (this.selectedTowerBridgeId !== null) {
+      const bridge = this.towerBridges.get(this.selectedTowerBridgeId);
+      if (bridge) {
+        kind = 'towerBridge';
+        level = Math.max(1, Math.min(FORTIFICATION_MAX_LEVEL, Math.floor(bridge.level ?? 1)));
+      } else {
+        this.selectedTowerBridgeId = null;
+      }
+    }
+
+    if (!kind && this.selectedCell) {
+      const cell = this.services.state.getCell(this.selectedCell.x, this.selectedCell.y);
+      if (cell?.kind === 'tower' || cell?.kind === 'gate') {
+        kind = cell.kind;
+        level = Math.max(1, Math.min(FORTIFICATION_MAX_LEVEL, Math.floor(cell.level ?? 1)));
+      }
+    }
+
+    card.hidden = !kind;
+    if (!kind) return;
+
+    const definition = this.fortificationLevelDefinition(kind, level);
+    const next = level < FORTIFICATION_MAX_LEVEL
+      ? this.fortificationLevelDefinition(kind, level + 1)
+      : undefined;
+    const labels: Record<FortificationUpgradeKind, string> = {
+      tower: 'Modular Tower',
+      gate: 'Gate',
+      towerBridge: 'Tower Bridge',
+    };
+    const eyebrowLabels: Record<FortificationUpgradeKind, string> = {
+      tower: 'SELECTED MODULAR TOWER',
+      gate: 'SELECTED GATE',
+      towerBridge: 'SELECTED TOWER BRIDGE',
+    };
+    const type = document.getElementById('fortification-upgrade-type');
+    const name = document.getElementById('fortification-upgrade-name');
+    const badge = document.getElementById('fortification-upgrade-badge');
+    const description = document.getElementById('fortification-upgrade-description');
+    const button = document.getElementById('fortification-upgrade-button') as HTMLButtonElement | null;
+    const removeButton = document.getElementById('fortification-remove-bridge-button') as HTMLButtonElement | null;
+
+    if (type) type.textContent = eyebrowLabels[kind];
+    if (name) name.textContent = `${definition.name} · Level ${level}`;
+    if (badge) badge.textContent = `${level} / ${FORTIFICATION_MAX_LEVEL}`;
+    if (description) {
+      description.textContent = next
+        ? `${definition.description} Next: ${next.name}.`
+        : `${definition.description} Maximum fortification level reached.`;
+    }
+
+    card.querySelectorAll<HTMLElement>('[data-fortification-level]').forEach((step) => {
+      const stepLevel = Number(step.dataset.fortificationLevel ?? 0);
+      step.classList.toggle('is-complete', stepLevel <= level);
+      step.classList.toggle('is-current', stepLevel === level);
+    });
+
+    if (button) {
+      button.disabled = !next || this.battleSystem.isActive();
+      button.textContent = next
+        ? `Upgrade ${labels[kind]} to Level ${next.level} · ${next.name}`
+        : 'Maximum Level';
+    }
+    if (removeButton) {
+      removeButton.hidden = kind !== 'towerBridge';
+      removeButton.disabled = this.battleSystem.isActive();
+    }
+  }
+
+  private upgradeSelectedFortification(): void {
+    if (this.battleSystem.isActive()) {
+      this.setStatus('Finish or reset the battle before upgrading fortifications');
+      return;
+    }
+
+    if (this.selectedTowerBridgeId !== null) {
+      const bridge = this.towerBridges.get(this.selectedTowerBridgeId);
+      if (!bridge) {
+        this.selectedTowerBridgeId = null;
+        this.syncFortificationUpgradeUI();
+        this.setStatus('Select a Tower Bridge first');
+        return;
+      }
+
+      const currentLevel = Math.max(1, Math.min(FORTIFICATION_MAX_LEVEL, Math.floor(bridge.level ?? 1)));
+      if (currentLevel >= FORTIFICATION_MAX_LEVEL) {
+        this.setStatus('Tower Bridge is already at Level 4 · Royal Tower Bridge');
+        this.syncFortificationUpgradeUI();
+        return;
+      }
+
+      const nextLevel = currentLevel + 1;
+      this.recordHistory();
+      this.towerBridges.set(bridge.id, { ...bridge, level: nextLevel });
+      this.redraw();
+      this.scheduleSave();
+      this.setStatus(`Tower Bridge upgraded to Level ${nextLevel} · ${this.fortificationLevelDefinition('towerBridge', nextLevel).name}`);
+      return;
+    }
+
+    if (!this.selectedCell) {
+      this.setStatus('Select a Modular Tower, Gate, or Tower Bridge first');
+      return;
+    }
+
+    const cell = this.services.state.getCell(this.selectedCell.x, this.selectedCell.y);
+    if (!cell || (cell.kind !== 'tower' && cell.kind !== 'gate')) {
+      this.setStatus('Select a Modular Tower, Gate, or Tower Bridge first');
+      this.syncFortificationUpgradeUI();
+      return;
+    }
+
+    const kind = cell.kind as 'tower' | 'gate';
+    const currentLevel = Math.max(1, Math.min(FORTIFICATION_MAX_LEVEL, Math.floor(cell.level ?? 1)));
+    if (currentLevel >= FORTIFICATION_MAX_LEVEL) {
+      this.setStatus(`${kind === 'tower' ? 'Modular Tower' : 'Gate'} is already at Level 4 · ${this.fortificationLevelDefinition(kind, 4).name}`);
+      this.syncFortificationUpgradeUI();
+      return;
+    }
+
+    const nextLevel = currentLevel + 1;
+    this.recordHistory();
+    this.services.state.setLevel(this.selectedCell.x, this.selectedCell.y, nextLevel);
+    this.redraw();
+    this.scheduleSave();
+    this.setStatus(
+      `${kind === 'tower' ? 'Modular Tower' : 'Gate'} upgraded to Level ${nextLevel} · ${this.fortificationLevelDefinition(kind, nextLevel).name}`,
+    );
+  }
+
+  private removeSelectedTowerBridge(): void {
+    if (this.battleSystem.isActive()) {
+      this.setStatus('Finish or reset the battle before removing the Tower Bridge');
+      return;
+    }
+    if (this.selectedTowerBridgeId === null || !this.towerBridges.has(this.selectedTowerBridgeId)) {
+      this.selectedTowerBridgeId = null;
+      this.syncFortificationUpgradeUI();
+      this.setStatus('Select a Tower Bridge first');
+      return;
+    }
+
+    this.recordHistory();
+    this.towerBridges.delete(this.selectedTowerBridgeId);
+    this.selectedTowerBridgeId = null;
+    this.redraw();
+    this.scheduleSave();
+    this.setStatus('Tower Bridge removed · Undo available');
+  }
+
   private harborLevelDefinition(level: number): (typeof HARBOR_LEVELS)[number] {
     const normalized = Math.max(1, Math.min(HARBOR_MAX_LEVEL, Math.floor(level)));
     return HARBOR_LEVELS[normalized - 1];
@@ -10859,6 +11029,7 @@ export class ThreeGame {
   }
 
   private syncArmyCampUpgradeUI(): void {
+    this.syncFortificationUpgradeUI();
     this.syncAgricultureUpgradeUI();
     this.syncHarborUpgradeUI();
     const card = document.getElementById('army-camp-upgrade-card');
