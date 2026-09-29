@@ -1903,6 +1903,12 @@ export class ThreeGame {
     return this.generatedCastleAccess;
   }
 
+  private syncIdleDefenderGarrison(force = false): void {
+    const battleSystem = (this as unknown as { battleSystem?: BattleSystem }).battleSystem;
+    if (!battleSystem || battleSystem.isActive()) return;
+    battleSystem.prepareDefenders(this.battleSetup, this.militaryTier, force);
+  }
+
   private redraw(): void {
     const redrawStart = this.visualBenchmark ? performance.now() : 0;
     // Derived castle access follows architecture/terrain lifecycle. Redraw is
@@ -1985,6 +1991,7 @@ export class ThreeGame {
     this.updatePopulationUI();
     this.syncEconomyUI();
     this.syncArmyCampUpgradeUI();
+    this.syncIdleDefenderGarrison();
 
     this.animatedFlags = [];
     this.buildLayer.traverse((object) => {
@@ -2452,6 +2459,7 @@ export class ThreeGame {
     this.buildLayer.visible = !planMode;
     this.workerLayer.visible = !planMode;
     this.settlementLayer.visible = !planMode && !this.battleSystem.isActive();
+    this.battleLayer.visible = !planMode;
     this.godModeLayer.visible = !planMode;
     this.godModeMarkerLayer.visible = !planMode;
 
@@ -12091,6 +12099,7 @@ export class ThreeGame {
       ...this.battleSetup,
       [field]: normalized,
     };
+    if (String(field).startsWith('defender')) this.syncIdleDefenderGarrison(true);
     this.syncBattleSetupUI();
     this.syncBattleCombatStatsUI();
     this.updatePopulationUI();
@@ -12190,6 +12199,7 @@ export class ThreeGame {
     if (this.militaryTier >= 4) return;
     this.recordHistory();
     this.militaryTier = normalizeMilitaryTier(this.militaryTier + 1);
+    this.syncIdleDefenderGarrison(true);
     this.syncMilitaryUI();
     this.syncBattleCombatStatsUI();
     this.save();
@@ -12410,6 +12420,7 @@ export class ThreeGame {
     }
     this.services.gateSystem.setAttackState(false);
     this.battleSystem.reset();
+    this.syncIdleDefenderGarrison(true);
     document.getElementById('game-shell')?.classList.remove('battle-mode');
     this.workerLayer.visible = this.viewMode === 'world3d';
     this.settlementLayer.visible = this.viewMode === 'world3d';
