@@ -27,6 +27,10 @@ assert.match(budget, /candidate\.mesh\.visible = false/, 'micro-detail budget mu
 assert.match(budget, /activeHighDetailMeshes/, 'active high-detail mesh diagnostics are required');
 assert.match(budget, /estimatedDrawCalls/, 'estimated draw-call diagnostics are required');
 assert.match(budget, /budget\.drawCalls - protectedDrawCalls/, 'draw-call cap must reserve protected silhouette geometry first');
+assert.match(budget, /detailBudgetRoot/, 'distance governor must budget detail per logical structure or unit root');
+assert.match(budget, /current\.userData\.cellKey/, 'building roots must participate in per-structure LOD budgeting');
+assert.match(budget, /current\.userData\.visualRefs/, 'battle unit roots must participate in per-unit LOD budgeting');
+assert.match(budget, /previousFrameOverBudget/, 'dynamic scene growth must trigger budget reapplication when renderer calls exceed the active cap');
 
 assert.match(game, /DistanceDetailBudgetSystem/, 'ThreeGame must own the distance budget governor');
 assert.match(game, /distanceDetailBudget\.update\(/, 'distance budget must update from the render loop');
