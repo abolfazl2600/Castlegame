@@ -10048,7 +10048,7 @@ export class ThreeGame {
     this.syncEconomyUI();
 
     get<HTMLButtonElement>('toolbar-close').onclick = () => this.setToolbarOpen(false);
-    get<HTMLButtonElement>('toolbar-open').onclick = () => this.setToolbarOpen(true);
+    get<HTMLButtonElement>('toolbar-open').onclick = () => this.setToolbarOpen(!this.toolbarOpen);
     const minimap = get<HTMLButtonElement>('minimap');
     minimap.onkeydown = (event) => {
       const direction: Record<string, GridPoint> = {
