@@ -69,19 +69,26 @@ function percentile(values, p) {
 async function sample(page) {
   return page.evaluate(async () => {
     const samples = [];
-    let previous;
-    await new Promise((resolve) => {
-      const step = (now) => {
-        if (previous !== undefined) {
-          const metrics = window.__castleVisualFrame();
-          samples.push({ frameMs: now - previous, ...metrics });
-        }
-        previous = now;
-        if (samples.length < 30) requestAnimationFrame(step);
-        else resolve();
-      };
-      requestAnimationFrame(step);
-    });
+    let previous = performance.now();
+    for (let index = 0; index < 12; index += 1) {
+      const now = await new Promise((resolve) => {
+        let settled = false;
+        const timer = setTimeout(() => {
+          if (settled) return;
+          settled = true;
+          resolve(performance.now());
+        }, 250);
+        requestAnimationFrame((timestamp) => {
+          if (settled) return;
+          settled = true;
+          clearTimeout(timer);
+          resolve(timestamp);
+        });
+      });
+      const metrics = window.__castleVisualFrame();
+      samples.push({ frameMs: Math.max(0.01, now - previous), ...metrics });
+      previous = now;
+    }
 
     const uiCoverage = (() => {
       const cols = 48;
