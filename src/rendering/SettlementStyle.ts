@@ -1,3 +1,5 @@
+import type { UpgradeVisualLevel } from './UpgradeVisualLanguage';
+
 /** Shared settlement roles and bounded, reproducible variation. */
 export const SETTLEMENT_STYLE = {
   plaster: [0xe6ddb5, 0xd9cda9, 0xf0e4c3],
@@ -12,6 +14,26 @@ export const SETTLEMENT_STYLE = {
 } as const;
 
 export type ResidenceKind = 'cottage' | 'house' | 'manor' | 'villa' | 'cowBarn';
+export type ResidentialProgressionKind = Exclude<ResidenceKind, 'cowBarn'>;
+
+/**
+ * Residential buildings are separate build tools rather than in-place upgrades,
+ * but together they follow the same four-level silhouette language used by
+ * upgradeable settlement structures.
+ */
+export const RESIDENCE_VISUAL_LEVELS: Readonly<Record<ResidentialProgressionKind, UpgradeVisualLevel>> = {
+  cottage: 1,
+  house: 2,
+  manor: 3,
+  villa: 4,
+} as const;
+
+export const RESIDENCE_VISUAL_VARIANTS = {
+  cottage: 'basic-hamlet',
+  house: 'established-village-block',
+  manor: 'advanced-formal-court',
+  villa: 'landmark-villa-quarter',
+} as const satisfies Readonly<Record<ResidentialProgressionKind, string>>;
 
 export interface ResidencePart {
   x: number;
