@@ -34,7 +34,7 @@ export const FINAL_QA_BUDGETS = {
     maxRedrawMs: 2100,
     maxUiCoverage: 0.44,
   },
-} as const;
+};
 
 const BATTLE_SETUP = {
   attackerSwordsmen: 16,
