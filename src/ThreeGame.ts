@@ -6,6 +6,7 @@ import type { GameExtension } from './core/GameExtension';
 import type { GameState } from './state/GameState';
 import { SAVE_KEY, SAVE_VERSION, TILE_SIZE, WORLD_COLS } from './core/constants';
 import { WallSystem } from './building/WallSystem';
+import { CastleBlockSystem } from './building/CastleBlockSystem';
 import { rasterizeWallPath } from './building/WallPath';
 import { KeepRenderer } from './rendering/KeepRenderer';
 import { BasilicaRenderer } from './rendering/BasilicaRenderer';
@@ -386,6 +387,7 @@ export class ThreeGame {
   private readonly distanceDetailBudget = new DistanceDetailBudgetSystem();
   /** Domain state and gameplay services are composed here, away from rendering/UI concerns. */
   private readonly services = createGameDomainServices();
+  private readonly castleBlockSystem = new CastleBlockSystem();
   private readonly maritimeSystem = new MaritimeSystem({
     size: SIZE,
     terrainAt: (x, y) => this.terrainAt(x, y),
@@ -2047,11 +2049,15 @@ export class ThreeGame {
 
     const floodedMoats = this.computeFloodedMoats();
     const cells = this.services.state.entries();
+    const castleSnapshot = this.castleBlockSystem.build(cells, this.stoneStyle);
+    const castleBlocks = new Map(castleSnapshot.blocks.map((block) => [this.key(block.x, block.y), block]));
 
     for (const cell of cells) {
       const building = this.makeBuilding(cell, floodedMoats);
       building.userData.cellKey = this.key(cell.x, cell.y);
       building.userData.cellKind = cell.kind;
+      const castleBlock = castleBlocks.get(this.key(cell.x, cell.y));
+      if (castleBlock) building.userData.castleBlock = castleBlock;
       this.buildObjectsByCell.set(this.key(cell.x, cell.y), building);
       this.buildLayer.add(building);
     }
