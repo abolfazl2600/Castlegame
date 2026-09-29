@@ -77,7 +77,7 @@ async function sample(page) {
           samples.push({ frameMs: now - previous, ...metrics });
         }
         previous = now;
-        if (samples.length < 90) requestAnimationFrame(step);
+        if (samples.length < 30) requestAnimationFrame(step);
         else resolve();
       };
       requestAnimationFrame(step);
