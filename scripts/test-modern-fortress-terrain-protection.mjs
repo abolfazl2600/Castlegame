@@ -33,26 +33,36 @@ assert.equal((radius * 2 + 1) ** 2, 81, 'Modern Fortress footprint must reserve 
 assert.equal(Math.abs(14 - 10) <= radius, true, 'A footprint edge cell must be protected.');
 assert.equal(Math.abs(15 - 10) <= radius, false, 'Terrain immediately outside the footprint must remain editable.');
 
+const footprintReservation = methodBody(
+  threeGame,
+  'private isStructureFootprintReserved(x: number, y: number): boolean {',
+);
+assert.match(
+  footprintReservation,
+  /this\.services\.state\.entries\(\)/,
+  'Footprint reservation must derive from live structure anchors so save/load reconstructs it.',
+);
+assert.match(
+  footprintReservation,
+  /getStructureFootprint\(anchor\.kind, anchor\.x, anchor\.y\)/,
+  'Footprint reservation must use the shared structure footprint helper.',
+);
+assert.match(
+  footprintReservation,
+  /footprint\.length <= 1/,
+  'Only structures with a real multi-cell footprint should reserve surrounding cells.',
+);
+assert.match(
+  footprintReservation,
+  /cell\.x === x && cell\.y === y/,
+  'Footprint reservation must test the requested grid cell against the footprint.',
+);
+
 const terrainGate = methodBody(threeGame, 'private canEditTerrainAt(x: number, y: number): boolean {');
 assert.match(
   terrainGate,
-  /this\.services\.state\.entries\(\)/,
-  'Terrain protection must derive from live structure anchors so save/load reconstructs it.',
-);
-assert.match(
-  terrainGate,
-  /anchor\.kind !== 'futuristicCastle'/,
-  'Only Modern Fortress anchors should expand to the protected fortress footprint.',
-);
-assert.match(
-  terrainGate,
-  /getStructureFootprint\(anchor\.kind, anchor\.x, anchor\.y\)/,
-  'Terrain protection must use the shared structure footprint helper.',
-);
-assert.match(
-  terrainGate,
-  /cell\.x === x && cell\.y === y/,
-  'Terrain protection must test the requested grid cell against the footprint.',
+  /return !this\.isStructureFootprintReserved\(x, y\)/,
+  'Terrain editing must delegate to the shared live structure-footprint reservation check.',
 );
 
 const brush = methodBody(threeGame, 'private applyTerrainBrush(center: GridPoint): void {');
