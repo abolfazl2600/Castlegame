@@ -518,7 +518,10 @@ export class SaveSystem {
     for (const bridge of data.towerBridges ?? []) {
       if (!Number.isInteger(bridge.id) || !validGrid(bridge.ax, bridge.ay) || !validGrid(bridge.bx, bridge.by)) continue;
       if (bridge.kind !== 'stone' && bridge.kind !== 'wood') continue;
-      this.host.towerBridges.set(bridge.id, { ...bridge });
+      this.host.towerBridges.set(bridge.id, {
+        ...bridge,
+        level: clamp(Math.floor(Number(bridge.level ?? 1)), 1, 4),
+      });
     }
 
     this.host.terrainOverrides.clear();
