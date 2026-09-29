@@ -1,0 +1,22 @@
+import assert from 'node:assert/strict';
+import * as THREE from 'three';
+import { GateSystem } from '../src/building/GateSystem.ts';
+
+const gates = new GateSystem();
+const root = new THREE.Group();
+const door = new THREE.Group();
+gates.registerGate(1, 2, root, door, false, false);
+assert.equal(gates.isGatePassable(1, 2), false);
+assert.equal(door.position.y, -3.25);
+gates.setManualOpen(1, 2, true);
+gates.update(2);
+assert.equal(gates.isGatePassable(1, 2), true);
+gates.setAttackState(true);
+gates.update(2);
+assert.equal(gates.isGatePassable(1, 2), false);
+gates.setManualOpen(1, 2, false);
+gates.setAttackState(false);
+assert.equal(gates.isGatePassable(1, 2), false, 'manual closure survives the battle state');
+gates.clear();
+assert.equal(gates.stateAt(1, 2), 'open', 'runtime clears before saved gates are re-registered');
+console.log('persistent gate runtime transition checks passed');

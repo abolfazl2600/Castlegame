@@ -15,11 +15,7 @@ function between(source, startMarker, endMarker) {
   return source.slice(start, end);
 }
 
-assert.doesNotMatch(
-  battleSystem,
-  /\bsetBuildingDamage\b/,
-  'BattleWorldContext must not expose a persistent building-damage mutation callback.',
-);
+assert.match(battleSystem, /onWallDamage\?: \(x: number, y: number, damage: number\) => void/);
 
 const damageWall = between(
   battleSystem,
@@ -31,11 +27,10 @@ assert.match(
   /wall\.battleDamage\s*=/,
   'Battle wall damage must be tracked in battle runtime state.',
 );
-assert.doesNotMatch(
-  damageWall,
-  /updateCell|GameState|save\s*\(/,
-  'Battle wall damage must not mutate or persist world state.',
-);
+assert.match(damageWall, /this\.world\.onWallDamage\?\.\(wall\.x, wall\.y/,
+  'Battle damage must be committed through the world boundary.');
+assert.doesNotMatch(damageWall, /updateCell|GameState|save\s*\(/,
+  'BattleSystem must not own persistence mechanics.');
 assert.match(
   damageWall,
   /spawnWallDestructionBurst\(wall, nextStage\)/,
@@ -98,11 +93,8 @@ const battleIntegration = between(
   'this.battleSystem = new BattleSystem(',
   'this.registerBuiltInGameModes();',
 );
-assert.doesNotMatch(
-  battleIntegration,
-  /setBuildingDamage/,
-  'ThreeGame must not wire battle damage into GameState.',
-);
+assert.match(battleIntegration, /onWallDamage:[\s\S]*?state\.updateCell\(x, y, \{ damage \}\)/,
+  'World state must own persistent castle damage.');
 
 const battleUi = between(
   threeGame,
@@ -112,7 +104,7 @@ const battleUi = between(
 assert.doesNotMatch(
   battleUi,
   /this\.save\s*\(/,
-  'Battle completion must not save battle-only structural state.',
+  'Battle UI must not save on every status update.',
 );
 assert.doesNotMatch(
   battleUi,

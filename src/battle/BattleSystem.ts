@@ -1,7 +1,6 @@
 import * as THREE from 'three';
-import type { GridCell, KeepState, TerrainKind, TileKind, TowerBridgeState } from '../core/types';
+import type { GridCell, KeepState, TerrainKind, TileKind, TowerBridgeState, WallDirection } from '../core/types';
 import { BattleNavigation, type NavPoint, type WallNavNode } from './BattleNavigation';
-import type { WallDirection } from '../core/types';
 import { WallSystem } from '../building/WallSystem';
 import { FactionRelations } from './FactionRelations';
 import { BattleObjectiveSystem } from './objectives/BattleObjectiveSystem';
@@ -33,10 +32,12 @@ export interface BattleWorldContext {
   kindAt: (x: number, y: number) => TileKind | undefined;
   cellAt: (x: number, y: number) => GridCell | undefined;
   fortificationTopAt: (x: number, y: number, cell: GridCell) => number;
+  castleLinksAt?: (x: number, y: number) => WallDirection[] | undefined;
   keeps: () => KeepState[];
   towerBridges: () => TowerBridgeState[];
   setWallBattleVisibility: (x: number, y: number, visible: boolean) => void;
   buildingDamageAt?: (x: number, y: number) => number;
+  onWallDamage?: (x: number, y: number, damage: number) => void;
   gatePassable?: (x: number, y: number) => boolean;
   wallWeaponVisuals?: () => THREE.Object3D[];
   effectsEnabled?: () => boolean;
@@ -82,6 +83,8 @@ interface UnitRuntime {
   hitReaction: number;
   victoryPhase: number;
   entryTarget?: THREE.Vector3;
+  deploymentRoute?: WallNavNode[];
+  deploymentIndex?: number;
 }
 
 type WallDamageStage = 'healthy' | 'damaged' | 'heavy' | 'partial' | 'breached';
@@ -481,6 +484,7 @@ export class BattleSystem {
       kindAt: world.kindAt,
       cellAt: world.cellAt,
       fortificationTopAt: world.fortificationTopAt,
+      castleLinksAt: world.castleLinksAt,
       keeps: world.keeps,
       towerBridges: world.towerBridges,
       temporaryGroundPassable: (x, y) => this.breachedWalls.has(this.gridKey(x, y)),
@@ -782,6 +786,7 @@ export class BattleSystem {
           if (runtime.data.faction !== 'defender' || runtime.data.state === 'dead') continue;
           runtime.animTime += idleDelta;
           runtime.moving = false;
+          if (runtime.deploymentRoute) this.updateDefenderDeployment(runtime, idleDelta);
           runtime.view.position.copy(runtime.position);
           this.animateUnit(runtime);
         }
@@ -1213,7 +1218,7 @@ export class BattleSystem {
     cell: NavPoint,
     index: number,
     attacker: boolean,
-  ): void {
+  ): UnitRuntime {
     const base = this.world.gridToWorld(cell.x, cell.y);
     const spacing = 0.74;
     const column = index % 5;
@@ -1258,6 +1263,7 @@ export class BattleSystem {
 
     this.units.set(runtime.data.id, runtime);
     this.layer.add(runtime.view);
+    return runtime;
   }
 
   private spawnWallUnit(
@@ -1266,6 +1272,20 @@ export class BattleSystem {
     node: WallNavNode,
     index: number,
   ): void {
+    if (faction === 'defender') {
+      const route = this.navigation.accessRouteTo(node);
+      const access = route.length && this.navigation.accessGroundCell(route[0]);
+      if (!access) {
+        const fallback = this.navigation.findNearestWalkable(node, 5);
+        if (fallback) this.spawnGroundUnit(faction, unitType, fallback, index, false);
+        return;
+      }
+      const runtime = this.spawnGroundUnit(faction, unitType, access, index, false);
+      runtime.deploymentRoute = route;
+      runtime.deploymentIndex = 0;
+      runtime.defenseOriginGrid = { x: node.x, y: node.y };
+      return;
+    }
     const base = this.world.gridToWorld(node.x, node.y);
     const offset = ((index % 3) - 1) * 0.42;
     const position = new THREE.Vector3(
@@ -1282,6 +1302,52 @@ export class BattleSystem {
     runtime.defenseOriginGrid = { x: node.x, y: node.y };
     this.units.set(runtime.data.id, runtime);
     this.layer.add(runtime.view);
+  }
+
+  private updateDefenderDeployment(runtime: UnitRuntime, delta: number): void {
+    const route = runtime.deploymentRoute;
+    if (!route?.length) return;
+    const index = runtime.deploymentIndex ?? 0;
+    const next = route[index];
+    if (!next) {
+      runtime.deploymentRoute = undefined;
+      runtime.home.copy(runtime.position);
+      runtime.defenderBehavior = 'idle';
+      runtime.data.state = 'guarding';
+      return;
+    }
+    if (this.mode === 'running' && !this.wallNodes.has(this.gridKey(next.x, next.y))) {
+      // An edited/collapsed route cannot retain a defender on a stale wall node.
+      runtime.deploymentRoute = undefined;
+      const safe = this.navigation.findNearestWalkable({ x: runtime.gridX, y: runtime.gridY }, 4);
+      if (safe) {
+        const ground = this.world.gridToWorld(safe.x, safe.y);
+        runtime.position.set(ground.x, 2.22 + this.world.elevationAt(safe.x, safe.y), ground.z);
+        runtime.gridX = safe.x;
+        runtime.gridY = safe.y;
+      }
+      runtime.surface = 'ground';
+      runtime.home.copy(runtime.position);
+      runtime.data.state = 'guarding';
+      return;
+    }
+    const world = this.world.gridToWorld(next.x, next.y);
+    const target = new THREE.Vector3(world.x, next.worldY, world.z);
+    if (this.moveTowardWallPoint(runtime, target, delta, 0.25)) {
+      runtime.position.copy(target);
+      runtime.surface = 'wall';
+      runtime.gridX = next.x;
+      runtime.gridY = next.y;
+      runtime.deploymentIndex = index + 1;
+      if (runtime.deploymentIndex >= route.length) {
+        runtime.deploymentRoute = undefined;
+        runtime.home.copy(runtime.position);
+        runtime.defenderBehavior = 'idle';
+        runtime.data.state = 'guarding';
+        return;
+      }
+    }
+    runtime.data.state = 'moving';
   }
 
   private createRuntime(
@@ -1535,6 +1601,14 @@ export class BattleSystem {
       runtime.deathTime += delta;
       runtime.view.rotation.z = THREE.MathUtils.lerp(runtime.view.rotation.z, Math.PI / 2, delta * 5);
       runtime.view.position.y = runtime.position.y - Math.min(0.2, runtime.deathTime * 0.08);
+      this.animateUnit(runtime);
+      return;
+    }
+
+    if (runtime.deploymentRoute) {
+      runtime.data.targetId = undefined;
+      this.updateDefenderDeployment(runtime, delta);
+      runtime.view.position.copy(runtime.position);
       this.animateUnit(runtime);
       return;
     }
@@ -2228,7 +2302,7 @@ export class BattleSystem {
           1,
         );
         const key = this.gridKey(x, y);
-        const battleDamage = this.preserveSessionWallDamage
+        const battleDamage = this.preserveSessionWallDamage && !this.world.onWallDamage
           ? THREE.MathUtils.clamp(
               this.sessionWallDamage.get(key) ?? 0,
               0,
@@ -3280,7 +3354,8 @@ export class BattleSystem {
       0,
       1 - wall.initialPersistentDamage,
     );
-    if (this.preserveSessionWallDamage) {
+    this.world.onWallDamage?.(wall.x, wall.y, Math.min(1, wall.initialPersistentDamage + wall.battleDamage));
+    if (this.preserveSessionWallDamage && !this.world.onWallDamage) {
       if (wall.battleDamage > 0) {
         this.sessionWallDamage.set(this.gridKey(wall.x, wall.y), wall.battleDamage);
       } else {

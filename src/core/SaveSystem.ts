@@ -513,6 +513,7 @@ export class SaveSystem {
         rotation: cell.rotation,
         rotationMode: cell.rotationMode,
         wallLinks: cell.wallLinks,
+        gateOpen: cell.kind === 'gate' ? cell.gateOpen !== false : undefined,
         shipKind: cell.shipKind,
         accessHeight: cell.accessHeight,
         damage: clamp(cell.damage ?? 0, 0, 1),

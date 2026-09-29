@@ -1,4 +1,4 @@
-import type { GridCell, KeepState, TerrainKind, TileKind, TowerBridgeState } from '../core/types';
+import type { GridCell, KeepState, TerrainKind, TileKind, TowerBridgeState, WallDirection } from '../core/types';
 import { ConnectedWallNetwork } from '../building/ConnectedWallNetwork';
 
 export interface NavPoint {
@@ -18,6 +18,7 @@ export interface BattleNavigationContext {
   kindAt: (x: number, y: number) => TileKind | undefined;
   cellAt: (x: number, y: number) => GridCell | undefined;
   fortificationTopAt: (x: number, y: number, cell: GridCell) => number;
+  castleLinksAt?: (x: number, y: number) => WallDirection[] | undefined;
   keeps: () => KeepState[];
   towerBridges?: () => TowerBridgeState[];
   temporaryGroundPassable?: (x: number, y: number) => boolean;
@@ -51,6 +52,7 @@ export class BattleNavigation {
       cellAt: context.cellAt,
       elevationAt: context.elevationAt,
       fortificationTopAt: context.fortificationTopAt,
+      castleLinksAt: context.castleLinksAt,
     });
   }
 
@@ -66,9 +68,12 @@ export class BattleNavigation {
     if (terrain === 'water' || terrain === 'river' || terrain === 'mountain') return false;
 
     const kind = this.context.kindAt(x, y);
+    const collapsed = (this.context.cellAt(x, y)?.damage ?? 0) >= 1;
+    if (collapsed && (kind === 'wall1' || kind === 'wall2' || kind === 'wall3' || kind === 'gate')) return true;
     if (kind === 'gate' && this.context.gatePassable && !this.context.gatePassable(x, y)) {
       return false;
     }
+    if (kind === 'gate' && this.context.cellAt(x, y)?.gateOpen === false) return false;
 
     if (this.context.temporaryGroundPassable?.(x, y)) return true;
 
@@ -368,12 +373,67 @@ export class BattleNavigation {
   }
 
   wallPlatformNodes(): WallNavNode[] {
-    return this.defensiveNetwork.nodes().map((node) => ({
+    const nodes = this.defensiveNetwork.nodes().map((node) => ({
       x: node.x,
       y: node.y,
       kind: node.kind,
       worldY: node.worldY + 0.28,
     }));
+    const byKey = new Map(nodes.map((node) => [this.key(node.x, node.y), node]));
+    const queue = nodes.filter((node) =>
+      (node.kind === 'tower' || node.kind === 'gate') && this.accessGroundCell(node) !== null);
+    const visited = new Set<string>();
+    while (queue.length) {
+      const node = queue.shift()!;
+      const key = this.key(node.x, node.y);
+      if (visited.has(key)) continue;
+      visited.add(key);
+      for (const next of this.connectedWallNeighbors(node, byKey)) {
+        if (!visited.has(this.key(next.x, next.y))) queue.push(next);
+      }
+    }
+    return nodes.filter((node) => visited.has(this.key(node.x, node.y)));
+  }
+
+  accessGroundCell(node: NavPoint): NavPoint | null {
+    const keep = this.context.keeps()[0];
+    const center = keep ?? { x: Math.floor(this.context.size / 2), y: Math.floor(this.context.size / 2) };
+    const candidates = DIRS.slice(0, 4)
+      .map((direction) => ({ x: node.x + direction.x, y: node.y + direction.y }))
+      .filter((point) => this.isGroundWalkable(point.x, point.y));
+    candidates.sort((a, b) => this.heuristic(a, center) - this.heuristic(b, center) || a.y - b.y || a.x - b.x);
+    return candidates[0] ?? null;
+  }
+
+  accessRouteTo(target: WallNavNode): WallNavNode[] {
+    const nodes = this.wallPlatformNodes();
+    const byKey = new Map(nodes.map((node) => [this.key(node.x, node.y), node]));
+    const start = byKey.get(this.key(target.x, target.y));
+    if (!start) return [];
+    const queue = [start];
+    const parent = new Map<string, string>();
+    const seen = new Set<string>([this.key(start.x, start.y)]);
+    while (queue.length) {
+      const node = queue.shift()!;
+      const key = this.key(node.x, node.y);
+      if ((node.kind === 'gate' || node.kind === 'tower') && this.accessGroundCell(node)) {
+        const route: WallNavNode[] = [node];
+        let current = key;
+        while (parent.has(current)) {
+          current = parent.get(current)!;
+          route.push(byKey.get(current)!);
+        }
+        return route;
+      }
+      for (const next of this.connectedWallNeighbors(node, byKey)) {
+        const nextKey = this.key(next.x, next.y);
+        if (seen.has(nextKey)) continue;
+        seen.add(nextKey);
+        parent.set(nextKey, key);
+        queue.push(next);
+      }
+    }
+    return [];
   }
 
   connectedWallNeighbors(node: WallNavNode, nodes: Map<string, WallNavNode>): WallNavNode[] {
