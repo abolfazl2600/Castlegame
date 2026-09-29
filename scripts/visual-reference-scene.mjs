@@ -146,13 +146,6 @@ function harborDistrictCells() {
   ];
 }
 
-function modernCells() {
-  return [
-    cell(11, 11, 'futuristicCastle', 1),
-    cell(3, 3, 'tree', 2), cell(18, 3, 'tree', 3), cell(3, 18, 'rock', 2), cell(18, 18, 'mountain', 2),
-  ];
-}
-
 function sceneDefinition(kind) {
   if (kind === 'empty') return { mode: 'medieval', layout: 'mainland', cells: [], keeps: [] };
   if (kind === 'reference') return {
@@ -170,11 +163,10 @@ function sceneDefinition(kind) {
   };
   if (kind === 'farm') return { mode: 'medieval', layout: 'mainland', cells: farmDistrictCells(), keeps: [] };
   if (kind === 'harbor') return { mode: 'medieval', layout: 'peninsula', cells: harborDistrictCells(), keeps: [] };
-  if (kind === 'modern') return { mode: 'modern', layout: 'mainland', cells: modernCells(), keeps: [] };
   throw new Error(`Unknown scene: ${kind}`);
 }
 
-export const FINAL_QA_SCENES = ['starter', 'dense', 'castle', 'farm', 'harbor', 'modern'];
+export const FINAL_QA_SCENES = ['starter', 'dense', 'castle', 'farm', 'harbor'];
 
 export function createVisualScene(kind = 'reference') {
   const definition = sceneDefinition(kind);
