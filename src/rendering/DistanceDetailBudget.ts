@@ -89,8 +89,9 @@ const MOBILE_BUDGETS: Record<DistanceDetailBand, VisualPerformanceBudget> = {
 };
 
 const BAND_HYSTERESIS = 4;
-const GENERIC_MICRO_DETAIL_RADIUS = 0.78;
-const PROP_HEAVY_MICRO_DETAIL_RADIUS = 1.32;
+const GENERIC_MICRO_DETAIL_RADIUS = 2.4;
+const PROP_HEAVY_MICRO_DETAIL_RADIUS = 3.4;
+const PRIORITY_MICRO_DETAIL_RADIUS = 2.6;
 
 function settingsPixelRatioScale(settings: SettingsData): number {
   const quality =
@@ -147,16 +148,38 @@ function worldRadius(mesh: THREE.Mesh): number {
   return radius * Math.max(Math.abs(scale.x), Math.abs(scale.y), Math.abs(scale.z));
 }
 
+function detailBudgetRoot(object: THREE.Object3D): THREE.Object3D | null {
+  let current: THREE.Object3D | null = object.parent;
+  while (current && !(current instanceof THREE.Scene)) {
+    if (
+      current.userData.cellKey ||
+      current.userData.defenseSilhouette ||
+      current.userData.settlementReadabilityClass === 'landmark' ||
+      current.userData.futuristicCastle ||
+      current.userData.visualRefs
+    ) return current;
+    current = current.parent;
+  }
+  return null;
+}
+
 function isSuppressibleMicroDetail(mesh: THREE.Mesh): boolean {
   if (mesh instanceof THREE.InstancedMesh || mesh instanceof THREE.SkinnedMesh) return false;
-  if (parentHasReadabilityPriority(mesh)) return false;
+  if (mesh.userData.distanceDetailPriority === 'silhouette') return false;
   if (mesh.userData.distanceDetailPriority === 'micro') return true;
   if (mesh.userData.waterLayer || mesh.userData.godModeMarker) return false;
 
-  const threshold = parentHasPropHeavyContext(mesh)
-    ? PROP_HEAVY_MICRO_DETAIL_RADIUS
-    : GENERIC_MICRO_DETAIL_RADIUS;
+  const threshold = parentHasReadabilityPriority(mesh)
+    ? PRIORITY_MICRO_DETAIL_RADIUS
+    : parentHasPropHeavyContext(mesh)
+      ? PROP_HEAVY_MICRO_DETAIL_RADIUS
+      : GENERIC_MICRO_DETAIL_RADIUS;
   return worldRadius(mesh) <= threshold;
+}
+
+function coreMeshesPerRoot(band: DistanceDetailBand, mobile: boolean): number {
+  if (band === 'inspection') return mobile ? 2 : 3;
+  return 1;
 }
 
 interface DetailBudgetResult {
@@ -213,7 +236,8 @@ export class DistanceDetailBudgetSystem {
       settings.graphics.shadowsEnabled ? 'shadows' : 'no-shadows',
     ].join(':');
 
-    if (profileKey !== this.lastProfileKey) {
+    const previousFrameOverBudget = renderer.info.render.calls > budget.drawCalls;
+    if (profileKey !== this.lastProfileKey || previousFrameOverBudget) {
       const maxPixelRatio = Math.min(window.devicePixelRatio, 2);
       const ratio = THREE.MathUtils.clamp(
         settingsPixelRatioScale(settings) * budget.pixelRatioScale,
@@ -226,7 +250,7 @@ export class DistanceDetailBudgetSystem {
         settings.graphics.quality !== 'low' &&
         budget.shadowCasters > 0;
 
-      const detail = this.applyDetailBudget(scene, budget);
+      const detail = this.applyDetailBudget(scene, budget, this.band, mobile);
       const shadow = this.applyShadowBudget(scene, budget.shadowCasters, renderer.shadowMap.enabled);
       const estimatedDrawCalls = detail.estimatedDrawCalls + shadow.activeShadowCasters;
       const baselineEstimatedDrawCalls =
@@ -297,16 +321,21 @@ export class DistanceDetailBudgetSystem {
   private applyDetailBudget(
     scene: THREE.Scene,
     budget: VisualPerformanceBudget,
+    band: DistanceDetailBand,
+    mobile: boolean,
   ): DetailBudgetResult {
     this.restoreSuppressedDetail(scene);
     scene.updateMatrixWorld(true);
 
-    const candidates: Array<{
+    type DetailCandidate = {
       mesh: THREE.Mesh;
       radius: number;
       drawCost: number;
       order: number;
-    }> = [];
+    };
+
+    const candidates: DetailCandidate[] = [];
+    const rootedMeshes = new Map<THREE.Object3D, DetailCandidate[]>();
     let traversalOrder = 0;
     let baselineEstimatedDrawCalls = 0;
     let protectedDrawCalls = 0;
@@ -317,18 +346,44 @@ export class DistanceDetailBudgetSystem {
       if (drawCost <= 0) return;
       baselineEstimatedDrawCalls += drawCost;
 
-      if (object instanceof THREE.Mesh && isSuppressibleMicroDetail(object)) {
-        candidates.push({
-          mesh: object,
-          radius: worldRadius(object),
-          drawCost,
-          order: traversalOrder,
-        });
+      if (!(object instanceof THREE.Mesh)) {
+        protectedDrawCalls += drawCost;
+        traversalOrder += 1;
+        return;
+      }
+
+      const candidate: DetailCandidate = {
+        mesh: object,
+        radius: worldRadius(object),
+        drawCost,
+        order: traversalOrder,
+      };
+      const root = detailBudgetRoot(object);
+      if (root) {
+        const group = rootedMeshes.get(root) ?? [];
+        group.push(candidate);
+        rootedMeshes.set(root, group);
+      } else if (isSuppressibleMicroDetail(object)) {
+        candidates.push(candidate);
       } else {
         protectedDrawCalls += drawCost;
       }
       traversalOrder += 1;
     });
+
+    const perRootCore = coreMeshesPerRoot(band, mobile);
+    for (const group of rootedMeshes.values()) {
+      group.sort((a, b) => {
+        const aPriority = a.mesh.userData.distanceDetailPriority === 'silhouette' ? 1 : 0;
+        const bPriority = b.mesh.userData.distanceDetailPriority === 'silhouette' ? 1 : 0;
+        return bPriority - aPriority || b.radius - a.radius || a.order - b.order;
+      });
+      for (let index = 0; index < group.length; index += 1) {
+        const entry = group[index];
+        if (index < perRootCore) protectedDrawCalls += entry.drawCost;
+        else candidates.push(entry);
+      }
+    }
 
     candidates.sort((a, b) => b.radius - a.radius || a.order - b.order);
 
