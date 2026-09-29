@@ -407,7 +407,7 @@ export class DistanceDetailBudgetSystem {
   private restoreSuppressedDetail(scene: THREE.Scene): void {
     scene.traverse((object) => {
       if (!this.detailHidden.has(object)) return;
-      object.visible = true;
+      if (!object.userData.constructionHidden) object.visible = true;
       this.detailHidden.delete(object);
     });
   }
