@@ -187,6 +187,12 @@ export interface PopulationSimulationState {
   professionalArmy: SavedProfessionalSoldierState[];
 }
 
+export interface EnvironmentSimulationState {
+  cycleDays: number;
+  day: number;
+  progress: number;
+}
+
 export interface SavedGame {
   version: number;
   gameMode?: GameMode;
@@ -221,6 +227,7 @@ export interface SavedGame {
   missiles?: MissileInventoryState;
   economy?: EconomyResourceState;
   population?: PopulationSimulationState;
+  environment?: EnvironmentSimulationState;
 }
 
 export interface SaveMetadata {
