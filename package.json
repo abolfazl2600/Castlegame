@@ -42,7 +42,10 @@
     "test:fortification-upgrades": "node scripts/test-fortification-upgrades.mjs",
     "test:camera-zoom-contract": "node scripts/test-camera-zoom-contract.mjs",
     "test:building-silhouette-contract": "node scripts/test-building-silhouette-contract.mjs",
-    "test:upgrade-visual-language": "node scripts/test-upgrade-visual-language.mjs"
+    "test:upgrade-visual-language": "node scripts/test-upgrade-visual-language.mjs",
+    "test:visual-reference": "node scripts/test-visual-reference.mjs",
+    "visual:baseline": "node scripts/visual-baseline.mjs",
+    "visual:report": "node scripts/visual-baseline-report.mjs"
   },
   "dependencies": {
     "three": "^0.180.0"
