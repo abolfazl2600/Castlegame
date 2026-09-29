@@ -1,10 +1,11 @@
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 
-const [scene, qa, game, worldStyle, docs] = await Promise.all([
+const [scene, qa, game, ambientMotion, worldStyle, docs] = await Promise.all([
   readFile(new URL('./visual-reference-scene.mjs', import.meta.url), 'utf8'),
   readFile(new URL('./final-visual-coherence-qa.mjs', import.meta.url), 'utf8'),
   readFile(new URL('../src/ThreeGame.ts', import.meta.url), 'utf8'),
+  readFile(new URL('../src/rendering/AmbientMotionSystem.ts', import.meta.url), 'utf8'),
   readFile(new URL('../src/rendering/WorldStyle.ts', import.meta.url), 'utf8'),
   readFile(new URL('../docs/visual-audits/issue-137/README.md', import.meta.url), 'utf8'),
 ]);
@@ -61,13 +62,21 @@ assert.notEqual(animateStart, -1);
 const animate = game.slice(animateStart);
 assert.match(
   animate,
-  /!settings\.interface\.reducedMotion && settings\.graphics\.effectsEnabled/,
-  'Existing ambient motion must remain gated by reduced-motion/effects settings.',
+  /const ambientScale = this\.ambientMotion\.update/,
+  'Ambient motion must be routed through the shared motion layer.',
+);
+assert.match(animate, /effectsEnabled: settings\.graphics\.effectsEnabled/);
+assert.match(animate, /reducedMotion: settings\.interface\.reducedMotion/);
+assert.match(
+  ambientMotion,
+  /if \(!options\.effectsEnabled \|\| options\.reducedMotion\) return 0/,
+  'Ambient motion must remain gated by reduced-motion/effects settings.',
 );
 assert.match(animate, /windmillSystem\.update/);
-assert.match(animate, /riverTexture\.offset/);
-assert.match(animate, /oceanTexture\.offset/);
-assert.match(animate, /for \(const flag of this\.animatedFlags\)/);
+assert.match(ambientMotion, /registerTextureFlow/);
+assert.match(ambientMotion, /registerFlag/);
+assert.doesNotMatch(animate, /riverTexture\.offset/);
+assert.doesNotMatch(animate, /oceanTexture\.offset/);
 
 assert.match(docs, /#134/);
 assert.match(docs, /#135/);
