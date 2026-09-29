@@ -7,11 +7,16 @@ const main = await readFile(
 );
 
 const settingsIndex = main.indexOf('new SettingsUI(');
-const mobileIndex = main.indexOf('new MobileUI()');
+const mobileIndex = main.search(/new\s+MobileUI\s*\(/);
 const runtimeImportIndex = main.indexOf("import('./ThreeGame')");
 
 assert.notEqual(settingsIndex, -1, 'SettingsUI bootstrap is missing.');
 assert.notEqual(mobileIndex, -1, 'MobileUI bootstrap is missing.');
+assert.match(
+  main,
+  /new\s+MobileUI\s*\(\s*settingsStore\s*\)/,
+  'MobileUI must receive the shared SettingsStore so touch/mobile preference can control layout.',
+);
 assert.notEqual(runtimeImportIndex, -1, 'ThreeGame must be loaded by the isolated runtime bootstrap.');
 
 assert.ok(
