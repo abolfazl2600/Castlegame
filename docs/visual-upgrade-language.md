@@ -49,3 +49,44 @@ These families attach the shared `upgradeVisualProfile` to their render group so
 ## Performance rule
 
 Large silhouette geometry is protected at normal gameplay zoom. Secondary props, animated elements, particles and emissive accents must respect the profile budgets and may be reduced by future distance/quality systems without erasing the level identity.
+
+
+## Settlement application (#132)
+
+The shared progression language is now applied across the settlement layer without forcing every civic building into a fake upgrade mechanic.
+
+### Residential progression
+
+The residential family intentionally reads as one four-step visual ladder:
+
+**Cottage → House → Manor → Villa**
+
+- Cottage = Level 1 / Basic: low loose hamlet massing.
+- House = Level 2 / Established: denser block with a taller central dwelling.
+- Manor = Level 3 / Advanced: dominant hall, formal court, stronger vertical hierarchy.
+- Villa = Level 4 / Landmark: open court plus a crowned corner pavilion/cupola that stays recognizable at normal gameplay zoom.
+
+These remain separate build choices for compatibility; the mapping is a visual-language contract, not an economy rewrite.
+
+### Apple Orchard progression
+
+Apple Orchard now supports four visual maturity levels:
+
+1. **Young Grove** — smaller 3×3 planting language with a deliberately open entrance.
+2. **Working Orchard** — broader 4×3 rows plus visible produce handling.
+3. **Mature Orchard** — 4×4 canopy mass plus a taller entrance trellis.
+4. **Estate Orchard** — 5×4 mature planting mass with a dedicated packing shed landmark.
+
+The final tier gains a new architectural mass rather than relying on more apples, crates, or color changes.
+
+### Existing upgradeable settlement families
+
+Crop Farm, Cattle Farm, Army Camp, and Harbor continue to consume the shared `upgradeVisualProfile` at Levels 1–4. Their existing gameplay values, save semantics, worker assignment, and pathfinding remain unchanged by this visual pass.
+
+### Fixed-role landmarks
+
+**Market, Basilica, and Windmill remain fixed-role landmarks** rather than receiving artificial four-level upgrade mechanics. They are explicitly tagged as settlement landmarks so readability/LOD systems can preserve their dominant silhouettes.
+
+### Activity rule
+
+Visible activity should reinforce an already-readable silhouette. Simulation-owned workers, livestock, ships, smoke, flags, tools, and other activity cues may increase with progression, but small props are never the primary level signal.
