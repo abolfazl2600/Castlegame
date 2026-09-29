@@ -16,6 +16,10 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: final-visual-coherence-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   final-visual-qa:
     runs-on: ubuntu-24.04
