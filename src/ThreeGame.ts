@@ -13882,6 +13882,7 @@ export class ThreeGame {
       reducedMotion: settings.interface.reducedMotion,
       animationScale: visualBudget.budget.animationScale,
       cameraDistance: this.viewMode === 'plan2d' ? Infinity : cameraDistance,
+      normalDistance: WORLD_STYLE.camera.referenceDistances.normalGameplay,
       strategicDistance: WORLD_STYLE.camera.referenceDistances.maximumStrategic,
     });
     const ambientScale = this.ambientMotion.update(deltaMs, time, {
