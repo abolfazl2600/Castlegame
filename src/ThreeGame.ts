@@ -18,6 +18,7 @@ import { WORLD_STYLE, styleTone } from './rendering/WorldStyle';
 import { AmbientMotionSystem } from './rendering/AmbientMotionSystem';
 import { EnvironmentSystem } from './systems/EnvironmentSystem';
 import { DistanceDetailBudgetSystem } from './rendering/DistanceDetailBudget';
+import { PerformanceDebugOverlay } from './debug/PerformanceDebugOverlay';
 import {
   RESIDENCE_LAYOUTS,
   RESIDENCE_VISUAL_LEVELS,
@@ -377,6 +378,7 @@ export class ThreeGame {
   private readonly settingsStore: SettingsStore;
   private readonly audioManager: AudioManager;
   private readonly distanceDetailBudget = new DistanceDetailBudgetSystem();
+  private readonly performanceDebug: PerformanceDebugOverlay;
   /** Domain state and gameplay services are composed here, away from rendering/UI concerns. */
   private readonly services = createGameDomainServices();
   private readonly castleBlockSystem = new CastleBlockSystem();
@@ -667,6 +669,18 @@ export class ThreeGame {
     this.controls.target.set(0, 0, 0);
     this.controls.addEventListener('change', () => this.enforceGameplayCameraBounds());
     applyInputSettings(this.controls, this.settingsStore.get());
+    this.performanceDebug = new PerformanceDebugOverlay(this.settingsStore, {
+      renderer: this.renderer,
+      scene: this.scene,
+      getCameraDistance: () => this.camera.position.distanceTo(this.controls.target),
+      getViewMode: () => this.viewMode,
+      getVisualBudget: () => this.distanceDetailBudget.snapshot(),
+      getRuntimeCounts: () => ({
+        workers: this.workers.length,
+        settlementAgents: this.settlementAgents.length,
+        battleObjects: this.battleLayer.children.length,
+      }),
+    });
     this.settingsStore.subscribe((settings) => {
       applyGraphicsSettings(this.renderer, settings);
       applySceneGraphicsSettings(this.scene, settings);
@@ -13849,7 +13863,8 @@ export class ThreeGame {
   }
 
   private animate(time: number): void {
-    const deltaMs = this.lastFrameTime === 0 ? 16 : Math.min(50, time - this.lastFrameTime);
+    const frameDeltaMs = this.lastFrameTime === 0 ? 16 : Math.max(0, time - this.lastFrameTime);
+    const deltaMs = Math.min(50, frameDeltaMs);
     this.lastFrameTime = time;
 
     const settings = this.settingsStore.get();
@@ -13903,6 +13918,7 @@ export class ThreeGame {
     this.controls.update();
     this.enforceGameplayCameraBounds();
     this.renderer.render(this.scene, this.camera);
+    this.performanceDebug.update(frameDeltaMs);
 
     requestAnimationFrame((nextTime) => this.animate(nextTime));
   }
