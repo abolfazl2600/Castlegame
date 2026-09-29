@@ -118,6 +118,7 @@ assert.match(saveSource, /this\.host\.setPopulationState\?\.\(data\.population\)
 assert.match(gameSource, /syncPopulationDefenseAssignments/);
 assert.match(gameSource, /applyMilitiaCasualties/);
 assert.match(gameSource, /applyProfessionalCasualties/);
+assert.match(gameSource, /commitPopulationBattleOutcome\(preResetStatus, true\)/);
 assert.match(gameSource, /visibleCivilianRoster\(40, 40\)/);
 assert.match(gameSource, /id="population-available"/);
 assert.match(gameSource, /id="population-professional"/);
