@@ -31,4 +31,17 @@ const inferred = system.build([
 assert.equal(inferred.structures.length, 1, 'legacy cells without wallLinks should infer connectivity');
 assert.ok(inferred.blocks[0].links.length > 0);
 
+const at = (snapshot, x, y) => snapshot.blocks.find((block) => block.x === x && block.y === y);
+const line = system.build([1, 2, 3].map((x) => ({ x, y: 4, kind: 'wall1' })), 'limestone');
+assert.equal(at(line, 2, 4).topology, 'straight');
+assert.equal(at(line, 1, 4).topology, 'end');
+assert.equal(at(system.build([1, 3].map((x) => ({ x, y: 4, kind: 'wall1' })), 'limestone'), 1, 4).topology, 'isolated');
+const junction = system.build([
+  { x: 2, y: 2, kind: 'wall1' },
+  ...[[2, 1], [3, 2], [2, 3], [1, 2]].map(([x, y]) => ({ x, y, kind: 'wall1' })),
+], 'limestone');
+assert.equal(at(junction, 2, 2).topology, '4-way');
+assert.equal(at(system.build(junction.blocks.filter((block) => block.x !== 1).map(({ x, y }) => ({ x, y, kind: 'wall1' })), 'limestone'), 2, 2).topology, 't-junction');
+assert.deepEqual(system.build([...line.blocks].reverse().map(({ x, y }) => ({ x, y, kind: 'wall1' })), 'limestone').blocks, line.blocks);
+
 console.log('castle block model regression checks passed');
