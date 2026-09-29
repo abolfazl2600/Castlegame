@@ -7,6 +7,8 @@ import type { GameState } from './state/GameState';
 import { SAVE_KEY, SAVE_VERSION, TILE_SIZE, WORLD_COLS } from './core/constants';
 import { WallSystem } from './building/WallSystem';
 import { CastleBlockSystem, MAX_WALL_LEVEL, castleDamageStage, castleHeightFor, type CastleBlockState } from './building/CastleBlockSystem';
+import { ConstructionAnimationSystem } from './rendering/ConstructionAnimationSystem';
+import { AmbientFaunaSystem } from './rendering/AmbientFaunaSystem';
 import { rasterizeWallPath } from './building/WallPath';
 import { KeepRenderer } from './rendering/KeepRenderer';
 import { BasilicaRenderer } from './rendering/BasilicaRenderer';
@@ -192,6 +194,11 @@ const BUILDING_KINDS: TileKind[] = [
   'hut',
   'moat',
 ];
+const CONSTRUCTION_VISUAL_KINDS = new Set<TileKind>([
+  'wall1', 'wall2', 'wall3', 'gate', 'tower', 'cottage', 'house', 'manor', 'villa',
+  'hut', 'farm', 'cowBarn', 'appleOrchard', 'market', 'windmill', 'mine',
+  'armyCamp', 'harbor', 'basilica',
+]);
 
 type ViewMode = 'plan2d' | 'world3d';
 
@@ -373,6 +380,9 @@ export class ThreeGame {
   /** Domain state and gameplay services are composed here, away from rendering/UI concerns. */
   private readonly services = createGameDomainServices();
   private readonly castleBlockSystem = new CastleBlockSystem();
+  private readonly constructionAnimation = new ConstructionAnimationSystem();
+  private readonly ambientFauna = new AmbientFaunaSystem();
+  private readonly constructionObjects = new Map<string, THREE.Object3D>();
   private castleBlocksByCell = new Map<string, CastleBlockState>();
   private readonly maritimeSystem = new MaritimeSystem({
     size: SIZE,
@@ -542,7 +552,10 @@ export class ThreeGame {
       isBuildingAvailableForMode: (mode, kind) => isBuildingAvailable(mode, kind as TileKind),
       key: (x, y) => this.key(x, y),
       syncModeDependentUI: () => this.syncModeDependentUI(),
-      prepareForLoad: () => this.clearSettlementAgents(),
+      prepareForLoad: () => {
+        this.constructionAnimation.clear();
+        this.clearSettlementAgents();
+      },
       afterLoad: () => {
         this.rebuildWorldLayoutSurface();
         this.normalizeRiverElevations();
@@ -671,6 +684,7 @@ export class ThreeGame {
       if (helpModal && !settings.interface.showHelp) helpModal.hidden = true;
       const battlePanel = document.getElementById('battle-panel');
       battlePanel?.classList.toggle('settings-no-combat-feedback', !settings.gameplay.combatFeedback);
+      if (this.ambientFauna.counts.birds > 0) this.rebuildAmbientFauna();
     });
 
     this.addLights();
@@ -678,6 +692,7 @@ export class ThreeGame {
     this.createAmbientWorld();
 
     this.scene.add(this.ambientLayer);
+    this.scene.add(this.ambientFauna.layer);
     this.scene.add(this.terrainLayer);
     this.scene.add(this.buildLayer);
     this.scene.add(this.planLayer);
@@ -2034,11 +2049,13 @@ export class ThreeGame {
     this.services.gateSystem.clear();
     this.services.windmillSystem.clear();
     this.buildObjectsByCell.clear();
+    this.constructionObjects.clear();
     this.clearGroup(this.planLayer);
     this.renderTerrain();
 
     const floodedMoats = this.computeFloodedMoats();
     const cells = this.services.state.entries();
+    this.rebuildAmbientFauna();
     const castleSnapshot = this.castleBlockSystem.build(cells, this.stoneStyle, (x, y) => this.terrainElevation(x, y));
     const castleBlocks = new Map(castleSnapshot.blocks.map((block) => [this.key(block.x, block.y), block]));
     this.castleBlocksByCell = castleBlocks;
@@ -2050,24 +2067,27 @@ export class ThreeGame {
       const castleBlock = castleBlocks.get(this.key(cell.x, cell.y));
       if (castleBlock) building.userData.castleBlock = castleBlock;
       this.buildObjectsByCell.set(this.key(cell.x, cell.y), building);
+      this.constructionObjects.set(`cell:${cell.x},${cell.y}`, building);
       this.buildLayer.add(building);
     }
 
     for (const keep of this.services.keepSystem.entries()) {
-      this.buildLayer.add(
-        this.keepRenderer.render(keep, {
+      const renderedKeep = this.keepRenderer.render(keep, {
           tileSize: TILE,
           toWorld: (x, y) => this.gridToWorld(x, y),
           elevationAt: (x, y) => this.terrainElevation(x, y),
           terrainAt: (x, y) => this.terrainAt(x, y),
           kindAt: (x, y) => this.kindAt(x, y),
           stoneStyle: this.stoneStyle,
-        }),
-      );
+        });
+      this.constructionObjects.set(`keep:${keep.id}`, renderedKeep);
+      this.buildLayer.add(renderedKeep);
     }
 
     for (const bridge of this.towerBridges.values()) {
-      this.buildLayer.add(this.makeTowerBridge(bridge));
+      const renderedBridge = this.makeTowerBridge(bridge);
+      this.constructionObjects.set(`bridge:${bridge.id}`, renderedBridge);
+      this.buildLayer.add(renderedBridge);
     }
 
 
@@ -2125,6 +2145,7 @@ export class ThreeGame {
       }
     });
     this.distanceDetailBudget.invalidate();
+    this.constructionAnimation.rebind((key) => this.constructionObjects.get(key));
     if (this.visualBenchmark) this.lastRedrawMs = performance.now() - redrawStart;
   }
 
@@ -2166,6 +2187,7 @@ export class ThreeGame {
         this.buildLayer.remove(old);
         this.clearGroup(old as THREE.Group);
         this.buildObjectsByCell.delete(key);
+        this.constructionObjects.delete(`cell:${key}`);
       }
       const cell = byKey.get(key);
       if (!cell) continue;
@@ -2174,6 +2196,7 @@ export class ThreeGame {
       building.userData.cellKind = cell.kind;
       building.userData.castleBlock = nextBlocks.get(key);
       this.buildObjectsByCell.set(key, building);
+      this.constructionObjects.set(`cell:${key}`, building);
       this.buildLayer.add(building);
       building.traverse((object) => {
         if (object.userData.castleFlag) this.ambientMotion.registerFlag(object, Number(object.userData.castleFlag.phase ?? 0));
@@ -2187,6 +2210,27 @@ export class ThreeGame {
     this.renderPlanLayer(cells);
     this.renderMinimap();
     this.distanceDetailBudget.invalidate();
+    this.constructionAnimation.rebind((key) => this.constructionObjects.get(key));
+    this.rebuildAmbientFauna();
+  }
+
+  private rebuildAmbientFauna(): void {
+    this.ambientFauna.rebuild({
+      size: SIZE,
+      seed: this.worldSeed,
+      terrainAt: (x, y) => this.terrainAt(x, y),
+      elevationAt: (x, y) => this.terrainElevation(x, y),
+      blockedAt: (x, y) => Boolean(this.services.state.getCell(x, y) ||
+        this.services.keepSystem.findAtCell(x, y) || this.isStructureFootprintReserved(x, y)),
+      farmAt: (x, y) => this.services.state.getCell(x, y)?.kind === 'farm',
+      toWorld: (x, y) => this.gridToWorld(x, y),
+    }, this.settingsStore.get().graphics.quality);
+  }
+
+  private startConstruction(key: string, duration = 850): void {
+    const object = this.constructionObjects.get(key);
+    if (!object || this.viewMode === 'plan2d') return;
+    this.constructionAnimation.start(key, object, performance.now(), duration);
   }
 
   private renderMinimap(): void {
@@ -5583,6 +5627,7 @@ export class ThreeGame {
     this.towerBridgeHover = null;
     this.clearGroup(this.wallPreviewLayer);
     this.finishBuild();
+    this.startConstruction(`bridge:${bridge.id}`, 1100);
     this.syncArmyCampUpgradeUI();
     this.setStatus(
       bridge.kind === 'stone'
@@ -7599,6 +7644,7 @@ export class ThreeGame {
   }
 
   private restoreSnapshot(snapshot: HistorySnapshot): void {
+    this.constructionAnimation.clear();
     this.setMapLayoutId(snapshot.mapLayoutId ?? 'island');
     this.worldSeed = Number.isFinite(snapshot.worldSeed) ? Math.trunc(snapshot.worldSeed) : 0;
     this.services.state.replace(snapshot.cells);
@@ -8728,6 +8774,26 @@ export class ThreeGame {
       depthWrite: false,
     });
     const validity = path.map((point) => baseValid(point) && (!costsConstruction(point) || affordable));
+    const draftCells = new Map(this.services.state.entries().map((cell) => [this.key(cell.x, cell.y), { ...cell }]));
+    path.forEach((point, index) => {
+      if (!validity[index]) return;
+      const key = this.key(point.x, point.y);
+      const existing = draftCells.get(key);
+      if (!existing) draftCells.set(key, { x: point.x, y: point.y, kind: wallKind, level: 1 });
+      else if (WALL_KINDS.includes(existing.kind as WallKind)) existing.kind = wallKind;
+    });
+    for (let i = 1; i < path.length; i += 1) {
+      if (!validity[i - 1] || !validity[i]) continue;
+      const direction = WallSystem.directionFromDelta(path[i].x - path[i - 1].x, path[i].y - path[i - 1].y);
+      const a = draftCells.get(this.key(path[i - 1].x, path[i - 1].y));
+      const b = draftCells.get(this.key(path[i].x, path[i].y));
+      if (a && b) {
+        a.wallLinks = WallSystem.addLink(a, direction);
+        b.wallLinks = WallSystem.addLink(b, WallSystem.opposite(direction));
+      }
+    }
+    const draftBlocks = new Map(this.castleBlockSystem.build([...draftCells.values()], this.stoneStyle)
+      .blocks.map((block) => [this.key(block.x, block.y), block]));
 
     for (let i = 0; i < path.length; i += 1) {
       const point = path[i];
@@ -8743,7 +8809,23 @@ export class ThreeGame {
       marker.position.set(position.x, y, position.z);
       marker.renderOrder = 90;
       marker.castShadow = false;
+      marker.userData.previewTopology = draftBlocks.get(this.key(point.x, point.y))?.topology;
       this.wallPreviewLayer.add(marker);
+
+      if (validity[i]) {
+        const links = draftBlocks.get(this.key(point.x, point.y))?.links ?? [];
+        for (const direction of links) {
+          const vector = WallSystem.vector(direction);
+          const arm = new THREE.Mesh(
+            new THREE.BoxGeometry(0.5, 0.2, TILE * Math.hypot(vector.x, vector.y) / 2 + 0.24),
+            validMaterial,
+          );
+          arm.position.set(position.x + vector.x * TILE / 4, y, position.z + vector.y * TILE / 4);
+          arm.rotation.y = WallSystem.worldAngle(direction);
+          arm.renderOrder = 89;
+          this.wallPreviewLayer.add(arm);
+        }
+      }
 
       if (i === 0) continue;
 
@@ -8877,6 +8959,11 @@ export class ThreeGame {
       this.pushUndoSnapshot(before);
       if (costedSegments > 0) this.spendConstructionCost(wallKind, costedSegments);
       this.redrawCastleNeighborhood(path);
+      for (const point of path.slice(0, 24)) {
+        if (!before.cells.some((cell) => cell.x === point.x && cell.y === point.y)) {
+          this.startConstruction(`cell:${point.x},${point.y}`, 520);
+        }
+      }
       this.scheduleSave();
       this.setStatus(
         single
@@ -9601,9 +9688,16 @@ export class ThreeGame {
   }
 
   private finishBuild(): void {
+    const point = this.selectedCell;
+    const previous = point && this.undoStack.at(-1)?.cells.find((cell) => cell.x === point.x && cell.y === point.y);
+    const current = point && this.services.state.getCell(point.x, point.y);
+    const newlyPlaced = point && current && CONSTRUCTION_VISUAL_KINDS.has(current.kind) &&
+      (!previous || previous.kind !== current.kind);
     this.buildPreviewKey = '';
     audioEvents.emit({ action: 'play_sfx', assetId: 'building.place' });
     this.redraw();
+    if (newlyPlaced && point) this.startConstruction(`cell:${point.x},${point.y}`,
+      current.kind === 'gate' || current.kind === 'tower' || current.kind === 'harbor' ? 1150 : 800);
     this.scheduleSave();
   }
 
@@ -11328,6 +11422,7 @@ export class ThreeGame {
     this.spendConstructionCost('keep', keepCostUnits);
     this.selectKeep(keep);
     this.redraw();
+    this.startConstruction(`keep:${keep.id}`, 1450);
     this.scheduleSave();
     this.setStatus(`Keep built · ${keep.width}×${keep.depth} · ${keep.floors} floors · details generated automatically`);
   }
@@ -13759,6 +13854,7 @@ export class ThreeGame {
 
     const settings = this.settingsStore.get();
     const cameraDistance = this.camera.position.distanceTo(this.controls.target);
+    this.constructionAnimation.update(time, settings.interface.reducedMotion);
     const mobileRendering =
       settings.gameplay.controlScheme === 'touch' ||
       window.matchMedia?.('(pointer: coarse)').matches === true ||
@@ -13782,6 +13878,12 @@ export class ThreeGame {
     this.services.session.update(deltaMs, time);
     this.updateLongPress(time);
     this.updateGodModeEffects(deltaMs);
+    this.ambientFauna.update(deltaMs, time, {
+      reducedMotion: settings.interface.reducedMotion,
+      animationScale: visualBudget.budget.animationScale,
+      cameraDistance: this.viewMode === 'plan2d' ? Infinity : cameraDistance,
+      strategicDistance: WORLD_STYLE.camera.referenceDistances.maximumStrategic,
+    });
     const ambientScale = this.ambientMotion.update(deltaMs, time, {
       effectsEnabled: settings.graphics.effectsEnabled,
       reducedMotion: settings.interface.reducedMotion,
