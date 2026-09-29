@@ -9,6 +9,7 @@ export interface AmbientMotionOptions {
   cameraDistance: number;
   normalDistance: number;
   strategicDistance: number;
+  budgetScale?: number;
 }
 
 interface MotionEntry {
@@ -185,7 +186,8 @@ export class AmbientMotionSystem {
     }
     if (options.cameraDistance >= strategic) distance = 0.2;
 
-    return THREE.MathUtils.clamp(quality * detail * performance * distance, 0, 1);
+    const budget = THREE.MathUtils.clamp(options.budgetScale ?? 1, 0, 1);
+    return THREE.MathUtils.clamp(quality * detail * performance * distance * budget, 0, 1);
   }
 
   stats(): AmbientMotionStats {
