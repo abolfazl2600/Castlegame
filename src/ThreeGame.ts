@@ -265,7 +265,7 @@ const TOOL_GROUPS: Array<{ label: string; tools: ToolDefinition[] }> = [
       { id: 'wall3', icon: '🛡️', label: 'Reinforced Wall', detail: 'Drag A → B · heavy defense', shortcut: '3' },
       { id: 'gate', icon: '🚪', label: 'Gate', detail: 'Snaps into fortification lines', shortcut: '4' },
       { id: 'tower', icon: '🏰', label: 'Modular Tower', detail: '5 bases · medieval roof modules', shortcut: '5' },
-      { id: 'towerBridge', icon: '🌉', label: 'Tower Bridge', detail: 'Select two compatible towers', shortcut: 'D' },
+      { id: 'towerBridge', icon: '🌉', label: 'Tower Bridge', detail: 'Build or select between two compatible towers', shortcut: 'D' },
       { id: 'keep', icon: '🏯', label: 'Modular Keep', detail: 'Width · depth · floors · roof', shortcut: 'P' },
       { id: 'moat', icon: '💧', label: 'Moat', detail: 'Workers excavate queued tiles', shortcut: 'Q' },
     ],
@@ -5070,7 +5070,7 @@ export class ThreeGame {
       this.towerBridgeStart = { ...point };
       this.towerBridgeHover = null;
       this.clearGroup(this.wallPreviewLayer);
-      this.setStatus('Tower Bridge: select the second compatible tower');
+      this.setStatus('Tower Bridge: select the second tower · an existing connection will be selected for upgrades');
       return;
     }
 
@@ -9837,7 +9837,7 @@ export class ThreeGame {
       '<section id="fortification-upgrade-card" class="fortification-upgrade-card" aria-label="Selected fortification upgrade" hidden>' +
       '<div class="fortification-upgrade-heading"><div><span id="fortification-upgrade-type" class="eyebrow">SELECTED FORTIFICATION</span><strong id="fortification-upgrade-name">Fortification · Level 1</strong></div><span id="fortification-upgrade-badge">1 / 4</span></div>' +
       '<div class="fortification-level-track" aria-hidden="true"><span data-fortification-level="1"></span><span data-fortification-level="2"></span><span data-fortification-level="3"></span><span data-fortification-level="4"></span></div>' +
-      '<small id="fortification-upgrade-description">Select a Modular Tower, Gate, or Tower Bridge to inspect its level.</small>' +
+      '<small id="fortification-upgrade-description">Select a Modular Tower or Gate. For a Tower Bridge, choose the Bridge tool and select both connected towers.</small>' +
       '<div class="fortification-upgrade-actions"><button id="fortification-upgrade-button" class="fortification-upgrade-button" type="button">Upgrade to Level 2</button><button id="fortification-remove-bridge-button" class="fortification-remove-bridge-button" type="button" hidden>Remove Bridge</button></div>' +
       '</section>' +
       '<section id="army-camp-upgrade-card" class="army-camp-upgrade-card" aria-label="Selected Army Camp upgrade" hidden>' +
