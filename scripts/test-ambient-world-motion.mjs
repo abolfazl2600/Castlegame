@@ -59,7 +59,16 @@ assert.match(game, /ambientMotion: this\.ambientMotion\.stats\(\)/);
 const animate = game.slice(game.indexOf('private animate(time: number)'), game.lastIndexOf('\n}'));
 assert.match(animate, /updateSettlementAgents\(deltaMs\)/, 'Gameplay NPC motion must remain outside the decorative motion gate.');
 assert.match(animate, /const ambientScale = this\.ambientMotion\.update/);
-assert.match(animate, /cameraDistance: this\.camera\.position\.distanceTo\(this\.controls\.target\)/);
+assert.match(
+  animate,
+  /const cameraDistance = this\.camera\.position\.distanceTo\(this\.controls\.target\)/,
+  'Animation loop must derive camera distance from the active camera target.',
+);
+assert.match(
+  animate,
+  /(?:cameraDistance,|cameraDistance:\s*this\.camera\.position\.distanceTo\(this\.controls\.target\))/,
+  'Ambient motion must receive the current camera distance.',
+);
 assert.match(animate, /normalDistance: WORLD_STYLE\.camera\.referenceDistances\.normalGameplay/);
 assert.match(animate, /strategicDistance: WORLD_STYLE\.camera\.referenceDistances\.maximumStrategic/);
 assert.match(animate, /windmillSystem\.update\(\(deltaMs \/ 1000\) \* ambientScale\)/);
