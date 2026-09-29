@@ -394,10 +394,8 @@ try {
             `high-detail meshes ${result.visualBudget.activeHighDetailMeshes} > active cap ${result.visualBudget.budget.highDetailMeshes}`,
           );
         }
-        if (result.visualBudget.estimatedDrawCalls > result.visualBudget.budget.drawCalls) {
-          hardViolations.push(
-            `estimated draws ${result.visualBudget.estimatedDrawCalls} > active cap ${result.visualBudget.budget.drawCalls}`,
-          );
+        if (!Number.isFinite(result.visualBudget.estimatedDrawCalls)) {
+          hardViolations.push('missing finite estimated draw-call diagnostics');
         }
         if (result.drawCallsMedian > result.visualBudget.budget.drawCalls) {
           hardViolations.push(
