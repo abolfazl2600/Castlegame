@@ -14,6 +14,7 @@ import { CASTLE_ARCHITECTURE_STYLE } from './rendering/CastleArchitectureStyle';
 import { WORLD_STYLE, styleTone } from './rendering/WorldStyle';
 import { RESIDENCE_LAYOUTS, SETTLEMENT_STYLE, settlementVariant, type ResidenceKind } from './rendering/SettlementStyle';
 import { getTemplateVisualPreset } from './rendering/TemplateVisualStyle';
+import { upgradeVisualProfile } from './rendering/UpgradeVisualLanguage';
 import { BattleSystem, getUnitCombatStats } from './battle/BattleSystem';
 import { MILITARY_TIERS, militaryTierDefinition, normalizeMilitaryTier, type MilitaryTier } from './battle/MilitaryProgression';
 import {
@@ -3346,6 +3347,7 @@ export class ThreeGame {
     cell: GridCell,
   ): THREE.Group {
     const normalizedLevel = Math.max(1, Math.min(HARBOR_MAX_LEVEL, Math.floor(level)));
+    group.userData.upgradeVisualProfile = upgradeVisualProfile(normalizedLevel);
     const timber = this.environmentMaterial('harbor-timber', 0x6c4a32, 0.98);
     const timberLight = this.environmentMaterial('harbor-timber-light', 0x8a6444, 0.98);
     const timberDark = this.environmentMaterial('harbor-timber-dark', 0x493224, 1);
@@ -6254,6 +6256,7 @@ export class ThreeGame {
 
   private makeFarm(group: THREE.Group, level = 1): THREE.Group {
     const normalizedLevel = Math.max(1, Math.min(AGRICULTURE_MAX_LEVEL, Math.floor(level)));
+    group.userData.upgradeVisualProfile = upgradeVisualProfile(normalizedLevel);
     const soil = this.environmentMaterial('farm-soil', SETTLEMENT_STYLE.soil, 1);
     const wetSoil = this.environmentMaterial('farm-wet-soil', 0x59483a, 1);
     const cropGreen = this.environmentMaterial('farm-crop-green', 0x6f9c4f, 0.96);
@@ -6460,6 +6463,7 @@ export class ThreeGame {
 
   private makeCowBarn(group: THREE.Group, level: number, gx: number, gy: number): THREE.Group {
     const normalizedLevel = Math.max(1, Math.min(AGRICULTURE_MAX_LEVEL, Math.floor(level)));
+    group.userData.upgradeVisualProfile = upgradeVisualProfile(normalizedLevel);
     this.makeHouse(group, 'cowBarn', gx, gy);
 
     const timber = this.environmentMaterial('cow-barn-upgrade-timber', 0x63452f, 1);
@@ -6685,6 +6689,7 @@ export class ThreeGame {
     type CampVariant = 'field' | 'reinforced' | 'command' | 'fortified';
 
     const normalizedLevel = Math.max(1, Math.min(ARMY_CAMP_MAX_LEVEL, Math.floor(level)));
+    group.userData.upgradeVisualProfile = upgradeVisualProfile(normalizedLevel);
     const variant = (['field', 'reinforced', 'command', 'fortified'] as CampVariant[])[normalizedLevel - 1];
 
     const canvas = this.environmentMaterial('army-canvas', 0x9b7653, 0.96);
