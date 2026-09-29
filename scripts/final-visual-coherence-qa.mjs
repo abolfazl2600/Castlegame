@@ -370,7 +370,7 @@ try {
         totalMemoryBytes: os.totalmem(),
       },
       budgets: FINAL_QA_BUDGETS,
-      knownFocusedFollowups: [134, 135, 136],
+      knownFocusedFollowups: [135, 136],
       battleSetup: BATTLE_SETUP,
       captures: results.map((entry) => entry.screenshot),
       checks,
