@@ -61,6 +61,7 @@ import {
 } from './godmode/GodModeSystem';
 import type {
   EconomyResourceState,
+  PopulationSimulationState,
   GridCell,
   HarborKind,
   KeepRoofStyle,
@@ -228,7 +229,7 @@ interface WorkerAgent {
 interface SettlementAgent {
   key: string;
   id: number;
-  role: 'citizen' | 'farmer';
+  role: 'citizen' | 'farmer' | 'worker';
   view: THREE.Group;
   home: GridPoint;
   work?: GridPoint;
@@ -262,6 +263,7 @@ interface HistorySnapshot {
   towerBridges: TowerBridgeState[];
   militaryTier: MilitaryTier;
   economy: EconomyResourceState;
+  population: PopulationSimulationState;
 }
 
 const TOOL_GROUPS: Array<{ label: string; tools: ToolDefinition[] }> = [
@@ -474,6 +476,8 @@ export class ThreeGame {
     defenderModernSoldiers: 4,
   };
   private militaryTier: MilitaryTier = 1;
+  private populationBattleCommitted = false;
+  private populationBattleStart: BattleSetup | null = null;
   private missileUiRefreshMs = 0;
 
   private readonly undoStack: HistorySnapshot[] = [];
@@ -534,6 +538,8 @@ export class ThreeGame {
       setMilitaryTier: (value) => { this.militaryTier = normalizeMilitaryTier(value); },
       getEconomyState: () => this.services.economySystem.getState(),
       setEconomyState: (value) => { this.services.economySystem.setState(value); },
+      getPopulationState: () => this.services.populationSystem.getState(),
+      setPopulationState: (value) => { this.services.populationSystem.setState(value); },
       setWorldSeeded: (value) => { this.worldSeeded = value; },
       setLoadedSaveVersion: (value) => { this.loadedSaveVersion = value; },
       setStoneStyle: (value) => { this.stoneStyle = value; },
@@ -1457,6 +1463,9 @@ export class ThreeGame {
     this.militaryTier = 1;
     this.services.state.setMissileState();
     this.services.economySystem.reset();
+    this.services.populationSystem.setState();
+    this.populationBattleCommitted = false;
+    this.populationBattleStart = null;
     this.economySaveAccumulatorMs = 0;
     this.undoStack.length = 0;
     this.redoStack.length = 0;
@@ -1972,6 +1981,43 @@ export class ThreeGame {
   }
 
 
+  private syncPopulationDefenseAssignments(
+    cells: ReturnType<GameState['entries']> = this.services.state.entries(),
+  ): boolean {
+    this.services.populationSystem.reconcile(cells);
+    const battleSystem = (this as unknown as { battleSystem?: BattleSystem }).battleSystem;
+    if (battleSystem?.isActive()) return false;
+
+    const militia = this.services.populationSystem.setMilitiaComposition({
+      swordsman: this.battleSetup.defenderSwordsmen,
+      archer: this.battleSetup.defenderArchers,
+      spearman: this.battleSetup.defenderSpearmen,
+      crossbowman: this.battleSetup.defenderCrossbowmen,
+    });
+    const professional = this.services.populationSystem.setProfessionalArmyCount(
+      this.battleSetup.defenderModernSoldiers,
+      cells,
+    );
+
+    const next: BattleSetup = {
+      ...this.battleSetup,
+      defenderSwordsmen: militia.swordsman,
+      defenderArchers: militia.archer,
+      defenderSpearmen: militia.spearman,
+      defenderCrossbowmen: militia.crossbowman,
+      defenderModernSoldiers: professional,
+    };
+    const changed =
+      next.defenderSwordsmen !== this.battleSetup.defenderSwordsmen ||
+      next.defenderArchers !== this.battleSetup.defenderArchers ||
+      next.defenderSpearmen !== this.battleSetup.defenderSpearmen ||
+      next.defenderCrossbowmen !== this.battleSetup.defenderCrossbowmen ||
+      next.defenderModernSoldiers !== this.battleSetup.defenderModernSoldiers;
+    this.battleSetup = next;
+    return changed;
+  }
+
+
   private syncIdleDefenderGarrison(force = false): void {
     const battleSystem = (this as unknown as { battleSystem?: BattleSystem }).battleSystem;
     if (!battleSystem || battleSystem.isActive()) return;
@@ -2044,6 +2090,7 @@ export class ThreeGame {
 
     this.renderPlanLayer(cells);
     this.renderMinimap();
+    this.syncPopulationDefenseAssignments(cells);
     this.reconcileSettlementAgents(cells);
     this.updatePopulationUI();
     this.syncEconomyUI();
@@ -7404,6 +7451,7 @@ export class ThreeGame {
       towerBridges: Array.from(this.towerBridges.values()).map((bridge) => ({ ...bridge })),
       militaryTier: this.militaryTier,
       economy: this.services.economySystem.getState(),
+      population: this.services.populationSystem.getState(),
     };
   }
 
@@ -7437,6 +7485,9 @@ export class ThreeGame {
     this.normalizeRiverElevations();
     this.militaryTier = normalizeMilitaryTier(snapshot.militaryTier);
     this.services.economySystem.setState(snapshot.economy);
+    this.services.populationSystem.setState(snapshot.population);
+    this.populationBattleCommitted = false;
+    this.populationBattleStart = null;
     this.syncMilitaryUI();
     this.syncEconomyUI();
 
@@ -9465,6 +9516,12 @@ export class ThreeGame {
     for (const spec of desired) {
       const existing = existingByKey.get(spec.key);
       if (existing) {
+        if (existing.role !== spec.role) {
+          this.removeSettlementAgent(existing);
+          existingByKey.delete(spec.key);
+          this.spawnSettlementAgentFromSpec(spec);
+          continue;
+        }
         this.updateSettlementAssignment(existing, spec, currentHomes);
         existingByKey.delete(spec.key);
         continue;
@@ -9487,138 +9544,46 @@ export class ThreeGame {
   private buildDesiredSettlementAgents(
     cells: ReturnType<GameState['entries']>,
   ): SettlementAgentSpec[] {
-    const homes = cells
-      .filter((cell) => this.isSettlementHomeKind(cell.kind))
-      .sort((a, b) => a.x - b.x || a.y - b.y);
-    const farms = cells
-      .filter((cell) => this.isSettlementWorkKind(cell.kind))
-      .sort((a, b) => a.x - b.x || a.y - b.y);
-    const result: SettlementAgentSpec[] = [];
-
-    // Citizens and farm workers use independent bounded budgets. A dense town can
-    // fill its citizen budget without starving farms of their visible workers.
-    const maxVisibleCitizens = 40;
-    const maxVisibleFarmers = 40;
-    let visibleCitizens = 0;
-    let visibleFarmers = 0;
-
-    for (const home of homes) {
-      const desired =
-        home.kind === 'manor'
-          ? 4
-          : home.kind === 'house' || home.kind === 'villa'
-            ? 3
-            : 2;
-
-      for (let slot = 0; slot < desired; slot += 1) {
-        if (visibleCitizens >= maxVisibleCitizens) break;
-        result.push({
-          key: `citizen:${home.x},${home.y}:${slot}`,
-          role: 'citizen',
-          home: { x: home.x, y: home.y },
-          seed: home.x * 97 + home.y * 53 + slot * 17,
-        });
-        visibleCitizens += 1;
-      }
-
-      if (visibleCitizens >= maxVisibleCitizens) break;
-    }
-
-    const nearestHomeForFarm = (farm: (typeof farms)[number]): GridPoint => {
-      let homePoint: GridPoint = { x: farm.x, y: farm.y };
-      let best = Number.POSITIVE_INFINITY;
-      for (const home of homes) {
-        const distance = Math.hypot(home.x - farm.x, home.y - farm.y);
-        if (distance < best) {
-          best = distance;
-          homePoint = { x: home.x, y: home.y };
-        }
-      }
-      return homePoint;
-    };
-
-    // First pass reserves one stable worker for every farm/work site before any
-    // site receives a second worker.
-    for (const farm of farms) {
-      if (visibleFarmers >= maxVisibleFarmers) break;
-      const homePoint = nearestHomeForFarm(farm);
-      result.push({
-        key: `farmer:${farm.x},${farm.y}:0`,
-        role: 'farmer',
-        home: { ...homePoint },
-        work: { x: farm.x, y: farm.y },
-        seed: farm.x * 131 + farm.y * 71,
-      });
-      visibleFarmers += 1;
-    }
-
-    if (homes.length > 0) {
-      for (const farm of farms) {
-        if (visibleFarmers >= maxVisibleFarmers) break;
-        const homePoint = nearestHomeForFarm(farm);
-        result.push({
-          key: `farmer:${farm.x},${farm.y}:1`,
-          role: 'farmer',
-          home: { ...homePoint },
-          work: { x: farm.x, y: farm.y },
-          seed: farm.x * 149 + farm.y * 83 + 11,
-        });
-        visibleFarmers += 1;
-      }
-    }
-
-    return result;
+    this.services.populationSystem.reconcile(cells);
+    return this.services.populationSystem
+      .visibleCivilianRoster(40, 40)
+      .map((assignment) => ({
+        key: assignment.key,
+        role: assignment.role,
+        home: { ...assignment.home },
+        work: assignment.work ? { ...assignment.work } : undefined,
+        seed: assignment.seed,
+      }));
   }
 
   private updateSettlementAssignment(
     agent: SettlementAgent,
     spec: SettlementAgentSpec,
-    currentHomes: Set<string>,
+    _currentHomes: Set<string>,
   ): void {
     let assignmentChanged = false;
 
-    if (agent.role === 'farmer') {
-      const currentHomeMatchesFallback =
-        agent.home.x === spec.home.x && agent.home.y === spec.home.y;
-      const currentHomeStillValid =
-        currentHomes.has(this.key(agent.home.x, agent.home.y)) ||
-        currentHomeMatchesFallback;
-      if (!currentHomeStillValid) {
-        agent.home = { ...spec.home };
-        assignmentChanged = true;
-      }
-
-      if (
-        spec.work &&
-        (
-          !agent.work ||
-          agent.work.x !== spec.work.x ||
-          agent.work.y !== spec.work.y
-        )
-      ) {
-        agent.work = { ...spec.work };
-        assignmentChanged = true;
-      }
-    } else if (
-      agent.home.x !== spec.home.x ||
-      agent.home.y !== spec.home.y
-    ) {
+    if (agent.home.x !== spec.home.x || agent.home.y !== spec.home.y) {
       agent.home = { ...spec.home };
+      assignmentChanged = true;
+    }
+
+    const currentWorkKey = agent.work ? this.key(agent.work.x, agent.work.y) : '';
+    const nextWorkKey = spec.work ? this.key(spec.work.x, spec.work.y) : '';
+    if (currentWorkKey !== nextWorkKey) {
+      agent.work = spec.work ? { ...spec.work } : undefined;
       assignmentChanged = true;
     }
 
     if (!assignmentChanged || agent.waitMs > 0) return;
 
-    if (agent.role === 'farmer') {
-      const destination =
-        agent.phase === 'work' && agent.work
-          ? agent.work
-          : agent.home;
+    if (agent.role !== 'citizen' && agent.work) {
+      const destination = agent.phase === 'work' ? agent.work : agent.home;
       this.setSettlementTarget(agent, destination);
       return;
     }
 
-    this.setSettlementTarget(agent, agent.destinationGrid);
+    this.setSettlementTarget(agent, agent.home);
   }
 
   private spawnSettlementAgentFromSpec(spec: SettlementAgentSpec): void {
@@ -9708,6 +9673,7 @@ export class ThreeGame {
 
   private isSettlementHomeKind(kind: TileKind): boolean {
     return (
+      kind === 'hut' ||
       kind === 'cottage' ||
       kind === 'house' ||
       kind === 'manor' ||
@@ -10002,7 +9968,7 @@ export class ThreeGame {
         agent.view.position.y = agent.position.y + idleBob;
 
         if (agent.waitMs === 0) {
-          if (agent.role === 'farmer' && agent.work) {
+          if (agent.role !== 'citizen' && agent.work) {
             if (agent.phase === 'home') {
               agent.phase = 'work';
               this.setSettlementTarget(agent, agent.work);
@@ -10038,6 +10004,10 @@ export class ThreeGame {
           agent.waitMs = agent.phase === 'work'
             ? 6800 + (agent.id % 4) * 520
             : 950 + (agent.id % 3) * 160;
+        } else if (agent.role === 'worker' && agent.work) {
+          agent.waitMs = agent.phase === 'work'
+            ? 3600 + (agent.id % 4) * 410
+            : 900 + (agent.id % 3) * 180;
         } else {
           agent.waitMs = 650 + (agent.id % 5) * 260;
         }
@@ -10132,24 +10102,22 @@ export class ThreeGame {
   }
 
   private updatePopulationUI(): void {
-    const battleStatus = this.battleSystem.status();
-    const configuredMilitary =
-      this.battleSetup.defenderSwordsmen +
-      this.battleSetup.defenderArchers +
-      this.battleSetup.defenderSpearmen +
-      this.battleSetup.defenderCrossbowmen;
-    const military =
-      battleStatus.mode === 'running' ||
-      battleStatus.mode === 'paused' ||
-      battleStatus.mode === 'finished'
-        ? battleStatus.defendersAlive
-        : configuredMilitary;
-    const groups = this.services.populationSystem.calculate(this.services.state.entries(), military);
+    const cells = this.services.state.entries();
+    this.services.populationSystem.reconcile(cells);
+    const snapshot = this.services.populationSystem.snapshot();
+    const setText = (id: string, value: string): void => {
+      const element = document.getElementById(id);
+      if (element) element.textContent = value;
+    };
 
-    const population = document.getElementById('city-population');
-    const army = document.getElementById('military-population');
-    if (population) population.textContent = `Population: ${groups.civilians}`;
-    if (army) army.textContent = `Army: ${groups.military}`;
+    setText('city-population', `Population: ${snapshot.totalPopulation}`);
+    setText('military-population', `Army: ${snapshot.militia + snapshot.professionalArmy}`);
+    setText('population-available', `Available ${snapshot.available}`);
+    setText('population-farmers', `Farmers ${snapshot.farmers}`);
+    setText('population-builders', `Builders ${snapshot.builders}`);
+    setText('population-workers', `Production/Service ${snapshot.productionWorkers}`);
+    setText('population-militia', `Militia ${snapshot.militia}`);
+    setText('population-professional', `Professional ${snapshot.professionalArmy}`);
   }
 
   private updateWorkers(deltaMs: number): void {
@@ -10347,6 +10315,14 @@ export class ThreeGame {
       '<div class="build-world-summary" role="group" aria-label="Population and army">' +
       '<span class="build-world-stat build-world-population"><span class="build-world-stat-icon" aria-hidden="true">♟</span><b id="city-population">Population: 0</b></span>' +
       '<span class="build-world-stat build-world-army"><span class="build-world-stat-icon" aria-hidden="true">⚔</span><b id="military-population">Army: 0</b></span>' +
+      '</div>' +
+      '<div class="build-population-breakdown" role="status" aria-label="Population allocation">' +
+      '<span id="population-available">Available 0</span>' +
+      '<span id="population-farmers">Farmers 0</span>' +
+      '<span id="population-builders">Builders 0</span>' +
+      '<span id="population-workers">Production/Service 0</span>' +
+      '<span id="population-militia">Militia 0</span>' +
+      '<span id="population-professional">Professional 0</span>' +
       '</div>' +
       '<div class="build-economy-summary" role="group" aria-label="Settlement resources">' +
       '<span class="build-resource-stat"><b id="economy-wood">Wood 0</b><small id="economy-wood-rate">+0/s</small></span>' +
@@ -11715,6 +11691,9 @@ export class ThreeGame {
     this.elevationOverrides.clear();
     this.moatTasks.clear();
     this.services.economySystem.reset();
+    this.services.populationSystem.setState();
+    this.populationBattleCommitted = false;
+    this.populationBattleStart = null;
     this.economySaveAccumulatorMs = 0;
     this.worldSeeded = true;
 
@@ -12945,6 +12924,9 @@ export class ThreeGame {
     this.elevationOverrides.clear();
     this.moatTasks.clear();
     this.services.economySystem.reset();
+    this.services.populationSystem.setState();
+    this.populationBattleCommitted = false;
+    this.populationBattleStart = null;
     this.economySaveAccumulatorMs = 0;
     this.worldSeeded = true;
 
@@ -13092,11 +13074,23 @@ export class ThreeGame {
       0,
       120,
     );
-    this.battleSetup = {
-      ...this.battleSetup,
-      [field]: normalized,
-    };
-    if (String(field).startsWith('defender')) this.syncIdleDefenderGarrison(true);
+    this.battleSetup = { ...this.battleSetup, [field]: normalized };
+
+    if (String(field).startsWith('defender')) {
+      const requested = normalized;
+      this.syncPopulationDefenseAssignments(this.services.state.entries());
+      const actual = this.battleSetup[field];
+      if (actual < requested) {
+        this.setStatus(
+          field === 'defenderModernSoldiers'
+            ? `Professional Army limited to ${actual} by Army Camp capacity`
+            : `Militia limited to ${actual}; no extra citizens are available`,
+        );
+      }
+      this.reconcileSettlementAgents(this.services.state.entries());
+      this.syncIdleDefenderGarrison(true);
+    }
+
     this.syncBattleSetupUI();
     this.syncBattleCombatStatsUI();
     this.updatePopulationUI();
@@ -13153,6 +13147,9 @@ export class ThreeGame {
       return;
     }
 
+    this.syncPopulationDefenseAssignments(this.services.state.entries());
+    this.syncBattleSetupUI();
+
     const attackerTotal =
       this.battleSetup.attackerSwordsmen +
       this.battleSetup.attackerArchers +
@@ -13174,6 +13171,10 @@ export class ThreeGame {
     if (defenderTotal <= 0) {
       this.setStatus('No Defenders configured · attackers will attempt an immediate capture');
     }
+
+    this.populationBattleCommitted = false;
+    this.populationBattleStart = { ...this.battleSetup };
+    this.services.populationSystem.setMilitiaMobilized(true);
 
     this.setViewMode('world3d');
     this.setToolbarOpen(false);
@@ -13416,12 +13417,59 @@ export class ThreeGame {
       audioEvents.emit({ action: 'play_sfx', assetId: 'combat.battle-reset' });
     }
     this.services.gateSystem.setAttackState(false);
+    const preResetStatus = this.battleSystem.status();
+    if (preResetStatus.mode !== 'idle') {
+      this.commitPopulationBattleOutcome(preResetStatus, true);
+    }
     this.battleSystem.reset();
+    this.services.populationSystem.setMilitiaMobilized(false);
+    this.populationBattleCommitted = false;
+    this.populationBattleStart = null;
+    this.syncPopulationDefenseAssignments(this.services.state.entries());
+    this.reconcileSettlementAgents(this.services.state.entries());
+    this.syncBattleSetupUI();
     this.syncIdleDefenderGarrison(true);
     document.getElementById('game-shell')?.classList.remove('battle-mode');
     this.workerLayer.visible = this.viewMode === 'world3d';
     this.settlementLayer.visible = this.viewMode === 'world3d';
     this.setStatus('Battle reset · castle restored unchanged');
+  }
+
+  private commitPopulationBattleOutcome(status: BattleStatus, force = false): void {
+    if (
+      this.populationBattleCommitted ||
+      !this.populationBattleStart ||
+      (!force && status.mode !== 'finished')
+    ) {
+      return;
+    }
+
+    const started = this.populationBattleStart;
+    const alive = status.defenderAliveByType;
+    this.services.populationSystem.applyMilitiaCasualties({
+      swordsman: Math.max(0, started.defenderSwordsmen - alive.swordsman),
+      archer: Math.max(0, started.defenderArchers - alive.archer),
+      spearman: Math.max(0, started.defenderSpearmen - alive.spearman),
+      crossbowman: Math.max(0, started.defenderCrossbowmen - alive.crossbowman),
+    });
+    this.services.populationSystem.applyProfessionalCasualties(
+      Math.max(0, started.defenderModernSoldiers - alive.modernSoldier),
+    );
+    this.services.populationSystem.setMilitiaMobilized(false);
+    this.battleSetup = {
+      ...this.battleSetup,
+      defenderSwordsmen: alive.swordsman,
+      defenderArchers: alive.archer,
+      defenderSpearmen: alive.spearman,
+      defenderCrossbowmen: alive.crossbowman,
+      defenderModernSoldiers: alive.modernSoldier,
+    };
+    this.populationBattleCommitted = true;
+    this.populationBattleStart = null;
+    this.syncBattleSetupUI();
+    this.reconcileSettlementAgents(this.services.state.entries());
+    this.updatePopulationUI();
+    this.save(false);
   }
 
   private updateBattleUI(status: BattleStatus): void {
@@ -13452,6 +13500,7 @@ export class ThreeGame {
 
     if (attackerAlive) attackerAlive.textContent = String(status.attackersAlive);
     if (defenderAlive) defenderAlive.textContent = String(status.defendersAlive);
+    if (status.mode === 'finished') this.commitPopulationBattleOutcome(status);
     this.updatePopulationUI();
     this.syncMilitaryMissileUI();
 

@@ -15,6 +15,7 @@ import type { KeepSystem } from '../building/KeepSystem';
 import { APPLICATION_METADATA } from '../app/applicationMetadata';
 import type {
   EconomyResourceState,
+  PopulationSimulationState,
   KeepState,
   MapLayoutId,
   SavedBattleSetup,
@@ -48,6 +49,8 @@ export interface SaveLoadHost {
   setMilitaryTier?(value: number): void;
   getEconomyState?(): EconomyResourceState;
   setEconomyState?(value?: Partial<EconomyResourceState> | null): void;
+  getPopulationState?(): PopulationSimulationState;
+  setPopulationState?(value?: Partial<PopulationSimulationState> | null): void;
   setWorldSeeded(value: boolean): void;
   setLoadedSaveVersion(value: number): void;
   setStoneStyle(value: StoneStyle): void;
@@ -79,6 +82,7 @@ interface RawSave {
   militaryTier?: number;
   missiles?: SavedGame['missiles'];
   economy?: EconomyResourceState;
+  population?: PopulationSimulationState;
 }
 
 export class SaveSystem {
@@ -449,6 +453,7 @@ export class SaveSystem {
       militaryTier: this.host.getMilitaryTier?.() ?? 1,
       missiles: this.host.state.getMissileState(),
       economy: this.host.getEconomyState?.(),
+      population: this.host.getPopulationState?.(),
     };
   }
 
@@ -551,6 +556,7 @@ export class SaveSystem {
     this.host.setMilitaryTier?.(data.militaryTier ?? 1);
     this.host.state.setMissileState(data.missiles);
     this.host.setEconomyState?.(data.economy);
+    this.host.setPopulationState?.(data.population);
     this.host.syncModeDependentUI();
   }
 
@@ -660,6 +666,7 @@ function normalizeRecord(raw: RawSave, target: SaveTarget): SaveRecord | null {
     militaryTier: raw.militaryTier,
     missiles: raw.missiles,
     economy: raw.economy,
+    population: raw.population,
   } : undefined);
   if (!data || !Array.isArray(data.cells)) return null;
 

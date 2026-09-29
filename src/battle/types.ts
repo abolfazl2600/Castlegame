@@ -57,6 +57,14 @@ export interface BattleResult {
 }
 
 
+export interface DefenderTypeCounts {
+  swordsman: number;
+  archer: number;
+  spearman: number;
+  crossbowman: number;
+  modernSoldier: number;
+}
+
 export interface BattleStatus {
   mode: 'idle' | 'running' | 'paused' | 'finished';
   battleSpeed: number;
@@ -65,6 +73,7 @@ export interface BattleStatus {
   captureRequiredSeconds: number;
   attackersAlive: number;
   defendersAlive: number;
+  defenderAliveByType: DefenderTypeCounts;
   result?: BattleResult;
   objectives?: BattleObjectiveRuntimeState[];
 }

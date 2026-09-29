@@ -909,6 +909,7 @@ export class BattleSystem {
   status(): BattleStatus {
     const attackersAlive = this.countAlive('attacker');
     const defendersAlive = this.countAlive('defender');
+    const defenderAliveByType = this.countDefendersByType();
 
     return {
       mode: this.mode,
@@ -922,6 +923,7 @@ export class BattleSystem {
       captureRequiredSeconds: this.captureRequiredSeconds,
       attackersAlive,
       defendersAlive,
+      defenderAliveByType,
       result: this.finalResult,
       objectives: this.objectiveSystem.getState().runtime,
     };
@@ -1018,8 +1020,28 @@ export class BattleSystem {
     const wallNodes = this.navigation.wallPlatformNodes();
     const usedWallNodes = new Set<string>();
 
+    // Professional soldiers are persistent Army Camp troops. Keep them visibly
+    // stationed around military infrastructure while idle instead of placing them
+    // on castle walls as if they were free militia.
+    const armyCamps = this.findArmyCamps();
+    const professionalCells: NavPoint[] = [];
+    for (const camp of armyCamps) {
+      professionalCells.push(
+        ...this.navigation.defenderGroundCells(
+          camp,
+          Math.max(4, Math.ceil(setup.defenderModernSoldiers / Math.max(1, armyCamps.length))),
+        ),
+      );
+    }
+    const professionalFallback = armyCamps[0] ?? this.capturePointGrid;
+    for (let i = 0; i < setup.defenderModernSoldiers; i += 1) {
+      const cell =
+        professionalCells[i % Math.max(1, professionalCells.length)] ??
+        professionalFallback;
+      this.spawnGroundUnit('defender', 'modernSoldier', cell, 400 + i, false);
+    }
+
     const rangedOrder: Array<{ type: CoreUnitType; count: number }> = [
-      { type: 'modernSoldier', count: setup.defenderModernSoldiers },
       { type: 'crossbowman', count: setup.defenderCrossbowmen },
       { type: 'archer', count: setup.defenderArchers },
     ];
@@ -1116,13 +1138,11 @@ export class BattleSystem {
     );
     const remainingArchers = remainingRanged.get('archer') ?? 0;
     const remainingCrossbowmen = remainingRanged.get('crossbowman') ?? 0;
-    const remainingModernSoldiers = remainingRanged.get('modernSoldier') ?? 0;
     const groundCount =
       remainingSwordsmen +
       remainingSpearmen +
       remainingArchers +
-      remainingCrossbowmen +
-      remainingModernSoldiers;
+      remainingCrossbowmen;
 
     const camp = this.findArmyCamp();
     const defenseAnchor = camp ?? this.capturePointGrid;
@@ -1152,7 +1172,20 @@ export class BattleSystem {
     spawnGroundType('spearman', remainingSpearmen, 7);
     spawnGroundType('archer', remainingArchers, 13);
     spawnGroundType('crossbowman', remainingCrossbowmen, 19);
-    spawnGroundType('modernSoldier', remainingModernSoldiers, 25);
+  }
+
+  private findArmyCamps(): NavPoint[] {
+    const camps: NavPoint[] = [];
+    for (let y = 0; y < this.world.size; y += 1) {
+      for (let x = 0; x < this.world.size; x += 1) {
+        if (this.world.kindAt(x, y) === 'armyCamp') camps.push({ x, y });
+      }
+    }
+    return camps.sort(
+      (a, b) =>
+        this.gridDistance(a, this.capturePointGrid) -
+        this.gridDistance(b, this.capturePointGrid),
+    );
   }
 
   private findArmyCamp(): NavPoint | null {
@@ -4755,6 +4788,24 @@ export class BattleSystem {
       }
     }
     return count;
+  }
+
+  private countDefendersByType(): BattleStatus['defenderAliveByType'] {
+    const counts: BattleStatus['defenderAliveByType'] = {
+      swordsman: 0,
+      archer: 0,
+      spearman: 0,
+      crossbowman: 0,
+      modernSoldier: 0,
+    };
+    for (const runtime of this.units.values()) {
+      if (runtime.data.faction !== 'defender' || runtime.data.state === 'dead') continue;
+      const type = runtime.data.unitType;
+      if (type === 'swordsman' || type === 'archer' || type === 'spearman' || type === 'crossbowman' || type === 'modernSoldier') {
+        counts[type] += 1;
+      }
+    }
+    return counts;
   }
 
   private createObjectiveContext(deltaSeconds: number) {
