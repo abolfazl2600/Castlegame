@@ -59,12 +59,12 @@ assert.match(
 );
 assert.match(
   battleSystem,
-  /stage === 'breached' \? 52/,
+  /const fragmentCount =[\s\S]*?stage === 'partial' \? 28 :[\s\S]*?52;/,
   'A full breach must launch the high-detail 52-fragment collapse burst.',
 );
 assert.match(
   battleSystem,
-  /stage === 'breached' \? 20/,
+  /const dustCount =[\s\S]*?stage === 'partial' \? 11 :[\s\S]*?20;/,
   'A full breach must launch a dense multi-puff dust cloud.',
 );
 assert.match(
