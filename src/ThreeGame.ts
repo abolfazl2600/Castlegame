@@ -64,7 +64,6 @@ import {
 import type {
   EconomyResourceState,
   PopulationSimulationState,
-  EnvironmentSimulationState,
   GridCell,
   HarborKind,
   KeepRoofStyle,
