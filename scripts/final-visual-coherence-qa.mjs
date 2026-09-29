@@ -136,11 +136,22 @@ async function startBattle(page) {
     await input.dispatchEvent('change');
   }
   await page.evaluate(() => document.querySelector('#battle-start')?.click());
-  await page.waitForFunction(() =>
-    document.querySelector('#battle-mode-status')?.textContent?.includes('BATTLE IN PROGRESS'),
-  );
+  try {
+    await page.waitForFunction(
+      () => document.querySelector('#battle-mode-status')?.textContent?.includes('BATTLE IN PROGRESS'),
+      undefined,
+      { timeout: 10000 },
+    );
+  } catch (error) {
+    const diagnostic = await page.evaluate(() => ({
+      mode: document.querySelector('#battle-mode-status')?.textContent ?? null,
+      status: document.querySelector('#status')?.textContent ?? null,
+      startDisabled: document.querySelector('#battle-start')?.disabled ?? null,
+    }));
+    throw new Error(`Battle QA fixture failed to enter running state: ${JSON.stringify(diagnostic)} · ${String(error)}`);
+  }
   await page.evaluate(() => document.querySelector('#battle-close')?.click());
-  await page.waitForTimeout(2200);
+  await page.waitForTimeout(1600);
 }
 
 async function captureScenario(browser, {
@@ -160,7 +171,10 @@ async function captureScenario(browser, {
     isMobile: touch,
   });
   const page = await context.newPage();
+  page.setDefaultTimeout(15000);
+  page.setDefaultNavigationTimeout(20000);
   const save = createVisualScene(scene);
+  console.log(`Starting final QA capture: ${name}`);
 
   await page.addInitScript(({ record, graphicsQuality, touchMode }) => {
     localStorage.setItem('castle-role.saves.v1.has-save', '1');
