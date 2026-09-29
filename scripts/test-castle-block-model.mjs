@@ -61,5 +61,27 @@ const removedGate = system.build([
   { x: 2, y: 0, kind: 'tower', wallLinks: ['W'] },
 ], 'limestone');
 assert.deepEqual(removedGate.blocks.map((block) => block.topology), ['isolated', 'isolated']);
+const elevated = system.build([
+  { x: 0, y: 0, kind: 'wall1', level: 3 },
+  { x: 1, y: 0, kind: 'wall1', level: 1 },
+], 'limestone', (x) => x === 0 ? 2 : 0);
+assert.deepEqual(at(elevated, 0, 0).stack.map((floor) => floor.index), [1, 2, 3]);
+assert.equal(at(elevated, 0, 0).topWorld - at(elevated, 0, 0).topLocal, 2);
+assert.equal(at(elevated, 1, 0).topWorld - at(elevated, 1, 0).topLocal, 0);
+assert.ok(at(elevated, 0, 0).topLocal > at(elevated, 1, 0).topLocal);
+assert.equal(at(elevated, 0, 0).neighborTopDelta.E, -at(elevated, 1, 0).neighborTopDelta.W);
+assert.deepEqual(system.build(JSON.parse(JSON.stringify([
+  { x: 0, y: 0, kind: 'wall1', level: 3 }, { x: 1, y: 0, kind: 'wall1', level: 1 },
+])), 'limestone', (x) => x === 0 ? 2 : 0), elevated);
+assert.equal(system.build([{ x: 0, y: 0, kind: 'wall1', level: 999 }], 'limestone').blocks[0].stack.length, 12);
+const closedGate = system.build([
+  { x: 0, y: 0, kind: 'wall1' },
+  { x: 1, y: 0, kind: 'gate', gateOpen: false },
+  { x: 2, y: 0, kind: 'wall1' },
+], 'limestone');
+assert.equal(at(closedGate, 1, 0).topology, 'straight');
+assert.equal(at(closedGate, 1, 0).traversal.passable, false);
+assert.equal(at(closedGate, 1, 0).traversal.blocksGround, true);
+assert.equal(at(system.build([{ x: 1, y: 0, kind: 'gate', gateOpen: true }], 'limestone'), 1, 0).traversal.passable, true);
 
 console.log('castle block model regression checks passed');
