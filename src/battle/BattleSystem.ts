@@ -1,7 +1,6 @@
 import * as THREE from 'three';
-import type { GridCell, KeepState, TerrainKind, TileKind, TowerBridgeState } from '../core/types';
+import type { GridCell, KeepState, TerrainKind, TileKind, TowerBridgeState, WallDirection } from '../core/types';
 import { BattleNavigation, type NavPoint, type WallNavNode } from './BattleNavigation';
-import type { WallDirection } from '../core/types';
 import { WallSystem } from '../building/WallSystem';
 import { FactionRelations } from './FactionRelations';
 import { BattleObjectiveSystem } from './objectives/BattleObjectiveSystem';
@@ -33,10 +32,12 @@ export interface BattleWorldContext {
   kindAt: (x: number, y: number) => TileKind | undefined;
   cellAt: (x: number, y: number) => GridCell | undefined;
   fortificationTopAt: (x: number, y: number, cell: GridCell) => number;
+  castleLinksAt?: (x: number, y: number) => WallDirection[] | undefined;
   keeps: () => KeepState[];
   towerBridges: () => TowerBridgeState[];
   setWallBattleVisibility: (x: number, y: number, visible: boolean) => void;
   buildingDamageAt?: (x: number, y: number) => number;
+  onWallDamage?: (x: number, y: number, damage: number) => void;
   gatePassable?: (x: number, y: number) => boolean;
   wallWeaponVisuals?: () => THREE.Object3D[];
   effectsEnabled?: () => boolean;
@@ -481,6 +482,7 @@ export class BattleSystem {
       kindAt: world.kindAt,
       cellAt: world.cellAt,
       fortificationTopAt: world.fortificationTopAt,
+      castleLinksAt: world.castleLinksAt,
       keeps: world.keeps,
       towerBridges: world.towerBridges,
       temporaryGroundPassable: (x, y) => this.breachedWalls.has(this.gridKey(x, y)),
@@ -2228,7 +2230,7 @@ export class BattleSystem {
           1,
         );
         const key = this.gridKey(x, y);
-        const battleDamage = this.preserveSessionWallDamage
+        const battleDamage = this.preserveSessionWallDamage && !this.world.onWallDamage
           ? THREE.MathUtils.clamp(
               this.sessionWallDamage.get(key) ?? 0,
               0,
@@ -3280,7 +3282,8 @@ export class BattleSystem {
       0,
       1 - wall.initialPersistentDamage,
     );
-    if (this.preserveSessionWallDamage) {
+    this.world.onWallDamage?.(wall.x, wall.y, Math.min(1, wall.initialPersistentDamage + wall.battleDamage));
+    if (this.preserveSessionWallDamage && !this.world.onWallDamage) {
       if (wall.battleDamage > 0) {
         this.sessionWallDamage.set(this.gridKey(wall.x, wall.y), wall.battleDamage);
       } else {
