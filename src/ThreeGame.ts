@@ -616,6 +616,7 @@ export class ThreeGame {
           gpuGeometries: this.renderer.info.memory.geometries,
           gpuTextures: this.renderer.info.memory.textures,
           lastRedrawMs: this.lastRedrawMs,
+          ambientMotion: this.ambientMotion.stats(),
           pixelRatio: this.renderer.getPixelRatio(),
           drawingBuffer: { width: drawingBuffer.x, height: drawingBuffer.y },
           gpu: {
@@ -3682,6 +3683,14 @@ export class ThreeGame {
       this.addBox(boat, 0.06, 1.15, 0.06, mast, -0.15, 1.96, 0);
       this.addBox(boat, 0.75, 0.04, 0.04, mast, 0.18, 2.38, 0);
     }
+
+    const bobPhase = Math.abs(x * 0.41 + z * 0.29 + kind.length * 0.67);
+    this.ambientMotion.registerBob(
+      boat,
+      bobPhase,
+      kind === 'fishingBoat' ? 0.085 : 0.11,
+      0.00125,
+    );
   }
 
   private wallThicknessValue(kind: WallKind, thickness: WallThickness): number {
@@ -6451,16 +6460,42 @@ export class ThreeGame {
       0.1,
     );
 
-    if (chimneyVisible) this.addSettlementBox(
-      house,
-      0.14,
-      0.58,
-      0.14,
-      stone,
-      width * 0.28,
-      2.32 + height + 0.38,
-      depth * 0.12,
-    );
+    if (chimneyVisible) {
+      const chimneyX = width * 0.28;
+      const chimneyZ = depth * 0.12;
+      this.addSettlementBox(
+        house,
+        0.14,
+        0.58,
+        0.14,
+        stone,
+        chimneyX,
+        2.32 + height + 0.38,
+        chimneyZ,
+      );
+
+      if (detailed) {
+        const smokeMaterial = this.environmentMaterial('ambient-chimney-smoke', 0xc8c4b8, 1);
+        smokeMaterial.transparent = true;
+        smokeMaterial.opacity = 0.24;
+        smokeMaterial.depthWrite = false;
+
+        const smoke = new THREE.Group();
+        smoke.position.set(chimneyX, 2.32 + height + 0.78, chimneyZ);
+        for (const [sx, sy, scale] of [
+          [0, 0, 0.13],
+          [0.07, 0.24, 0.17],
+        ] as Array<[number, number, number]>) {
+          const puff = new THREE.Mesh(new THREE.SphereGeometry(1, 6, 5), smokeMaterial);
+          puff.position.set(sx, sy, 0);
+          puff.scale.set(scale, scale * 0.72, scale);
+          smoke.add(puff);
+        }
+        house.add(smoke);
+        const smokePhase = Math.abs(x * 0.37 + z * 0.53 + height * 0.19) % 1;
+        this.ambientMotion.registerSmoke(smoke, smokePhase, 0.38, 0.00019);
+      }
+    }
 
     if (detailed) {
       const awning = this.addSettlementBox(
@@ -7178,13 +7213,17 @@ export class ThreeGame {
     trunkMesh.castShadow = true;
     group.add(trunkMesh);
 
+    const crown = new THREE.Group();
+    group.add(crown);
     for (const [radius, y] of [[1.05, 4.25], [0.78, 5.3], [0.5, 6.05]] as Array<[number, number]>) {
       const cone = new THREE.Mesh(new THREE.ConeGeometry(radius, radius * 1.95, 8), foliage);
       cone.position.y = y;
       cone.castShadow = true;
-      group.add(cone);
+      crown.add(cone);
     }
 
+    const swayPhase = variant * 0.73 + group.position.x * 0.017 + group.position.z * 0.023;
+    this.ambientMotion.registerSway(crown, swayPhase, 0.032 + (variant % 3) * 0.004, 0.00115);
     return group;
   }
 
@@ -13537,19 +13576,18 @@ export class ThreeGame {
     this.services.session.update(deltaMs, time);
     this.updateLongPress(time);
     this.updateGodModeEffects(deltaMs);
-    if (!settings.interface.reducedMotion && settings.graphics.effectsEnabled) {
-      this.services.windmillSystem.update(deltaMs / 1000);
-      this.riverTexture.offset.y -= deltaMs * 0.00032;
-      this.riverTexture.offset.x += deltaMs * 0.000035;
-      this.oceanTexture.offset.x += deltaMs * 0.000018;
-      this.oceanTexture.offset.y -= deltaMs * 0.000012;
-
-      for (const flag of this.animatedFlags) {
-        const phase = Number(flag.userData.castleFlag?.phase ?? 0);
-        const wave = Math.sin(time * 0.0032 + phase);
-        flag.rotation.y = wave * 0.08;
-        flag.scale.x = 0.94 + Math.abs(wave) * 0.09;
-      }
+    const ambientScale = this.ambientMotion.update(deltaMs, time, {
+      effectsEnabled: settings.graphics.effectsEnabled,
+      reducedMotion: settings.interface.reducedMotion,
+      quality: settings.graphics.quality,
+      environmentDetail: settings.graphics.environmentDetail,
+      performanceMode: settings.graphics.performanceMode,
+      cameraDistance: this.camera.position.distanceTo(this.controls.target),
+      normalDistance: WORLD_STYLE.camera.referenceDistances.normalGameplay,
+      strategicDistance: WORLD_STYLE.camera.referenceDistances.maximumStrategic,
+    });
+    if (ambientScale > 0) {
+      this.services.windmillSystem.update((deltaMs / 1000) * ambientScale);
     }
 
     this.controls.update();
