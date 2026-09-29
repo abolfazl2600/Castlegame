@@ -219,8 +219,11 @@ async function captureScenario(browser, {
 
   await page.waitForTimeout(650);
   const { samples, resources, uiCoverage, heapBytes } = await sample(page);
-  const screenshot = `${name}.png`;
-  await page.screenshot({ path: `${output}/${screenshot}`, fullPage: false });
+
+  // Screenshot encoding is substantially slower on CI SwiftShader for dense scenes.
+  // Keep interaction waits strict, but allow the final evidence capture enough time to encode.
+  page.setDefaultTimeout(45000);
+  const screenshot = `${name}.jpg`;
 
   const frameTimes = samples.map((entry) => entry.frameMs);
   const drawCalls = samples.map((entry) => entry.drawCalls);
@@ -245,6 +248,18 @@ async function captureScenario(browser, {
     uiCoverage: Number(uiCoverage.toFixed(4)),
     heapBytes,
   };
+
+  console.log(
+    `Measured ${name}: P95=${result.frameP95Ms}ms draws=${result.drawCallsMedian} triangles=${result.triangles} materials=${result.sceneMaterials} redraw=${result.redrawMs}ms UI=${(result.uiCoverage * 100).toFixed(1)}%`,
+  );
+
+  await page.screenshot({
+    path: `${output}/${screenshot}`,
+    type: 'jpeg',
+    quality: 88,
+    fullPage: false,
+    animations: 'disabled',
+  });
 
   await context.close();
   return result;
