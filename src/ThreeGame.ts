@@ -49,7 +49,6 @@ import { createSurvivalDefinition } from './SurvivalGameMode';
 import { createSandboxDefinition } from './SandboxGameMode';
 import type { SettingsStore } from './settings/SettingsStore';
 import { applyGraphicsSettings, applyInputSettings, applySceneGraphicsSettings } from './settings/SettingsSubsystems';
-import { FuturisticCastleRenderer } from './rendering/FuturisticCastleRenderer';
 import { getStructureFootprint } from './building/StructureFootprints';
 import { MAP_LAYOUTS, normalizeMapLayoutId, terrainForMapLayout } from './world/MapLayouts';
 import { AudioManager } from './audio/AudioManager';
@@ -193,7 +192,6 @@ const BUILDING_KINDS: TileKind[] = [
   'rock',
   'hut',
   'moat',
-  'futuristicCastle',
 ];
 
 type ViewMode = 'plan2d' | 'world3d';
@@ -282,18 +280,6 @@ const TOOL_GROUPS: Array<{ label: string; tools: ToolDefinition[] }> = [
       { id: 'towerBridge', icon: '🌉', label: 'Tower Bridge', detail: 'Build or select between two compatible towers', shortcut: 'D' },
       { id: 'keep', icon: '🏯', label: 'Modular Keep', detail: 'Width · depth · floors · roof', shortcut: 'P' },
       { id: 'moat', icon: '💧', label: 'Moat', detail: 'Workers excavate queued tiles', shortcut: 'Q' },
-    ],
-  },
-  {
-    label: 'Modern & Futuristic',
-    tools: [
-      {
-        id: 'futuristicCastle',
-        icon: '🏙️',
-        label: 'Modern Fortress',
-        detail: 'Place a large futuristic defensive complex',
-        shortcut: 'E',
-      },
     ],
   },
   {
@@ -395,7 +381,6 @@ export class ThreeGame {
     private readonly medievalMaterials = new MedievalMaterials();
   private readonly keepRenderer = new KeepRenderer(this.services.detailGenerator, this.medievalMaterials);
   private readonly basilicaRenderer = new BasilicaRenderer(this.medievalMaterials);
-  private readonly futuristicCastleRenderer = new FuturisticCastleRenderer();
   private saveSystem!: SaveSystem;
   private readonly terrainOverrides = new Map<string, TerrainOverrideKind>();
   private readonly elevationOverrides = new Map<string, number>();
@@ -893,8 +878,7 @@ export class ThreeGame {
       };
     }
 
-    // Modern Fortress is one authoritative anchor with a 9×9 protected
-    // footprint. Clicking any rendered footprint tile resolves to that anchor.
+    // Footprint-aware targeting supports any future multi-cell structures.
     for (const cell of this.services.state.entries()) {
       const footprint = getStructureFootprint(cell.kind, cell.x, cell.y);
       if (footprint.some((item) => item.x === point.x && item.y === point.y)) {
@@ -1152,9 +1136,7 @@ export class ThreeGame {
   private syncTemplateAvailability(): void {
     document.querySelectorAll<HTMLButtonElement>('[data-template]').forEach((button) => {
       const template = button.dataset.template;
-      button.hidden = this.gameMode === 'modern'
-        ? template !== 'futuristic-castle'
-        : template === 'futuristic-castle';
+      button.hidden = false;
 
       const authoredLayoutTemplate = PLAYABLE_LAYOUT_TEMPLATES[template ?? ''];
       const layoutRestricted =
@@ -1187,7 +1169,6 @@ export class ThreeGame {
     if (normalized.includes('military')) return '⚔';
     if (normalized.includes('road') || normalized.includes('harbor') || normalized.includes('infrastructure')) return '↗';
     if (normalized.includes('terrain') || normalized.includes('environment')) return '⌁';
-    if (normalized.includes('modern')) return '◈';
     return '⌂';
   }
 
@@ -1263,7 +1244,7 @@ export class ThreeGame {
     }).join('');
 
     if (modeChip) modeChip.textContent = modeConfig.label;
-    settings.hidden = this.gameMode === 'modern';
+    settings.hidden = false;
 
     noneButton?.classList.toggle('is-selected', this.selectedTool === null);
     noneButton?.setAttribute('aria-pressed', String(this.selectedTool === null));
@@ -3339,7 +3320,6 @@ export class ThreeGame {
       group.userData.settlementReadabilityClass = 'landmark';
       group.add(this.basilicaRenderer.render(this.stoneStyle, cell.x, cell.y));
     }
-    else if (cell.kind === 'futuristicCastle') group.add(this.futuristicCastleRenderer.render(cell.x * 97 + cell.y * 53));
     else if (cell.kind === 'windmill') this.services.windmillSystem.create(group);
     else if (cell.kind === 'mine') this.makeMine(group);
     else if (cell.kind === 'mountain') this.makeMountain(group, cell.level ?? 1, cell.x, cell.y);
@@ -8829,10 +8809,6 @@ export class ThreeGame {
       return cells;
     }
 
-    if (tool === 'futuristicCastle') {
-      return getStructureFootprint('futuristicCastle', point.x, point.y);
-    }
-
     if (tool === 'keep') {
       return this.services.keepSystem.footprint({
         x: point.x,
@@ -9041,23 +9017,6 @@ export class ThreeGame {
       return { valid, cells, reason: valid ? undefined : 'Market needs a clear 3×3 land area and sufficient resources' };
     }
 
-    if (selectedTile === 'futuristicCastle') {
-      const valid =
-        cells.length > 0 &&
-        cells.every((footprintCell) => {
-          if (
-            footprintCell.x < 0 || footprintCell.y < 0 ||
-            footprintCell.x >= SIZE || footprintCell.y >= SIZE
-          ) return false;
-          if (this.services.state.getCell(footprintCell.x, footprintCell.y)) return false;
-          if (this.services.keepSystem.findAtCell(footprintCell.x, footprintCell.y)) return false;
-          if (this.isStructureFootprintReserved(footprintCell.x, footprintCell.y)) return false;
-          return this.canBuildOnTerrain(selectedTile, this.terrainAt(footprintCell.x, footprintCell.y));
-        }) &&
-        this.isConstructionAffordable(selectedTile);
-      return { valid, cells, reason: valid ? undefined : 'Modern Fortress requires a clear 9×9 buildable footprint' };
-    }
-
     if (current) {
       const gateReplacement = selectedTile === 'gate' && this.isWallFamily(current);
       const affordable = gateReplacement && this.isConstructionAffordable(selectedTile);
@@ -9223,7 +9182,7 @@ export class ThreeGame {
 
       if (this.terrainOverrides.has(overrideKey)) {
         if (!this.canEditTerrainAt(gx, gy)) {
-          this.setStatus('Terrain is protected by the Modern Fortress footprint');
+          this.setStatus('Terrain is protected by a structure footprint');
           return;
         }
         this.recordHistory();
@@ -9263,7 +9222,7 @@ export class ThreeGame {
     if (this.selectedTool === 'river' || this.selectedTool === 'land') {
       if (this.moatTasks.has(overrideKey)) return;
       if (!this.canEditTerrainAt(gx, gy)) {
-        this.setStatus('Terrain is protected by the Modern Fortress footprint');
+        this.setStatus('Terrain is protected by a structure footprint');
         return;
       }
 
@@ -9334,7 +9293,7 @@ export class ThreeGame {
 
     if (this.selectedTool === 'mountain') {
       if (!this.canEditTerrainAt(gx, gy)) {
-        this.setStatus('Terrain is protected by the Modern Fortress footprint');
+        this.setStatus('Terrain is protected by a structure footprint');
         return;
       }
 
@@ -9490,14 +9449,6 @@ export class ThreeGame {
       this.spendConstructionCost('market');
       this.finishBuild();
       return;
-    }
-
-    if (selectedTile === 'futuristicCastle') {
-      const placement = this.evaluateBuildPlacement(point);
-      if (!placement?.valid) {
-        this.setStatus(placement?.reason ?? 'Modern Fortress cannot be built here');
-        return;
-      }
     }
 
     if (current) {
@@ -10486,7 +10437,7 @@ export class ThreeGame {
       '</div></section></div>';
 
     const builderSettings = toolbar.querySelector<HTMLElement>('.builder-settings');
-    if (builderSettings) builderSettings.hidden = this.gameMode === 'modern';
+    if (builderSettings) builderSettings.hidden = false;
 
     const buildSearch = toolbar.querySelector<HTMLInputElement>('#build-search');
     buildSearch?.addEventListener('input', () => this.filterBuildTools());
@@ -10971,7 +10922,6 @@ export class ThreeGame {
         '9': 'manor',
         '0': 'villa',
         f: 'farm',
-        e: 'futuristicCastle',
         w: 'windmill',
         y: 'appleOrchard',
         a: 'armyCamp',
@@ -11721,14 +11671,6 @@ export class ThreeGame {
       this.setStatus('Castle templates currently require Classic Island. Terrain templates remain available on this layout.');
       return;
     }
-    if (template === 'futuristic-castle' && this.gameMode !== 'modern') {
-      this.setStatus('Futuristic Castle is only available in Modern Mode');
-      return;
-    }
-    if (template !== 'futuristic-castle' && this.gameMode === 'modern') {
-      this.setStatus('Medieval templates are unavailable in Modern Mode');
-      return;
-    }
     this.recordHistory();
     this.stoneStyle = visualPreset.stoneStyle;
     this.towerBridgeKind = visualPreset.towerBridgeKind;
@@ -11919,10 +11861,7 @@ export class ThreeGame {
 
     if (template !== 'empty-land') this.seedNaturalProps();
 
-    if (template === 'futuristic-castle') {
-      prepareArea(center - 10, center - 10, center + 10, center + 10, 0.05);
-      place(center, center, 'futuristicCastle');
-    } else if (template === 'empty-land') {
+    if (template === 'empty-land') {
       for (let y = 0; y < SIZE; y += 1) {
         for (let x = 0; x < SIZE; x += 1) {
           if (this.baseTerrainAt(x, y) !== 'water') {

@@ -33,7 +33,6 @@ The final runner uses fixed save fixtures and seed `6001`.
 | Castle | Large defensive composition, Keep, Wall 1/2/3, towers, gate, persistent wall-damage states |
 | Farm | Level 1–4 Farm, Cattle Farm, Orchard and Army Camp progression in one scene |
 | Harbor | Unified Harbor Levels 1–4 plus nearby settlement landmarks |
-| Modern | Modern Mode using the currently supported Futuristic Castle architecture |
 | Mobile landscape | Starter settlement at 740×390 with touch controls |
 | Castle battle | Castle fixture with a deterministic large battle started before capture |
 | Dense strategic | Dense settlement at the maximum strategic camera reference |
@@ -101,7 +100,6 @@ Artifact screenshots:
 - `castle-normal-desktop.png`
 - `farm-normal-desktop.png`
 - `harbor-normal-desktop.png`
-- `modern-normal-desktop.png`
 - `dense-strategic-desktop.png`
 - `castle-battle-normal-desktop.png`
 - `starter-normal-mobile-landscape.png`
@@ -116,7 +114,6 @@ This phase is complete when:
 - the Farm/Cattle/Orchard/Army Camp Level 1–4 strips remain present in the final fixture
 - the Harbor Level 1–4 progression remains present
 - defensive damage and battle are captured
-- Modern Mode has a dedicated capture using actually supported modern content
 - desktop Normal and Strategic captures are measured against the documented #136 production targets
 - mobile landscape passes the hard UI coverage check and is measured against the documented #136 performance targets
 - final screenshots and metrics are stored as a workflow artifact

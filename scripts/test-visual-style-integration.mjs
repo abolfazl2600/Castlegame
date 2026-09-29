@@ -4,12 +4,9 @@ import { readFile } from 'node:fs/promises';
 const html = await readFile(new URL('../index.html', import.meta.url), 'utf8');
 const threeGame = await readFile(new URL('../src/ThreeGame.ts', import.meta.url), 'utf8');
 const templateStyle = await readFile(new URL('../src/rendering/TemplateVisualStyle.ts', import.meta.url), 'utf8');
-const modernStyle = await readFile(new URL('../src/rendering/ModernStyle.ts', import.meta.url), 'utf8');
-const modernMaterials = await readFile(new URL('../src/rendering/ModernMaterials.ts', import.meta.url), 'utf8');
-const futuristicRenderer = await readFile(new URL('../src/rendering/FuturisticCastleRenderer.ts', import.meta.url), 'utf8');
 
 const templateIds = [...html.matchAll(/data-template="([^"]+)"/g)].map((match) => match[1]);
-assert.equal(templateIds.length, 32, 'Template picker should expose the current 32 complete starting worlds.');
+assert.equal(templateIds.length, 31, 'Template picker should expose the current 31 complete starting worlds.');
 assert.equal(new Set(templateIds).size, templateIds.length, 'Complete template IDs must be unique.');
 
 for (const id of templateIds) {
@@ -53,28 +50,6 @@ assert.doesNotMatch(
   applyTemplate,
   /this\.towerBridgeKind = '(?:stone|wood)'/,
   'Template branches must not leak one-off bridge defaults between starting worlds.',
-);
-
-assert.match(modernMaterials, /import \{ MODERN_STYLE \} from '\.\/ModernStyle';/);
-assert.match(modernMaterials, /const \{ palette, material \} = MODERN_STYLE;/);
-assert.doesNotMatch(
-  modernMaterials,
-  /(?:color|emissive):\s*0x[0-9a-f]+/i,
-  'ModernMaterials should consume shared style tokens instead of raw palette literals.',
-);
-assert.match(modernStyle, /reinforcedConcrete:/);
-assert.match(modernStyle, /structuralSteel:/);
-assert.match(modernStyle, /securityLight:/);
-assert.match(modernStyle, /warningStripe:/);
-assert.doesNotMatch(
-  modernStyle,
-  /(?:roofTerracotta|plaster|timberFraming|landmarkPurple)\s*:/,
-  'Modern style tokens must remain separate from medieval surface motifs.',
-);
-assert.match(
-  futuristicRenderer,
-  /const warning = materials\.warningStripe;/,
-  'Modern Fortress warning details must use the dedicated modern accent role.',
 );
 
 console.log('Visual style integration regression checks passed.');

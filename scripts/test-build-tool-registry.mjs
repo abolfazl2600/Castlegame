@@ -30,60 +30,21 @@ assert.equal(
   definitionSet.size,
   'TOOL_GROUPS must not contain duplicate tool definitions.',
 );
-assert.equal(
-  definitionIds.filter((id) => id === 'futuristicCastle').length,
-  1,
-  'futuristicCastle must have exactly one ToolDefinition.',
-);
-assert.match(
-  registry,
-  /id:\s*'futuristicCastle'[\s\S]*?label:\s*'Modern Fortress'[\s\S]*?shortcut:\s*'E'/,
-  'Modern Fortress must expose a visible ToolDefinition with shortcut E.',
-);
-
-const modern = between(
-  gameMode,
-  '  modern: {',
-  '  sandbox: {',
-);
-assert.match(
-  modern,
-  /label:\s*'Fortress'[\s\S]*?toolIds:\s*\['futuristicCastle'\]/,
-  'Modern Mode must expose futuristicCastle in the Fortress group.',
-);
-assert.match(
-  modern,
-  /availableTools:\s*\['futuristicCastle'/,
-  'Modern Mode must allow selecting futuristicCastle.',
-);
-assert.match(
-  modern,
-  /availableBuildingKinds:\s*\['futuristicCastle'/,
-  'Modern Mode must allow placing futuristicCastle.',
-);
-
 const sandbox = between(
   gameMode,
   '  sandbox: {',
   '\n};',
 );
-assert.match(
-  sandbox,
-  /label:\s*'Modern'[\s\S]*?toolIds:\s*\['futuristicCastle'\]/,
-  'Sandbox Mode must expose futuristicCastle in its Modern group.',
-);
-
 const shortcutMap = between(
   threeGame,
   'const shortcutMap: Record<string, ToolKind> = {',
   '      };',
 );
-assert.match(
-  shortcutMap,
-  /e:\s*'futuristicCastle'/,
-  'Shortcut E must select futuristicCastle.',
-);
 
+assert.doesNotMatch(registry, /futuristicCastle|Modern & Futuristic|Modern Fortress/);
+assert.doesNotMatch(gameMode, /\bmodern\b|futuristicCastle/);
+assert.doesNotMatch(shortcutMap, /futuristicCastle/);
+assert.doesNotMatch(threeGame, /FuturisticCastleRenderer|futuristicCastle|futuristic-castle/);
 const selection = between(
   threeGame,
   'private selectTool(tool: ToolKind | null): void {',
@@ -110,15 +71,8 @@ assert.match(
   /this\.services\.state\.setCell\(gx, gy, selectedTile, 1\)/,
   'Generic build placement must write the selected building kind.',
 );
-assert.match(
-  threeGame,
-  /cell\.kind === 'futuristicCastle'[\s\S]*?futuristicCastleRenderer\.render/,
-  'futuristicCastle must retain its renderer path.',
-);
-
 // Preserve the current UI surface while preventing future config/registry drift.
-// These three pre-existing gaps are outside the Modern Fortress scope and are
-// intentionally allowlisted until they receive their own ToolDefinitions.
+// These pre-existing gaps are intentionally allowlisted until they receive their own ToolDefinitions.
 const LEGACY_REGISTRY_GAPS = new Set(['mine', 'hut', 'rock']);
 
 const constBodies = new Map();
@@ -162,11 +116,6 @@ assert.deepEqual(
   unresolved,
   [],
   `Every newly referenced visible tool must resolve to TOOL_GROUPS. Missing: ${unresolved.join(', ')}`,
-);
-
-assert.ok(
-  definitionSet.has('futuristicCastle'),
-  'Modern Fortress must never be silently filtered from the toolbar registry.',
 );
 
 console.log('Build tool registry regression checks passed.');

@@ -3,13 +3,13 @@ import type { StoneStyle, TowerBridgeKind } from '../core/types';
 export interface TemplateVisualPreset {
   stoneStyle: StoneStyle;
   towerBridgeKind: TowerBridgeKind;
-  family: 'medieval' | 'modern';
+  family: 'medieval';
 }
 
 /**
  * Stable visual family for every complete starting-world template.
  *
- * Templates should compose the shared world, settlement, castle and modern
+ * Templates should compose the shared world, settlement, and castle
  * rendering kits. This registry only selects existing style roles; it does not
  * introduce template-specific materials.
  */
@@ -44,7 +44,6 @@ export const TEMPLATE_VISUAL_PRESETS: Readonly<Record<string, TemplateVisualPres
   'moat-palace': { stoneStyle: 'sandstone', towerBridgeKind: 'stone', family: 'medieval' },
   'merchant-republic': { stoneStyle: 'limestone', towerBridgeKind: 'wood', family: 'medieval' },
   'war-camp': { stoneStyle: 'frontier', towerBridgeKind: 'wood', family: 'medieval' },
-  'futuristic-castle': { stoneStyle: 'darkStone', towerBridgeKind: 'stone', family: 'modern' },
   'island-monastery': { stoneStyle: 'limestone', towerBridgeKind: 'stone', family: 'medieval' },
 };
 
