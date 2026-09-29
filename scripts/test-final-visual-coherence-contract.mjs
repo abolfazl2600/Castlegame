@@ -52,6 +52,9 @@ assert.match(qa, /maxDrawCalls/);
 assert.match(qa, /maxTriangles/);
 assert.match(qa, /maxSceneMaterials/);
 assert.match(qa, /maxRedrawMs/);
+assert.match(qa, /performanceFollowupRequired/);
+assert.match(qa, /productionBudgetPassed/);
+assert.match(qa, /hardViolations/);
 
 assert.match(worldStyle, /nearInspection:\s*48/);
 assert.match(worldStyle, /normalGameplay:\s*104/);
@@ -82,5 +85,6 @@ assert.match(docs, /#134/);
 assert.match(docs, /#135/);
 assert.match(docs, /#136/);
 assert.match(docs, /not marked complete/i);
+assert.match(docs, /#136 production performance targets/);
 
 console.log('Final visual coherence QA contract checks passed.');
