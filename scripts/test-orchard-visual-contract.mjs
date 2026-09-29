@@ -7,10 +7,16 @@ const [orchard, game] = await Promise.all([
 ]);
 
 assert.match(orchard, /import \{ WORLD_STYLE \} from '\.\.\/rendering\/WorldStyle'/);
-assert.match(orchard, /orchardVisualVersion = 2/);
+assert.match(orchard, /orchardVisualVersion = 3/);
 assert.match(orchard, /fieldScale: 3\.34, columns: 3, rows: 3/);
 assert.match(orchard, /fieldScale: 3\.58, columns: 4, rows: 3/);
 assert.match(orchard, /fieldScale: 3\.82, columns: 4, rows: 4/);
+assert.match(orchard, /fieldScale: 4\.02, columns: 5, rows: 4/);
+assert.match(orchard, /MathUtils\.clamp\(Math\.floor\(size\), 1, 4\)/);
+assert.match(orchard, /upgradeVisualProfile\(orchardSize\)/);
+assert.match(orchard, /private addEntranceTrellis/);
+assert.match(orchard, /private addPackingShed/);
+assert.match(orchard, /orchardLandmark = 'packing-shed'/);
 assert.match(orchard, /private addPlantingRows/);
 assert.match(orchard, /private addFence/);
 assert.match(orchard, /private addEntrancePath/);
@@ -26,5 +32,7 @@ assert.match(
   /cell\.kind === 'appleOrchard'\) this\.services\.orchardSystem\.create\(group, cell\.level \?\? 1, cell\.x \* 97 \+ cell\.y \* 53\)/,
 );
 assert.match(game, /setCell\(gx, gy, 'appleOrchard', size\)/);
+assert.match(game, /Math\.min\(4, \(cell\?\.level \?\? 1\) \+ 1\)/);
+assert.match(game, /1 \+ \(\(gx \* 7 \+ gy \* 11\) % 4\)/);
 
 console.log('Apple Orchard visual contract checks passed.');
