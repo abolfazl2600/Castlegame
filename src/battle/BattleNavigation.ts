@@ -380,7 +380,8 @@ export class BattleNavigation {
       worldY: node.worldY + 0.28,
     }));
     const byKey = new Map(nodes.map((node) => [this.key(node.x, node.y), node]));
-    const queue = nodes.filter((node) => node.kind === 'tower' || node.kind === 'gate');
+    const queue = nodes.filter((node) =>
+      (node.kind === 'tower' || node.kind === 'gate') && this.accessGroundCell(node) !== null);
     const visited = new Set<string>();
     while (queue.length) {
       const node = queue.shift()!;
@@ -392,6 +393,45 @@ export class BattleNavigation {
       }
     }
     return nodes.filter((node) => visited.has(this.key(node.x, node.y)));
+  }
+
+  accessGroundCell(node: NavPoint): NavPoint | null {
+    for (const direction of DIRS.slice(0, 4)) {
+      const point = { x: node.x + direction.x, y: node.y + direction.y };
+      if (this.isGroundWalkable(point.x, point.y)) return point;
+    }
+    return null;
+  }
+
+  accessRouteTo(target: WallNavNode): WallNavNode[] {
+    const nodes = this.wallPlatformNodes();
+    const byKey = new Map(nodes.map((node) => [this.key(node.x, node.y), node]));
+    const start = byKey.get(this.key(target.x, target.y));
+    if (!start) return [];
+    const queue = [start];
+    const parent = new Map<string, string>();
+    const seen = new Set<string>([this.key(start.x, start.y)]);
+    while (queue.length) {
+      const node = queue.shift()!;
+      const key = this.key(node.x, node.y);
+      if ((node.kind === 'gate' || node.kind === 'tower') && this.accessGroundCell(node)) {
+        const route: WallNavNode[] = [node];
+        let current = key;
+        while (parent.has(current)) {
+          current = parent.get(current)!;
+          route.push(byKey.get(current)!);
+        }
+        return route;
+      }
+      for (const next of this.connectedWallNeighbors(node, byKey)) {
+        const nextKey = this.key(next.x, next.y);
+        if (seen.has(nextKey)) continue;
+        seen.add(nextKey);
+        parent.set(nextKey, key);
+        queue.push(next);
+      }
+    }
+    return [];
   }
 
   connectedWallNeighbors(node: WallNavNode, nodes: Map<string, WallNavNode>): WallNavNode[] {
