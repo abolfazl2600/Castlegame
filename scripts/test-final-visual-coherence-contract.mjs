@@ -29,7 +29,16 @@ assert.match(scene, /cell\(x, 18, 'armyCamp', level\)/);
 assert.match(scene, /cell\(5, 16, 'harbor', 1/);
 assert.match(scene, /cell\(14, 16, 'harbor', 4/);
 assert.match(scene, /gameMode: definition\.mode/);
-assert.match(scene, /mode: 'modern'[\s\S]*futuristicCastle/);
+assert.match(
+  scene,
+  /function modernCells\(\)[\s\S]*futuristicCastle/,
+  'Modern QA fixture must render the supported Futuristic Castle family.',
+);
+assert.match(
+  scene,
+  /if \(kind === 'modern'\) return \{ mode: 'modern'/,
+  'Modern QA fixture must load through Modern Mode.',
+);
 
 assert.match(qa, /width:\s*740,\s*height:\s*390/);
 assert.match(qa, /starter-normal-mobile-landscape/);
