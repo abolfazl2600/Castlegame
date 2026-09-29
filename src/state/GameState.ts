@@ -1,6 +1,7 @@
 import type { GridCell, MissileInventoryState, TileKind } from '../core/types';
 import type { GameMode } from '../core/GameMode';
 import { defaultMissileState, normalizeMissileState } from '../battle/MissileCapability';
+import { MAX_WALL_LEVEL } from '../building/CastleBlockSystem';
 
 export interface CellEntry extends GridCell {
   x: number;
@@ -40,7 +41,7 @@ export class GameState {
     this.cells.set(this.key(x, y), {
       ...options,
       kind,
-      level: Math.max(1, Math.floor(level)),
+      level: this.normalizeLevel(kind, level),
     });
   }
 
@@ -49,7 +50,7 @@ export class GameState {
     if (!cell) return;
 
     const next: GridCell = { ...cell, ...changes };
-    if (next.level !== undefined) next.level = Math.max(1, Math.floor(next.level));
+    if (next.level !== undefined) next.level = this.normalizeLevel(next.kind, next.level);
     this.cells.set(this.key(x, y), next);
   }
 
@@ -82,5 +83,12 @@ export class GameState {
     }
 
     return result;
+  }
+
+  private normalizeLevel(kind: TileKind, value: number): number {
+    const level = Number.isFinite(value) ? Math.max(1, Math.floor(value)) : 1;
+    if (kind === 'wall1' || kind === 'wall2' || kind === 'wall3') return Math.min(MAX_WALL_LEVEL, level);
+    if (kind === 'tower' || kind === 'gate') return Math.min(4, level);
+    return level;
   }
 }

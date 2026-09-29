@@ -353,8 +353,8 @@ export class AudioManager {
     const destination = this.musicGain;
     if (!context || !destination || context.state !== 'running' || document.hidden) return;
 
-    const root = this.currentMode === 'modern' ? 98 : 110;
-    const ratios = this.currentMode === 'modern' ? [1, 2, 3] : [1, 1.5, 2];
+    const root = 110;
+    const ratios = [1, 1.5, 2];
     const startAt = context.currentTime + 0.02;
     const duration = 4.8;
 

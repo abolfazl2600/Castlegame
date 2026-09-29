@@ -68,8 +68,7 @@ export type TileKind =
   | 'rock'
   | 'hut'
   | 'moat'
-  | AccessKind
-  | 'futuristicCastle';
+  | AccessKind;
 
 export type ToolKind =
   | TileKind
@@ -96,6 +95,7 @@ export interface GridCell {
   rotation?: number;
   rotationMode?: GateRotationMode;
   wallLinks?: WallDirection[];
+  gateOpen?: boolean;
   shipKind?: ShipKind;
   accessHeight?: number;
   /** Persistent building damage ratio: 0 = healthy, 1 = destroyed. */
@@ -109,6 +109,8 @@ export interface TowerBridgeState {
   bx: number;
   by: number;
   kind: TowerBridgeKind;
+  /** Upgrade progression. Legacy saves without this field are treated as Level 1. */
+  level?: number;
 }
 
 export interface SavedBattleSetup {
@@ -141,6 +143,56 @@ export interface EconomyResourceState {
   food: number;
 }
 
+export type CivilianOccupation =
+  | 'idle'
+  | 'farmer'
+  | 'builder'
+  | 'miner'
+  | 'sailor'
+  | 'merchant'
+  | 'worker'
+  | 'militia';
+
+export type MilitiaUnitType = 'swordsman' | 'archer' | 'spearman' | 'crossbowman';
+
+export interface PopulationGridRef {
+  x: number;
+  y: number;
+}
+
+export interface SavedCitizenState {
+  id: string;
+  alive: boolean;
+  home?: PopulationGridRef;
+  occupation: CivilianOccupation;
+  workplace?: PopulationGridRef;
+  previousOccupation?: Exclude<CivilianOccupation, 'militia'>;
+  previousWorkplace?: PopulationGridRef;
+  militiaType?: MilitiaUnitType;
+  mobilized?: boolean;
+}
+
+export interface SavedProfessionalSoldierState {
+  id: string;
+  alive: boolean;
+  unitType: 'modernSoldier';
+  camp?: PopulationGridRef;
+}
+
+export interface PopulationSimulationState {
+  nextCitizenId: number;
+  nextSoldierId: number;
+  housingCapacityHighWater: number;
+  citizens: SavedCitizenState[];
+  professionalArmy: SavedProfessionalSoldierState[];
+}
+
+export interface EnvironmentSimulationState {
+  cycleDays: number;
+  day: number;
+  progress: number;
+}
+
 export interface SavedGame {
   version: number;
   gameMode?: GameMode;
@@ -160,6 +212,7 @@ export interface SavedGame {
     rotation?: number;
     rotationMode?: GateRotationMode;
     wallLinks?: WallDirection[];
+    gateOpen?: boolean;
     shipKind?: ShipKind;
     accessHeight?: number;
     damage?: number;
@@ -174,6 +227,8 @@ export interface SavedGame {
   militaryTier?: number;
   missiles?: MissileInventoryState;
   economy?: EconomyResourceState;
+  population?: PopulationSimulationState;
+  environment?: EnvironmentSimulationState;
 }
 
 export interface SaveMetadata {

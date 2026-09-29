@@ -15,6 +15,8 @@ import type { KeepSystem } from '../building/KeepSystem';
 import { APPLICATION_METADATA } from '../app/applicationMetadata';
 import type {
   EconomyResourceState,
+  EnvironmentSimulationState,
+  PopulationSimulationState,
   KeepState,
   MapLayoutId,
   SavedBattleSetup,
@@ -48,6 +50,10 @@ export interface SaveLoadHost {
   setMilitaryTier?(value: number): void;
   getEconomyState?(): EconomyResourceState;
   setEconomyState?(value?: Partial<EconomyResourceState> | null): void;
+  getPopulationState?(): PopulationSimulationState;
+  setPopulationState?(value?: Partial<PopulationSimulationState> | null): void;
+  getEnvironmentState?(): EnvironmentSimulationState;
+  setEnvironmentState?(value?: Partial<EnvironmentSimulationState> | null): void;
   setWorldSeeded(value: boolean): void;
   setLoadedSaveVersion(value: number): void;
   setStoneStyle(value: StoneStyle): void;
@@ -79,6 +85,8 @@ interface RawSave {
   militaryTier?: number;
   missiles?: SavedGame['missiles'];
   economy?: EconomyResourceState;
+  population?: PopulationSimulationState;
+  environment?: EnvironmentSimulationState;
 }
 
 export class SaveSystem {
@@ -449,6 +457,8 @@ export class SaveSystem {
       militaryTier: this.host.getMilitaryTier?.() ?? 1,
       missiles: this.host.state.getMissileState(),
       economy: this.host.getEconomyState?.(),
+      population: this.host.getPopulationState?.(),
+      environment: this.host.getEnvironmentState?.(),
     };
   }
 
@@ -503,6 +513,7 @@ export class SaveSystem {
         rotation: cell.rotation,
         rotationMode: cell.rotationMode,
         wallLinks: cell.wallLinks,
+        gateOpen: cell.kind === 'gate' ? cell.gateOpen !== false : undefined,
         shipKind: cell.shipKind,
         accessHeight: cell.accessHeight,
         damage: clamp(cell.damage ?? 0, 0, 1),
@@ -518,7 +529,10 @@ export class SaveSystem {
     for (const bridge of data.towerBridges ?? []) {
       if (!Number.isInteger(bridge.id) || !validGrid(bridge.ax, bridge.ay) || !validGrid(bridge.bx, bridge.by)) continue;
       if (bridge.kind !== 'stone' && bridge.kind !== 'wood') continue;
-      this.host.towerBridges.set(bridge.id, { ...bridge });
+      this.host.towerBridges.set(bridge.id, {
+        ...bridge,
+        level: clamp(Math.floor(Number(bridge.level ?? 1)), 1, 4),
+      });
     }
 
     this.host.terrainOverrides.clear();
@@ -548,6 +562,8 @@ export class SaveSystem {
     this.host.setMilitaryTier?.(data.militaryTier ?? 1);
     this.host.state.setMissileState(data.missiles);
     this.host.setEconomyState?.(data.economy);
+    this.host.setPopulationState?.(data.population);
+    this.host.setEnvironmentState?.(data.environment);
     this.host.syncModeDependentUI();
   }
 
@@ -611,6 +627,8 @@ export class SaveSystem {
         militaryTier: parsed.militaryTier,
         missiles: parsed.missiles,
         economy: parsed.economy,
+        population: parsed.population,
+        environment: parsed.environment,
       };
       const data: SavedGame = parsed.data ?? legacyData;
       if (!validMapLayoutId(data.mapLayoutId)) data.mapLayoutId = 'island';
@@ -657,6 +675,8 @@ function normalizeRecord(raw: RawSave, target: SaveTarget): SaveRecord | null {
     militaryTier: raw.militaryTier,
     missiles: raw.missiles,
     economy: raw.economy,
+    population: raw.population,
+    environment: raw.environment,
   } : undefined);
   if (!data || !Array.isArray(data.cells)) return null;
 

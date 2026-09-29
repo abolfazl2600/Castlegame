@@ -44,8 +44,3 @@ The current reviewed *starting palette* is maintained in code, not copied into e
 
 Material ownership: `MedievalMaterials` tracks and disposes its shared materials and textures, while generated building geometries/materials belong to the scene lifecycle and are released on redraw. Do not dispose shared materials from a single building, and do not allocate new materials per frame. Document color/geometry changes and attach this reference scene's before/after outputs to visual PRs. See the [Visual Style Guide](../VISUAL_STYLE_GUIDE.md) and [settlement kit](settlement-kit.md).
 
-## Template and Modern Mode integration
-
-Complete starting-world templates select their visual family through [`TemplateVisualStyle.ts`](../src/rendering/TemplateVisualStyle.ts). The registry only chooses existing `StoneStyle` and tower-bridge roles; it must not become a parallel material system. A template should look the same after switching from any other template, so new complete templates must add an explicit preset when their picker entry is added.
-
-Modern Mode follows the same centralized-token rule through [`ModernStyle.ts`](../src/rendering/ModernStyle.ts), [`ModernMaterials.ts`](../src/rendering/ModernMaterials.ts), and [`ModernArchitecture.ts`](../src/rendering/ModernArchitecture.ts). Modern assets use reinforced concrete, cool steel, composite panels, restrained glass/cyan light, and a limited industrial warning accent. Medieval plaster, terracotta roofs, timber framing, and castle stone palettes remain separate. Prefer tuning these shared roles over adding raw material colors inside individual modern renderers.

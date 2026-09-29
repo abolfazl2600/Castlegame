@@ -25,6 +25,8 @@ export class WindmillSystem {
   private readonly hubGeometry = new THREE.CylinderGeometry(0.34, 0.34, 0.58, 12);
 
   create(group: THREE.Group): void {
+    group.userData.settlementFamily = 'windmill';
+    group.userData.settlementReadabilityClass = 'landmark';
     const body = new THREE.Mesh(this.bodyGeometry, this.bodyMaterial);
     body.position.y = 2.65;
     body.castShadow = true;

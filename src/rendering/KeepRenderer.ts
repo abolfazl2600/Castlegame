@@ -3,6 +3,7 @@ import type { KeepState, StoneStyle, TerrainKind, TileKind } from '../core/types
 import { CastleDetailGenerator } from '../building/CastleDetailGenerator';
 import { MedievalMaterials } from './MedievalMaterials';
 import { CASTLE_ARCHITECTURE_STYLE } from './CastleArchitectureStyle';
+import { KEEP_SILHOUETTE_PROFILE } from './DefenseVisualLanguage';
 
 export interface KeepRenderContext {
   tileSize: number;
@@ -21,6 +22,12 @@ export class KeepRenderer {
 
   render(keep: KeepState, context: KeepRenderContext): THREE.Group {
     const group = new THREE.Group();
+    group.userData.defenseSilhouette = {
+      ...KEEP_SILHOUETTE_PROFILE,
+      floors: keep.floors,
+      cornerTowers: keep.cornerTowers,
+      roof: keep.roof,
+    };
     const rotated = keep.rotation % 2 !== 0;
     const widthCells = rotated ? keep.depth : keep.width;
     const depthCells = rotated ? keep.width : keep.depth;

@@ -270,6 +270,29 @@ h1 { margin: 3px 0 0; font-size: 22px; line-height: 1; letter-spacing: -.035em; 
   background: rgba(219,102,104,.1);
 }
 
+.build-population-breakdown {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 4px;
+  padding: 6px 7px;
+  border: 1px solid rgba(111, 196, 218, .1);
+  border-radius: 10px;
+  background: rgba(65, 143, 164, .035);
+}
+.build-population-breakdown span {
+  min-width: 0;
+  overflow: hidden;
+  padding: 4px 5px;
+  border-radius: 7px;
+  color: rgba(211, 235, 242, .65);
+  background: rgba(255,255,255,.022);
+  font-size: 7px;
+  font-weight: 800;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
 .build-economy-summary {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -975,6 +998,103 @@ h1 { margin: 3px 0 0; font-size: 22px; line-height: 1; letter-spacing: -.035em; 
   border-color: rgba(112,220,255,.2);
   background: rgba(83,199,240,.1);
 }
+.fortification-upgrade-card {
+  display: grid;
+  gap: 9px;
+  margin: 8px 0 10px;
+  padding: 11px;
+  border: 1px solid rgba(166, 201, 220, .24);
+  border-radius: 12px;
+  background: linear-gradient(145deg, rgba(25, 39, 50, .97), rgba(12, 25, 35, .97));
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,.035), 0 7px 20px rgba(2, 9, 15, .12);
+}
+.fortification-upgrade-card[hidden] { display: none; }
+.fortification-upgrade-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+}
+.fortification-upgrade-heading > div { display: grid; gap: 3px; }
+.fortification-upgrade-heading strong { color: #f1f7fa; font-size: 12px; }
+#fortification-upgrade-badge {
+  flex: 0 0 auto;
+  padding: 4px 7px;
+  border: 1px solid rgba(178, 216, 235, .26);
+  border-radius: 999px;
+  color: #edf9ff;
+  background: rgba(91, 130, 151, .24);
+  font-size: 9px;
+  font-weight: 900;
+}
+.fortification-level-track {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 5px;
+}
+.fortification-level-track span {
+  height: 6px;
+  border: 1px solid rgba(255,255,255,.07);
+  border-radius: 99px;
+  background: rgba(255,255,255,.09);
+}
+.fortification-level-track span.is-complete {
+  border-color: rgba(178, 216, 235, .34);
+  background: linear-gradient(90deg, rgba(86, 126, 150, .88), rgba(129, 165, 181, .78));
+}
+.fortification-level-track span.is-current {
+  box-shadow: 0 0 0 2px rgba(174, 216, 235, .18);
+}
+#fortification-upgrade-description {
+  color: rgba(232, 243, 248, .73);
+  font-size: 9px;
+  line-height: 1.45;
+}
+.fortification-upgrade-actions {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 6px;
+}
+.fortification-upgrade-button,
+.fortification-remove-bridge-button {
+  min-height: 34px;
+  border-radius: 9px;
+  cursor: pointer;
+  font-size: 10px;
+  font-weight: 900;
+}
+.fortification-upgrade-button {
+  border: 1px solid rgba(178, 216, 235, .3);
+  color: #f4fbff;
+  background: linear-gradient(135deg, rgba(67, 108, 132, .64), rgba(75, 91, 118, .52));
+}
+.fortification-remove-bridge-button {
+  padding-inline: 10px;
+  border: 1px solid rgba(224, 149, 137, .24);
+  color: #ffe9e5;
+  background: rgba(126, 55, 48, .34);
+}
+.fortification-remove-bridge-button[hidden] { display: none; }
+.fortification-upgrade-button:hover:not(:disabled) {
+  border-color: rgba(195, 230, 246, .64);
+  transform: translateY(-1px);
+}
+.fortification-remove-bridge-button:hover:not(:disabled) {
+  border-color: rgba(238, 171, 160, .48);
+  background: rgba(145, 64, 55, .44);
+}
+.fortification-upgrade-button:disabled,
+.fortification-remove-bridge-button:disabled {
+  opacity: .52;
+  cursor: not-allowed;
+  transform: none;
+}
+@media (max-width: 560px) {
+  .fortification-upgrade-actions {
+    grid-template-columns: 1fr;
+  }
+}
+
 .army-camp-upgrade-card {
   display: grid;
   gap: 9px;

@@ -1,9 +1,7 @@
 import * as THREE from 'three';
-import type { GridCell, KeepState, TerrainKind, TileKind, TowerBridgeState } from '../core/types';
+import type { GridCell, KeepState, TerrainKind, TileKind, TowerBridgeState, WallDirection } from '../core/types';
 import { BattleNavigation, type NavPoint, type WallNavNode } from './BattleNavigation';
-import type { WallDirection } from '../core/types';
 import { WallSystem } from '../building/WallSystem';
-import type { GeneratedAccess } from '../building/CastleAccessSystem';
 import { FactionRelations } from './FactionRelations';
 import { BattleObjectiveSystem } from './objectives/BattleObjectiveSystem';
 import { DEFAULT_BATTLE_SCENARIO } from './objectives/BattleObjectiveDefinitions';
@@ -21,6 +19,7 @@ import type {
   UnitType,
 } from './types';
 import { defenderUnitStats, militaryTierDefinition, normalizeMilitaryTier, type MilitaryTier } from './MilitaryProgression';
+import { WALL_DAMAGE_READABILITY } from '../rendering/DefenseVisualLanguage';
 
 export type CoreUnitType = 'swordsman' | 'archer' | 'spearman' | 'crossbowman' | 'modernSoldier';
 
@@ -33,12 +32,13 @@ export interface BattleWorldContext {
   kindAt: (x: number, y: number) => TileKind | undefined;
   cellAt: (x: number, y: number) => GridCell | undefined;
   fortificationTopAt: (x: number, y: number, cell: GridCell) => number;
+  castleLinksAt?: (x: number, y: number) => WallDirection[] | undefined;
   keeps: () => KeepState[];
   towerBridges: () => TowerBridgeState[];
   setWallBattleVisibility: (x: number, y: number, visible: boolean) => void;
   buildingDamageAt?: (x: number, y: number) => number;
+  onWallDamage?: (x: number, y: number, damage: number) => void;
   gatePassable?: (x: number, y: number) => boolean;
-  generatedAccess?: () => GeneratedAccess[];
   wallWeaponVisuals?: () => THREE.Object3D[];
   effectsEnabled?: () => boolean;
   objectiveBuildings?: () => ObjectiveBuildingSnapshot[];
@@ -77,13 +77,14 @@ interface UnitRuntime {
   activeLadderId?: string;
   climbProgress: number;
   wallSeconds: number;
-  accessTransition?: WallAccessTransition;
   attackProgress: number;
   attackDuration: number;
   attackApplied: boolean;
   hitReaction: number;
   victoryPhase: number;
   entryTarget?: THREE.Vector3;
+  deploymentRoute?: WallNavNode[];
+  deploymentIndex?: number;
 }
 
 type WallDamageStage = 'healthy' | 'damaged' | 'heavy' | 'partial' | 'breached';
@@ -100,6 +101,39 @@ interface WallBattleState {
   battleDamage: number;
   stage: WallDamageStage;
   visual: THREE.Group;
+}
+
+interface WallCollapseFragment {
+  view: THREE.Mesh;
+  velocity: THREE.Vector3;
+  spin: THREE.Vector3;
+  groundY: number;
+  bounce: number;
+  settled: boolean;
+}
+
+interface WallDustParticle {
+  view: THREE.Mesh;
+  velocity: THREE.Vector3;
+  baseScale: number;
+  growth: number;
+  lifetime: number;
+}
+
+interface WallShockwave {
+  view: THREE.Mesh;
+  baseScale: number;
+  growth: number;
+  lifetime: number;
+  delay: number;
+}
+
+interface WallCollapseEffect {
+  age: number;
+  lifetime: number;
+  fragments: WallCollapseFragment[];
+  dust: WallDustParticle[];
+  shockwaves: WallShockwave[];
 }
 
 interface SiegeLadder {
@@ -151,16 +185,6 @@ interface MissileProjectile {
   duration: number;
   impactRadius: number;
   damage: number;
-}
-
-interface WallAccessTransition {
-  start: THREE.Vector3;
-  end: THREE.Vector3;
-  progress: number;
-  duration: number;
-  destination: 'wall' | 'ground';
-  gridX: number;
-  gridY: number;
 }
 
 interface UnitVisualRefs {
@@ -327,6 +351,7 @@ export class BattleSystem {
   private readonly arrows: ArrowProjectile[] = [];
   private readonly missiles: MissileProjectile[] = [];
   private readonly impactEffects: Array<{ view: THREE.Mesh; remainingMs: number }> = [];
+  private readonly wallCollapseEffects: WallCollapseEffect[] = [];
   private readonly sharedGeometries: THREE.BufferGeometry[] = [];
   private readonly sharedMaterials: THREE.Material[] = [];
   private readonly bodyGeometry = this.geometry(new THREE.CylinderGeometry(0.22, 0.29, 0.68, 7));
@@ -349,6 +374,11 @@ export class BattleSystem {
   private readonly missileNoseGeometry = this.geometry(new THREE.ConeGeometry(0.14, 0.32, 8));
   private readonly missileBlastGeometry = this.geometry(new THREE.RingGeometry(0.72, 1, 24));
   private readonly wallFlashGeometry = this.geometry(new THREE.SphereGeometry(0.09, 6, 5));
+  private readonly wallChipGeometry = this.geometry(new THREE.DodecahedronGeometry(0.16, 0));
+  private readonly wallStoneGeometry = this.geometry(new THREE.DodecahedronGeometry(0.3, 0));
+  private readonly wallSlabGeometry = this.geometry(new THREE.BoxGeometry(0.56, 0.3, 0.42));
+  private readonly wallDustGeometry = this.geometry(new THREE.SphereGeometry(0.3, 7, 5));
+  private readonly wallShockwaveGeometry = this.geometry(new THREE.RingGeometry(0.55, 0.78, 28));
   private readonly tacticalMaterial = this.material(new THREE.MeshStandardMaterial({ color: 0x334039, roughness: 0.9 }));
   private readonly rifleMaterial = this.material(new THREE.MeshStandardMaterial({ color: 0x1d2322, roughness: 0.46, metalness: 0.52 }));
   private readonly missileMaterial = this.material(new THREE.MeshStandardMaterial({ color: 0xcfd7d8, roughness: 0.38, metalness: 0.62 }));
@@ -372,6 +402,34 @@ export class BattleSystem {
   );
   private readonly rubbleLightMaterial = this.material(
     new THREE.MeshStandardMaterial({ color: 0xa19587, roughness: 1, flatShading: true }),
+  );
+  private readonly exposedCoreMaterial = this.material(
+    new THREE.MeshStandardMaterial({ color: 0x645a50, roughness: 1, flatShading: true }),
+  );
+  private readonly dustMaterial = this.material(
+    new THREE.MeshBasicMaterial({
+      color: 0xb6a58f,
+      transparent: true,
+      opacity: 0.24,
+      depthWrite: false,
+    }),
+  );
+  private readonly dustDarkMaterial = this.material(
+    new THREE.MeshBasicMaterial({
+      color: 0x75695e,
+      transparent: true,
+      opacity: 0.2,
+      depthWrite: false,
+    }),
+  );
+  private readonly collapseShockMaterial = this.material(
+    new THREE.MeshBasicMaterial({
+      color: 0xd2c0a4,
+      transparent: true,
+      opacity: 0.34,
+      depthWrite: false,
+      side: THREE.DoubleSide,
+    }),
   );
   private readonly ladderWoodMaterial = this.material(
     new THREE.MeshStandardMaterial({ color: 0x6f4d31, roughness: 0.96 }),
@@ -426,11 +484,11 @@ export class BattleSystem {
       kindAt: world.kindAt,
       cellAt: world.cellAt,
       fortificationTopAt: world.fortificationTopAt,
+      castleLinksAt: world.castleLinksAt,
       keeps: world.keeps,
       towerBridges: world.towerBridges,
       temporaryGroundPassable: (x, y) => this.breachedWalls.has(this.gridKey(x, y)),
       gatePassable: world.gatePassable,
-      generatedAccess: world.generatedAccess,
     });
   }
 
@@ -603,10 +661,6 @@ export class BattleSystem {
       'gate',
       'tower',
       'armyCamp',
-      'stoneStairs',
-      'woodenStairs',
-      'ramp',
-      'ladder',
     ]);
     const parts: string[] = [];
 
@@ -619,10 +673,6 @@ export class BattleSystem {
 
     for (const keep of this.world.keeps()) {
       parts.push(`keep:${keep.id}:${keep.x},${keep.y},${keep.width},${keep.depth},${keep.floors},${keep.rotation}`);
-    }
-
-    for (const access of this.world.generatedAccess?.() ?? []) {
-      parts.push(`access:${access.x},${access.y},${access.kind}`);
     }
 
     return parts.join('|');
@@ -728,6 +778,7 @@ export class BattleSystem {
 
   update(deltaMs: number, timeMs: number): void {
     this.updateImpactEffects(deltaMs);
+    this.updateWallCollapseEffects(deltaMs);
     if (this.mode !== 'running') {
       if (this.mode === 'idle' && this.preparedDefenderSignature) {
         const idleDelta = Math.min(0.05, deltaMs / 1000);
@@ -735,6 +786,7 @@ export class BattleSystem {
           if (runtime.data.faction !== 'defender' || runtime.data.state === 'dead') continue;
           runtime.animTime += idleDelta;
           runtime.moving = false;
+          if (runtime.deploymentRoute) this.updateDefenderDeployment(runtime, idleDelta);
           runtime.view.position.copy(runtime.position);
           this.animateUnit(runtime);
         }
@@ -862,6 +914,7 @@ export class BattleSystem {
   status(): BattleStatus {
     const attackersAlive = this.countAlive('attacker');
     const defendersAlive = this.countAlive('defender');
+    const defenderAliveByType = this.countDefendersByType();
 
     return {
       mode: this.mode,
@@ -875,6 +928,7 @@ export class BattleSystem {
       captureRequiredSeconds: this.captureRequiredSeconds,
       attackersAlive,
       defendersAlive,
+      defenderAliveByType,
       result: this.finalResult,
       objectives: this.objectiveSystem.getState().runtime,
     };
@@ -971,8 +1025,28 @@ export class BattleSystem {
     const wallNodes = this.navigation.wallPlatformNodes();
     const usedWallNodes = new Set<string>();
 
+    // Professional soldiers are persistent Army Camp troops. Keep them visibly
+    // stationed around military infrastructure while idle instead of placing them
+    // on castle walls as if they were free militia.
+    const armyCamps = this.findArmyCamps();
+    const professionalCells: NavPoint[] = [];
+    for (const camp of armyCamps) {
+      professionalCells.push(
+        ...this.navigation.defenderGroundCells(
+          camp,
+          Math.max(4, Math.ceil(setup.defenderModernSoldiers / Math.max(1, armyCamps.length))),
+        ),
+      );
+    }
+    const professionalFallback = armyCamps[0] ?? this.capturePointGrid;
+    for (let i = 0; i < setup.defenderModernSoldiers; i += 1) {
+      const cell =
+        professionalCells[i % Math.max(1, professionalCells.length)] ??
+        professionalFallback;
+      this.spawnGroundUnit('defender', 'modernSoldier', cell, 400 + i, false);
+    }
+
     const rangedOrder: Array<{ type: CoreUnitType; count: number }> = [
-      { type: 'modernSoldier', count: setup.defenderModernSoldiers },
       { type: 'crossbowman', count: setup.defenderCrossbowmen },
       { type: 'archer', count: setup.defenderArchers },
     ];
@@ -1069,13 +1143,11 @@ export class BattleSystem {
     );
     const remainingArchers = remainingRanged.get('archer') ?? 0;
     const remainingCrossbowmen = remainingRanged.get('crossbowman') ?? 0;
-    const remainingModernSoldiers = remainingRanged.get('modernSoldier') ?? 0;
     const groundCount =
       remainingSwordsmen +
       remainingSpearmen +
       remainingArchers +
-      remainingCrossbowmen +
-      remainingModernSoldiers;
+      remainingCrossbowmen;
 
     const camp = this.findArmyCamp();
     const defenseAnchor = camp ?? this.capturePointGrid;
@@ -1105,7 +1177,20 @@ export class BattleSystem {
     spawnGroundType('spearman', remainingSpearmen, 7);
     spawnGroundType('archer', remainingArchers, 13);
     spawnGroundType('crossbowman', remainingCrossbowmen, 19);
-    spawnGroundType('modernSoldier', remainingModernSoldiers, 25);
+  }
+
+  private findArmyCamps(): NavPoint[] {
+    const camps: NavPoint[] = [];
+    for (let y = 0; y < this.world.size; y += 1) {
+      for (let x = 0; x < this.world.size; x += 1) {
+        if (this.world.kindAt(x, y) === 'armyCamp') camps.push({ x, y });
+      }
+    }
+    return camps.sort(
+      (a, b) =>
+        this.gridDistance(a, this.capturePointGrid) -
+        this.gridDistance(b, this.capturePointGrid),
+    );
   }
 
   private findArmyCamp(): NavPoint | null {
@@ -1133,7 +1218,7 @@ export class BattleSystem {
     cell: NavPoint,
     index: number,
     attacker: boolean,
-  ): void {
+  ): UnitRuntime {
     const base = this.world.gridToWorld(cell.x, cell.y);
     const spacing = 0.74;
     const column = index % 5;
@@ -1178,6 +1263,7 @@ export class BattleSystem {
 
     this.units.set(runtime.data.id, runtime);
     this.layer.add(runtime.view);
+    return runtime;
   }
 
   private spawnWallUnit(
@@ -1186,6 +1272,20 @@ export class BattleSystem {
     node: WallNavNode,
     index: number,
   ): void {
+    if (faction === 'defender') {
+      const route = this.navigation.accessRouteTo(node);
+      const access = route.length && this.navigation.accessGroundCell(route[0]);
+      if (!access) {
+        const fallback = this.navigation.findNearestWalkable(node, 5);
+        if (fallback) this.spawnGroundUnit(faction, unitType, fallback, index, false);
+        return;
+      }
+      const runtime = this.spawnGroundUnit(faction, unitType, access, index, false);
+      runtime.deploymentRoute = route;
+      runtime.deploymentIndex = 0;
+      runtime.defenseOriginGrid = { x: node.x, y: node.y };
+      return;
+    }
     const base = this.world.gridToWorld(node.x, node.y);
     const offset = ((index % 3) - 1) * 0.42;
     const position = new THREE.Vector3(
@@ -1202,6 +1302,52 @@ export class BattleSystem {
     runtime.defenseOriginGrid = { x: node.x, y: node.y };
     this.units.set(runtime.data.id, runtime);
     this.layer.add(runtime.view);
+  }
+
+  private updateDefenderDeployment(runtime: UnitRuntime, delta: number): void {
+    const route = runtime.deploymentRoute;
+    if (!route?.length) return;
+    const index = runtime.deploymentIndex ?? 0;
+    const next = route[index];
+    if (!next) {
+      runtime.deploymentRoute = undefined;
+      runtime.home.copy(runtime.position);
+      runtime.defenderBehavior = 'idle';
+      runtime.data.state = 'guarding';
+      return;
+    }
+    if (this.mode === 'running' && !this.wallNodes.has(this.gridKey(next.x, next.y))) {
+      // An edited/collapsed route cannot retain a defender on a stale wall node.
+      runtime.deploymentRoute = undefined;
+      const safe = this.navigation.findNearestWalkable({ x: runtime.gridX, y: runtime.gridY }, 4);
+      if (safe) {
+        const ground = this.world.gridToWorld(safe.x, safe.y);
+        runtime.position.set(ground.x, 2.22 + this.world.elevationAt(safe.x, safe.y), ground.z);
+        runtime.gridX = safe.x;
+        runtime.gridY = safe.y;
+      }
+      runtime.surface = 'ground';
+      runtime.home.copy(runtime.position);
+      runtime.data.state = 'guarding';
+      return;
+    }
+    const world = this.world.gridToWorld(next.x, next.y);
+    const target = new THREE.Vector3(world.x, next.worldY, world.z);
+    if (this.moveTowardWallPoint(runtime, target, delta, 0.25)) {
+      runtime.position.copy(target);
+      runtime.surface = 'wall';
+      runtime.gridX = next.x;
+      runtime.gridY = next.y;
+      runtime.deploymentIndex = index + 1;
+      if (runtime.deploymentIndex >= route.length) {
+        runtime.deploymentRoute = undefined;
+        runtime.home.copy(runtime.position);
+        runtime.defenderBehavior = 'idle';
+        runtime.data.state = 'guarding';
+        return;
+      }
+    }
+    runtime.data.state = 'moving';
   }
 
   private createRuntime(
@@ -1263,7 +1409,6 @@ export class BattleSystem {
       lastProgressPosition: position.clone(),
       climbProgress: 0,
       wallSeconds: 0,
-      accessTransition: undefined,
       attackProgress: 1,
       attackDuration: Math.max(0.24, Math.min(stats.attackCooldown * 0.46, 0.52)),
       attackApplied: false,
@@ -1460,6 +1605,14 @@ export class BattleSystem {
       return;
     }
 
+    if (runtime.deploymentRoute) {
+      runtime.data.targetId = undefined;
+      this.updateDefenderDeployment(runtime, delta);
+      runtime.view.position.copy(runtime.position);
+      this.animateUnit(runtime);
+      return;
+    }
+
     if (runtime.entryTarget) {
       runtime.data.targetId = undefined;
       runtime.data.state = 'forming';
@@ -1474,13 +1627,6 @@ export class BattleSystem {
 
     if (runtime.surface === 'ladder') {
       this.updateLadderClimb(runtime, delta);
-      runtime.view.position.copy(runtime.position);
-      this.animateUnit(runtime);
-      return;
-    }
-
-    if (runtime.accessTransition) {
-      this.updateWallAccessTransition(runtime, delta);
       runtime.view.position.copy(runtime.position);
       this.animateUnit(runtime);
       return;
@@ -1507,40 +1653,6 @@ export class BattleSystem {
           runtime.position.distanceTo(target.position) <= runtime.stats.attackRange
             ? 'attack'
             : 'chase';
-
-        if (
-          runtime.surface === 'ground' &&
-          this.isRangedUnit(runtime.data.unitType) &&
-          target.surface === 'ground' &&
-          runtime.position.distanceTo(target.position) > runtime.stats.attackRange * 0.72 &&
-          this.tryMoveDefenderToWallPosition(runtime, target, delta)
-        ) {
-          runtime.view.position.copy(runtime.position);
-          this.animateUnit(runtime);
-          return;
-        }
-      }
-      if (
-        runtime.data.faction === 'defender' &&
-        runtime.surface === 'ground' &&
-        target.surface === 'wall' &&
-        this.tryUseStairTowerToReach(runtime, target, delta)
-      ) {
-        runtime.view.position.copy(runtime.position);
-        this.animateUnit(runtime);
-        return;
-      }
-
-      if (
-        runtime.data.faction === 'defender' &&
-        this.isMeleeUnit(runtime.data.unitType) &&
-        runtime.surface === 'wall' &&
-        target.surface === 'ground' &&
-        this.tryUseStairTowerToDescend(runtime, target, delta)
-      ) {
-        runtime.view.position.copy(runtime.position);
-        this.animateUnit(runtime);
-        return;
       }
 
       this.faceTarget(runtime, target.position);
@@ -1899,206 +2011,6 @@ export class BattleSystem {
     runtime.data.state = state;
   }
 
-  private tryUseStairTowerToReach(
-    runtime: UnitRuntime,
-    target: UnitRuntime,
-    delta: number,
-  ): boolean {
-    if (runtime.data.faction !== 'defender') return false;
-    return this.tryMoveDefenderToWallPosition(runtime, target, delta);
-  }
-
-  private tryMoveDefenderToWallPosition(
-    runtime: UnitRuntime,
-    target: UnitRuntime,
-    delta: number,
-  ): boolean {
-    const accesses = this.navigation.stairTowerAccessNodes();
-    if (accesses.length === 0) return false;
-
-    const candidates = accesses
-      .map((access) => {
-        const path = this.navigation.findPath(
-          { x: runtime.gridX, y: runtime.gridY },
-          access.ground,
-          false,
-        );
-        return {
-          access,
-          path,
-          score:
-            (path.length > 0 ? path.length : 999) +
-            this.gridDistance(access.top, { x: target.gridX, y: target.gridY }) * 0.8,
-        };
-      })
-      .filter((candidate) => candidate.path.length > 0)
-      .sort((a, b) => a.score - b.score);
-
-    const chosen = candidates[0];
-    if (!chosen) return false;
-
-    const groundWorld = this.world.gridToWorld(
-      chosen.access.ground.x,
-      chosen.access.ground.y,
-    );
-    const distance = Math.hypot(
-      runtime.position.x - groundWorld.x,
-      runtime.position.z - groundWorld.z,
-    );
-
-    if (distance <= 0.72) {
-      if (!runtime.accessTransition) {
-        const topWorld = this.world.gridToWorld(
-          chosen.access.top.x,
-          chosen.access.top.y,
-        );
-        this.beginWallAccessTransition(
-          runtime,
-          new THREE.Vector3(topWorld.x, chosen.access.top.worldY, topWorld.z),
-          'wall',
-          chosen.access.top.x,
-          chosen.access.top.y,
-        );
-      }
-      runtime.data.state = 'moving';
-      return true;
-    }
-
-    if (
-      runtime.path.length === 0 ||
-      runtime.pathIndex >= runtime.path.length ||
-      runtime.path[runtime.path.length - 1]?.x !== chosen.access.ground.x ||
-      runtime.path[runtime.path.length - 1]?.y !== chosen.access.ground.y
-    ) {
-      runtime.path = chosen.path;
-      runtime.pathIndex = Math.min(1, Math.max(0, runtime.path.length - 1));
-    }
-
-    this.followGroundPath(runtime, delta, 'moving');
-    return true;
-  }
-
-  private tryUseStairTowerToDescend(
-    runtime: UnitRuntime,
-    target: UnitRuntime,
-    delta: number,
-  ): boolean {
-    if (runtime.data.faction !== 'defender') return false;
-
-    const accesses = this.navigation.stairTowerAccessNodes();
-    if (accesses.length === 0) return false;
-
-    accesses.sort(
-      (a, b) =>
-        this.gridDistance(a.top, { x: target.gridX, y: target.gridY }) -
-        this.gridDistance(b.top, { x: target.gridX, y: target.gridY }),
-    );
-    const chosen = accesses[0];
-
-    if (
-      runtime.gridX === chosen.top.x &&
-      runtime.gridY === chosen.top.y
-    ) {
-      const world = this.world.gridToWorld(
-        chosen.ground.x,
-        chosen.ground.y,
-      );
-      if (!runtime.accessTransition) {
-        this.beginWallAccessTransition(
-          runtime,
-          new THREE.Vector3(
-            world.x,
-            2.22 + this.world.elevationAt(chosen.ground.x, chosen.ground.y),
-            world.z,
-          ),
-          'ground',
-          chosen.ground.x,
-          chosen.ground.y,
-        );
-      }
-      runtime.data.state = 'moving';
-      return true;
-    }
-
-    const node = this.wallNodes.get(this.gridKey(runtime.gridX, runtime.gridY));
-    if (!node) return false;
-
-    const neighbors = this.navigation.connectedWallNeighbors(node, this.wallNodes);
-    if (neighbors.length === 0) return false;
-    neighbors.sort(
-      (a, b) =>
-        this.gridDistance(a, chosen.top) -
-        this.gridDistance(b, chosen.top),
-    );
-
-    const next = neighbors[0];
-    const world = this.world.gridToWorld(next.x, next.y);
-    const destination = new THREE.Vector3(world.x, next.worldY, world.z);
-    if (this.moveTowardWallPoint(runtime, destination, delta, 0.28)) {
-      runtime.gridX = next.x;
-      runtime.gridY = next.y;
-      runtime.position.y = next.worldY;
-    }
-    runtime.data.state = 'moving';
-    return true;
-  }
-
-  private beginWallAccessTransition(
-    runtime: UnitRuntime,
-    end: THREE.Vector3,
-    destination: 'wall' | 'ground',
-    gridX: number,
-    gridY: number,
-  ): void {
-    const distance = runtime.position.distanceTo(end);
-    runtime.accessTransition = {
-      start: runtime.position.clone(),
-      end: end.clone(),
-      progress: 0,
-      duration: THREE.MathUtils.clamp(
-        distance / Math.max(1.4, runtime.stats.moveSpeed * 0.72),
-        0.65,
-        1.5,
-      ),
-      destination,
-      gridX,
-      gridY,
-    };
-    runtime.path = [];
-    runtime.pathIndex = 0;
-    runtime.moving = true;
-    runtime.data.state = 'moving';
-  }
-
-  private updateWallAccessTransition(runtime: UnitRuntime, delta: number): void {
-    const transition = runtime.accessTransition;
-    if (!transition) return;
-
-    transition.progress = Math.min(
-      1,
-      transition.progress + delta / transition.duration,
-    );
-
-    const eased = transition.progress * transition.progress * (3 - 2 * transition.progress);
-    runtime.position.copy(transition.start).lerp(transition.end, eased);
-    this.rotateUnitToward(
-      runtime,
-      Math.atan2(transition.end.x - transition.start.x, transition.end.z - transition.start.z),
-      delta,
-      8,
-    );
-    runtime.moving = true;
-
-    if (transition.progress < 1) return;
-
-    runtime.position.copy(transition.end);
-    runtime.surface = transition.destination;
-    runtime.gridX = transition.gridX;
-    runtime.gridY = transition.gridY;
-    runtime.accessTransition = undefined;
-    runtime.wallSeconds = 0;
-    runtime.data.state = 'moving';
-  }
 
   private moveTowardTarget(
     runtime: UnitRuntime,
@@ -2390,7 +2302,7 @@ export class BattleSystem {
           1,
         );
         const key = this.gridKey(x, y);
-        const battleDamage = this.preserveSessionWallDamage
+        const battleDamage = this.preserveSessionWallDamage && !this.world.onWallDamage
           ? THREE.MathUtils.clamp(
               this.sessionWallDamage.get(key) ?? 0,
               0,
@@ -2450,6 +2362,7 @@ export class BattleSystem {
   }
 
   private clearSiegeState(): void {
+    this.clearWallCollapseEffects();
     for (const wall of this.wallStates.values()) {
       this.world.setWallBattleVisibility(wall.x, wall.y, true);
       this.layer.remove(wall.visual);
@@ -2485,7 +2398,8 @@ export class BattleSystem {
       if (
         object instanceof THREE.Mesh &&
         object.geometry !== this.ladderRailGeometry &&
-        object.geometry !== this.ladderRungGeometry
+        object.geometry !== this.ladderRungGeometry &&
+        !this.sharedGeometries.includes(object.geometry)
       ) {
         object.geometry.dispose();
       }
@@ -3432,6 +3346,7 @@ export class BattleSystem {
     if (nextStage !== wall.stage) {
       wall.stage = nextStage;
       this.renderWallDamage(wall);
+      this.spawnWallDestructionBurst(wall, nextStage);
     }
 
     wall.battleDamage = THREE.MathUtils.clamp(
@@ -3439,7 +3354,8 @@ export class BattleSystem {
       0,
       1 - wall.initialPersistentDamage,
     );
-    if (this.preserveSessionWallDamage) {
+    this.world.onWallDamage?.(wall.x, wall.y, Math.min(1, wall.initialPersistentDamage + wall.battleDamage));
+    if (this.preserveSessionWallDamage && !this.world.onWallDamage) {
       if (wall.battleDamage > 0) {
         this.sessionWallDamage.set(this.gridKey(wall.x, wall.y), wall.battleDamage);
       } else {
@@ -3458,96 +3374,598 @@ export class BattleSystem {
     this.refreshSiegePlan(true);
   }
 
-  private renderWallDamage(wall: WallBattleState): void {
-    this.clearSiegeVisualGroup(wall.visual);
+  private wallFxNoise(wall: WallBattleState, salt: number): number {
+    const value = Math.sin(
+      wall.x * 91.713 +
+      wall.y * 47.337 +
+      wall.cell.kind.length * 13.17 +
+      salt * 19.19,
+    ) * 43758.5453;
+    return value - Math.floor(value);
+  }
 
-    if (wall.stage === 'healthy') return;
+  private wallDamageRotation(cell: GridCell): number {
+    const links = cell.wallLinks ?? [];
+    const horizontal = links.includes('E') || links.includes('W');
+    const vertical = links.includes('N') || links.includes('S');
+    if (vertical && !horizontal) return Math.PI / 2;
+    if (horizontal && !vertical) return 0;
+    return ((cell.rotation ?? 0) % 2) * Math.PI / 2;
+  }
 
-    const height =
-      this.world.fortificationTopAt(wall.x, wall.y, wall.cell);
-    const crackHeight = Math.min(6.5, Math.max(3.8, height * 0.56));
+  private addStaticWallChunk(
+    parent: THREE.Group,
+    wall: WallBattleState,
+    index: number,
+    position: THREE.Vector3,
+    scale: THREE.Vector3,
+    lightChance = 0.34,
+  ): THREE.Mesh {
+    const mesh = new THREE.Mesh(
+      this.wallFxNoise(wall, index * 7 + 3) > 0.72 ? this.wallSlabGeometry : this.wallStoneGeometry,
+      this.wallFxNoise(wall, index * 11 + 5) < lightChance
+        ? this.rubbleLightMaterial
+        : this.rubbleMaterial,
+    );
+    mesh.position.copy(position);
+    mesh.scale.copy(scale);
+    mesh.rotation.set(
+      this.wallFxNoise(wall, index * 13 + 7) * 0.8 - 0.4,
+      this.wallFxNoise(wall, index * 17 + 9) * Math.PI,
+      this.wallFxNoise(wall, index * 19 + 11) * 0.9 - 0.45,
+    );
+    mesh.castShadow = true;
+    mesh.receiveShadow = true;
+    parent.add(mesh);
+    return mesh;
+  }
 
-    if (
-      wall.stage === 'damaged' ||
-      wall.stage === 'heavy' ||
-      wall.stage === 'partial'
-    ) {
-      const crackCount =
-        wall.stage === 'partial' ? 6 : wall.stage === 'heavy' ? 4 : 2;
-      for (let i = 0; i < crackCount; i += 1) {
+  private addWallCrackNetwork(
+    parent: THREE.Group,
+    wall: WallBattleState,
+    height: number,
+    intensity: number,
+  ): void {
+    const segments = 5 + intensity * 5;
+    const faceDepth = 1.12;
+    for (let face = 0; face < 2; face += 1) {
+      const z = (face === 0 ? -1 : 1) * faceDepth;
+      for (let i = 0; i < segments; i += 1) {
+        const seed = face * 100 + i;
+        const branch = i % 4;
+        const length = 0.42 + this.wallFxNoise(wall, seed + 1) * (0.6 + intensity * 0.13);
         const crack = new THREE.Mesh(
-          new THREE.BoxGeometry(
-            0.06,
-            1.2 + i * 0.22,
-            0.12,
-          ),
+          new THREE.BoxGeometry(0.045 + (i % 3) * 0.012, length, 0.055),
           this.damageDarkMaterial,
         );
         crack.position.set(
-          -0.45 + i * 0.31,
-          2.55 + crackHeight * 0.48 + (i % 2) * 0.35,
-          -1.18 + (i % 2) * 2.36,
+          (this.wallFxNoise(wall, seed + 2) - 0.5) * (1.45 + intensity * 0.08),
+          2.9 + this.wallFxNoise(wall, seed + 3) * Math.max(1.2, height - 3.2),
+          z,
         );
-        crack.rotation.z = (i % 2 === 0 ? 1 : -1) * (0.35 + i * 0.08);
-        wall.visual.add(crack);
+        crack.rotation.z =
+          (this.wallFxNoise(wall, seed + 4) - 0.5) * 1.15 +
+          (branch === 0 ? 0.58 : branch === 1 ? -0.55 : 0);
+        crack.rotation.x = (face === 0 ? 1 : -1) * 0.03;
+        crack.renderOrder = 5;
+        parent.add(crack);
+
+        if (i % 3 === 0 && intensity >= 2) {
+          const branchCrack = new THREE.Mesh(
+            new THREE.BoxGeometry(0.038, length * 0.56, 0.052),
+            this.damageDarkMaterial,
+          );
+          branchCrack.position.copy(crack.position);
+          branchCrack.position.x += (this.wallFxNoise(wall, seed + 8) - 0.5) * 0.28;
+          branchCrack.position.y -= length * 0.22;
+          branchCrack.rotation.z = crack.rotation.z + (i % 2 === 0 ? 0.72 : -0.68);
+          parent.add(branchCrack);
+        }
+      }
+    }
+  }
+
+  private addBrokenWallRemnants(
+    parent: THREE.Group,
+    wall: WallBattleState,
+    height: number,
+  ): void {
+    const stubHeight = Math.max(2.4, Math.min(height * 0.52, 4.8));
+    const blockRows = Math.max(3, Math.round(stubHeight / 0.62));
+
+    for (const side of [-1, 1]) {
+      for (let row = 0; row < blockRows; row += 1) {
+        const rowWidth = row >= blockRows - 2 ? 1 : 2;
+        for (let col = 0; col < rowWidth; col += 1) {
+          const index = (side + 1) * 100 + row * 7 + col;
+          const inward = row >= blockRows - 2 ? 0.18 + row * 0.04 : 0;
+          const x =
+            side * (1.45 - inward) +
+            (col - (rowWidth - 1) / 2) * 0.52 +
+            (this.wallFxNoise(wall, index) - 0.5) * 0.16;
+          const y =
+            2.5 +
+            row * 0.56 +
+            (this.wallFxNoise(wall, index + 1) - 0.5) * 0.12;
+          const z = (this.wallFxNoise(wall, index + 2) - 0.5) * 0.58;
+          const block = new THREE.Mesh(
+            this.wallSlabGeometry,
+            row % 3 === 0 ? this.rubbleLightMaterial : this.rubbleMaterial,
+          );
+          block.position.set(x, y, z);
+          block.scale.set(
+            0.82 + this.wallFxNoise(wall, index + 3) * 0.28,
+            0.8 + this.wallFxNoise(wall, index + 4) * 0.24,
+            1.15 + this.wallFxNoise(wall, index + 5) * 0.36,
+          );
+          block.rotation.set(
+            (this.wallFxNoise(wall, index + 6) - 0.5) * 0.12,
+            (this.wallFxNoise(wall, index + 7) - 0.5) * 0.18,
+            side * (0.025 + this.wallFxNoise(wall, index + 8) * 0.055),
+          );
+          block.castShadow = true;
+          block.receiveShadow = true;
+          parent.add(block);
+        }
+      }
+
+      const exposedCore = new THREE.Mesh(
+        new THREE.BoxGeometry(0.3, stubHeight * 0.7, 1.28),
+        this.exposedCoreMaterial,
+      );
+      exposedCore.position.set(side * 0.78, 2.55 + stubHeight * 0.33, 0);
+      exposedCore.rotation.z = side * 0.09;
+      parent.add(exposedCore);
+    }
+
+    for (let i = 0; i < 30; i += 1) {
+      const angle = this.wallFxNoise(wall, 400 + i) * Math.PI * 2;
+      const radius = 0.4 + this.wallFxNoise(wall, 500 + i) * 1.85;
+      const large = i < 10;
+      const position = new THREE.Vector3(
+        Math.cos(angle) * radius,
+        2.2 + this.wallFxNoise(wall, 600 + i) * (large ? 0.34 : 0.2),
+        Math.sin(angle) * radius * 0.74,
+      );
+      const scale = large
+        ? new THREE.Vector3(
+            0.9 + this.wallFxNoise(wall, 700 + i) * 0.8,
+            0.55 + this.wallFxNoise(wall, 710 + i) * 0.5,
+            0.75 + this.wallFxNoise(wall, 720 + i) * 0.65,
+          )
+        : new THREE.Vector3(
+            0.45 + this.wallFxNoise(wall, 730 + i) * 0.45,
+            0.32 + this.wallFxNoise(wall, 740 + i) * 0.34,
+            0.42 + this.wallFxNoise(wall, 750 + i) * 0.42,
+          );
+      this.addStaticWallChunk(parent, wall, 800 + i, position, scale);
+    }
+
+    for (let i = 0; i < 8; i += 1) {
+      const slab = new THREE.Mesh(
+        this.wallSlabGeometry,
+        i % 3 === 0 ? this.rubbleLightMaterial : this.exposedCoreMaterial,
+      );
+      slab.position.set(
+        -1.4 + (i % 4) * 0.9,
+        2.31 + Math.floor(i / 4) * 0.13,
+        -0.95 + (i % 3) * 0.92,
+      );
+      slab.scale.set(1.4 + (i % 2) * 0.45, 0.5, 1.05 + (i % 3) * 0.2);
+      slab.rotation.set(0.12 * (i % 2), i * 0.58, (i % 2 ? -1 : 1) * 0.22);
+      slab.castShadow = true;
+      parent.add(slab);
+    }
+  }
+
+  private addWallDamageSilhouetteCue(
+    parent: THREE.Group,
+    wall: WallBattleState,
+    height: number,
+    stage: WallDamageStage,
+  ): void {
+    if (stage === 'healthy' || stage === 'breached') return;
+
+    const severity =
+      stage === 'damaged' ? 1 :
+      stage === 'heavy' ? 2 :
+      3;
+    const cue = WALL_DAMAGE_READABILITY[stage];
+    parent.userData.damageReadability = cue;
+
+    // A few displaced crest stones keep damage readable at normal/strategic zoom
+    // without filling the parapet with noise.
+    const chipCount = severity === 1 ? 3 : severity === 2 ? 5 : 7;
+    const span = severity === 3 ? 2.45 : severity === 2 ? 1.75 : 1.15;
+    for (let i = 0; i < chipCount; i += 1) {
+      const t = i / (chipCount - 1);
+      const x = (t - 0.5) * span;
+      const dropped = severity >= 2 && i % 2 === 1;
+      const chip = new THREE.Mesh(
+        i % 3 === 0 ? this.wallSlabGeometry : this.wallChipGeometry,
+        i % 4 === 0 ? this.exposedCoreMaterial : this.rubbleLightMaterial,
+      );
+      chip.position.set(
+        x + (this.wallFxNoise(wall, 5100 + i) - 0.5) * 0.18,
+        height + 0.18 - (dropped ? 0.72 + severity * 0.18 : 0.08 + severity * 0.08),
+        (this.wallFxNoise(wall, 5200 + i) - 0.5) * 0.68,
+      );
+      chip.scale.set(
+        0.75 + severity * 0.14,
+        0.62 + (i % 2) * 0.18,
+        0.72 + severity * 0.08,
+      );
+      chip.rotation.set(
+        (this.wallFxNoise(wall, 5300 + i) - 0.5) * 0.55,
+        this.wallFxNoise(wall, 5400 + i) * Math.PI,
+        (this.wallFxNoise(wall, 5500 + i) - 0.5) * 0.8,
+      );
+      chip.castShadow = true;
+      parent.add(chip);
+    }
+
+    if (severity >= 2) {
+      const notchWidth = severity === 3 ? 2.5 : 1.55;
+      const notchHeight = severity === 3 ? 1.95 : 1.18;
+      for (const face of [-1, 1]) {
+        const notch = new THREE.Mesh(
+          new THREE.BoxGeometry(notchWidth, notchHeight, 0.13),
+          this.damageDarkMaterial,
+        );
+        notch.position.set(
+          severity === 3 ? -0.12 : 0.18,
+          height - notchHeight * 0.28,
+          face * 1.15,
+        );
+        notch.rotation.z = face * (severity === 3 ? 0.09 : -0.06);
+        notch.renderOrder = 6;
+        parent.add(notch);
+      }
+    }
+  }
+
+  private renderWallDamage(wall: WallBattleState): void {
+    this.clearSiegeVisualGroup(wall.visual);
+    if (wall.stage === 'healthy') return;
+
+    const height = this.world.fortificationTopAt(wall.x, wall.y, wall.cell);
+    const damageRoot = new THREE.Group();
+    damageRoot.rotation.y = this.wallDamageRotation(wall.cell);
+    damageRoot.userData.damageStage = wall.stage;
+    damageRoot.userData.damageReadability = WALL_DAMAGE_READABILITY[wall.stage];
+    wall.visual.userData.damageStage = wall.stage;
+    wall.visual.add(damageRoot);
+
+    const intensity =
+      wall.stage === 'damaged' ? 1 :
+      wall.stage === 'heavy' ? 2 :
+      wall.stage === 'partial' ? 3 :
+      4;
+
+    if (wall.stage !== 'breached') {
+      this.addWallCrackNetwork(damageRoot, wall, height, intensity);
+      this.addWallDamageSilhouetteCue(damageRoot, wall, height, wall.stage);
+
+      const scarCount = 3 + intensity * 3;
+      for (let i = 0; i < scarCount; i += 1) {
+        const face = i % 2 === 0 ? -1 : 1;
+        const scar = new THREE.Mesh(
+          new THREE.BoxGeometry(
+            0.2 + this.wallFxNoise(wall, 900 + i) * 0.24,
+            0.14 + this.wallFxNoise(wall, 920 + i) * 0.22,
+            0.065,
+          ),
+          i % 3 === 0 ? this.exposedCoreMaterial : this.damageDarkMaterial,
+        );
+        scar.position.set(
+          (this.wallFxNoise(wall, 940 + i) - 0.5) * 1.65,
+          3 + this.wallFxNoise(wall, 960 + i) * Math.max(1.4, height - 3.5),
+          face * 1.135,
+        );
+        scar.rotation.z = (this.wallFxNoise(wall, 980 + i) - 0.5) * 0.65;
+        damageRoot.add(scar);
       }
     }
 
     if (wall.stage === 'heavy' || wall.stage === 'partial') {
       const partial = wall.stage === 'partial';
-      const voidPatch = new THREE.Mesh(
-        new THREE.BoxGeometry(
-          partial ? 2.25 : 1.35,
-          partial ? 2.9 : 1.8,
-          0.18,
-        ),
+      const cavity = new THREE.Mesh(
+        new THREE.BoxGeometry(partial ? 2.15 : 1.28, partial ? 2.5 : 1.55, 0.2),
         this.damageDarkMaterial,
       );
-      voidPatch.position.set(
-        partial ? 0 : 0.25,
-        partial ? 3.72 : 4.15,
-        -1.2,
+      cavity.position.set(
+        partial ? -0.05 : 0.26,
+        height - (partial ? 1.45 : 1.05),
+        -1.18,
       );
-      voidPatch.rotation.z = partial ? 0.06 : -0.08;
-      wall.visual.add(voidPatch);
+      cavity.rotation.z = partial ? -0.08 : 0.1;
+      damageRoot.add(cavity);
 
-      const rubbleCount = partial ? 9 : 5;
+      const brokenEdgeCount = partial ? 15 : 8;
+      for (let i = 0; i < brokenEdgeCount; i += 1) {
+        const angle = (i / brokenEdgeCount) * Math.PI * 2;
+        const radiusX = partial ? 1.22 : 0.78;
+        const radiusY = partial ? 1.42 : 0.9;
+        const edgeStone = new THREE.Mesh(
+          this.wallChipGeometry,
+          i % 4 === 0 ? this.exposedCoreMaterial : this.rubbleLightMaterial,
+        );
+        edgeStone.position.set(
+          cavity.position.x + Math.cos(angle) * radiusX,
+          cavity.position.y + Math.sin(angle) * radiusY,
+          -1.23,
+        );
+        edgeStone.scale.set(
+          0.8 + this.wallFxNoise(wall, 1100 + i) * 0.7,
+          0.65 + this.wallFxNoise(wall, 1120 + i) * 0.8,
+          0.5,
+        );
+        edgeStone.rotation.set(i * 0.17, i * 0.31, angle);
+        damageRoot.add(edgeStone);
+      }
+
+      const rubbleCount = partial ? 18 : 9;
       for (let i = 0; i < rubbleCount; i += 1) {
-        const chunk = new THREE.Mesh(
-          new THREE.DodecahedronGeometry(0.18 + (i % 3) * 0.08, 0),
-          i % 2 === 0 ? this.rubbleMaterial : this.rubbleLightMaterial,
+        const position = new THREE.Vector3(
+          -1.25 + this.wallFxNoise(wall, 1200 + i) * 2.5,
+          2.22 + this.wallFxNoise(wall, 1220 + i) * 0.32,
+          -1.2 + this.wallFxNoise(wall, 1240 + i) * 1.1,
         );
-        chunk.position.set(
-          -1.05 + (i % 4) * 0.62,
-          2.32 + Math.floor(i / 4) * 0.17,
-          -1.35 + (i % 3) * 0.38,
+        const scale = new THREE.Vector3(
+          0.45 + this.wallFxNoise(wall, 1260 + i) * 0.85,
+          0.35 + this.wallFxNoise(wall, 1280 + i) * 0.45,
+          0.45 + this.wallFxNoise(wall, 1300 + i) * 0.75,
         );
-        chunk.scale.y = 0.7;
-        chunk.castShadow = true;
-        wall.visual.add(chunk);
+        this.addStaticWallChunk(damageRoot, wall, 1320 + i, position, scale);
+      }
+
+      if (partial) {
+        for (let i = 0; i < 5; i += 1) {
+          const fallen = new THREE.Mesh(
+            this.wallSlabGeometry,
+            i % 2 === 0 ? this.rubbleMaterial : this.rubbleLightMaterial,
+          );
+          fallen.position.set(
+            -1.35 + i * 0.68,
+            2.36 + (i % 2) * 0.12,
+            0.45 + (i % 3) * 0.38,
+          );
+          fallen.scale.set(1.1 + (i % 2) * 0.35, 0.55, 0.8 + (i % 3) * 0.18);
+          fallen.rotation.set(0.18, i * 0.64, (i % 2 ? -1 : 1) * 0.28);
+          fallen.castShadow = true;
+          damageRoot.add(fallen);
+        }
       }
       return;
     }
 
     if (wall.stage === 'breached') {
-      for (let i = 0; i < 10; i += 1) {
-        const side = i % 2 === 0 ? -1 : 1;
-        const row = Math.floor(i / 2);
-        const chunk = new THREE.Mesh(
-          new THREE.DodecahedronGeometry(0.24 + (i % 4) * 0.08, 0),
-          i % 3 === 0 ? this.rubbleLightMaterial : this.rubbleMaterial,
-        );
-        chunk.position.set(
-          side * (0.75 + (row % 2) * 0.32),
-          2.34 + (row % 3) * 0.08,
-          -0.95 + row * 0.42,
-        );
-        chunk.scale.set(1.1, 0.62, 0.9);
-        chunk.rotation.y = i * 0.43;
-        chunk.castShadow = true;
-        wall.visual.add(chunk);
+      this.addBrokenWallRemnants(damageRoot, wall, height);
+    }
+  }
+
+  private spawnWallDestructionBurst(wall: WallBattleState, stage: WallDamageStage): void {
+    if (stage === 'healthy' || this.world.effectsEnabled?.() === false) return;
+
+    const severity =
+      stage === 'damaged' ? 1 :
+      stage === 'heavy' ? 2 :
+      stage === 'partial' ? 3 :
+      4;
+    const fragmentCount =
+      stage === 'damaged' ? 8 :
+      stage === 'heavy' ? 16 :
+      stage === 'partial' ? 28 :
+      52;
+    const dustCount =
+      stage === 'damaged' ? 3 :
+      stage === 'heavy' ? 6 :
+      stage === 'partial' ? 11 :
+      20;
+    const effect: WallCollapseEffect = {
+      age: 0,
+      lifetime: stage === 'breached' ? 4.2 : 2.4 + severity * 0.28,
+      fragments: [],
+      dust: [],
+      shockwaves: [],
+    };
+
+    const rotation = this.wallDamageRotation(wall.cell);
+    const origin = wall.visual.position.clone();
+    const groundY = origin.y + 2.2;
+    const height = this.world.fortificationTopAt(wall.x, wall.y, wall.cell);
+    const burstHeight = THREE.MathUtils.clamp(height * (stage === 'breached' ? 0.58 : 0.48), 3.4, 7.4);
+
+    for (let i = 0; i < fragmentCount; i += 1) {
+      const big = stage === 'breached' && i < 16;
+      const medium = i < Math.ceil(fragmentCount * 0.55);
+      const geometry = big
+        ? this.wallSlabGeometry
+        : medium
+          ? this.wallStoneGeometry
+          : this.wallChipGeometry;
+      const material =
+        i % 5 === 0
+          ? this.rubbleLightMaterial
+          : i % 7 === 0
+            ? this.exposedCoreMaterial
+            : this.rubbleMaterial;
+      const fragment = new THREE.Mesh(geometry, material);
+      const local = new THREE.Vector3(
+        (this.wallFxNoise(wall, 1500 + i) - 0.5) * (stage === 'breached' ? 2.4 : 1.5),
+        2.55 + this.wallFxNoise(wall, 1600 + i) * burstHeight,
+        (this.wallFxNoise(wall, 1700 + i) - 0.5) * 1.7,
+      );
+      local.applyAxisAngle(new THREE.Vector3(0, 1, 0), rotation);
+      fragment.position.copy(origin).add(local);
+
+      const outwardSign = this.wallFxNoise(wall, 1800 + i) < 0.5 ? -1 : 1;
+      const velocityLocal = new THREE.Vector3(
+        (this.wallFxNoise(wall, 1900 + i) - 0.5) * (2.3 + severity * 0.7),
+        2.4 + this.wallFxNoise(wall, 2000 + i) * (2.4 + severity * 1.25),
+        outwardSign * (1.4 + this.wallFxNoise(wall, 2100 + i) * (2 + severity * 0.9)),
+      );
+      velocityLocal.applyAxisAngle(new THREE.Vector3(0, 1, 0), rotation);
+
+      const size =
+        big ? 0.95 + this.wallFxNoise(wall, 2200 + i) * 1.15 :
+        medium ? 0.62 + this.wallFxNoise(wall, 2300 + i) * 0.72 :
+        0.4 + this.wallFxNoise(wall, 2400 + i) * 0.42;
+      fragment.scale.set(
+        size * (0.8 + this.wallFxNoise(wall, 2500 + i) * 0.45),
+        size * (0.55 + this.wallFxNoise(wall, 2600 + i) * 0.5),
+        size * (0.75 + this.wallFxNoise(wall, 2700 + i) * 0.5),
+      );
+      fragment.rotation.set(
+        this.wallFxNoise(wall, 2800 + i) * Math.PI,
+        this.wallFxNoise(wall, 2900 + i) * Math.PI,
+        this.wallFxNoise(wall, 3000 + i) * Math.PI,
+      );
+      fragment.castShadow = big || medium;
+      fragment.receiveShadow = true;
+      this.layer.add(fragment);
+
+      effect.fragments.push({
+        view: fragment,
+        velocity: velocityLocal,
+        spin: new THREE.Vector3(
+          (this.wallFxNoise(wall, 3100 + i) - 0.5) * (5 + severity),
+          (this.wallFxNoise(wall, 3200 + i) - 0.5) * (6 + severity),
+          (this.wallFxNoise(wall, 3300 + i) - 0.5) * (5 + severity),
+        ),
+        groundY,
+        bounce: 0.22 + this.wallFxNoise(wall, 3400 + i) * 0.22,
+        settled: false,
+      });
+    }
+
+    for (let i = 0; i < dustCount; i += 1) {
+      const dust = new THREE.Mesh(
+        this.wallDustGeometry,
+        i % 3 === 0 ? this.dustDarkMaterial : this.dustMaterial,
+      );
+      const local = new THREE.Vector3(
+        (this.wallFxNoise(wall, 3500 + i) - 0.5) * (1.5 + severity * 0.45),
+        2.45 + this.wallFxNoise(wall, 3600 + i) * (2.4 + severity * 0.6),
+        (this.wallFxNoise(wall, 3700 + i) - 0.5) * (1.4 + severity * 0.55),
+      );
+      local.applyAxisAngle(new THREE.Vector3(0, 1, 0), rotation);
+      dust.position.copy(origin).add(local);
+      const baseScale = 0.45 + this.wallFxNoise(wall, 3800 + i) * 0.65;
+      dust.scale.setScalar(baseScale);
+      dust.renderOrder = 14;
+      this.layer.add(dust);
+
+      const drift = new THREE.Vector3(
+        (this.wallFxNoise(wall, 3900 + i) - 0.5) * 0.9,
+        0.42 + this.wallFxNoise(wall, 4000 + i) * 0.72,
+        (this.wallFxNoise(wall, 4100 + i) - 0.5) * 0.9,
+      );
+      effect.dust.push({
+        view: dust,
+        velocity: drift,
+        baseScale,
+        growth: 1.7 + severity * 0.38 + this.wallFxNoise(wall, 4200 + i) * 1.3,
+        lifetime: 0.9 + this.wallFxNoise(wall, 4300 + i) * (0.9 + severity * 0.18),
+      });
+    }
+
+    if (stage === 'partial' || stage === 'breached') {
+      const shockCount = stage === 'breached' ? 3 : 1;
+      for (let i = 0; i < shockCount; i += 1) {
+        const wave = new THREE.Mesh(this.wallShockwaveGeometry, this.collapseShockMaterial);
+        wave.rotation.x = -Math.PI / 2;
+        wave.position.set(origin.x, groundY + 0.05 + i * 0.015, origin.z);
+        const baseScale = stage === 'breached' ? 1.4 + i * 0.45 : 0.9;
+        wave.scale.setScalar(baseScale);
+        wave.renderOrder = 12;
+        this.layer.add(wave);
+        effect.shockwaves.push({
+          view: wave,
+          baseScale,
+          growth: stage === 'breached' ? 5.2 + i * 1.2 : 3.2,
+          lifetime: stage === 'breached' ? 0.75 + i * 0.18 : 0.55,
+          delay: i * 0.09,
+        });
       }
     }
+
+    this.wallCollapseEffects.push(effect);
+    while (this.wallCollapseEffects.length > 6) {
+      const oldest = this.wallCollapseEffects.shift();
+      if (oldest) this.disposeWallCollapseEffect(oldest);
+    }
+  }
+
+  private updateWallCollapseEffects(deltaMs: number): void {
+    if (this.wallCollapseEffects.length === 0) return;
+    if (this.world.effectsEnabled?.() === false) {
+      this.clearWallCollapseEffects();
+      return;
+    }
+
+    const delta = Math.min(0.05, Math.max(0, deltaMs) / 1000);
+    for (let effectIndex = this.wallCollapseEffects.length - 1; effectIndex >= 0; effectIndex -= 1) {
+      const effect = this.wallCollapseEffects[effectIndex];
+      effect.age += delta;
+
+      for (const fragment of effect.fragments) {
+        if (fragment.settled) continue;
+        fragment.velocity.y -= 10.8 * delta;
+        fragment.view.position.addScaledVector(fragment.velocity, delta);
+        fragment.view.rotation.x += fragment.spin.x * delta;
+        fragment.view.rotation.y += fragment.spin.y * delta;
+        fragment.view.rotation.z += fragment.spin.z * delta;
+
+        if (fragment.view.position.y > fragment.groundY) continue;
+        fragment.view.position.y = fragment.groundY;
+        fragment.velocity.y = Math.abs(fragment.velocity.y) * fragment.bounce;
+        fragment.velocity.x *= 0.58;
+        fragment.velocity.z *= 0.58;
+        fragment.spin.multiplyScalar(0.62);
+        if (fragment.velocity.y < 0.55) {
+          fragment.velocity.set(0, 0, 0);
+          fragment.spin.set(0, 0, 0);
+          fragment.settled = true;
+        }
+      }
+
+      for (const dust of effect.dust) {
+        const progress = THREE.MathUtils.clamp(effect.age / dust.lifetime, 0, 1);
+        dust.view.position.addScaledVector(dust.velocity, delta);
+        dust.velocity.y += delta * 0.08;
+        const scale = dust.baseScale + dust.growth * Math.sin(progress * Math.PI * 0.72);
+        dust.view.scale.setScalar(Math.max(0.05, scale));
+        dust.view.visible = progress < 1;
+      }
+
+      for (const shock of effect.shockwaves) {
+        const localAge = effect.age - shock.delay;
+        if (localAge < 0) {
+          shock.view.visible = false;
+          continue;
+        }
+        shock.view.visible = localAge < shock.lifetime;
+        if (!shock.view.visible) continue;
+        const progress = THREE.MathUtils.clamp(localAge / shock.lifetime, 0, 1);
+        shock.view.scale.setScalar(shock.baseScale + shock.growth * progress);
+      }
+
+      if (effect.age < effect.lifetime) continue;
+      this.disposeWallCollapseEffect(effect);
+      this.wallCollapseEffects.splice(effectIndex, 1);
+    }
+  }
+
+  private disposeWallCollapseEffect(effect: WallCollapseEffect): void {
+    for (const fragment of effect.fragments) this.layer.remove(fragment.view);
+    for (const dust of effect.dust) this.layer.remove(dust.view);
+    for (const shock of effect.shockwaves) this.layer.remove(shock.view);
+  }
+
+  private clearWallCollapseEffects(): void {
+    for (const effect of this.wallCollapseEffects) this.disposeWallCollapseEffect(effect);
+    this.wallCollapseEffects.length = 0;
   }
 
   private reactDefendersToBreach(wall: WallBattleState): void {
@@ -4445,6 +4863,39 @@ export class BattleSystem {
       }
     }
     return count;
+  }
+
+  private countDefendersByType(): BattleStatus['defenderAliveByType'] {
+    const counts: BattleStatus['defenderAliveByType'] = {
+      swordsman: 0,
+      archer: 0,
+      spearman: 0,
+      crossbowman: 0,
+      modernSoldier: 0,
+    };
+    for (const runtime of this.units.values()) {
+      if (runtime.data.faction !== 'defender' || runtime.data.state === 'dead') continue;
+      switch (runtime.data.unitType) {
+        case 'swordsman':
+          counts.swordsman += 1;
+          break;
+        case 'archer':
+          counts.archer += 1;
+          break;
+        case 'spearman':
+          counts.spearman += 1;
+          break;
+        case 'crossbowman':
+          counts.crossbowman += 1;
+          break;
+        case 'modernSoldier':
+          counts.modernSoldier += 1;
+          break;
+        default:
+          break;
+      }
+    }
+    return counts;
   }
 
   private createObjectiveContext(deltaSeconds: number) {

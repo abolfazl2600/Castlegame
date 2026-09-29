@@ -1,7 +1,6 @@
 import { GameState } from '../state/GameState';
 import { KeepSystem } from '../building/KeepSystem';
 import { WallCornerSystem } from '../building/WallCornerSystem';
-import { CastleAccessSystem } from '../building/CastleAccessSystem';
 import { GateSystem } from '../building/GateSystem';
 import { DestructibleBuildingSystem } from '../building/DestructibleBuildingSystem';
 import { CastleDetailGenerator } from '../building/CastleDetailGenerator';
@@ -15,7 +14,6 @@ export interface GameDomainServices {
   readonly state: GameState;
   readonly keepSystem: KeepSystem;
   readonly wallCornerSystem: WallCornerSystem;
-  readonly castleAccessSystem: CastleAccessSystem;
   readonly gateSystem: GateSystem;
   readonly destructibleBuildingSystem: DestructibleBuildingSystem;
   readonly populationSystem: PopulationSystem;
@@ -33,7 +31,6 @@ export function createGameDomainServices(): GameDomainServices {
     state,
     keepSystem: new KeepSystem(),
     wallCornerSystem: new WallCornerSystem(),
-    castleAccessSystem: new CastleAccessSystem(),
     gateSystem: new GateSystem(),
     destructibleBuildingSystem: new DestructibleBuildingSystem(),
     populationSystem: new PopulationSystem(),

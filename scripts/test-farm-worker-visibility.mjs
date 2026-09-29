@@ -24,25 +24,28 @@ const allocation = between(
   'private updateSettlementAssignment(',
 );
 
-assert.match(allocation, /const maxVisibleCitizens = 40;/);
-assert.match(allocation, /const maxVisibleFarmers = 40;/);
-assert.match(allocation, /let visibleCitizens = 0;[\s\S]*?let visibleFarmers = 0;/);
-assert.doesNotMatch(allocation, /result\.length\s*>=\s*maxVisibleAgents/);
-
-const primary = allocation.indexOf('First pass reserves one stable worker');
-const secondary = allocation.indexOf('if (homes.length > 0)');
-assert.ok(primary >= 0, 'Primary farmer allocation pass is required.');
-assert.ok(secondary > primary, 'Second workers must be allocated after primary farm workers.');
-assert.match(allocation, /key: `farmer:\$\{farm\.x\},\$\{farm\.y\}:0`/);
+assert.match(allocation, /populationSystem\.reconcile\(cells\)/);
+assert.match(allocation, /visibleCivilianRoster\(40, 40\)/);
+assert.match(allocation, /role: assignment\.role/);
+assert.doesNotMatch(allocation, /key: `citizen:/);
+assert.doesNotMatch(allocation, /key: `farmer:/);
 
 const movement = between(
   threeGame,
   'private updateSettlementAgents(deltaMs: number): void {',
-  'private updatePopulationUI(): void {',
+  'private syncEconomyUI(): void {',
 );
 assert.match(
   movement,
-  /agent\.phase === 'work'[\s\S]*?6800 \+ \(agent\.id % 4\) \* 520/,
+  /agent\.role !== 'citizen' && agent\.work/,
+);
+assert.match(
+  movement,
+  /agent\.role === 'farmer'[\s\S]*?6800 \+ \(agent\.id % 4\) \* 520/,
+);
+assert.match(
+  movement,
+  /agent\.role === 'worker' && agent\.work[\s\S]*?3600 \+ \(agent\.id % 4\) \* 410/,
 );
 
 const targetPosition = between(
@@ -79,4 +82,4 @@ assert.match(
   /if \(!working\) \{[\s\S]*?setFarmerAction\(animation, 'rest', time\)/,
 );
 
-console.log('Farm worker visibility regression checks passed.');
+console.log('Roster-backed farm and worker visibility regression checks passed.');

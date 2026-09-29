@@ -1,0 +1,83 @@
+name: Final Visual Coherence QA
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - .github/workflows/final-visual-coherence.yml
+      - scripts/final-visual-coherence-qa.mjs
+      - scripts/final-visual-coherence-report.mjs
+      - scripts/test-final-visual-coherence-contract.mjs
+      - scripts/visual-reference-scene.mjs
+      - src/ThreeGame.ts
+      - src/rendering/DistanceDetailBudget.ts
+      - src/systems/EnvironmentSystem.ts
+      - docs/visual-audits/issue-137/**
+  push:
+    branches:
+      - main
+    paths:
+      - .github/workflows/final-visual-coherence.yml
+      - scripts/final-visual-coherence-qa.mjs
+      - scripts/final-visual-coherence-report.mjs
+      - scripts/test-final-visual-coherence-contract.mjs
+      - scripts/visual-reference-scene.mjs
+      - src/ThreeGame.ts
+      - src/rendering/DistanceDetailBudget.ts
+      - src/systems/EnvironmentSystem.ts
+      - docs/visual-audits/issue-137/**
+
+permissions:
+  contents: read
+
+concurrency:
+  group: final-visual-coherence-v2-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  final-visual-qa:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      NODE_OPTIONS: --max-old-space-size=2048
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+
+      - name: Setup Node
+        uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Chromium and system dependencies
+        run: npx playwright install --with-deps chromium
+
+      - name: Validate final QA contract
+        run: npm run test:final-visual-coherence-contract
+
+      - name: Build game
+        run: npm run build
+
+      - name: Capture final visual QA
+        run: npm run visual:final-qa -- --out visual-baselines/issue-137
+
+      - name: Build final QA summary
+        run: npm run visual:final-report -- --metrics visual-baselines/issue-137/metrics.json --out visual-baselines/issue-137/summary.md
+
+      - name: Publish QA summary
+        run: |
+          cat visual-baselines/issue-137/summary.md
+          cat visual-baselines/issue-137/summary.md >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload final reference artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: issue-137-final-visual-coherence-${{ github.sha }}
+          path: visual-baselines/issue-137/
+          if-no-files-found: error
+          retention-days: 90

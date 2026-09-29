@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { WORLD_STYLE } from '../rendering/WorldStyle';
 import { SETTLEMENT_STYLE } from '../rendering/SettlementStyle';
+import { upgradeVisualProfile } from '../rendering/UpgradeVisualLanguage';
 
 interface OrchardLayout {
   fieldScale: number;
@@ -15,6 +16,7 @@ export class OrchardSystem {
   private readonly branchGeometry = new THREE.CylinderGeometry(0.04, 0.07, 0.58, 6);
   private readonly canopyGeometry = new THREE.DodecahedronGeometry(0.55, 1);
   private readonly appleGeometry = new THREE.SphereGeometry(0.075, 7, 6);
+  private readonly packingShedRoofGeometry = new THREE.ConeGeometry(0.82, 0.62, 4);
 
   private readonly soil = new THREE.MeshStandardMaterial({
     color: SETTLEMENT_STYLE.soil,
@@ -44,9 +46,11 @@ export class OrchardSystem {
   private readonly appleDark = new THREE.MeshStandardMaterial({ color: 0x922d27, roughness: 0.84 });
   private readonly fence = new THREE.MeshStandardMaterial({ color: SETTLEMENT_STYLE.timber, roughness: 1 });
   private readonly crateWood = new THREE.MeshStandardMaterial({ color: 0x8a603e, roughness: 1 });
+  private readonly shedWall = new THREE.MeshStandardMaterial({ color: SETTLEMENT_STYLE.plaster[1], roughness: 0.96 });
+  private readonly shedRoof = new THREE.MeshStandardMaterial({ color: SETTLEMENT_STYLE.roof[1], roughness: 0.94 });
 
   create(group: THREE.Group, size: number, seed: number): void {
-    const orchardSize = THREE.MathUtils.clamp(Math.floor(size), 1, 3);
+    const orchardSize = THREE.MathUtils.clamp(Math.floor(size), 1, 4);
     const layout = this.layoutFor(orchardSize);
     const hash = (value: number): number => {
       const n = Math.sin(value * 12.9898 + seed * 78.233) * 43758.5453;
@@ -55,7 +59,14 @@ export class OrchardSystem {
 
     group.userData.orchardSize = orchardSize;
     group.userData.orchardSeed = seed;
-    group.userData.orchardVisualVersion = 2;
+    group.userData.orchardVisualVersion = 3;
+    group.userData.upgradeVisualProfile = upgradeVisualProfile(orchardSize);
+    group.userData.orchardVisualVariant = [
+      'young-grove',
+      'working-orchard',
+      'mature-orchard',
+      'estate-orchard',
+    ][orchardSize - 1];
 
     this.addGround(group, layout);
     this.addPlantingRows(group, layout);
@@ -67,11 +78,13 @@ export class OrchardSystem {
     for (let row = 0; row < layout.rows; row += 1) {
       const z = -innerSpan / 2 + zStep * row;
       for (let col = 0; col < layout.columns; col += 1) {
-        // Size 1 keeps one tree out of the front-center slot to make the entrance legible.
+        // Level 1 keeps one tree out of the front-center slot to make the entrance legible.
+        // Level 4 reserves a back corner for the packing shed landmark mass.
         if (
-          orchardSize === 1 &&
-          row === layout.rows - 1 &&
-          col === Math.floor(layout.columns / 2)
+          (orchardSize === 1 &&
+            row === layout.rows - 1 &&
+            col === Math.floor(layout.columns / 2)) ||
+          (orchardSize === 4 && row === 0 && col === layout.columns - 1)
         ) {
           continue;
         }
@@ -91,7 +104,12 @@ export class OrchardSystem {
 
     this.addFence(group, layout.fieldScale);
     this.addEntrancePath(group, layout.fieldScale);
-    this.addProduceCrate(group, layout.fieldScale, seed);
+    if (orchardSize >= 2) this.addProduceCrate(group, layout.fieldScale, seed);
+    if (orchardSize >= 3) this.addEntranceTrellis(group, layout.fieldScale);
+    if (orchardSize >= 4) {
+      this.addPackingShed(group, layout.fieldScale);
+      this.addProduceCrate(group, layout.fieldScale, seed + 17);
+    }
 
     group.userData.orchardTreeLayout = {
       columns: layout.columns,
@@ -106,7 +124,10 @@ export class OrchardSystem {
     if (size === 2) {
       return { fieldScale: 3.58, columns: 4, rows: 3, treeScale: 0.82 };
     }
-    return { fieldScale: 3.82, columns: 4, rows: 4, treeScale: 0.76 };
+    if (size === 3) {
+      return { fieldScale: 3.82, columns: 4, rows: 4, treeScale: 0.76 };
+    }
+    return { fieldScale: 4.02, columns: 5, rows: 4, treeScale: 0.72 };
   }
 
   private addGround(group: THREE.Group, layout: OrchardLayout): void {
@@ -242,6 +263,11 @@ export class OrchardSystem {
     }
 
     tree.position.set(x, 0, z);
+    tree.userData.ambientSway = {
+      phase: localSeed * 0.013,
+      amplitude: 0.016 + scale * 0.006,
+      speed: 0.00092,
+    };
     group.add(tree);
   }
 
@@ -310,6 +336,53 @@ export class OrchardSystem {
     path.position.set(0, 0.22, edge - pathLength / 2 + 0.04);
     path.receiveShadow = true;
     group.add(path);
+  }
+
+  private addEntranceTrellis(group: THREE.Group, fieldScale: number): void {
+    const edge = fieldScale / 2 - 0.08;
+    const postHeight = 1.28;
+    for (const x of [-0.52, 0.52]) {
+      const post = this.box(this.fence, 0.11, postHeight, 0.11);
+      post.position.set(x, postHeight / 2 + 0.18, edge - 0.03);
+      post.castShadow = true;
+      group.add(post);
+    }
+    const beam = this.box(this.fence, 1.28, 0.12, 0.14);
+    beam.position.set(0, 1.38, edge - 0.03);
+    beam.castShadow = true;
+    group.add(beam);
+  }
+
+  private addPackingShed(group: THREE.Group, fieldScale: number): void {
+    const edge = fieldScale / 2 - 0.08;
+    const x = edge - 0.58;
+    const z = -edge + 0.58;
+
+    const foundation = this.box(this.crateWood, 1.18, 0.12, 0.94);
+    foundation.position.set(x, 0.24, z);
+    foundation.castShadow = true;
+    group.add(foundation);
+
+    const body = this.box(this.shedWall, 1.08, 1.04, 0.84);
+    body.position.set(x, 0.8, z);
+    body.castShadow = true;
+    body.receiveShadow = true;
+    group.add(body);
+
+    const roof = new THREE.Mesh(this.packingShedRoofGeometry, this.shedRoof);
+    roof.position.set(x, 1.62, z);
+    roof.rotation.y = Math.PI / 4;
+    roof.scale.z = 0.72;
+    roof.castShadow = true;
+    group.add(roof);
+
+    const loadingCanopy = this.box(this.fence, 0.92, 0.09, 0.42);
+    loadingCanopy.position.set(x - 0.08, 1.08, z + 0.58);
+    loadingCanopy.rotation.x = -0.08;
+    loadingCanopy.castShadow = true;
+    group.add(loadingCanopy);
+
+    group.userData.orchardLandmark = 'packing-shed';
   }
 
   private addProduceCrate(group: THREE.Group, fieldScale: number, seed: number): void {

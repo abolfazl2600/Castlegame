@@ -26,8 +26,8 @@ assert.match(missile, /supplyCost:\s*2/);
 assert.match(missile, /cooldownMs:\s*12_000/);
 assert.match(missile, /range:\s*56/);
 assert.match(missile, /impactRadius:\s*7\.5/);
-assert.match(missile, /mode === 'modern' \|\| mode === 'sandbox'/);
-assert.match(missile, /mode === 'sandbox' \|\| \(mode === 'modern' && tier >= MISSILE_CONFIG\.unlockTier\)/);
+assert.match(missile, /return mode === 'sandbox'/);
+assert.doesNotMatch(missile, /mode === 'modern'/);
 
 const production = between(
   missile,
@@ -90,4 +90,4 @@ assert.match(html, /id="military-missile-target"/);
 assert.match(html, /id="military-missile-launch"/);
 assert.match(html, /id="military-missile-production-fill"/);
 
-console.log('Modern missile production, targeting, damage and persistence checks passed.');
+console.log('Sandbox missile production, targeting, damage and persistence checks passed.');
