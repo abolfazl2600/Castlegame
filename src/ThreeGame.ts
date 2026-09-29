@@ -15,6 +15,11 @@ import { WORLD_STYLE, styleTone } from './rendering/WorldStyle';
 import { RESIDENCE_LAYOUTS, SETTLEMENT_STYLE, settlementVariant, type ResidenceKind } from './rendering/SettlementStyle';
 import { getTemplateVisualPreset } from './rendering/TemplateVisualStyle';
 import { upgradeVisualProfile } from './rendering/UpgradeVisualLanguage';
+import {
+  GATEHOUSE_SILHOUETTE_PROFILE,
+  WALL_SILHOUETTE_PROFILES,
+  towerSilhouetteProfile,
+} from './rendering/DefenseVisualLanguage';
 import { BattleSystem, getUnitCombatStats } from './battle/BattleSystem';
 import { MILITARY_TIERS, militaryTierDefinition, normalizeMilitaryTier, type MilitaryTier } from './battle/MilitaryProgression';
 import {
@@ -3662,6 +3667,7 @@ export class ThreeGame {
     const battlement = cell.battlement ?? true;
     const walkway = cell.walkway ?? false;
     const links = this.wallConnections(gx, gy, cell);
+    group.userData.defenseSilhouette = WALL_SILHOUETTE_PROFILES[kind];
 
     const baseHeight =
       kind === 'wall1'
@@ -3993,15 +3999,38 @@ export class ThreeGame {
     if (battlement) {
       const sideOffset = Math.max(0.46, thickness / 2 - 0.03);
       const parapetSpan = Math.max(0.95, run - (importantConnection ? 0.38 : 0.1));
-      for (const side of [-1, 1]) {
-        this.addCrenellatedParapet(
+
+      if (kind === 'wall2') {
+        this.addTimberPalisadeCrown(
           arm,
           parapetSpan,
-          side * sideOffset,
+          sideOffset,
           2.58 + height + 0.03,
           wallMaterial,
-          importantConnection ? 0.1 : 0,
+          darkMaterial,
         );
+      } else {
+        for (const side of [-1, 1]) {
+          this.addCrenellatedParapet(
+            arm,
+            parapetSpan,
+            side * sideOffset,
+            2.58 + height + 0.03,
+            wallMaterial,
+            importantConnection ? 0.1 : 0,
+          );
+        }
+
+        if (kind === 'wall3') {
+          this.addReinforcedWallCrown(
+            arm,
+            thickness,
+            parapetSpan,
+            2.58 + height + 0.03,
+            wallMaterial,
+            accentMaterial,
+          );
+        }
       }
     }
 
@@ -4085,6 +4114,88 @@ export class ThreeGame {
         0,
         2.9,
         run * 0.62,
+      );
+    }
+  }
+
+  private addTimberPalisadeCrown(
+    group: THREE.Group,
+    span: number,
+    sideOffset: number,
+    y: number,
+    timber: THREE.Material,
+    timberDark: THREE.Material,
+  ): void {
+    const railLength = Math.max(1.0, span * 0.92);
+    for (const side of [-1, 1]) {
+      this.addBox(
+        group,
+        0.18,
+        0.22,
+        railLength,
+        timberDark,
+        side * sideOffset,
+        y + 0.28,
+        span / 2,
+      );
+
+      const postCount = 3;
+      for (let i = 0; i < postCount; i += 1) {
+        const z = span * (0.22 + i * 0.28);
+        const post = this.addBox(
+          group,
+          0.22,
+          0.82,
+          0.22,
+          timber,
+          side * sideOffset,
+          y + 0.58,
+          z,
+        );
+        post.castShadow = true;
+
+        const point = new THREE.Mesh(
+          new THREE.ConeGeometry(0.2, 0.48, 4),
+          timberDark,
+        );
+        point.position.set(side * sideOffset, y + 1.23, z);
+        point.rotation.y = Math.PI / 4;
+        point.castShadow = true;
+        group.add(point);
+      }
+    }
+  }
+
+  private addReinforcedWallCrown(
+    group: THREE.Group,
+    thickness: number,
+    span: number,
+    y: number,
+    stone: THREE.Material,
+    accent: THREE.Material,
+  ): void {
+    this.addBox(
+      group,
+      thickness + 0.54,
+      0.22,
+      Math.max(1.1, span * 0.86),
+      accent,
+      0,
+      y + 0.18,
+      span / 2,
+    );
+
+    for (const zFactor of [0.28, 0.72]) {
+      const z = span * zFactor;
+      this.addBox(
+        group,
+        thickness + 0.42,
+        0.72,
+        0.52,
+        stone,
+        0,
+        y + 0.64,
+        z,
       );
     }
   }
@@ -4609,6 +4720,10 @@ export class ThreeGame {
 
     const orientation = this.resolveGateOrientation(gx, gy, cell);
     const vertical = orientation.vertical;
+    group.userData.defenseSilhouette = {
+      ...GATEHOUSE_SILHOUETTE_PROFILE,
+      level: safeLevel,
+    };
 
     const core = new THREE.Group();
     const door = new THREE.Group();
@@ -4639,6 +4754,36 @@ export class ThreeGame {
     this.addBox(core, gateStyle.width + 0.2, gateStyle.walkwayThickness, gateStyle.depth + 0.08, this.medievalMaterials.castleStone(this.stoneStyle, 'walkway', gx, gy), 0, walkwayY, 0);
     this.addTowerCrenellatedEdge(core, gateStyle.width - 0.46, 0, -(gateStyle.depth / 2 - 0.3), battlementY, 0, wallMaterial);
     this.addTowerCrenellatedEdge(core, gateStyle.width - 0.46, 0, gateStyle.depth / 2 - 0.3, battlementY, Math.PI, wallMaterial);
+
+    // Twin raised pier crowns make a gate readable as an entrance rather than
+    // another wall segment at normal/strategic zoom. Level 4 keeps its larger turrets.
+    if (safeLevel < 4) {
+      const crownHeight = 0.72 + (safeLevel - 1) * 0.18;
+      for (const sign of [-1, 1]) {
+        this.addBox(
+          core,
+          0.9,
+          crownHeight,
+          gateStyle.depth * 0.72,
+          accentStone,
+          sign * pierX,
+          walkwayY + crownHeight / 2 + 0.22,
+          0,
+        );
+        const cap = new THREE.Mesh(
+          new THREE.ConeGeometry(0.68, 0.72 + safeLevel * 0.08, 4),
+          this.medievalMaterials.roofTile,
+        );
+        cap.position.set(
+          sign * pierX,
+          walkwayY + crownHeight + 0.58,
+          0,
+        );
+        cap.rotation.y = Math.PI / 4;
+        cap.castShadow = true;
+        core.add(cap);
+      }
+    }
 
     if (safeLevel >= 2) {
       for (const y of [3.45, 4.25, 5.05]) {
@@ -4763,6 +4908,11 @@ export class ThreeGame {
     const height = (shape === 'watch' ? 6.4 : 7.4) + Math.max(0, level - 1) * CASTLE_ARCHITECTURE_STYLE.tower.levelRise;
     const bodyBase = 2.58;
     const topY = bodyBase + height;
+    group.userData.defenseSilhouette = {
+      ...towerSilhouetteProfile(shape),
+      level,
+      top,
+    };
 
     const stone = this.medievalMaterials.castleStone(this.stoneStyle, 'body', gx, gy);
     const darkStone = this.medievalMaterials.castleStone(this.stoneStyle, 'foundation', gx, gy);
@@ -4971,6 +5121,27 @@ export class ThreeGame {
         this.addBox(group, 0.07, 2.05, 0.07, metal, poleX, topY + 1.05, 0);
         const pennant = this.addBox(group, 0.7, 0.32, 0.05, roofMaterial, poleX + 0.35, topY + 1.72, 0);
         pennant.userData.castleFlag = { phase: gx * 0.29 + gy * 0.43 + sign * 0.7 };
+      }
+    }
+
+    if (shape === 'watch') {
+      const collarRadius = radius * 1.2;
+      const collar = new THREE.Mesh(
+        new THREE.CylinderGeometry(collarRadius, collarRadius * 0.96, 0.42, 12),
+        wood,
+      );
+      collar.position.y = topY - 0.42;
+      collar.castShadow = true;
+      group.add(collar);
+    } else if (shape === 'corner') {
+      const shoulder = width / 2 + 0.12;
+      for (const [x, z] of [
+        [-shoulder, -shoulder],
+        [shoulder, -shoulder],
+        [-shoulder, shoulder],
+        [shoulder, shoulder],
+      ] as Array<[number, number]>) {
+        this.addBox(group, 0.52, 0.68, 0.52, darkStone, x, topY - 0.16, z);
       }
     }
 
