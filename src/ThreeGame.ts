@@ -8116,30 +8116,49 @@ export class ThreeGame {
   private renderRoadPreview(path: GridPoint[]): void {
     this.clearGroup(this.wallPreviewLayer);
     const roadKind = this.selectedTool as RoadKind;
-    const color =
-      roadKind === 'dirtRoad' ? 0xb17d4f :
-      roadKind === 'stoneRoad' ? 0xb8b0a2 :
-      0xc39a70;
-    const material = new THREE.MeshStandardMaterial({
-      color,
-      emissive: color,
-      emissiveIntensity: 0.14,
+    const baseValid = (point: GridPoint): boolean => {
+      const terrain = this.terrainAt(point.x, point.y);
+      const current = this.services.state.getCell(point.x, point.y);
+      if (this.services.keepSystem.findAtCell(point.x, point.y)) return false;
+      if (!current && this.isStructureFootprintReserved(point.x, point.y)) return false;
+      if (current && !this.isRoadFamily(current.kind)) return false;
+      if (terrain === 'water' || terrain === 'mountain') return false;
+      return true;
+    };
+    const costsConstruction = (point: GridPoint): boolean => {
+      const current = this.services.state.getCell(point.x, point.y);
+      return baseValid(point) && (!current || current.kind !== roadKind);
+    };
+    const costedTiles = path.filter(costsConstruction).length;
+    const affordable = costedTiles === 0 || this.isConstructionAffordable(roadKind, costedTiles);
+    const validMaterial = new THREE.MeshBasicMaterial({
+      color: 0x66e5a3,
       transparent: true,
-      opacity: 0.52,
+      opacity: 0.5,
+      depthTest: false,
+      depthWrite: false,
+    });
+    const invalidMaterial = new THREE.MeshBasicMaterial({
+      color: 0xff625f,
+      transparent: true,
+      opacity: 0.62,
+      depthTest: false,
       depthWrite: false,
     });
 
     for (const point of path) {
       const position = this.gridToWorld(point.x, point.y);
+      const valid = baseValid(point) && (!costsConstruction(point) || affordable);
       const preview = new THREE.Mesh(
-        new THREE.BoxGeometry(2.25, 0.12, 2.25),
-        material,
+        new THREE.BoxGeometry(TILE * 0.72, 0.1, TILE * 0.72),
+        valid ? validMaterial : invalidMaterial,
       );
       preview.position.set(
         position.x,
-        2.34 + this.terrainElevation(point.x, point.y),
+        this.viewMode === 'plan2d' ? 10.16 : 2.34 + this.terrainElevation(point.x, point.y),
         position.z,
       );
+      preview.renderOrder = 90;
       preview.castShadow = false;
       this.wallPreviewLayer.add(preview);
     }
@@ -8445,27 +8464,57 @@ export class ThreeGame {
     this.clearGroup(this.wallPreviewLayer);
     if (path.length === 0) return;
 
-    const material = new THREE.MeshStandardMaterial({
-      color: 0x72e4ff,
-      emissive: 0x164c5c,
-      emissiveIntensity: 0.5,
+    const wallKind = this.selectedTool as WallKind;
+    const single = path.length === 1;
+    const baseValid = (point: GridPoint): boolean => {
+      const terrain = this.terrainAt(point.x, point.y);
+      const cell = this.services.state.getCell(point.x, point.y);
+      if (this.services.keepSystem.findAtCell(point.x, point.y)) return false;
+      if (!cell && this.isStructureFootprintReserved(point.x, point.y)) return false;
+      if (single && cell?.kind === wallKind) return true;
+      if (cell?.kind === 'tower' || cell?.kind === 'gate') return true;
+      if (cell && !WALL_KINDS.includes(cell.kind as WallKind)) return false;
+      if (!cell && !this.canBuildFortificationOnTerrain(terrain)) return false;
+      return true;
+    };
+    const costsConstruction = (point: GridPoint): boolean => {
+      const cell = this.services.state.getCell(point.x, point.y);
+      if (!baseValid(point)) return false;
+      if (single && cell?.kind === wallKind) return false;
+      if (cell?.kind === 'tower' || cell?.kind === 'gate') return false;
+      return !cell || cell.kind !== wallKind;
+    };
+    const costedSegments = path.filter(costsConstruction).length;
+    const affordable = costedSegments === 0 || this.isConstructionAffordable(wallKind, costedSegments);
+    const validMaterial = new THREE.MeshBasicMaterial({
+      color: 0x66e5a3,
       transparent: true,
-      opacity: 0.48,
+      opacity: 0.58,
+      depthTest: false,
       depthWrite: false,
     });
+    const invalidMaterial = new THREE.MeshBasicMaterial({
+      color: 0xff625f,
+      transparent: true,
+      opacity: 0.68,
+      depthTest: false,
+      depthWrite: false,
+    });
+    const validity = path.map((point) => baseValid(point) && (!costsConstruction(point) || affordable));
 
     for (let i = 0; i < path.length; i += 1) {
       const point = path[i];
       const position = this.gridToWorld(point.x, point.y);
+      const y = this.viewMode === 'plan2d'
+        ? 10.18
+        : 2.38 + this.terrainElevation(point.x, point.y);
+      const material = validity[i] ? validMaterial : invalidMaterial;
       const marker = new THREE.Mesh(
-        new THREE.CylinderGeometry(0.22, 0.22, 0.18, 10),
+        new THREE.CylinderGeometry(0.28, 0.28, 0.18, 10),
         material,
       );
-      marker.position.set(
-        position.x,
-        2.38 + this.terrainElevation(point.x, point.y),
-        position.z,
-      );
+      marker.position.set(position.x, y, position.z);
+      marker.renderOrder = 90;
       marker.castShadow = false;
       this.wallPreviewLayer.add(marker);
 
@@ -8477,14 +8526,17 @@ export class ThreeGame {
       const dx = currentWorld.x - previousWorld.x;
       const dz = currentWorld.z - previousWorld.z;
       const length = Math.hypot(dx, dz);
-      const y1 = 2.38 + this.terrainElevation(previous.x, previous.y);
-      const y2 = 2.38 + this.terrainElevation(point.x, point.y);
+      const y1 = this.viewMode === 'plan2d'
+        ? 10.18
+        : 2.38 + this.terrainElevation(previous.x, previous.y);
+      const y2 = y;
       const rise = y2 - y1;
       const beamLength = Math.sqrt(length * length + rise * rise);
+      const beamMaterial = validity[i - 1] && validity[i] ? validMaterial : invalidMaterial;
 
       const beam = new THREE.Mesh(
-        new THREE.BoxGeometry(0.42, 0.25, beamLength),
-        material,
+        new THREE.BoxGeometry(0.46, 0.2, beamLength),
+        beamMaterial,
       );
       beam.position.set(
         (previousWorld.x + currentWorld.x) / 2,
@@ -8493,6 +8545,7 @@ export class ThreeGame {
       );
       beam.rotation.y = Math.atan2(dx, dz);
       beam.rotation.x = -Math.atan2(rise, length);
+      beam.renderOrder = 89;
       beam.castShadow = false;
       this.wallPreviewLayer.add(beam);
     }
@@ -8640,7 +8693,7 @@ export class ThreeGame {
   ): { valid: boolean; cells: GridPoint[]; reason?: string } | null {
     const tool = this.selectedTool;
     if (tool === null || this.battleSystem.isActive()) return null;
-    if (tool === 'erase' || tool === 'towerBridge' || tool === 'mountainRange' || this.isTerrainTool(tool)) return null;
+    if (tool === 'erase' || tool === 'mountainRange' || this.isTerrainTool(tool)) return null;
 
     const cells = this.buildPlacementFootprint(tool, point);
     const cell = this.services.state.getCell(point.x, point.y);
@@ -8648,6 +8701,16 @@ export class ThreeGame {
     const terrain = this.terrainAt(point.x, point.y);
     const keepAtPoint = this.services.keepSystem.findAtCell(point.x, point.y);
     const reserved = this.isStructureFootprintReserved(point.x, point.y);
+
+    if (tool === 'towerBridge') {
+      if (this.towerBridgeStart) return null;
+      const valid = current === 'tower';
+      return {
+        valid,
+        cells,
+        reason: valid ? undefined : 'Tower Bridge must start from a tower',
+      };
+    }
 
     if (this.isWallTool(tool)) {
       const validCell =
