@@ -344,6 +344,22 @@ try {
 
     results.push(await captureScenario(browser, {
       scene: 'dense',
+      viewport: mobileLandscape,
+      camera: REFERENCE_CAMERA.normal,
+      name: 'dense-normal-mobile-landscape',
+      touch: true,
+    }));
+
+    results.push(await captureScenario(browser, {
+      scene: 'dense',
+      viewport: mobileLandscape,
+      camera: REFERENCE_CAMERA.far,
+      name: 'dense-strategic-mobile-landscape',
+      touch: true,
+    }));
+
+    results.push(await captureScenario(browser, {
+      scene: 'dense',
       viewport: desktop,
       camera: REFERENCE_CAMERA.normal,
       name: 'dense-autumn-normal-desktop',
@@ -373,6 +389,21 @@ try {
             `shadow casters ${result.visualBudget.activeShadowCasters} > active cap ${result.visualBudget.budget.shadowCasters}`,
           );
         }
+        if (result.visualBudget.activeHighDetailMeshes > result.visualBudget.budget.highDetailMeshes) {
+          hardViolations.push(
+            `high-detail meshes ${result.visualBudget.activeHighDetailMeshes} > active cap ${result.visualBudget.budget.highDetailMeshes}`,
+          );
+        }
+        if (result.visualBudget.estimatedDrawCalls > result.visualBudget.budget.drawCalls) {
+          hardViolations.push(
+            `estimated draws ${result.visualBudget.estimatedDrawCalls} > active cap ${result.visualBudget.budget.drawCalls}`,
+          );
+        }
+        if (result.drawCallsMedian > result.visualBudget.budget.drawCalls) {
+          hardViolations.push(
+            `measured draws ${result.drawCallsMedian} > active cap ${result.visualBudget.budget.drawCalls}`,
+          );
+        }
         const expectedBand = result.screenshot.includes('strategic') ? 'strategic' : 'gameplay';
         if (result.visualBudget.band !== expectedBand) {
           hardViolations.push(`distance band ${result.visualBudget.band} != expected ${expectedBand}`);
@@ -390,6 +421,29 @@ try {
         productionBudgetPassed: violations.length === 0,
       });
     }
+
+    const compareDenseBands = (normalName, strategicName) => {
+      const normal = results.find((entry) => entry.screenshot === normalName);
+      const strategic = results.find((entry) => entry.screenshot === strategicName);
+      const strategicCheck = checks.find((entry) => entry.screenshot === strategicName);
+      if (!normal || !strategic || !strategicCheck) return;
+      const normalDetail = normal.visualBudget?.activeHighDetailMeshes ?? Number.POSITIVE_INFINITY;
+      const strategicDetail = strategic.visualBudget?.activeHighDetailMeshes ?? Number.POSITIVE_INFINITY;
+      if (strategic.drawCallsMedian >= normal.drawCallsMedian) {
+        strategicCheck.hardViolations.push(
+          `strategic draw calls ${strategic.drawCallsMedian} are not cheaper than normal ${normal.drawCallsMedian}`,
+        );
+      }
+      if (strategicDetail >= normalDetail) {
+        strategicCheck.hardViolations.push(
+          `strategic high-detail meshes ${strategicDetail} are not cheaper than normal ${normalDetail}`,
+        );
+      }
+      strategicCheck.passed = strategicCheck.hardViolations.length === 0;
+    };
+
+    compareDenseBands('dense-normal-desktop.jpg', 'dense-strategic-desktop.jpg');
+    compareDenseBands('dense-normal-mobile-landscape.jpg', 'dense-strategic-mobile-landscape.jpg');
 
     const report = {
       schemaVersion: 1,
