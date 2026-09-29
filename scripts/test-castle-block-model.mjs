@@ -83,5 +83,29 @@ assert.equal(at(closedGate, 1, 0).topology, 'straight');
 assert.equal(at(closedGate, 1, 0).traversal.passable, false);
 assert.equal(at(closedGate, 1, 0).traversal.blocksGround, true);
 assert.equal(at(system.build([{ x: 1, y: 0, kind: 'gate', gateOpen: true }], 'limestone'), 1, 0).traversal.passable, true);
+const towerLine = system.build([
+  { x: 1, y: 1, kind: 'tower', towerShape: 'round' },
+  { x: 0, y: 1, kind: 'wall1' }, { x: 2, y: 1, kind: 'wall1' },
+], 'limestone');
+assert.equal(at(towerLine, 1, 1).attachment, 'wall-line');
+const towerCorner = system.build([
+  { x: 1, y: 1, kind: 'tower', towerShape: 'corner' },
+  { x: 0, y: 1, kind: 'wall1' }, { x: 1, y: 2, kind: 'wall1' },
+], 'limestone');
+assert.equal(at(towerCorner, 1, 1).attachment, 'corner');
+assert.equal(at(system.build([{ x: 1, y: 1, kind: 'tower' }], 'limestone'), 1, 1).attachment, 'standalone');
+assert.deepEqual(towerCorner.blocks.map((block) => block.topology),
+  system.build(towerCorner.blocks.map(({ x, y, sourceKind: kind }) => ({ x, y, kind })), 'darkStone').blocks.map((block) => block.topology));
+const broken = system.build([
+  { x: 0, y: 0, kind: 'wall1' }, { x: 1, y: 0, kind: 'wall1', damage: 1 },
+  { x: 2, y: 0, kind: 'wall1' },
+], 'limestone');
+assert.equal(at(broken, 1, 0).damageStage, 'collapsed');
+assert.equal(at(broken, 1, 0).rubble, true);
+assert.equal(at(broken, 1, 0).traversal.passable, true);
+assert.equal(at(broken, 1, 0).traversal.walkableTop, false);
+assert.deepEqual(broken.blocks.map((block) => block.topology), ['isolated', 'isolated', 'isolated']);
+const repaired = system.build(broken.blocks.map(({ x, y }) => ({ x, y, kind: 'wall1', damage: 0 })), 'limestone');
+assert.deepEqual(repaired.blocks.map((block) => block.topology), ['end', 'straight', 'end']);
 
 console.log('castle block model regression checks passed');
