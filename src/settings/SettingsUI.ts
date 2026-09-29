@@ -144,6 +144,7 @@ export class SettingsUI {
                 ${this.selectRow('Environment detail', 'Controls decorative world detail.', 'environmentDetail', '<option value="low">Low</option><option value="medium">Medium</option><option value="high">High</option>')}
                 ${this.toggleRow('Shadows', 'Render dynamic scene shadows.', 'shadowsEnabled')}
                 ${this.toggleRow('Visual effects', 'Enable enhanced lighting and effects.', 'effectsEnabled')}
+                ${this.toggleRow('Debug mode', 'Show live FPS, memory, renderer and LOD diagnostics over the game.', 'debugMode')}
               </div>
             </section>
 
@@ -372,6 +373,9 @@ export class SettingsUI {
       case 'environmentDetail':
         this.store.setGraphics({ environmentDetail: value === 'low' || value === 'medium' ? value : 'high' });
         break;
+      case 'debugMode':
+        this.store.setGraphics({ debugMode: Boolean(value) });
+        break;
       case 'masterVolume':
         this.store.setAudio({ masterVolume: Number(value) });
         break;
@@ -424,6 +428,7 @@ export class SettingsUI {
     set('shadowsEnabled', settings.graphics.shadowsEnabled);
     set('performanceMode', settings.graphics.performanceMode);
     set('environmentDetail', settings.graphics.environmentDetail);
+    set('debugMode', settings.graphics.debugMode);
     set('masterVolume', settings.audio.masterVolume);
     set('musicVolume', settings.audio.musicVolume);
     set('sfxVolume', settings.audio.sfxVolume);
