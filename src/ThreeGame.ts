@@ -13,6 +13,7 @@ import { MedievalMaterials } from './rendering/MedievalMaterials';
 import { CASTLE_ARCHITECTURE_STYLE } from './rendering/CastleArchitectureStyle';
 import { WORLD_STYLE, styleTone } from './rendering/WorldStyle';
 import { AmbientMotionSystem } from './rendering/AmbientMotionSystem';
+import { DistanceDetailBudgetSystem } from './rendering/DistanceDetailBudget';
 import {
   RESIDENCE_LAYOUTS,
   RESIDENCE_VISUAL_LEVELS,
@@ -380,6 +381,7 @@ export class ThreeGame {
   private readonly controls: OrbitControls;
   private readonly settingsStore: SettingsStore;
   private readonly audioManager: AudioManager;
+  private readonly distanceDetailBudget = new DistanceDetailBudgetSystem();
   /** Domain state and gameplay services are composed here, away from rendering/UI concerns. */
   private readonly services = createGameDomainServices();
   private readonly maritimeSystem = new MaritimeSystem({
@@ -13626,6 +13628,18 @@ export class ThreeGame {
     this.lastFrameTime = time;
 
     const settings = this.settingsStore.get();
+    const cameraDistance = this.camera.position.distanceTo(this.controls.target);
+    const mobileRendering =
+      settings.gameplay.controlScheme === 'touch' ||
+      window.matchMedia?.('(pointer: coarse)').matches === true ||
+      window.innerWidth <= 760;
+    const visualBudget = this.distanceDetailBudget.update(
+      this.scene,
+      this.renderer,
+      cameraDistance,
+      settings,
+      mobileRendering,
+    );
     if (!this.battleSystem.isActive()) {
       this.updateWorkers(deltaMs);
       this.updateSettlementAgents(deltaMs);
@@ -13643,9 +13657,10 @@ export class ThreeGame {
       quality: settings.graphics.quality,
       environmentDetail: settings.graphics.environmentDetail,
       performanceMode: settings.graphics.performanceMode,
-      cameraDistance: this.camera.position.distanceTo(this.controls.target),
+      cameraDistance,
       normalDistance: WORLD_STYLE.camera.referenceDistances.normalGameplay,
       strategicDistance: WORLD_STYLE.camera.referenceDistances.maximumStrategic,
+      budgetScale: visualBudget.budget.animationScale,
     });
     if (ambientScale > 0) {
       this.services.windmillSystem.update((deltaMs / 1000) * ambientScale);
