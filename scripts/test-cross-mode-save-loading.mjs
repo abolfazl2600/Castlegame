@@ -81,21 +81,8 @@ assert.match(
   'ThreeGame must validate save cells using the explicitly supplied mode.',
 );
 
-const modern = between(
-  gameMode,
-  '  modern: {',
-  '  sandbox: {',
-);
-assert.match(
-  modern,
-  /availableBuildingKinds:\s*\['futuristicCastle','tree','rock','mountain'\]/,
-  'Modern saves must accept futuristicCastle.',
-);
-assert.doesNotMatch(
-  modern,
-  /availableBuildingKinds:[^\n]*'wall1'/,
-  'Modern mode must continue rejecting medieval wall cells.',
-);
+assert.doesNotMatch(gameMode, /\bmodern\b|futuristicCastle/, 'Removed Modern Mode must not be accepted by game-mode config.');
+assert.doesNotMatch(threeGame, /futuristicCastle|FuturisticCastleRenderer/, 'Removed Modern Fortress must not be restored by runtime code.');
 
 const medieval = between(
   gameMode,
@@ -116,12 +103,7 @@ const medievalBuildings = between(
 assert.match(
   medievalBuildings,
   /'wall1'/,
-  'The inverse Modern -> Medieval regression requires a representative medieval building.',
-);
-assert.doesNotMatch(
-  medievalBuildings,
-  /'futuristicCastle'/,
-  'Medieval mode must continue rejecting futuristicCastle.',
+  'Medieval mode must retain representative medieval buildings.',
 );
 
 console.log('Cross-mode save loading regression checks passed.');
