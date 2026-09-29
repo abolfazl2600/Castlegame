@@ -8,10 +8,13 @@ const saveSource = await readFile(new URL('../src/core/SaveSystem.ts', import.me
 const servicesSource = await readFile(new URL('../src/core/GameDomainServices.ts', import.meta.url), 'utf8');
 const typesSource = await readFile(new URL('../src/core/types.ts', import.meta.url), 'utf8');
 
+// TypeScript 7 no longer exposes the legacy runtime enum objects used by
+// older tests. transpileModule still accepts the compiler enum numeric values.
+// ESNext is 99 for both ModuleKind and ScriptTarget.
 const transpiled = ts.transpileModule(economySource, {
   compilerOptions: {
-    module: ts.ModuleKind.ES2022,
-    target: ts.ScriptTarget.ES2022,
+    module: 99,
+    target: 99,
   },
 }).outputText;
 
