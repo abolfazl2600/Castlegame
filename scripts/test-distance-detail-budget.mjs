@@ -31,6 +31,9 @@ assert.match(budget, /detailBudgetRoot/, 'distance governor must budget detail p
 assert.match(budget, /current\.userData\.cellKey/, 'building roots must participate in per-structure LOD budgeting');
 assert.match(budget, /current\.userData\.visualRefs/, 'battle unit roots must participate in per-unit LOD budgeting');
 assert.match(budget, /previousFrameOverBudget/, 'dynamic scene growth must trigger budget reapplication when renderer calls exceed the active cap');
+assert.match(budget, /GAME_MEMORY_BUDGET_BYTES\s*=\s*2 \* 1024 \* 1024 \* 1024/, 'runtime JS memory budget must be fixed at 2 GiB');
+assert.match(budget, /resolveMemoryPressure/, 'memory pressure must be detected before the 2 GiB ceiling is reached');
+assert.match(budget, /memoryAdjustedBudget/, 'memory pressure must reduce rendering work before the hard ceiling');
 
 assert.match(game, /DistanceDetailBudgetSystem/, 'ThreeGame must own the distance budget governor');
 assert.match(game, /distanceDetailBudget\.update\(/, 'distance budget must update from the render loop');

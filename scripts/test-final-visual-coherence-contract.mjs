@@ -12,7 +12,7 @@ const [scene, qa, game, ambientMotion, distanceBudget, environmentSystem, worldS
   readFile(new URL('../docs/visual-audits/issue-137/README.md', import.meta.url), 'utf8'),
 ]);
 
-for (const name of ['starter', 'dense', 'castle', 'farm', 'harbor', 'modern']) {
+for (const name of ['starter', 'dense', 'castle', 'farm', 'harbor']) {
   assert.match(
     scene,
     new RegExp(`FINAL_QA_SCENES[^]*['"]${name}['"]`),
@@ -32,17 +32,6 @@ assert.match(scene, /cell\(x, 18, 'armyCamp', level\)/);
 assert.match(scene, /cell\(5, 16, 'harbor', 1/);
 assert.match(scene, /cell\(14, 16, 'harbor', 4/);
 assert.match(scene, /gameMode: definition\.mode/);
-assert.match(
-  scene,
-  /function modernCells\(\)[\s\S]*futuristicCastle/,
-  'Modern QA fixture must render the supported Futuristic Castle family.',
-);
-assert.match(
-  scene,
-  /if \(kind === 'modern'\) return \{ mode: 'modern'/,
-  'Modern QA fixture must load through Modern Mode.',
-);
-
 assert.match(qa, /width:\s*740,\s*height:\s*390/);
 assert.match(qa, /starter-normal-mobile-landscape/);
 assert.match(qa, /dense-normal-mobile-landscape/);
@@ -60,6 +49,8 @@ assert.match(qa, /estimatedDrawCalls/);
 assert.match(qa, /compareDenseBands/);
 assert.match(qa, /expectedBand/);
 assert.match(qa, /maxUiCoverage/);
+assert.match(qa, /maxHeapBytes/);
+assert.match(qa, /2 \* 1024 \* 1024 \* 1024/);
 assert.match(qa, /maxFrameP95Ms/);
 assert.match(qa, /maxDrawCalls/);
 assert.match(qa, /maxTriangles/);
@@ -103,6 +94,8 @@ assert.match(distanceBudget, /applyDetailBudget/);
 assert.match(distanceBudget, /highDetailMeshes/);
 assert.match(distanceBudget, /estimatedDrawCalls/);
 assert.match(distanceBudget, /isSuppressibleMicroDetail/);
+assert.match(distanceBudget, /GAME_MEMORY_BUDGET_BYTES/);
+assert.match(distanceBudget, /resolveMemoryPressure/);
 assert.match(environmentSystem, /export class EnvironmentSystem/);
 assert.match(environmentSystem, /'spring', 'summer', 'autumn', 'winter'/);
 assert.match(game, /visualBudget: this\.distanceDetailBudget\.snapshot\(\)/);

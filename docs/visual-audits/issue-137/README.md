@@ -33,7 +33,6 @@ The runner uses fixed save fixtures and seed `6001`.
 | Castle | Large defensive composition with Keep, walls, towers, gate, and damage states |
 | Farm | Level 1–4 Farm, Cattle Farm, Orchard, and Army Camp progression |
 | Harbor | Unified Harbor Levels 1–4 |
-| Modern | Modern Mode with the supported Futuristic Castle |
 | Mobile landscape | Starter settlement at 740×390 using touch controls |
 | Castle battle | Deterministic active battle |
 | Dense strategic | Dense city at maximum strategic camera distance |
@@ -62,6 +61,17 @@ The visual benchmark diagnostics now expose the active `DistanceDetailBudgetSyst
 
 The runner also continues recording frame time, draw calls, triangles, scene materials, redraw time, and UI coverage. Headless Chromium uses ANGLE/SwiftShader, so absolute frame-time numbers are regression evidence rather than physical-GPU FPS promises.
 
+## Memory budget
+
+The game now targets a **2 GiB maximum JavaScript heap budget**. The runtime distance/detail governor monitors browser heap telemetry when available and reduces rendering work as memory pressure approaches the ceiling:
+
+- elevated pressure begins at 75% of the 2 GiB budget
+- critical pressure begins at 90%
+- Final Visual QA hard-fails any measured scenario above 2 GiB
+- CI Chromium is launched with a 2048 MiB V8 old-space ceiling
+
+This is an application/JavaScript heap budget; the browser process and GPU can use additional memory outside the page heap.
+
 ## Recorded integration thresholds
 
 Desktop:
@@ -72,6 +82,7 @@ Desktop:
 - scene materials ≤ 260
 - initial redraw ≤ 1800 ms
 - fixed/sticky UI coverage ≤ 32%
+- measured JavaScript heap ≤ 2 GiB
 
 Mobile landscape:
 
@@ -81,6 +92,7 @@ Mobile landscape:
 - scene materials ≤ 260
 - initial redraw ≤ 2100 ms
 - fixed/sticky UI coverage ≤ 44%
+- measured JavaScript heap ≤ 2 GiB
 
 UI obstruction and invalid active-budget state are hard failures. Performance measurements are retained in the artifact so any remaining production optimization defect can be filed as a focused follow-up rather than hidden inside a broad visual rewrite.
 

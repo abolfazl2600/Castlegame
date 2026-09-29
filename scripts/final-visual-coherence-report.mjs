@@ -25,14 +25,14 @@ const lines = [
   '',
   '## Scenario matrix',
   '',
-  '| Capture | Scene | Battle | Viewport | P95 frame | Draw calls | Active draw cap | High detail | Detail cap | Triangles | Materials | Redraw | UI coverage | Integration | Production target |',
-  '| --- | --- | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | --- | --- |',
+  '| Capture | Scene | Battle | Viewport | P95 frame | Draw calls | Active draw cap | High detail | Detail cap | JS heap | Triangles | Materials | Redraw | UI coverage | Integration | Production target |',
+  '| --- | --- | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | --- | --- |',
 ];
 
 for (const result of report.results ?? []) {
   const check = (report.checks ?? []).find((entry) => entry.screenshot === result.screenshot);
   lines.push(
-    `| \`${result.screenshot}\` | ${result.scene} | ${result.battle ? 'yes' : 'no'} | ${result.viewport.width}×${result.viewport.height} | ${number(result.frameP95Ms, 2)} ms | ${integer(result.drawCallsMedian)} | ${integer(result.visualBudget?.budget?.drawCalls)} | ${integer(result.visualBudget?.activeHighDetailMeshes)} | ${integer(result.visualBudget?.budget?.highDetailMeshes)} | ${integer(result.triangles)} | ${integer(result.sceneMaterials)} | ${number(result.redrawMs, 2)} ms | ${number(result.uiCoverage * 100, 1)}% | ${check?.passed ? 'PASS' : 'FAIL'} | ${check?.productionBudgetPassed ? 'PASS' : 'FOLLOW-UP'} |`,
+    `| \`${result.screenshot}\` | ${result.scene} | ${result.battle ? 'yes' : 'no'} | ${result.viewport.width}×${result.viewport.height} | ${number(result.frameP95Ms, 2)} ms | ${integer(result.drawCallsMedian)} | ${integer(result.visualBudget?.budget?.drawCalls)} | ${integer(result.visualBudget?.activeHighDetailMeshes)} | ${integer(result.visualBudget?.budget?.highDetailMeshes)} | ${result.heapBytes == null ? 'n/a' : `${number(result.heapBytes / 1024 / 1024, 0)} MiB`} | ${integer(result.triangles)} | ${integer(result.sceneMaterials)} | ${number(result.redrawMs, 2)} ms | ${number(result.uiCoverage * 100, 1)}% | ${check?.passed ? 'PASS' : 'FAIL'} | ${check?.productionBudgetPassed ? 'PASS' : 'FOLLOW-UP'} |`,
   );
 }
 
@@ -51,7 +51,7 @@ lines.push(
   '## Result',
   '',
   (report.checks ?? []).every((check) => check.passed)
-    ? '**PASS — final integration checks passed, including enforced distance-aware draw-call and high-detail mesh budgets.**'
+    ? '**PASS — final integration checks passed, including distance-aware rendering budgets and the 2 GiB JS-heap ceiling.**'
     : '**FAIL — one or more final integration checks failed.**',
   '',
 );

@@ -3,6 +3,11 @@ import type { SettingsData } from '../settings/SettingsModel';
 import { WORLD_STYLE } from './WorldStyle';
 
 export type DistanceDetailBand = 'inspection' | 'gameplay' | 'strategic';
+export type MemoryPressureLevel = 'normal' | 'elevated' | 'critical';
+
+export const GAME_MEMORY_BUDGET_BYTES = 2 * 1024 * 1024 * 1024;
+const MEMORY_ELEVATED_RATIO = 0.75;
+const MEMORY_CRITICAL_RATIO = 0.9;
 
 export interface VisualPerformanceBudget {
   drawCalls: number;
@@ -26,6 +31,9 @@ export interface VisualBudgetSnapshot {
   estimatedDrawCalls: number;
   baselineEstimatedDrawCalls: number;
   suppressedEstimatedDrawCalls: number;
+  memoryBudgetBytes: number;
+  heapBytes: number | null;
+  memoryPressure: MemoryPressureLevel;
 }
 
 const DESKTOP_BUDGETS: Record<DistanceDetailBand, VisualPerformanceBudget> = {
@@ -93,6 +101,41 @@ const GENERIC_MICRO_DETAIL_RADIUS = 2.4;
 const PROP_HEAVY_MICRO_DETAIL_RADIUS = 3.4;
 const PRIORITY_MICRO_DETAIL_RADIUS = 2.6;
 
+function currentHeapBytes(): number | null {
+  const memory = (performance as Performance & {
+    memory?: { usedJSHeapSize?: number };
+  }).memory;
+  const value = memory?.usedJSHeapSize;
+  return typeof value === 'number' && Number.isFinite(value) ? value : null;
+}
+
+function resolveMemoryPressure(heapBytes: number | null): MemoryPressureLevel {
+  if (heapBytes === null) return 'normal';
+  const ratio = heapBytes / GAME_MEMORY_BUDGET_BYTES;
+  if (ratio >= MEMORY_CRITICAL_RATIO) return 'critical';
+  if (ratio >= MEMORY_ELEVATED_RATIO) return 'elevated';
+  return 'normal';
+}
+
+function memoryAdjustedBudget(
+  budget: VisualPerformanceBudget,
+  pressure: MemoryPressureLevel,
+): VisualPerformanceBudget {
+  if (pressure === 'normal') return budget;
+  const scale = pressure === 'critical' ? 0.48 : 0.72;
+  const rasterScale = pressure === 'critical' ? 0.72 : 0.86;
+  return {
+    ...budget,
+    drawCalls: Math.max(1, Math.floor(budget.drawCalls * scale)),
+    animatedObjects: Math.max(1, Math.floor(budget.animatedObjects * scale)),
+    particles: Math.max(0, Math.floor(budget.particles * scale)),
+    shadowCasters: Math.max(0, Math.floor(budget.shadowCasters * scale)),
+    highDetailMeshes: Math.max(0, Math.floor(budget.highDetailMeshes * scale)),
+    pixelRatioScale: budget.pixelRatioScale * rasterScale,
+    animationScale: budget.animationScale * scale,
+  };
+}
+
 function settingsPixelRatioScale(settings: SettingsData): number {
   const quality =
     settings.graphics.quality === 'low' ? 0.75 :
@@ -112,7 +155,6 @@ function parentHasReadabilityPriority(object: THREE.Object3D): boolean {
       current.userData.defenseSilhouette ||
       current.userData.settlementReadabilityClass === 'landmark' ||
       current.userData.cellKind === 'keep' ||
-      current.userData.cellKind === 'futuristicCastle' ||
       current.userData.distanceDetailPriority === 'silhouette'
     ) return true;
     current = current.parent;
@@ -155,7 +197,6 @@ function detailBudgetRoot(object: THREE.Object3D): THREE.Object3D | null {
       current.userData.cellKey ||
       current.userData.defenseSilhouette ||
       current.userData.settlementReadabilityClass === 'landmark' ||
-      current.userData.futuristicCastle ||
       current.userData.visualRefs
     ) return current;
     current = current.parent;
@@ -230,6 +271,9 @@ export class DistanceDetailBudgetSystem {
     estimatedDrawCalls: 0,
     baselineEstimatedDrawCalls: 0,
     suppressedEstimatedDrawCalls: 0,
+    memoryBudgetBytes: GAME_MEMORY_BUDGET_BYTES,
+    heapBytes: null,
+    memoryPressure: 'normal',
   };
 
   update(
@@ -240,7 +284,10 @@ export class DistanceDetailBudgetSystem {
     mobile: boolean,
   ): VisualBudgetSnapshot {
     this.band = this.resolveBand(cameraDistance);
-    const budget = (mobile ? MOBILE_BUDGETS : DESKTOP_BUDGETS)[this.band];
+    const heapBytes = currentHeapBytes();
+    const memoryPressure = resolveMemoryPressure(heapBytes);
+    const baseBudget = (mobile ? MOBILE_BUDGETS : DESKTOP_BUDGETS)[this.band];
+    const budget = memoryAdjustedBudget(baseBudget, memoryPressure);
 
     const profileKey = [
       this.band,
@@ -248,6 +295,7 @@ export class DistanceDetailBudgetSystem {
       settings.graphics.quality,
       settings.graphics.performanceMode,
       settings.graphics.shadowsEnabled ? 'shadows' : 'no-shadows',
+      memoryPressure,
     ].join(':');
 
     const previousFrameOverBudget = renderer.info.render.calls > budget.drawCalls;
@@ -278,6 +326,9 @@ export class DistanceDetailBudgetSystem {
         estimatedDrawCalls,
         baselineEstimatedDrawCalls,
         suppressedEstimatedDrawCalls: Math.max(0, baselineEstimatedDrawCalls - estimatedDrawCalls),
+        memoryBudgetBytes: GAME_MEMORY_BUDGET_BYTES,
+        heapBytes,
+        memoryPressure,
       };
       scene.userData.visualPerformanceBudget = {
         band: this.band,
@@ -285,6 +336,9 @@ export class DistanceDetailBudgetSystem {
         ...budget,
         activeHighDetailMeshes: detail.activeHighDetailMeshes,
         estimatedDrawCalls: this.lastSnapshot.estimatedDrawCalls,
+        memoryBudgetBytes: GAME_MEMORY_BUDGET_BYTES,
+        heapBytes,
+        memoryPressure,
       };
       this.lastProfileKey = profileKey;
     }

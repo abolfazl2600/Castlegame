@@ -15,6 +15,7 @@ if (!output) throw new Error('Pass an output folder after --out');
 
 const url = process.env.VISUAL_BASE_URL ?? 'http://127.0.0.1:4173/Castlegame/';
 const local = !process.env.VISUAL_BASE_URL;
+const GAME_MEMORY_BUDGET_BYTES = 2 * 1024 * 1024 * 1024;
 let server;
 
 export const FINAL_QA_BUDGETS = {
@@ -25,6 +26,7 @@ export const FINAL_QA_BUDGETS = {
     maxSceneMaterials: 260,
     maxRedrawMs: 1800,
     maxUiCoverage: 0.32,
+    maxHeapBytes: GAME_MEMORY_BUDGET_BYTES,
   },
   mobileLandscape: {
     maxFrameP95Ms: 260,
@@ -33,6 +35,7 @@ export const FINAL_QA_BUDGETS = {
     maxSceneMaterials: 260,
     maxRedrawMs: 2100,
     maxUiCoverage: 0.44,
+    maxHeapBytes: GAME_MEMORY_BUDGET_BYTES,
   },
 };
 
@@ -287,6 +290,7 @@ function budgetViolations(result, budget) {
   if (result.sceneMaterials > budget.maxSceneMaterials) violations.push(`materials ${result.sceneMaterials} > ${budget.maxSceneMaterials}`);
   if (result.redrawMs > budget.maxRedrawMs) violations.push(`redraw ${result.redrawMs}ms > ${budget.maxRedrawMs}ms`);
   if (result.uiCoverage > budget.maxUiCoverage) violations.push(`UI coverage ${(result.uiCoverage * 100).toFixed(1)}% > ${(budget.maxUiCoverage * 100).toFixed(1)}%`);
+  if (result.heapBytes !== null && result.heapBytes > budget.maxHeapBytes) violations.push(`JS heap ${Math.round(result.heapBytes / 1024 / 1024)} MiB > 2048 MiB`);
   return violations;
 }
 
@@ -302,7 +306,7 @@ try {
 
   const browser = await chromium.launch({
     headless: true,
-    args: ['--enable-webgl', '--use-gl=angle', '--use-angle=swiftshader'],
+    args: ['--enable-webgl', '--use-gl=angle', '--use-angle=swiftshader', '--js-flags=--max-old-space-size=2048'],
   });
 
   try {
@@ -381,9 +385,15 @@ try {
       const hardViolations = result.uiCoverage > budget.maxUiCoverage
         ? [`UI coverage ${(result.uiCoverage * 100).toFixed(1)}% > ${(budget.maxUiCoverage * 100).toFixed(1)}%`]
         : [];
+      if (result.heapBytes !== null && result.heapBytes > budget.maxHeapBytes) {
+        hardViolations.push(`JS heap ${Math.round(result.heapBytes / 1024 / 1024)} MiB > 2048 MiB`);
+      }
       if (!result.visualBudget?.budget) {
         hardViolations.push('missing active distance-detail budget diagnostics');
       } else {
+        if (result.visualBudget.memoryBudgetBytes !== GAME_MEMORY_BUDGET_BYTES) {
+          hardViolations.push('runtime memory budget is not fixed at 2 GiB');
+        }
         if (result.visualBudget.activeShadowCasters > result.visualBudget.budget.shadowCasters) {
           hardViolations.push(
             `shadow casters ${result.visualBudget.activeShadowCasters} > active cap ${result.visualBudget.budget.shadowCasters}`,
@@ -462,6 +472,7 @@ try {
         totalMemoryBytes: os.totalmem(),
       },
       budgets: FINAL_QA_BUDGETS,
+      memoryBudgetBytes: GAME_MEMORY_BUDGET_BYTES,
       knownFocusedFollowups: [],
       battleSetup: BATTLE_SETUP,
       captures: results.map((entry) => entry.screenshot),
