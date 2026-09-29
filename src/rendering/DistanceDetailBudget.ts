@@ -34,6 +34,7 @@ export interface VisualBudgetSnapshot {
   memoryBudgetBytes: number;
   heapBytes: number | null;
   memoryPressure: MemoryPressureLevel;
+  detailSuppressionActive: boolean;
 }
 
 const DESKTOP_BUDGETS: Record<DistanceDetailBand, VisualPerformanceBudget> = {
@@ -134,6 +135,21 @@ function memoryAdjustedBudget(
     pixelRatioScale: budget.pixelRatioScale * rasterScale,
     animationScale: budget.animationScale * scale,
   };
+}
+
+function shouldSuppressDetail(
+  settings: SettingsData,
+  band: DistanceDetailBand,
+  mobile: boolean,
+  pressure: MemoryPressureLevel,
+): boolean {
+  return (
+    pressure !== 'normal' ||
+    band === 'strategic' ||
+    mobile ||
+    settings.graphics.quality === 'low' ||
+    settings.graphics.performanceMode === 'performance'
+  );
 }
 
 function settingsPixelRatioScale(settings: SettingsData): number {
@@ -274,6 +290,7 @@ export class DistanceDetailBudgetSystem {
     memoryBudgetBytes: GAME_MEMORY_BUDGET_BYTES,
     heapBytes: null,
     memoryPressure: 'normal',
+    detailSuppressionActive: false,
   };
 
   update(
@@ -288,6 +305,12 @@ export class DistanceDetailBudgetSystem {
     const memoryPressure = resolveMemoryPressure(heapBytes);
     const baseBudget = (mobile ? MOBILE_BUDGETS : DESKTOP_BUDGETS)[this.band];
     const budget = memoryAdjustedBudget(baseBudget, memoryPressure);
+    const detailSuppressionActive = shouldSuppressDetail(
+      settings,
+      this.band,
+      mobile,
+      memoryPressure,
+    );
 
     const profileKey = [
       this.band,
@@ -296,9 +319,10 @@ export class DistanceDetailBudgetSystem {
       settings.graphics.performanceMode,
       settings.graphics.shadowsEnabled ? 'shadows' : 'no-shadows',
       memoryPressure,
+      detailSuppressionActive ? 'lod-on' : 'lod-off',
     ].join(':');
 
-    const previousFrameOverBudget = renderer.info.render.calls > budget.drawCalls;
+    const previousFrameOverBudget = detailSuppressionActive && renderer.info.render.calls > budget.drawCalls;
     if (profileKey !== this.lastProfileKey || previousFrameOverBudget) {
       const maxPixelRatio = Math.min(window.devicePixelRatio, 2);
       const ratio = THREE.MathUtils.clamp(
@@ -312,7 +336,7 @@ export class DistanceDetailBudgetSystem {
         settings.graphics.quality !== 'low' &&
         budget.shadowCasters > 0;
 
-      const detail = this.applyDetailBudget(scene, budget, this.band, mobile);
+      const detail = this.applyDetailBudget(scene, budget, this.band, mobile, detailSuppressionActive);
       const shadow = this.applyShadowBudget(scene, budget.shadowCasters, renderer.shadowMap.enabled);
       const estimatedDrawCalls = detail.estimatedDrawCalls + shadow.activeShadowCasters;
       const baselineEstimatedDrawCalls =
@@ -329,6 +353,7 @@ export class DistanceDetailBudgetSystem {
         memoryBudgetBytes: GAME_MEMORY_BUDGET_BYTES,
         heapBytes,
         memoryPressure,
+        detailSuppressionActive,
       };
       scene.userData.visualPerformanceBudget = {
         band: this.band,
@@ -339,6 +364,7 @@ export class DistanceDetailBudgetSystem {
         memoryBudgetBytes: GAME_MEMORY_BUDGET_BYTES,
         heapBytes,
         memoryPressure,
+        detailSuppressionActive,
       };
       this.lastProfileKey = profileKey;
     }
@@ -391,6 +417,7 @@ export class DistanceDetailBudgetSystem {
     budget: VisualPerformanceBudget,
     band: DistanceDetailBand,
     mobile: boolean,
+    enforceSuppression: boolean,
   ): DetailBudgetResult {
     this.restoreSuppressedDetail(scene);
     scene.updateMatrixWorld(true);
@@ -438,6 +465,20 @@ export class DistanceDetailBudgetSystem {
       }
       traversalOrder += 1;
     });
+
+    if (!enforceSuppression) {
+      const managedMeshes =
+        candidates.length +
+        [...rootedMeshes.values()].reduce((total, group) => total + group.length, 0);
+      return {
+        activeHighDetailMeshes: managedMeshes,
+        baselineHighDetailMeshes: managedMeshes,
+        suppressedHighDetailMeshes: 0,
+        estimatedDrawCalls: baselineEstimatedDrawCalls,
+        baselineEstimatedDrawCalls,
+        suppressedEstimatedDrawCalls: 0,
+      };
+    }
 
     const perRootCore = coreMeshesPerRoot(band, mobile);
     for (const group of rootedMeshes.values()) {

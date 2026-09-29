@@ -399,7 +399,10 @@ try {
             `shadow casters ${result.visualBudget.activeShadowCasters} > active cap ${result.visualBudget.budget.shadowCasters}`,
           );
         }
-        if (result.visualBudget.activeHighDetailMeshes > result.visualBudget.budget.highDetailMeshes) {
+        if (
+          result.visualBudget.detailSuppressionActive &&
+          result.visualBudget.activeHighDetailMeshes > result.visualBudget.budget.highDetailMeshes
+        ) {
           hardViolations.push(
             `high-detail meshes ${result.visualBudget.activeHighDetailMeshes} > active cap ${result.visualBudget.budget.highDetailMeshes}`,
           );
@@ -407,7 +410,10 @@ try {
         if (!Number.isFinite(result.visualBudget.estimatedDrawCalls)) {
           hardViolations.push('missing finite estimated draw-call diagnostics');
         }
-        if (result.drawCallsMedian > result.visualBudget.budget.drawCalls) {
+        if (
+          result.visualBudget.detailSuppressionActive &&
+          result.drawCallsMedian > result.visualBudget.budget.drawCalls
+        ) {
           hardViolations.push(
             `measured draws ${result.drawCallsMedian} > active cap ${result.visualBudget.budget.drawCalls}`,
           );

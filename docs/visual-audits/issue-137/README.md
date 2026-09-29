@@ -47,14 +47,17 @@ Seasonal coverage is now part of the final visual evidence. The QA injects saved
 
 ## Distance-aware performance coverage
 
+Normal desktop High/Balanced rendering is **fidelity-first**: decorative building meshes are preserved instead of being hidden merely to satisfy a draw-call target. Detail suppression is reserved for strategic zoom, mobile rendering, explicit Performance Mode / Low quality, or elevated/critical memory pressure.
+
+
 The visual benchmark diagnostics now expose the active `DistanceDetailBudgetSystem` snapshot. Final QA verifies:
 
 - Normal captures select the gameplay distance band.
 - Strategic captures select the strategic band.
 - Mobile landscape selects the mobile budget profile.
 - Active shadow casters never exceed the current band cap.
-- Active high-detail meshes never exceed the current band cap.
-- Measured and estimated draw calls are validated against the active distance-band budget.
+- When LOD suppression is active, managed high-detail meshes stay within the current band cap.
+- When LOD suppression is active, measured draw calls are validated against the active distance-band budget; full-fidelity normal desktop rendering is measured but not destructively simplified.
 - Dense strategic scenes must be cheaper than dense normal scenes.
 - Dense mobile normal/strategic fixtures select the stricter mobile profile.
 - The active environment and budget state are stored in `metrics.json`.

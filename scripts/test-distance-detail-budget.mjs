@@ -34,6 +34,10 @@ assert.match(budget, /previousFrameOverBudget/, 'dynamic scene growth must trigg
 assert.match(budget, /GAME_MEMORY_BUDGET_BYTES\s*=\s*2 \* 1024 \* 1024 \* 1024/, 'runtime JS memory budget must be fixed at 2 GiB');
 assert.match(budget, /resolveMemoryPressure/, 'memory pressure must be detected before the 2 GiB ceiling is reached');
 assert.match(budget, /memoryAdjustedBudget/, 'memory pressure must reduce rendering work before the hard ceiling');
+assert.match(budget, /shouldSuppressDetail/, 'LOD suppression must be gated instead of always hiding visual geometry');
+assert.match(budget, /band === 'strategic'/, 'strategic view must still enable distance-based simplification');
+assert.match(budget, /pressure !== 'normal'/, 'memory pressure must be able to activate detail reduction');
+assert.match(budget, /detailSuppressionActive/, 'runtime diagnostics must expose whether geometry suppression is active');
 
 assert.match(game, /DistanceDetailBudgetSystem/, 'ThreeGame must own the distance budget governor');
 assert.match(game, /distanceDetailBudget\.update\(/, 'distance budget must update from the render loop');
