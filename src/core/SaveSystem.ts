@@ -15,6 +15,7 @@ import type { KeepSystem } from '../building/KeepSystem';
 import { APPLICATION_METADATA } from '../app/applicationMetadata';
 import type {
   EconomyResourceState,
+  EnvironmentSimulationState,
   PopulationSimulationState,
   KeepState,
   MapLayoutId,
@@ -51,6 +52,8 @@ export interface SaveLoadHost {
   setEconomyState?(value?: Partial<EconomyResourceState> | null): void;
   getPopulationState?(): PopulationSimulationState;
   setPopulationState?(value?: Partial<PopulationSimulationState> | null): void;
+  getEnvironmentState?(): EnvironmentSimulationState;
+  setEnvironmentState?(value?: Partial<EnvironmentSimulationState> | null): void;
   setWorldSeeded(value: boolean): void;
   setLoadedSaveVersion(value: number): void;
   setStoneStyle(value: StoneStyle): void;
@@ -83,6 +86,7 @@ interface RawSave {
   missiles?: SavedGame['missiles'];
   economy?: EconomyResourceState;
   population?: PopulationSimulationState;
+  environment?: EnvironmentSimulationState;
 }
 
 export class SaveSystem {
@@ -454,6 +458,7 @@ export class SaveSystem {
       missiles: this.host.state.getMissileState(),
       economy: this.host.getEconomyState?.(),
       population: this.host.getPopulationState?.(),
+      environment: this.host.getEnvironmentState?.(),
     };
   }
 
@@ -557,6 +562,7 @@ export class SaveSystem {
     this.host.state.setMissileState(data.missiles);
     this.host.setEconomyState?.(data.economy);
     this.host.setPopulationState?.(data.population);
+    this.host.setEnvironmentState?.(data.environment);
     this.host.syncModeDependentUI();
   }
 
@@ -620,6 +626,8 @@ export class SaveSystem {
         militaryTier: parsed.militaryTier,
         missiles: parsed.missiles,
         economy: parsed.economy,
+        population: parsed.population,
+        environment: parsed.environment,
       };
       const data: SavedGame = parsed.data ?? legacyData;
       if (!validMapLayoutId(data.mapLayoutId)) data.mapLayoutId = 'island';
@@ -667,6 +675,7 @@ function normalizeRecord(raw: RawSave, target: SaveTarget): SaveRecord | null {
     missiles: raw.missiles,
     economy: raw.economy,
     population: raw.population,
+    environment: raw.environment,
   } : undefined);
   if (!data || !Array.isArray(data.cells)) return null;
 
