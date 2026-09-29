@@ -1,6 +1,5 @@
 import type { GridCell, KeepState, TerrainKind, TileKind, TowerBridgeState } from '../core/types';
 import { ConnectedWallNetwork } from '../building/ConnectedWallNetwork';
-import type { GeneratedAccess } from '../building/CastleAccessSystem';
 
 export interface NavPoint {
   x: number;
@@ -23,7 +22,6 @@ export interface BattleNavigationContext {
   towerBridges?: () => TowerBridgeState[];
   temporaryGroundPassable?: (x: number, y: number) => boolean;
   gatePassable?: (x: number, y: number) => boolean;
-  generatedAccess?: () => GeneratedAccess[];
 }
 
 interface SearchNode extends NavPoint {
@@ -97,11 +95,7 @@ export class BattleNavigation {
       kind === 'dirtRoad' ||
       kind === 'stoneRoad' ||
       kind === 'farm' ||
-      kind === 'gate' ||
-      kind === 'stoneStairs' ||
-      kind === 'woodenStairs' ||
-      kind === 'ramp' ||
-      kind === 'ladder'
+      kind === 'gate'
     ) {
       return true;
     }
@@ -416,66 +410,10 @@ export class BattleNavigation {
   }
 
   stairTowerAccessNodes(): Array<{ top: WallNavNode; ground: NavPoint }> {
-    const nodes = this.wallPlatformNodes();
-    const nodesByKey = new Map(
-      nodes.map((node) => [this.key(node.x, node.y), node] as const),
-    );
-    const result: Array<{ top: WallNavNode; ground: NavPoint }> = [];
-
-    const addAccess = (top: WallNavNode, ground: NavPoint): void => {
-      if (!this.isGroundWalkable(ground.x, ground.y)) return;
-      if (
-        result.some(
-          (item) =>
-            item.top.x === top.x &&
-            item.top.y === top.y &&
-            item.ground.x === ground.x &&
-            item.ground.y === ground.y,
-        )
-      ) {
-        return;
-      }
-
-      result.push({ top, ground });
-    };
-
-    // Manual castle access is persisted as a GridCell. The exact access cell
-    // is the ground-side endpoint; do not substitute an arbitrary neighbor.
-    for (const node of nodes) {
-      const adjacent = [
-        { x: node.x + 1, y: node.y },
-        { x: node.x - 1, y: node.y },
-        { x: node.x, y: node.y + 1 },
-        { x: node.x, y: node.y - 1 },
-      ];
-
-      for (const ground of adjacent) {
-        const cell = this.context.cellAt(ground.x, ground.y);
-        if (!cell || !this.isCastleAccessKind(cell.kind)) continue;
-        addAccess(node, ground);
-      }
-    }
-
-    // Generated access is derived architecture and is not stored as GridCell.
-    // Only create a transition when the generated entry targets a real
-    // defensive platform node. This prevents invisible tower/gate teleports.
-    for (const access of this.context.generatedAccess?.() ?? []) {
-      const top = nodesByKey.get(this.key(access.targetX, access.targetY));
-      if (!top) continue;
-
-      addAccess(top, { x: access.x, y: access.y });
-    }
-
-    return result;
-  }
-
-  private isCastleAccessKind(kind: TileKind): boolean {
-    return (
-      kind === 'stoneStairs' ||
-      kind === 'woodenStairs' ||
-      kind === 'ramp' ||
-      kind === 'ladder'
-    );
+    // Wall-connected stairs, ramps, and ladders were intentionally removed.
+    // Keep the API returning an empty list so battle behavior cannot create
+    // invisible ground-to-wall transitions from legacy or derived access.
+    return [];
   }
 
   private reconstruct(nodes: Map<string, SearchNode>, endKey: string): NavPoint[] {
