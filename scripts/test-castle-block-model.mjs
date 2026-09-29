@@ -43,5 +43,23 @@ const junction = system.build([
 assert.equal(at(junction, 2, 2).topology, '4-way');
 assert.equal(at(system.build(junction.blocks.filter((block) => block.x !== 1).map(({ x, y }) => ({ x, y, kind: 'wall1' })), 'limestone'), 2, 2).topology, 't-junction');
 assert.deepEqual(system.build([...line.blocks].reverse().map(({ x, y }) => ({ x, y, kind: 'wall1' })), 'limestone').blocks, line.blocks);
+const elbow = system.build([
+  { x: 4, y: 4, kind: 'wall1' }, { x: 5, y: 4, kind: 'wall1' }, { x: 5, y: 5, kind: 'wall1' },
+], 'limestone');
+assert.equal(at(elbow, 5, 4).topology, 'corner');
+assert.equal(at(elbow, 5, 4).orientation, 180);
+assert.deepEqual(elbow.blocks.map((block) => block.topology),
+  system.build([{ x: 5, y: 5, kind: 'wall1' }, { x: 4, y: 4, kind: 'wall1' }, { x: 5, y: 4, kind: 'wall1' }], 'darkStone').blocks.map((block) => block.topology));
+const attachments = system.build([
+  { x: 0, y: 0, kind: 'wall1', wallLinks: ['E'] },
+  { x: 1, y: 0, kind: 'gate', wallLinks: ['W', 'E'] },
+  { x: 2, y: 0, kind: 'tower', wallLinks: ['W'] },
+], 'limestone');
+assert.deepEqual(attachments.blocks.map((block) => block.topology), ['end', 'straight', 'end']);
+const removedGate = system.build([
+  { x: 0, y: 0, kind: 'wall1', wallLinks: ['E'] },
+  { x: 2, y: 0, kind: 'tower', wallLinks: ['W'] },
+], 'limestone');
+assert.deepEqual(removedGate.blocks.map((block) => block.topology), ['isolated', 'isolated']);
 
 console.log('castle block model regression checks passed');
