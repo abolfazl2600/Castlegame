@@ -6,7 +6,7 @@ import type { GameExtension } from './core/GameExtension';
 import type { GameState } from './state/GameState';
 import { SAVE_KEY, SAVE_VERSION, TILE_SIZE, WORLD_COLS } from './core/constants';
 import { WallSystem } from './building/WallSystem';
-import { CastleBlockSystem } from './building/CastleBlockSystem';
+import { CastleBlockSystem, type CastleBlockState } from './building/CastleBlockSystem';
 import { rasterizeWallPath } from './building/WallPath';
 import { KeepRenderer } from './rendering/KeepRenderer';
 import { BasilicaRenderer } from './rendering/BasilicaRenderer';
@@ -373,6 +373,7 @@ export class ThreeGame {
   /** Domain state and gameplay services are composed here, away from rendering/UI concerns. */
   private readonly services = createGameDomainServices();
   private readonly castleBlockSystem = new CastleBlockSystem();
+  private castleBlocksByCell = new Map<string, CastleBlockState>();
   private readonly maritimeSystem = new MaritimeSystem({
     size: SIZE,
     terrainAt: (x, y) => this.terrainAt(x, y),
@@ -2033,6 +2034,7 @@ export class ThreeGame {
     const cells = this.services.state.entries();
     const castleSnapshot = this.castleBlockSystem.build(cells, this.stoneStyle);
     const castleBlocks = new Map(castleSnapshot.blocks.map((block) => [this.key(block.x, block.y), block]));
+    this.castleBlocksByCell = castleBlocks;
 
     for (const cell of cells) {
       const building = this.makeBuilding(cell, floodedMoats);
@@ -3809,6 +3811,8 @@ export class ThreeGame {
   }
 
   private wallConnections(gx: number, gy: number, cell: GridCell): WallDirection[] {
+    const resolved = this.castleBlocksByCell.get(this.key(gx, gy));
+    if (resolved) return resolved.links;
     if (cell.wallLinks && cell.wallLinks.length > 0) {
       return cell.wallLinks.filter((direction) => {
         const vector = WallSystem.vector(direction);
