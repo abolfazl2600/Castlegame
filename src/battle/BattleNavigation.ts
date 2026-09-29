@@ -409,12 +409,6 @@ export class BattleNavigation {
     return result;
   }
 
-  stairTowerAccessNodes(): Array<{ top: WallNavNode; ground: NavPoint }> {
-    // Wall-connected stairs, ramps, and ladders were intentionally removed.
-    // Keep the API returning an empty list so battle behavior cannot create
-    // invisible ground-to-wall transitions from legacy or derived access.
-    return [];
-  }
 
   private reconstruct(nodes: Map<string, SearchNode>, endKey: string): NavPoint[] {
     const result: NavPoint[] = [];
