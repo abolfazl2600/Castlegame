@@ -13,6 +13,7 @@ import { MedievalMaterials } from './rendering/MedievalMaterials';
 import { CASTLE_ARCHITECTURE_STYLE } from './rendering/CastleArchitectureStyle';
 import { WORLD_STYLE, styleTone } from './rendering/WorldStyle';
 import { AmbientMotionSystem } from './rendering/AmbientMotionSystem';
+import { EnvironmentSystem } from './systems/EnvironmentSystem';
 import { DistanceDetailBudgetSystem } from './rendering/DistanceDetailBudget';
 import {
   RESIDENCE_LAYOUTS,
@@ -63,6 +64,7 @@ import {
 import type {
   EconomyResourceState,
   PopulationSimulationState,
+  EnvironmentSimulationState,
   GridCell,
   HarborKind,
   KeepRoofStyle,
@@ -402,6 +404,7 @@ export class ThreeGame {
   private readonly buildLayer = new THREE.Group();
   private readonly ambientLayer = new THREE.Group();
   private readonly ambientMotion = new AmbientMotionSystem();
+  private readonly environmentSystem = new EnvironmentSystem();
   private readonly planLayer = new THREE.Group();
   private readonly wallPreviewLayer = new THREE.Group();
   private buildPreviewKey = '';
@@ -481,6 +484,7 @@ export class ThreeGame {
   private populationBattleCommitted = false;
   private populationBattleStart: BattleSetup | null = null;
   private missileUiRefreshMs = 0;
+  private environmentRefreshMs = 0;
 
   private readonly undoStack: HistorySnapshot[] = [];
   private readonly redoStack: HistorySnapshot[] = [];
@@ -542,6 +546,8 @@ export class ThreeGame {
       setEconomyState: (value) => { this.services.economySystem.setState(value); },
       getPopulationState: () => this.services.populationSystem.getState(),
       setPopulationState: (value) => { this.services.populationSystem.setState(value); },
+      getEnvironmentState: () => this.environmentSystem.getState(),
+      setEnvironmentState: (value) => { this.environmentSystem.setState(value); },
       setWorldSeeded: (value) => { this.worldSeeded = value; },
       setLoadedSaveVersion: (value) => { this.loadedSaveVersion = value; },
       setStoneStyle: (value) => { this.stoneStyle = value; },
@@ -553,6 +559,7 @@ export class ThreeGame {
       afterLoad: () => {
         this.rebuildWorldLayoutSurface();
         this.normalizeRiverElevations();
+        this.applyEnvironmentVisuals(true);
       },
       setStatus: (message) => this.setStatus(message),
     }, storage);
@@ -741,6 +748,7 @@ export class ThreeGame {
 
     if (this.gameMode === 'medieval') this.createWorkers();
     this.redraw();
+    this.applyEnvironmentVisuals(true);
     this.bindUI();
     this.syncBattleCombatStatsUI();
     // Keep the construction tool initialized during world creation/redraw, then enter the neutral mode only after UI binding.
@@ -2225,6 +2233,57 @@ export class ThreeGame {
     });
     this.environmentMaterials.set(key, material);
     return material;
+  }
+
+  private seasonalColor(base: number, seasonal: number, strength: number): number {
+    return new THREE.Color(base).lerp(new THREE.Color(seasonal), THREE.MathUtils.clamp(strength, 0, 1)).getHex();
+  }
+
+  private applyEnvironmentVisuals(force = false): void {
+    const state = this.environmentSystem.visualState();
+    const background = new THREE.Color(state.sky);
+    if (this.scene.background instanceof THREE.Color) this.scene.background.lerp(background, force ? 1 : 0.08);
+    if (this.scene.fog instanceof THREE.Fog) this.scene.fog.color.lerp(new THREE.Color(state.fog), force ? 1 : 0.08);
+
+    this.scene.traverse((object) => {
+      if (object instanceof THREE.DirectionalLight && object.castShadow) {
+        object.color.lerp(new THREE.Color(state.sunlight), force ? 1 : 0.08);
+        object.intensity = THREE.MathUtils.lerp(object.intensity, state.sunIntensity, force ? 1 : 0.08);
+      }
+    });
+
+    const seasonalKeys: Array<[string, number, number]> = [
+      ['layout-grass', state.grass, 0.78],
+      ['filled-grass', state.grass, 0.72],
+      ['terrain-elev-grass', state.grass, 0.72],
+      ['grass-plains-0', state.grass, 0.82],
+      ['grass-plains-1', state.grass, 0.82],
+      ['grass-plains-2', state.grass, 0.82],
+      ['grass-forest-0', state.foliage, 0.7],
+      ['grass-forest-1', state.foliage, 0.7],
+      ['grass-forest-2', state.foliage, 0.7],
+      ['farm-crop-green', state.crop, 0.88],
+      ['farm-crop-gold', state.crop, 0.62],
+      ['farm-crop-young', state.crop, 0.82],
+      ['tree-foliage-0', state.foliage, 0.9],
+      ['tree-foliage-1', state.foliage, 0.82],
+      ['tree-foliage-2', state.foliage, 0.88],
+    ];
+    for (const [key, target, strength] of seasonalKeys) {
+      const material = this.environmentMaterials.get(key);
+      if (!material) continue;
+      const current = material.color.getHex();
+      material.color.setHex(this.seasonalColor(current, target, force ? strength : strength * 0.08));
+    }
+  }
+
+  private updateEnvironment(deltaMs: number): void {
+    this.environmentSystem.advance(deltaMs);
+    this.environmentRefreshMs -= deltaMs;
+    if (this.environmentRefreshMs <= 0) {
+      this.environmentRefreshMs = 250;
+      this.applyEnvironmentVisuals(false);
+    }
   }
 
   private isEnvironmentMaterial(material: THREE.Material): boolean {
@@ -13648,6 +13707,7 @@ export class ThreeGame {
     }
     this.battleSystem.update(deltaMs, time);
     this.updateEconomy(deltaMs);
+    this.updateEnvironment(deltaMs);
     this.updateMissileCapability(deltaMs);
     this.services.session.update(deltaMs, time);
     this.updateLongPress(time);
