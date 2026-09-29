@@ -84,7 +84,7 @@ Recorded mobile production targets:
 - initial redraw ≤ 2100 ms
 - fixed/sticky UI screen coverage ≤ 44%
 
-The values are intentionally conservative for software-rendered CI. They are meant to catch major regressions and scene explosions while #136 defines more aggressive distance-aware production budgets.
+The final coherence runner uses four short frame samples per scene so all nine required visual fixtures can complete reliably on software-rendered CI. These samples are regression evidence, not benchmark-grade profiling. The recorded production targets remain owned by #136.
 
 ## Reference evidence
 
