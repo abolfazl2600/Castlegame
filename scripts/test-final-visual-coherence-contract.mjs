@@ -17,9 +17,11 @@ for (const name of ['starter', 'dense', 'castle', 'farm', 'harbor', 'modern']) {
   );
 }
 
-assert.match(scene, /damage:\s*0\.22/);
-assert.match(scene, /damage:\s*0\.54/);
-assert.match(scene, /damage:\s*0\.84/);
+assert.match(
+  scene,
+  /northDamage = x === 8 \? 0\.22 : x === 10 \? 0\.54 : x === 12 \? 0\.84 : 0/,
+  'Castle QA fixture must include damaged, heavy and partial wall states.',
+);
 assert.match(scene, /cell\(x, 6, 'farm', level\)/);
 assert.match(scene, /cell\(x, 10, 'cowBarn', level\)/);
 assert.match(scene, /cell\(x, 14, 'appleOrchard', level\)/);
