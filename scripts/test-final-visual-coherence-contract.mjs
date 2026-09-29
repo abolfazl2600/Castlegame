@@ -1,11 +1,13 @@
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 
-const [scene, qa, game, ambientMotion, worldStyle, docs] = await Promise.all([
+const [scene, qa, game, ambientMotion, distanceBudget, environmentSystem, worldStyle, docs] = await Promise.all([
   readFile(new URL('./visual-reference-scene.mjs', import.meta.url), 'utf8'),
   readFile(new URL('./final-visual-coherence-qa.mjs', import.meta.url), 'utf8'),
   readFile(new URL('../src/ThreeGame.ts', import.meta.url), 'utf8'),
   readFile(new URL('../src/rendering/AmbientMotionSystem.ts', import.meta.url), 'utf8'),
+  readFile(new URL('../src/rendering/DistanceDetailBudget.ts', import.meta.url), 'utf8'),
+  readFile(new URL('../src/systems/EnvironmentSystem.ts', import.meta.url), 'utf8'),
   readFile(new URL('../src/rendering/WorldStyle.ts', import.meta.url), 'utf8'),
   readFile(new URL('../docs/visual-audits/issue-137/README.md', import.meta.url), 'utf8'),
 ]);
@@ -45,7 +47,13 @@ assert.match(qa, /width:\s*740,\s*height:\s*390/);
 assert.match(qa, /starter-normal-mobile-landscape/);
 assert.match(qa, /castle-battle-normal-desktop/);
 assert.match(qa, /dense-strategic-desktop/);
-assert.match(qa, /knownFocusedFollowups:\s*\[135, 136\]/);
+assert.match(qa, /knownFocusedFollowups:\s*\[\]/);
+assert.match(qa, /dense-autumn-normal-desktop/);
+assert.match(qa, /farm-winter-normal-desktop/);
+assert.match(qa, /environmentProgress:\s*0\.51/);
+assert.match(qa, /environmentProgress:\s*0\.76/);
+assert.match(qa, /activeShadowCasters/);
+assert.match(qa, /expectedBand/);
 assert.match(qa, /maxUiCoverage/);
 assert.match(qa, /maxFrameP95Ms/);
 assert.match(qa, /maxDrawCalls/);
@@ -81,10 +89,20 @@ assert.match(ambientMotion, /registerFlag/);
 assert.doesNotMatch(animate, /riverTexture\.offset/);
 assert.doesNotMatch(animate, /oceanTexture\.offset/);
 
-assert.match(docs, /#134 is now complete/);
-assert.match(docs, /#135/);
-assert.match(docs, /#136/);
-assert.match(docs, /not marked complete/i);
-assert.match(docs, /#136 production performance targets/);
+assert.match(distanceBudget, /export class DistanceDetailBudgetSystem/);
+assert.match(distanceBudget, /inspection/);
+assert.match(distanceBudget, /gameplay/);
+assert.match(distanceBudget, /strategic/);
+assert.match(distanceBudget, /shadowCasters/);
+assert.match(environmentSystem, /export class EnvironmentSystem/);
+assert.match(environmentSystem, /'spring', 'summer', 'autumn', 'winter'/);
+assert.match(game, /visualBudget: this\.distanceDetailBudget\.snapshot\(\)/);
+assert.match(game, /environment: this\.environmentSystem\.visualState\(\)/);
+
+assert.match(docs, /#134.*complete/i);
+assert.match(docs, /#135.*complete/i);
+assert.match(docs, /#136.*complete/i);
+assert.match(docs, /seasonal/i);
+assert.match(docs, /distance-aware/i);
 
 console.log('Final visual coherence QA contract checks passed.');
