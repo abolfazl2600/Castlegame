@@ -9,6 +9,15 @@ import type {
 
 export type CastleBlockKind = 'wall' | 'gate' | 'tower';
 export type CastleTopology = 'isolated' | 'end' | 'straight' | 'corner' | 't-junction' | '4-way' | 'multi-junction';
+export type CastleDamageStage = 'intact' | 'cracked' | 'heavy' | 'partial-breach' | 'collapsed';
+
+export function castleDamageStage(damage: number): CastleDamageStage {
+  if (damage >= 1) return 'collapsed';
+  if (damage >= 0.86) return 'partial-breach';
+  if (damage >= 0.62) return 'heavy';
+  if (damage >= 0.3) return 'cracked';
+  return 'intact';
+}
 
 export interface CastleTraversalMetadata {
   walkableTop: boolean;
@@ -33,6 +42,8 @@ export interface CastleBlockState {
   stack: CastleLevelState[];
   neighborTopDelta: Partial<Record<WallDirection, number>>;
   damage: number;
+  damageStage: CastleDamageStage;
+  rubble: boolean;
   links: WallDirection[];
   topology: CastleTopology;
   /** Clockwise angle from north to the first connected arm, in degrees. */
@@ -42,6 +53,7 @@ export interface CastleBlockState {
   traversal: CastleTraversalMetadata;
   towerShape?: TowerShape;
   towerTop?: TowerTop;
+  attachment?: 'standalone' | 'wall-line' | 'corner' | 'junction';
 }
 
 export interface CastleLevelState {
@@ -124,13 +136,15 @@ function topologyFor(links: WallDirection[]): CastleTopology {
 }
 
 function normalizedLinks(
-  cell: { x: number; y: number; wallLinks?: WallDirection[] },
-  byCell: Map<string, { x: number; y: number; kind: string; wallLinks?: WallDirection[] }>,
+  cell: { x: number; y: number; wallLinks?: WallDirection[]; damage?: number },
+  byCell: Map<string, { x: number; y: number; kind: string; wallLinks?: WallDirection[]; damage?: number }>,
 ): WallDirection[] {
+  if ((cell.damage ?? 0) >= 1) return [];
   return DIRECTIONS.filter((direction) => {
     const vector = connectionVector(direction);
     const neighbor = byCell.get(key(cell.x + vector.x, cell.y + vector.y));
     if (!neighbor || !CASTLE_KINDS.has(neighbor.kind)) return false;
+    if ((neighbor.damage ?? 0) >= 1) return false;
     // Touching cardinal blocks join automatically, including newly replaced gates/towers.
     // Diagonal joins require reciprocal explicit links: corner-touch alone is not a wall.
     if (direction.length === 1) return true;
@@ -189,6 +203,9 @@ export class CastleBlockSystem {
         sourceKind === 'gate' ? 'gate' : sourceKind === 'tower' ? 'tower' : 'wall';
       const heightState = castleHeightFor(cell);
       const level = heightState.stack.length;
+      const damage = Math.max(0, Math.min(1, Number(cell.damage ?? 0)));
+      const damageStage = castleDamageStage(damage);
+      const collapsed = damageStage === 'collapsed';
       const topWorld = heightState.topLocal + terrainElevationAt(cell.x, cell.y);
       const neighborTopDelta: Partial<Record<WallDirection, number>> = {};
       for (const direction of links) {
@@ -211,20 +228,25 @@ export class CastleBlockSystem {
         topWorld,
         stack: heightState.stack,
         neighborTopDelta,
-        damage: Math.max(0, Math.min(1, Number(cell.damage ?? 0))),
+        damage,
+        damageStage,
+        rubble: collapsed,
         links,
         topology: topologyFor(links),
         orientation: links.length ? DIRECTIONS.indexOf(links[0]) * 45 : 0,
         corner: kind === 'wall' && isCorner(links),
         stoneStyle,
         traversal: {
-          walkableTop: kind !== 'gate' ? Boolean(cell.walkway) : true,
-          blocksGround: kind !== 'gate' || cell.gateOpen === false,
-          isCrossing: kind === 'gate',
-          passable: kind === 'gate' && cell.gateOpen !== false,
+          walkableTop: !collapsed && damageStage !== 'partial-breach' && (kind !== 'gate' ? Boolean(cell.walkway) : true),
+          blocksGround: !collapsed && (kind !== 'gate' || cell.gateOpen === false),
+          isCrossing: kind === 'gate' || (collapsed && kind === 'wall'),
+          passable: collapsed && kind === 'wall' || kind === 'gate' && (collapsed || cell.gateOpen !== false),
         },
         towerShape: kind === 'tower' ? cell.towerShape : undefined,
         towerTop: kind === 'tower' ? cell.towerTop : undefined,
+        attachment: kind === 'tower' ?
+          (links.length === 0 ? 'standalone' : topologyFor(links) === 'straight' ? 'wall-line' :
+            topologyFor(links) === 'corner' ? 'corner' : links.length === 1 ? 'wall-line' : 'junction') : undefined,
       };
     });
 
