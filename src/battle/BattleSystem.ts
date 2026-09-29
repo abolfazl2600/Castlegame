@@ -2554,7 +2554,8 @@ export class BattleSystem {
       if (
         object instanceof THREE.Mesh &&
         object.geometry !== this.ladderRailGeometry &&
-        object.geometry !== this.ladderRungGeometry
+        object.geometry !== this.ladderRungGeometry &&
+        !this.sharedGeometries.includes(object.geometry)
       ) {
         object.geometry.dispose();
       }
