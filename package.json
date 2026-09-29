@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "npm run test:battle-state-boundary && npm run test:castle-access-navigation && npm run test:settlement-lifecycle && npm run test:river-water-visibility && npm run test:settings-bootstrap-order && npm run test:camera-zoom-contract && npm run test:save-mode-ui-sync && npm run test:modern-fortress-terrain-protection && tsc --noEmit && vite build",
+    "build": "npm run test:battle-state-boundary && npm run test:castle-access-navigation && npm run test:settlement-lifecycle && npm run test:river-water-visibility && npm run test:settings-bootstrap-order && npm run test:camera-zoom-contract && npm run test:building-silhouette-contract && npm run test:save-mode-ui-sync && npm run test:modern-fortress-terrain-protection && tsc --noEmit && vite build",
     "preview": "vite preview",
     "test:battle-state-boundary": "node scripts/test-battle-state-boundary.mjs",
     "test:castle-access-navigation": "node scripts/test-castle-access-navigation.mjs",
@@ -26,7 +26,7 @@
     "test:map-layouts": "node scripts/test-map-layouts.mjs",
     "test:playable-layout-templates": "node scripts/test-playable-layout-templates.mjs",
     "test:visual-style-integration": "node scripts/test-visual-style-integration.mjs",
-    "test:regression": "npm run test:gate-orientation && npm run test:battle-state-boundary && npm run test:missile-capability && npm run test:castle-access-navigation && npm run test:castle-architecture-style && npm run test:settlement-lifecycle && npm run test:map-layouts && npm run test:playable-layout-templates && npm run test:carcassonne-template && npm run test:visual-style-integration && npm run test:farm-worker-visibility && npm run test:river-water-visibility && npm run test:build-tool-registry && npm run test:cross-mode-save-loading && npm run test:settings-bootstrap-order && npm run test:camera-zoom-contract && npm run test:build-sidebar-ux && npm run test:save-mode-ui-sync && npm run test:modern-fortress-terrain-protection && npm run test:god-mode && npm run test:orchard-visual-contract && npm run test:visual-phase5-audit && npm run test:military-progression && npm run test:army-camp-upgrade && npm run test:agriculture-building-upgrades && npm run test:remove-dig-terrain-tool && npm run test:settlement-economy && npm run test:webgl-resource-disposal && npm run test:unified-harbor-progression && npm run test:persistent-garrison-entry && npm run test:fortification-upgrades",
+    "test:regression": "npm run test:gate-orientation && npm run test:battle-state-boundary && npm run test:missile-capability && npm run test:castle-access-navigation && npm run test:castle-architecture-style && npm run test:settlement-lifecycle && npm run test:map-layouts && npm run test:playable-layout-templates && npm run test:carcassonne-template && npm run test:visual-style-integration && npm run test:farm-worker-visibility && npm run test:river-water-visibility && npm run test:build-tool-registry && npm run test:cross-mode-save-loading && npm run test:settings-bootstrap-order && npm run test:camera-zoom-contract && npm run test:building-silhouette-contract && npm run test:build-sidebar-ux && npm run test:save-mode-ui-sync && npm run test:modern-fortress-terrain-protection && npm run test:god-mode && npm run test:orchard-visual-contract && npm run test:visual-phase5-audit && npm run test:military-progression && npm run test:army-camp-upgrade && npm run test:agriculture-building-upgrades && npm run test:remove-dig-terrain-tool && npm run test:settlement-economy && npm run test:webgl-resource-disposal && npm run test:unified-harbor-progression && npm run test:persistent-garrison-entry && npm run test:fortification-upgrades",
     "test:ci": "npm run test:missile-capability && npm run test:cross-mode-save-loading && npm run test:settings-bootstrap-order",
     "test:visual-phase5-audit": "node scripts/test-visual-phase5-audit.mjs",
     "test:carcassonne-template": "node scripts/test-carcassonne-template.mjs",
@@ -40,7 +40,8 @@
     "test:unified-harbor-progression": "node scripts/test-unified-harbor-progression.mjs",
     "test:persistent-garrison-entry": "node scripts/test-persistent-garrison-entry.mjs",
     "test:fortification-upgrades": "node scripts/test-fortification-upgrades.mjs",
-    "test:camera-zoom-contract": "node scripts/test-camera-zoom-contract.mjs"
+    "test:camera-zoom-contract": "node scripts/test-camera-zoom-contract.mjs",
+    "test:building-silhouette-contract": "node scripts/test-building-silhouette-contract.mjs"
   },
   "dependencies": {
     "three": "^0.180.0"
