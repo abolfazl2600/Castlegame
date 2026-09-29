@@ -169,6 +169,7 @@ async function captureScenario(browser, {
   battle = false,
   touch = false,
   quality = 'high',
+  environmentProgress = null,
 }) {
   const context = await browser.newContext({
     viewport,
@@ -181,6 +182,9 @@ async function captureScenario(browser, {
   page.setDefaultTimeout(15000);
   page.setDefaultNavigationTimeout(20000);
   const save = createVisualScene(scene);
+  if (typeof environmentProgress === 'number') {
+    save.data.environment = { cycleDays: 48, day: 0, progress: environmentProgress };
+  }
   console.log(`Starting final QA capture: ${name}`);
 
   await page.addInitScript(({ record, graphicsQuality, touchMode }) => {
@@ -254,6 +258,9 @@ async function captureScenario(browser, {
     redrawMs: Number(resources.lastRedrawMs.toFixed(2)),
     uiCoverage: Number(uiCoverage.toFixed(4)),
     heapBytes,
+    visualBudget: resources.visualBudget ?? null,
+    environment: resources.environment ?? null,
+    environmentProgress,
   };
 
   console.log(
@@ -335,6 +342,22 @@ try {
       touch: true,
     }));
 
+    results.push(await captureScenario(browser, {
+      scene: 'dense',
+      viewport: desktop,
+      camera: REFERENCE_CAMERA.normal,
+      name: 'dense-autumn-normal-desktop',
+      environmentProgress: 0.51,
+    }));
+
+    results.push(await captureScenario(browser, {
+      scene: 'farm',
+      viewport: desktop,
+      camera: REFERENCE_CAMERA.normal,
+      name: 'farm-winter-normal-desktop',
+      environmentProgress: 0.76,
+    }));
+
     const checks = [];
     for (const result of results) {
       const budget = result.touch ? FINAL_QA_BUDGETS.mobileLandscape : FINAL_QA_BUDGETS.desktopNormal;
@@ -342,6 +365,23 @@ try {
       const hardViolations = result.uiCoverage > budget.maxUiCoverage
         ? [`UI coverage ${(result.uiCoverage * 100).toFixed(1)}% > ${(budget.maxUiCoverage * 100).toFixed(1)}%`]
         : [];
+      if (!result.visualBudget?.budget) {
+        hardViolations.push('missing active distance-detail budget diagnostics');
+      } else {
+        if (result.visualBudget.activeShadowCasters > result.visualBudget.budget.shadowCasters) {
+          hardViolations.push(
+            `shadow casters ${result.visualBudget.activeShadowCasters} > active cap ${result.visualBudget.budget.shadowCasters}`,
+          );
+        }
+        const expectedBand = result.screenshot.includes('strategic') ? 'strategic' : 'gameplay';
+        if (result.visualBudget.band !== expectedBand) {
+          hardViolations.push(`distance band ${result.visualBudget.band} != expected ${expectedBand}`);
+        }
+        if (result.touch && !result.visualBudget.mobile) hardViolations.push('mobile fixture did not select mobile rendering budget');
+      }
+      if (typeof result.environmentProgress === 'number' && !result.environment?.season) {
+        hardViolations.push('seasonal fixture did not expose an environment season');
+      }
       checks.push({
         screenshot: result.screenshot,
         passed: hardViolations.length === 0,
@@ -370,7 +410,7 @@ try {
         totalMemoryBytes: os.totalmem(),
       },
       budgets: FINAL_QA_BUDGETS,
-      knownFocusedFollowups: [135, 136],
+      knownFocusedFollowups: [],
       battleSetup: BATTLE_SETUP,
       captures: results.map((entry) => entry.screenshot),
       checks,
@@ -390,7 +430,7 @@ try {
     const productionBudgetFailures = checks.filter((check) => !check.productionBudgetPassed).length;
     console.log(
       `Final visual QA captured ${results.length} scenarios across ${FINAL_QA_SCENES.length} core scenes. ` +
-      `${productionBudgetFailures} scenario(s) remain above #136 production performance targets.`,
+      `${productionBudgetFailures} scenario(s) remain above the recorded production performance targets.`,
     );
   } finally {
     await browser.close();
