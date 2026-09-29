@@ -98,10 +98,8 @@ Maintain strict decoupling between **authored state**, **headless domain service
 * `CastleArchitectureStyle.ts`: Style token registry for castle components.
 * `MedievalMaterials.ts`: PBR materials and shaders for stone, timber, slate, and thatch.
 * `ModernMaterials.ts`: Materials for reinforced concrete, glass, steel, and composites.
-* `ModernArchitecture.ts` & `ModernStyle.ts`: Modern fortress procedural mesh generators.
 * `KeepRenderer.ts`: Multi-floor castle keep renderer.
 * `BasilicaRenderer.ts`: Medieval cathedral / basilica procedural generator.
-* `FuturisticCastleRenderer.ts`: Sci-fi fortress procedural generator.
 * `SettlementStyle.ts`, `TemplateVisualStyle.ts`, `WorldStyle.ts`: Unified color palettes and material configs.
 
 #### `src/settings/` (User Configuration)
