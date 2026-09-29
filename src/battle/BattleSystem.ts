@@ -20,6 +20,7 @@ import type {
   UnitType,
 } from './types';
 import { defenderUnitStats, militaryTierDefinition, normalizeMilitaryTier, type MilitaryTier } from './MilitaryProgression';
+import { WALL_DAMAGE_READABILITY } from '../rendering/DefenseVisualLanguage';
 
 export type CoreUnitType = 'swordsman' | 'archer' | 'spearman' | 'crossbowman' | 'modernSoldier';
 
@@ -3449,6 +3450,72 @@ export class BattleSystem {
     }
   }
 
+  private addWallDamageSilhouetteCue(
+    parent: THREE.Group,
+    wall: WallBattleState,
+    height: number,
+    stage: WallDamageStage,
+  ): void {
+    if (stage === 'healthy' || stage === 'breached') return;
+
+    const severity =
+      stage === 'damaged' ? 1 :
+      stage === 'heavy' ? 2 :
+      3;
+    const cue = WALL_DAMAGE_READABILITY[stage];
+    parent.userData.damageReadability = cue;
+
+    // A few displaced crest stones keep damage readable at normal/strategic zoom
+    // without filling the parapet with noise.
+    const chipCount = severity === 1 ? 3 : severity === 2 ? 5 : 7;
+    const span = severity === 3 ? 2.45 : severity === 2 ? 1.75 : 1.15;
+    for (let i = 0; i < chipCount; i += 1) {
+      const t = chipCount === 1 ? 0.5 : i / (chipCount - 1);
+      const x = (t - 0.5) * span;
+      const dropped = severity >= 2 && i % 2 === 1;
+      const chip = new THREE.Mesh(
+        i % 3 === 0 ? this.wallSlabGeometry : this.wallChipGeometry,
+        i % 4 === 0 ? this.exposedCoreMaterial : this.rubbleLightMaterial,
+      );
+      chip.position.set(
+        x + (this.wallFxNoise(wall, 5100 + i) - 0.5) * 0.18,
+        height + 0.18 - (dropped ? 0.72 + severity * 0.18 : 0.08 + severity * 0.08),
+        (this.wallFxNoise(wall, 5200 + i) - 0.5) * 0.68,
+      );
+      chip.scale.set(
+        0.75 + severity * 0.14,
+        0.62 + (i % 2) * 0.18,
+        0.72 + severity * 0.08,
+      );
+      chip.rotation.set(
+        (this.wallFxNoise(wall, 5300 + i) - 0.5) * 0.55,
+        this.wallFxNoise(wall, 5400 + i) * Math.PI,
+        (this.wallFxNoise(wall, 5500 + i) - 0.5) * 0.8,
+      );
+      chip.castShadow = true;
+      parent.add(chip);
+    }
+
+    if (severity >= 2) {
+      const notchWidth = severity === 3 ? 2.5 : 1.55;
+      const notchHeight = severity === 3 ? 1.95 : 1.18;
+      for (const face of [-1, 1]) {
+        const notch = new THREE.Mesh(
+          new THREE.BoxGeometry(notchWidth, notchHeight, 0.13),
+          this.damageDarkMaterial,
+        );
+        notch.position.set(
+          severity === 3 ? -0.12 : 0.18,
+          height - notchHeight * 0.28,
+          face * 1.15,
+        );
+        notch.rotation.z = face * (severity === 3 ? 0.09 : -0.06);
+        notch.renderOrder = 6;
+        parent.add(notch);
+      }
+    }
+  }
+
   private renderWallDamage(wall: WallBattleState): void {
     this.clearSiegeVisualGroup(wall.visual);
     if (wall.stage === 'healthy') return;
@@ -3456,6 +3523,9 @@ export class BattleSystem {
     const height = this.world.fortificationTopAt(wall.x, wall.y, wall.cell);
     const damageRoot = new THREE.Group();
     damageRoot.rotation.y = this.wallDamageRotation(wall.cell);
+    damageRoot.userData.damageStage = wall.stage;
+    damageRoot.userData.damageReadability = WALL_DAMAGE_READABILITY[wall.stage];
+    wall.visual.userData.damageStage = wall.stage;
     wall.visual.add(damageRoot);
 
     const intensity =
@@ -3466,6 +3536,7 @@ export class BattleSystem {
 
     if (wall.stage !== 'breached') {
       this.addWallCrackNetwork(damageRoot, wall, height, intensity);
+      this.addWallDamageSilhouetteCue(damageRoot, wall, height, wall.stage);
 
       const scarCount = 3 + intensity * 3;
       for (let i = 0; i < scarCount; i += 1) {
@@ -3496,7 +3567,7 @@ export class BattleSystem {
       );
       cavity.position.set(
         partial ? -0.05 : 0.26,
-        partial ? 3.65 : 4.0,
+        height - (partial ? 1.45 : 1.05),
         -1.18,
       );
       cavity.rotation.z = partial ? -0.08 : 0.1;
