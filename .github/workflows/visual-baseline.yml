@@ -1,13 +1,7 @@
-# Issue 130 focused evidence pass 3
 name: Capture Visual Baseline
 
 on:
   workflow_dispatch:
-  push:
-    branches:
-      - main
-    paths:
-      - .github/workflows/visual-baseline.yml
 
 permissions:
   contents: read
@@ -15,13 +9,11 @@ permissions:
 jobs:
   visual-baseline:
     runs-on: ubuntu-24.04
-    timeout-minutes: 20
+    timeout-minutes: 25
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v5
-        with:
-          fetch-depth: 0
 
       - name: Setup Node
         uses: actions/setup-node@v5
@@ -38,30 +30,22 @@ jobs:
       - name: Validate reference fixture
         run: npm run test:visual-reference
 
-      - name: Build current game
+      - name: Build game
         run: npm run build
 
-      - name: Capture issue 130 after state
-        run: node scripts/capture-silhouette-comparison.mjs --out visual-baselines/issue-130/after
+      - name: Capture screenshots and performance metrics
+        run: npm run visual:baseline -- --out visual-baselines/reference
 
-      - name: Prepare issue 130 before state
-        run: |
-          git worktree add /tmp/castlegame-before 34e06d331da0df4b8ada8936cddbfb0f8823d231
-          cp scripts/visual-reference-scene.mjs /tmp/castlegame-before/scripts/visual-reference-scene.mjs
-          cp scripts/capture-silhouette-comparison.mjs /tmp/castlegame-before/scripts/capture-silhouette-comparison.mjs
-          cd /tmp/castlegame-before
-          npm ci
-          npm run build
+      - name: Build review summary
+        run: npm run visual:report -- --metrics visual-baselines/reference/metrics.json --out visual-baselines/reference/summary.md
 
-      - name: Capture issue 130 before state
-        run: |
-          cd /tmp/castlegame-before
-          VISUAL_PORT=4174 node scripts/capture-silhouette-comparison.mjs --out "$GITHUB_WORKSPACE/visual-baselines/issue-130/before"
+      - name: Publish summary in workflow run
+        run: cat visual-baselines/reference/summary.md >> "$GITHUB_STEP_SUMMARY"
 
-      - name: Upload issue 130 comparison artifact
+      - name: Upload visual baseline artifact
         uses: actions/upload-artifact@v4
         with:
-          name: issue-130-normal-zoom-before-after-${{ github.sha }}
-          path: visual-baselines/issue-130/
+          name: castle-role-visual-baseline-${{ github.sha }}
+          path: visual-baselines/reference/
           if-no-files-found: error
           retention-days: 30
