@@ -120,6 +120,10 @@ export class AmbientFaunaSystem {
       } else if (distance <= 0.05) {
         llama.root.position.x = target.x;
         llama.root.position.z = target.z;
+        if (llama.x !== llama.targetX || llama.y !== llama.targetY) {
+          llama.idleUntil = Math.max(llama.idleUntil, timeMs + 1400 +
+            hash(this.world.seed, llama.targetX, llama.targetY, llama.decisions) * 3200);
+        }
         llama.x = llama.targetX;
         llama.y = llama.targetY;
       }
