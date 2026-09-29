@@ -6,10 +6,34 @@ const saveVersion = Number(constants.match(/export const SAVE_VERSION = (\d+)/)?
 if (!Number.isInteger(saveVersion)) throw new Error('Could not read SAVE_VERSION');
 
 export const REFERENCE_SEED = 6001;
+
+const worldStyle = readFileSync(new URL('../src/rendering/WorldStyle.ts', import.meta.url), 'utf8');
+const cameraPositionMatch = worldStyle.match(/position:\s*new THREE\.Vector3\(([-\d.]+),\s*([-\d.]+),\s*([-\d.]+)\)/);
+const nearMatch = worldStyle.match(/nearInspection:\s*([\d.]+)/);
+const normalMatch = worldStyle.match(/normalGameplay:\s*([\d.]+)/);
+const strategicMatch = worldStyle.match(/maximumStrategic:\s*([\d.]+)/);
+if (!cameraPositionMatch || !nearMatch || !normalMatch || !strategicMatch) {
+  throw new Error('Could not read shared gameplay camera references from WorldStyle');
+}
+const cameraDirection = {
+  x: Number(cameraPositionMatch[1]),
+  y: Number(cameraPositionMatch[2]),
+  z: Number(cameraPositionMatch[3]),
+};
+const directionLength = Math.hypot(cameraDirection.x, cameraDirection.y, cameraDirection.z);
+const cameraAt = (distance) => ({
+  x: cameraDirection.x / directionLength * distance,
+  y: cameraDirection.y / directionLength * distance,
+  z: cameraDirection.z / directionLength * distance,
+  targetX: 0,
+  targetY: 0,
+  targetZ: 0,
+});
+
 export const REFERENCE_CAMERA = {
-  normal: { x: 68, y: 80, z: 76, targetX: 0, targetY: 0, targetZ: 0 },
-  near: { x: 43, y: 50, z: 48, targetX: 0, targetY: 0, targetZ: 0 },
-  far: { x: 91, y: 108, z: 102, targetX: 0, targetY: 0, targetZ: 0 },
+  near: cameraAt(Number(nearMatch[1])),
+  normal: cameraAt(Number(normalMatch[1])),
+  far: cameraAt(Number(strategicMatch[1])),
 };
 
 const referenceCells = [
