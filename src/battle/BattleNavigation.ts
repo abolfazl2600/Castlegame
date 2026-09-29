@@ -396,11 +396,13 @@ export class BattleNavigation {
   }
 
   accessGroundCell(node: NavPoint): NavPoint | null {
-    for (const direction of DIRS.slice(0, 4)) {
-      const point = { x: node.x + direction.x, y: node.y + direction.y };
-      if (this.isGroundWalkable(point.x, point.y)) return point;
-    }
-    return null;
+    const keep = this.context.keeps()[0];
+    const center = keep ?? { x: Math.floor(this.context.size / 2), y: Math.floor(this.context.size / 2) };
+    const candidates = DIRS.slice(0, 4)
+      .map((direction) => ({ x: node.x + direction.x, y: node.y + direction.y }))
+      .filter((point) => this.isGroundWalkable(point.x, point.y));
+    candidates.sort((a, b) => this.heuristic(a, center) - this.heuristic(b, center) || a.y - b.y || a.x - b.x);
+    return candidates[0] ?? null;
   }
 
   accessRouteTo(target: WallNavNode): WallNavNode[] {
