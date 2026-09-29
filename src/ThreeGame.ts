@@ -6,7 +6,7 @@ import type { GameExtension } from './core/GameExtension';
 import type { GameState } from './state/GameState';
 import { SAVE_KEY, SAVE_VERSION, TILE_SIZE, WORLD_COLS } from './core/constants';
 import { WallSystem } from './building/WallSystem';
-import { CastleBlockSystem, type CastleBlockState } from './building/CastleBlockSystem';
+import { CastleBlockSystem, MAX_WALL_LEVEL, castleHeightFor, type CastleBlockState } from './building/CastleBlockSystem';
 import { rasterizeWallPath } from './building/WallPath';
 import { KeepRenderer } from './rendering/KeepRenderer';
 import { BasilicaRenderer } from './rendering/BasilicaRenderer';
@@ -2032,7 +2032,7 @@ export class ThreeGame {
 
     const floodedMoats = this.computeFloodedMoats();
     const cells = this.services.state.entries();
-    const castleSnapshot = this.castleBlockSystem.build(cells, this.stoneStyle);
+    const castleSnapshot = this.castleBlockSystem.build(cells, this.stoneStyle, (x, y) => this.terrainElevation(x, y));
     const castleBlocks = new Map(castleSnapshot.blocks.map((block) => [this.key(block.x, block.y), block]));
     this.castleBlocksByCell = castleBlocks;
 
@@ -2096,6 +2096,7 @@ export class ThreeGame {
     this.syncEconomyUI();
     this.syncArmyCampUpgradeUI();
     this.syncIdleDefenderGarrison();
+    this.syncSelectedGateButton();
 
     this.buildLayer.traverse((object) => {
       if (object.userData.castleFlag) {
@@ -2118,6 +2119,67 @@ export class ThreeGame {
     });
     this.distanceDetailBudget.invalidate();
     if (this.visualBenchmark) this.lastRedrawMs = performance.now() - redrawStart;
+  }
+
+  /** Replace only wall meshes whose connection form can change after a cell edit. */
+  private redrawCastleNeighborhood(points: GridPoint[]): void {
+    if (this.battleSystem?.isActive()) {
+      this.redraw();
+      return;
+    }
+    const affected = new Set<string>();
+    for (const point of points) {
+      for (let dy = -1; dy <= 1; dy += 1) {
+        for (let dx = -1; dx <= 1; dx += 1) {
+          affected.add(this.key(point.x + dx, point.y + dy));
+        }
+      }
+    }
+    const cells = this.services.state.entries();
+    const byKey = new Map(cells.map((cell) => [this.key(cell.x, cell.y), cell]));
+    const snapshot = this.castleBlockSystem.build(cells, this.stoneStyle, (x, y) => this.terrainElevation(x, y));
+    const nextBlocks = new Map(snapshot.blocks.map((block) => [this.key(block.x, block.y), block]));
+    // Gates, towers and mounted weapons own additional runtime objects; rebuild those safely.
+    const weapons = BattleSystem.wallWeaponPositions(SIZE, (x, y) => this.services.state.getCell(x, y));
+    if ([...affected].some((key) => {
+      const oldKind = this.buildObjectsByCell.get(key)?.userData.cellKind as TileKind | undefined;
+      const nextKind = byKey.get(key)?.kind;
+      return (oldKind && !WALL_KINDS.includes(oldKind as WallKind)) ||
+        (nextKind && !WALL_KINDS.includes(nextKind as WallKind));
+    }) || weapons.some((weapon) => affected.has(this.key(weapon.x, weapon.y)))) {
+      this.redraw();
+      return;
+    }
+    this.castleBlocksByCell = nextBlocks;
+    const floodedMoats = this.computeFloodedMoats();
+    for (const key of affected) {
+      const old = this.buildObjectsByCell.get(key);
+      if (old) {
+        this.ambientMotion.unregisterSubtree(old);
+        this.buildLayer.remove(old);
+        this.clearGroup(old as THREE.Group);
+        this.buildObjectsByCell.delete(key);
+      }
+      const cell = byKey.get(key);
+      if (!cell) continue;
+      const building = this.makeBuilding(cell, floodedMoats);
+      building.userData.cellKey = key;
+      building.userData.cellKind = cell.kind;
+      building.userData.castleBlock = nextBlocks.get(key);
+      this.buildObjectsByCell.set(key, building);
+      this.buildLayer.add(building);
+      building.traverse((object) => {
+        if (object.userData.castleFlag) this.ambientMotion.registerFlag(object, Number(object.userData.castleFlag.phase ?? 0));
+        if (object.userData.ambientSway) {
+          const sway = object.userData.ambientSway as { phase?: number; amplitude?: number; speed?: number };
+          this.ambientMotion.registerSway(object, Number(sway.phase ?? 0), Number(sway.amplitude ?? 0.02), Number(sway.speed ?? 0.001));
+        }
+      });
+    }
+    this.clearGroup(this.planLayer);
+    this.renderPlanLayer(cells);
+    this.renderMinimap();
+    this.distanceDetailBudget.invalidate();
   }
 
   private renderMinimap(): void {
@@ -3852,13 +3914,8 @@ export class ThreeGame {
     const links = this.wallConnections(gx, gy, cell);
     group.userData.defenseSilhouette = WALL_SILHOUETTE_PROFILES[kind];
 
-    const baseHeight =
-      kind === 'wall1'
-        ? CASTLE_ARCHITECTURE_STYLE.wall.stoneBaseHeight
-        : kind === 'wall2'
-          ? CASTLE_ARCHITECTURE_STYLE.wall.timberBaseHeight
-          : CASTLE_ARCHITECTURE_STYLE.wall.reinforcedBaseHeight;
-    const height = baseHeight + Math.max(0, level - 1) * CASTLE_ARCHITECTURE_STYLE.wall.levelRise;
+    const heightState = castleHeightFor(cell);
+    const height = heightState.topLocal - CASTLE_ARCHITECTURE_STYLE.elevation.bodyBaseY;
     const topY = CASTLE_ARCHITECTURE_STYLE.elevation.bodyBaseY + height;
 
     const wallMaterial =
@@ -4053,7 +4110,7 @@ export class ThreeGame {
         junctionThickness * 1.16,
         darkMaterial,
         0,
-        2.58 + baseHeight + floor * 2.15 - 1.05,
+        heightState.stack[0].topLocal + floor * CASTLE_ARCHITECTURE_STYLE.wall.levelRise - 1.05,
         0,
       );
     }
@@ -5059,7 +5116,7 @@ export class ThreeGame {
 
     if (vertical) core.rotation.y = Math.PI / 2;
     group.add(core);
-    this.services.gateSystem.registerGate(gx, gy, group, door, vertical);
+    this.services.gateSystem.registerGate(gx, gy, group, door, vertical, cell.gateOpen !== false);
 
     const specs = [
       { dx: -1, dy: 0, axis: 'x' as const, sign: -1 },
@@ -6140,21 +6197,7 @@ export class ThreeGame {
   }
 
   private fortificationTopLocal(cell: GridCell): number {
-    if (WALL_KINDS.includes(cell.kind as WallKind)) {
-      const base = cell.kind === 'wall1' ? 5.2 : cell.kind === 'wall2' ? 4.7 : 5.8;
-      return 2.58 + base + Math.max(0, (cell.level ?? 1) - 1) * 2.15;
-    }
-
-    if (cell.kind === 'tower') {
-      const base = (cell.towerShape ?? 'round') === 'watch' ? 6.4 : 7.4;
-      const level = Math.max(1, Math.min(FORTIFICATION_MAX_LEVEL, Math.floor(cell.level ?? 1)));
-      return 2.58 + base + Math.max(0, level - 1) * 2.15;
-    }
-
-    if (cell.kind === 'gate') {
-      const level = Math.max(1, Math.min(FORTIFICATION_MAX_LEVEL, Math.floor(cell.level ?? 1)));
-      return 7.85 + (level - 1) * 0.55;
-    }
+    if (this.isWallFamily(cell.kind)) return castleHeightFor(cell).topLocal;
     return 5.9;
   }
 
@@ -8761,7 +8804,7 @@ export class ThreeGame {
       if (single && cell?.kind === wallKind) {
         const nextLevel = decrease
           ? Math.max(1, (cell.level ?? 1) - 1)
-          : (cell.level ?? 1) + 1;
+          : Math.min(MAX_WALL_LEVEL, (cell.level ?? 1) + 1);
 
         this.services.state.updateCell(point.x, point.y, {
           level: nextLevel,
@@ -8798,7 +8841,7 @@ export class ThreeGame {
     if (changed) {
       this.pushUndoSnapshot(before);
       if (costedSegments > 0) this.spendConstructionCost(wallKind, costedSegments);
-      this.redraw();
+      this.redrawCastleNeighborhood(path);
       this.scheduleSave();
       this.setStatus(
         single
@@ -9153,6 +9196,7 @@ export class ThreeGame {
     const gy = point.y;
     this.selectedCell = point;
     this.selectedTowerBridgeId = null;
+    this.syncSelectedGateButton();
 
     const cell = this.services.state.getCell(gx, gy);
     const current = cell?.kind;
@@ -9184,7 +9228,11 @@ export class ThreeGame {
         this.recordHistory();
         if (current === 'tower') this.removeTowerBridgesAt(gx, gy);
         this.services.state.removeCell(gx, gy);
-        this.finishBuild();
+        if (WALL_KINDS.includes(current as WallKind)) {
+          this.buildPreviewKey = '';
+          this.redrawCastleNeighborhood([point]);
+          this.scheduleSave();
+        } else this.finishBuild();
         return;
       }
 
@@ -10397,6 +10445,7 @@ export class ThreeGame {
       '<label class="settings-check"><input id="wall-walkway" type="checkbox" /><span>Top Walkway</span></label>' +
       '<div class="settings-actions"><button id="selected-down" type="button">− Height</button><button id="selected-up" type="button">+ Height</button></div>' +
       '<div class="settings-title">Castle Architecture</div>' +
+      '<div class="settings-actions"><button id="selected-gate-toggle" type="button" disabled>Select a Gate</button></div>' +
       '<label class="settings-row"><span>Stone Style</span><select id="castle-stone-style">' +
       '<option value="limestone" selected>Limestone</option><option value="darkStone">Dark Stone</option>' +
       '<option value="sandstone">Sandstone</option><option value="frontier">Rough Frontier</option>' +
@@ -10644,6 +10693,8 @@ export class ThreeGame {
     };
 
     this.syncWallSettingsSummary();
+
+    get<HTMLButtonElement>('selected-gate-toggle').onclick = () => this.toggleSelectedGate();
 
     const towerShape = get<HTMLSelectElement>('tower-shape');
     towerShape.onchange = () => {
@@ -10978,6 +11029,34 @@ export class ThreeGame {
     summary.textContent = `${thickness} · ${battlement} · ${walkway}`;
   }
 
+  private syncSelectedGateButton(): void {
+    const button = document.getElementById('selected-gate-toggle') as HTMLButtonElement | null;
+    if (!button) return;
+    const point = this.selectedCell;
+    const cell = point && this.services.state.getCell(point.x, point.y);
+    button.disabled = !cell || cell.kind !== 'gate' || this.battleSystem.isActive();
+    button.textContent = cell?.kind === 'gate' ? (cell.gateOpen === false ? 'Open Gate' : 'Close Gate') : 'Select a Gate';
+  }
+
+  private toggleSelectedGate(): void {
+    const point = this.selectedCell;
+    if (!point || this.battleSystem.isActive()) return;
+    const cell = this.services.state.getCell(point.x, point.y);
+    if (cell?.kind !== 'gate') return;
+    const open = cell.gateOpen === false;
+    this.recordHistory();
+    this.services.state.updateCell(point.x, point.y, { gateOpen: open });
+    this.services.gateSystem.setManualOpen(point.x, point.y, open);
+    this.castleBlocksByCell = new Map(this.castleBlockSystem.build(
+      this.services.state.entries(), this.stoneStyle, (x, y) => this.terrainElevation(x, y),
+    ).blocks.map((block) => [this.key(block.x, block.y), block]));
+    const rendered = this.buildObjectsByCell.get(this.key(point.x, point.y));
+    if (rendered) rendered.userData.castleBlock = this.castleBlocksByCell.get(this.key(point.x, point.y));
+    this.syncSelectedGateButton();
+    this.scheduleSave();
+    this.setStatus(open ? 'Gate opening' : 'Gate closing');
+  }
+
   private applyWallSettingsToSelected(): void {
     if (!this.selectedCell) return;
     const cell = this.services.state.getCell(this.selectedCell.x, this.selectedCell.y);
@@ -10989,7 +11068,7 @@ export class ThreeGame {
       battlement: this.wallBattlement,
       walkway: this.wallWalkway,
     });
-    this.redraw();
+    this.redrawCastleNeighborhood([this.selectedCell]);
     this.scheduleSave();
   }
 
@@ -11659,15 +11738,16 @@ export class ThreeGame {
     const currentLevel = Math.max(1, Math.floor(cell.level ?? 1));
     const nextLevel = cell.kind === 'tower'
       ? Math.max(1, Math.min(FORTIFICATION_MAX_LEVEL, currentLevel + delta))
-      : Math.max(1, currentLevel + delta);
+      : Math.max(1, Math.min(MAX_WALL_LEVEL, currentLevel + delta));
     if (nextLevel === currentLevel) {
-      this.setStatus(cell.kind === 'tower' ? 'Tower levels are limited to 1–4' : `Height level: ${currentLevel}`);
+      this.setStatus(cell.kind === 'tower' ? 'Tower levels are limited to 1–4' : `Wall levels are limited to 1–${MAX_WALL_LEVEL}`);
       return;
     }
 
     this.recordHistory();
     this.services.state.setLevel(this.selectedCell.x, this.selectedCell.y, nextLevel);
-    this.redraw();
+    if (WALL_KINDS.includes(cell.kind as WallKind)) this.redrawCastleNeighborhood([this.selectedCell]);
+    else this.redraw();
     this.scheduleSave();
     this.setStatus(`Height level: ${nextLevel}`);
   }
