@@ -1,28 +1,14 @@
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
-import ts from 'typescript';
 
-const populationSource = await readFile(
-  new URL('../src/systems/PopulationSystem.ts', import.meta.url),
-  'utf8',
-);
 const gameSource = await readFile(new URL('../src/ThreeGame.ts', import.meta.url), 'utf8');
 const saveSource = await readFile(new URL('../src/core/SaveSystem.ts', import.meta.url), 'utf8');
 const battleSource = await readFile(new URL('../src/battle/BattleSystem.ts', import.meta.url), 'utf8');
 const typesSource = await readFile(new URL('../src/core/types.ts', import.meta.url), 'utf8');
 
-// TypeScript 7 no longer exposes the legacy runtime enum objects used by
-// older tests. transpileModule still accepts the compiler enum numeric values.
-// ESNext is 99 for both ModuleKind and ScriptTarget.
-const transpiled = ts.transpileModule(populationSource, {
-  compilerOptions: {
-    module: 99,
-    target: 99,
-  },
-}).outputText;
-
-const moduleUrl = 'data:text/javascript;base64,' + Buffer.from(transpiled).toString('base64');
-const { PopulationSystem } = await import(moduleUrl);
+const { PopulationSystem } = await import(
+  new URL('../src/systems/PopulationSystem.ts', import.meta.url),
+);
 
 const population = new PopulationSystem();
 const cells = [
