@@ -14,6 +14,7 @@ assert.notEqual(registerStart, -1);
 const buildMethods = game.slice(refreshStart, registerStart);
 
 assert.match(game, /private activeBuildCategory: string \| null = null;/);
+assert.match(game, /get<HTMLButtonElement>\('toolbar-open'\)\.onclick = \(\) => this\.setToolbarOpen\(!this\.toolbarOpen\);/);
 assert.match(game, /class="build-category-tabs" role="tablist"/);
 assert.match(game, /class="build-tool-sections"/);
 assert.match(game, /class="build-world-summary" role="group" aria-label="Population and army"/);
