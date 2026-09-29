@@ -3470,7 +3470,7 @@ export class BattleSystem {
     const chipCount = severity === 1 ? 3 : severity === 2 ? 5 : 7;
     const span = severity === 3 ? 2.45 : severity === 2 ? 1.75 : 1.15;
     for (let i = 0; i < chipCount; i += 1) {
-      const t = chipCount === 1 ? 0.5 : i / (chipCount - 1);
+      const t = i / (chipCount - 1);
       const x = (t - 0.5) * span;
       const dropped = severity >= 2 && i % 2 === 1;
       const chip = new THREE.Mesh(
