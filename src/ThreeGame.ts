@@ -4588,10 +4588,13 @@ export class ThreeGame {
     gy: number,
     cell: GridCell,
   ): THREE.Group {
+    const safeLevel = Math.max(1, Math.min(FORTIFICATION_MAX_LEVEL, Math.floor(cell.level ?? 1)));
     const wallMaterial = this.medievalMaterials.castleStone(this.stoneStyle, 'body', gx, gy);
     const foundation = this.medievalMaterials.castleStone(this.stoneStyle, 'foundation', gx, gy);
+    const accentStone = this.medievalMaterials.castleStone(this.stoneStyle, 'alt', gx, gy);
     const woodMaterial = this.medievalMaterials.timber;
     const darkWood = this.medievalMaterials.timberDark;
+    const iron = this.medievalMaterials.iron;
     const shadow = this.medievalMaterials.arrowVoid;
 
     const orientation = this.resolveGateOrientation(gx, gy, cell);
@@ -4602,10 +4605,16 @@ export class ThreeGame {
     const gateStyle = CASTLE_ARCHITECTURE_STYLE.gate;
     const gateHalfWidth = gateStyle.width / 2;
     const pierX = gateHalfWidth - gateStyle.pierWidth / 2;
+    const levelRise = (safeLevel - 1) * 0.55;
+    const gateBodyHeight = gateStyle.bodyHeight + levelRise;
+    const gateBodyCenterY = 5.22 + levelRise / 2;
+    const topBandY = 7.28 + levelRise;
+    const walkwayY = 7.72 + levelRise;
+    const battlementY = 7.78 + levelRise;
     this.addBox(core, gateStyle.width, 0.82, gateStyle.depth, foundation, 0, 2.15, 0);
-    this.addBox(core, gateStyle.pierWidth, gateStyle.bodyHeight, gateStyle.depth - 0.18, wallMaterial, -pierX, 5.22, 0);
-    this.addBox(core, gateStyle.pierWidth, gateStyle.bodyHeight, gateStyle.depth - 0.18, wallMaterial, pierX, 5.22, 0);
-    this.addBox(core, gateStyle.width, gateStyle.topBandHeight, gateStyle.depth - 0.12, wallMaterial, 0, 7.28, 0);
+    this.addBox(core, gateStyle.pierWidth, gateBodyHeight, gateStyle.depth - 0.18, wallMaterial, -pierX, gateBodyCenterY, 0);
+    this.addBox(core, gateStyle.pierWidth, gateBodyHeight, gateStyle.depth - 0.18, wallMaterial, pierX, gateBodyCenterY, 0);
+    this.addBox(core, gateStyle.width, gateStyle.topBandHeight, gateStyle.depth - 0.12, wallMaterial, 0, topBandY, 0);
 
     this.addBox(door, gateStyle.openingWidth, gateStyle.openingHeight, 0.2, shadow, 0, 4.2, -gateStyle.depth / 2 + 0.07);
     this.addBox(door, gateStyle.openingWidth - 0.17, gateStyle.openingHeight - 0.15, 0.24, woodMaterial, 0, 4.18, -gateStyle.depth / 2 - 0.05);
@@ -4617,9 +4626,95 @@ export class ThreeGame {
     }
     core.add(door);
 
-    this.addBox(core, gateStyle.width + 0.2, gateStyle.walkwayThickness, gateStyle.depth + 0.08, this.medievalMaterials.castleStone(this.stoneStyle, 'walkway', gx, gy), 0, 7.72, 0);
-    this.addTowerCrenellatedEdge(core, gateStyle.width - 0.46, 0, -(gateStyle.depth / 2 - 0.3), 7.78, 0, wallMaterial);
-    this.addTowerCrenellatedEdge(core, gateStyle.width - 0.46, 0, gateStyle.depth / 2 - 0.3, 7.78, Math.PI, wallMaterial);
+    this.addBox(core, gateStyle.width + 0.2, gateStyle.walkwayThickness, gateStyle.depth + 0.08, this.medievalMaterials.castleStone(this.stoneStyle, 'walkway', gx, gy), 0, walkwayY, 0);
+    this.addTowerCrenellatedEdge(core, gateStyle.width - 0.46, 0, -(gateStyle.depth / 2 - 0.3), battlementY, 0, wallMaterial);
+    this.addTowerCrenellatedEdge(core, gateStyle.width - 0.46, 0, gateStyle.depth / 2 - 0.3, battlementY, Math.PI, wallMaterial);
+
+    if (safeLevel >= 2) {
+      for (const y of [3.45, 4.25, 5.05]) {
+        this.addBox(door, gateStyle.openingWidth - 0.26, 0.09, 0.39, iron, 0, y, -1.4);
+      }
+      for (const sign of [-1, 1]) {
+        this.addTaperedButtress(
+          core,
+          sign * (gateHalfWidth - 0.18),
+          4.08,
+          0,
+          3.65,
+          0.42,
+          0.78,
+          accentStone,
+        );
+      }
+    }
+
+    if (safeLevel >= 3) {
+      const corbelY = walkwayY - 0.5;
+      for (const x of [-1.45, -0.48, 0.48, 1.45]) {
+        for (const zSign of [-1, 1]) {
+          this.addBox(
+            core,
+            0.34,
+            0.62,
+            0.46,
+            accentStone,
+            x,
+            corbelY,
+            zSign * (gateStyle.depth / 2 + 0.08),
+          );
+        }
+      }
+      for (const x of [-pierX, pierX]) {
+        for (const zSign of [-1, 1]) {
+          this.addBox(
+            core,
+            0.16,
+            0.72,
+            0.08,
+            shadow,
+            x,
+            topBandY - 0.45,
+            zSign * (gateStyle.depth / 2 + 0.02),
+          );
+        }
+      }
+    }
+
+    if (safeLevel >= 4) {
+      const turretHeight = 1.85;
+      const turretRadius = 0.72;
+      for (const sign of [-1, 1]) {
+        const turret = new THREE.Mesh(
+          new THREE.CylinderGeometry(turretRadius, turretRadius * 1.06, turretHeight, 12),
+          wallMaterial,
+        );
+        turret.position.set(sign * (gateHalfWidth - 0.26), walkwayY + turretHeight / 2 - 0.05, 0);
+        turret.castShadow = true;
+        turret.receiveShadow = true;
+        core.add(turret);
+
+        const crown = new THREE.Mesh(
+          new THREE.CylinderGeometry(turretRadius * 1.12, turretRadius * 1.12, 0.24, 12),
+          accentStone,
+        );
+        crown.position.set(sign * (gateHalfWidth - 0.26), walkwayY + turretHeight - 0.02, 0);
+        crown.castShadow = true;
+        core.add(crown);
+
+        this.addBox(core, 0.07, 1.85, 0.07, iron, sign * (gateHalfWidth - 0.26), walkwayY + turretHeight + 0.82, 0);
+        const flag = this.addBox(
+          core,
+          0.72,
+          0.34,
+          0.05,
+          this.medievalMaterials.roofTile,
+          sign * (gateHalfWidth - 0.26) + 0.36,
+          walkwayY + turretHeight + 1.35,
+          0,
+        );
+        flag.userData.castleFlag = { phase: gx * 0.37 + gy * 0.23 + sign };
+      }
+    }
 
     if (vertical) core.rotation.y = Math.PI / 2;
     group.add(core);
@@ -4652,7 +4747,7 @@ export class ThreeGame {
   }
 
   private makeTower(group: THREE.Group, gx: number, gy: number, cell: GridCell): THREE.Group {
-    const level = cell.level ?? 1;
+    const level = Math.max(1, Math.min(FORTIFICATION_MAX_LEVEL, Math.floor(cell.level ?? 1)));
     const shape = cell.towerShape ?? 'round';
     const top = cell.towerTop ?? 'battlement';
     const height = (shape === 'watch' ? 6.4 : 7.4) + Math.max(0, level - 1) * CASTLE_ARCHITECTURE_STYLE.tower.levelRise;
@@ -4816,6 +4911,57 @@ export class ThreeGame {
         stone,
         darkStone,
       );
+    }
+
+    if (level >= 2) {
+      const crestY = topY - 1.18;
+      const crestOffset = openingRadius + 0.055;
+      const north = this.addBox(group, 0.48, 0.68, 0.12, stoneAccent, 0, crestY, -crestOffset);
+      const south = this.addBox(group, 0.48, 0.68, 0.12, stoneAccent, 0, crestY, crestOffset);
+      const west = this.addBox(group, 0.12, 0.68, 0.48, stoneAccent, -crestOffset, crestY, 0);
+      const east = this.addBox(group, 0.12, 0.68, 0.48, stoneAccent, crestOffset, crestY, 0);
+      north.rotation.y = 0;
+      south.rotation.y = Math.PI;
+      west.rotation.y = Math.PI / 2;
+      east.rotation.y = -Math.PI / 2;
+    }
+
+    if (level >= 3) {
+      if (squareLike) {
+        this.addBox(group, width + 0.72, 0.24, width + 0.72, stoneAccent, 0, topY - 0.38, 0);
+      } else {
+        const segments = shape === 'octagonal' ? 8 : shape === 'watch' ? 12 : 20;
+        const gallery = new THREE.Mesh(
+          new THREE.CylinderGeometry(radius * 1.2, radius * 1.2, 0.24, segments),
+          stoneAccent,
+        );
+        gallery.position.y = topY - 0.38;
+        gallery.castShadow = true;
+        gallery.receiveShadow = true;
+        group.add(gallery);
+      }
+    }
+
+    if (level >= 4) {
+      if (squareLike) {
+        this.addBox(group, width + 0.92, 0.22, width + 0.92, darkStone, 0, topY + 0.04, 0);
+      } else {
+        const segments = shape === 'octagonal' ? 8 : shape === 'watch' ? 12 : 20;
+        const crown = new THREE.Mesh(
+          new THREE.CylinderGeometry(radius * 1.28, radius * 1.28, 0.22, segments),
+          darkStone,
+        );
+        crown.position.y = topY + 0.04;
+        crown.castShadow = true;
+        group.add(crown);
+      }
+
+      for (const sign of [-1, 1]) {
+        const poleX = sign * Math.min(1.05, openingRadius * 0.55);
+        this.addBox(group, 0.07, 2.05, 0.07, metal, poleX, topY + 1.05, 0);
+        const pennant = this.addBox(group, 0.7, 0.32, 0.05, roofMaterial, poleX + 0.35, topY + 1.72, 0);
+        pennant.userData.castleFlag = { phase: gx * 0.29 + gy * 0.43 + sign * 0.7 };
+      }
     }
 
     this.addTowerTop(group, shape, top, topY, squareLike ? width : radius, stone, roofMaterial, wood, metal);
