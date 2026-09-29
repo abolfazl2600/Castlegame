@@ -7,6 +7,7 @@ export interface DefensiveNetworkContext {
   cellAt: (x: number, y: number) => GridCell | undefined;
   elevationAt: (x: number, y: number) => number;
   fortificationTopAt: (x: number, y: number, cell: GridCell) => number;
+  castleLinksAt?: (x: number, y: number) => WallDirection[] | undefined;
 }
 
 export interface DefensiveNetworkNode extends GridPoint {
@@ -60,10 +61,12 @@ export class ConnectedWallNetwork {
     const result: DefensiveNetworkNode[] = [];
     const currentCell = this.context.cellAt(node.x, node.y);
 
-    for (const direction of this.allowedDirections(currentCell)) {
+    for (const direction of this.allowedDirections(currentCell, node.x, node.y)) {
       const vector = WallSystem.vector(direction);
       const neighbor = this.nodeAt(node.x + vector.x, node.y + vector.y);
       if (!neighbor || !this.isCompatible(current, neighbor)) continue;
+      const opposite = WallSystem.opposite(direction);
+      if (!this.allowedDirections(this.context.cellAt(neighbor.x, neighbor.y), neighbor.x, neighbor.y).includes(opposite)) continue;
 
       if (!result.some((item) => item.x === neighbor.x && item.y === neighbor.y)) {
         result.push(neighbor);
@@ -103,7 +106,9 @@ export class ConnectedWallNetwork {
     return result;
   }
 
-  private allowedDirections(cell: GridCell | undefined): WallDirection[] {
+  private allowedDirections(cell: GridCell | undefined, x: number, y: number): WallDirection[] {
+    const resolved = this.context.castleLinksAt?.(x, y);
+    if (resolved) return resolved;
     const explicit = cell?.wallLinks ?? [];
     const directions = new Set<WallDirection>(CARDINALS);
 
@@ -154,6 +159,7 @@ export class ConnectedWallNetwork {
   }
 
   private isDefensiveCell(cell: GridCell): boolean {
+    if ((cell.damage ?? 0) >= 0.86) return false;
     if (this.isWalkableWall(cell.kind)) return cell.walkway === true;
     return this.isAccessNode(cell.kind);
   }
