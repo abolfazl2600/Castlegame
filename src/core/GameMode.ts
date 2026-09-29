@@ -1,6 +1,6 @@
 import type { TileKind, ToolKind } from './types';
 
-export type GameMode = "medieval" | "modern" | "survival" | "sandbox";
+export type GameMode = "medieval" | "survival" | "sandbox";
 
 export interface GameModeToolGroup {
   label: string;
@@ -31,7 +31,6 @@ const COMMON_WORLD_TOOLS: readonly ToolKind[] = [
 
 const SANDBOX_BUILDINGS: readonly TileKind[] = [
   ...MEDIEVAL_BUILDINGS,
-  'futuristicCastle',
 ];
 
 const SANDBOX_TOOLS: readonly ToolKind[] = [
@@ -75,24 +74,6 @@ export const GAME_MODE_CONFIG: Record<GameMode, GameModeDefinition> = {
     availableUnits: ['swordsman','spearman','archer','crossbowman'],
     availableWeapons: ['sword','spear','bow','crossbow'],
   },
-  modern: {
-    id: 'modern',
-    label: 'Modern Fortress',
-    description: 'Modern/futuristic fortress architecture. Only implemented modern systems are enabled.',
-    toolGroups: [
-      { label: 'Fortress', toolIds: ['futuristicCastle'] },
-      { label: 'Buildings', toolIds: [] },
-      { label: 'Defense', toolIds: [] },
-      { label: 'Military', toolIds: [] },
-      { label: 'Weapons', toolIds: [] },
-      { label: 'Infrastructure', toolIds: [] },
-      { label: 'Environment', toolIds: COMMON_WORLD_TOOLS },
-    ],
-    availableTools: ['futuristicCastle', ...COMMON_WORLD_TOOLS],
-    availableBuildingKinds: ['futuristicCastle','tree','rock','mountain'],
-    availableUnits: [],
-    availableWeapons: [],
-  },
   sandbox: {
     id: 'sandbox',
     label: 'Sandbox',
@@ -104,7 +85,6 @@ export const GAME_MODE_CONFIG: Record<GameMode, GameModeDefinition> = {
       { label: 'Military', toolIds: ['armyCamp'] },
       { label: 'Environment', toolIds: ['tree','rock','mountain'] },
       { label: 'Terrain', toolIds: ['mountainRange','river','land','raise','lower','flatten','smooth','hill','cliff','erase'] },
-      { label: 'Modern', toolIds: ['futuristicCastle'] },
     ],
     availableTools: SANDBOX_TOOLS,
     availableBuildingKinds: SANDBOX_BUILDINGS,
@@ -118,7 +98,7 @@ export function getGameModeDefinition(mode: GameMode): GameModeDefinition {
 }
 
 export function isGameMode(value: unknown): value is GameMode {
-  return value === 'medieval' || value === 'modern' || value === 'survival' || value === 'sandbox';
+  return value === 'medieval' || value === 'survival' || value === 'sandbox';
 }
 
 export function isToolAvailable(mode: GameMode, tool: ToolKind): boolean {
@@ -133,9 +113,6 @@ export function isMedievalMode(mode: GameMode): boolean {
   return mode === 'medieval';
 }
 
-export function isModernMode(mode: GameMode): boolean {
-  return mode === 'modern';
-}
 
 export function isUnitAvailable(mode: GameMode, unit: string): boolean {
   return GAME_MODE_CONFIG[mode].availableUnits.includes(unit);
