@@ -237,3 +237,42 @@ test('Touch / Mobile preference forces the touch layout at desktop widths', asyn
   await expect(root).toHaveAttribute('data-input-mode', 'standard');
   await expect(page.locator('.topbar')).toBeVisible();
 });
+
+
+test('Debug mode shows performance diagnostics and persists across reloads', async ({ page }) => {
+  await loadApp(page);
+
+  const overlay = page.locator('#debug-performance-overlay');
+  await expect(overlay).toBeAttached();
+  await expect(overlay).toBeHidden();
+
+  await openSettings(page);
+  await page.locator('[data-settings-nav="graphics"]').click();
+  const debugToggle = page.locator('[data-setting="debugMode"]');
+  await expect(debugToggle).not.toBeChecked();
+  await debugToggle.check();
+
+  await expect(overlay).toBeVisible();
+  await expect(overlay).toContainText('DEBUG PERFORMANCE');
+  await expect(overlay).toContainText('Draw calls');
+  await expect(overlay).toContainText('JS heap used');
+  await expect(overlay).toContainText('Memory pressure');
+  await expect(overlay).toContainText('Detail suppression');
+  await expect(overlay).toContainText('GPU');
+
+  const persisted = await page.evaluate(() => {
+    const raw = localStorage.getItem('castle-role.settings.v2');
+    if (!raw) return null;
+    return JSON.parse(raw)?.graphics?.debugMode ?? null;
+  });
+  expect(persisted).toBe(true);
+
+  await page.reload({ waitUntil: 'domcontentloaded' });
+  await expect(page.locator('#game canvas')).toHaveCount(1, { timeout: 20_000 });
+  await expect(page.locator('#debug-performance-overlay')).toBeVisible();
+
+  await page.locator('#settings-button').click();
+  await page.locator('[data-settings-nav="graphics"]').click();
+  await page.locator('[data-setting="debugMode"]').uncheck();
+  await expect(page.locator('#debug-performance-overlay')).toBeHidden();
+});

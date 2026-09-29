@@ -19,6 +19,7 @@ export interface GraphicsSettings {
   shadowsEnabled: boolean;
   performanceMode: PerformanceMode;
   environmentDetail: EnvironmentDetail;
+  debugMode: boolean;
 }
 
 export interface AudioSettings {
@@ -60,6 +61,7 @@ export function createDefaultSettings(): SettingsData {
       shadowsEnabled: true,
       performanceMode: 'balanced',
       environmentDetail: 'high',
+      debugMode: false,
     },
     audio: {
       masterVolume: 1,

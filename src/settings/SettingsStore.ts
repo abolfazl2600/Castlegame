@@ -226,6 +226,10 @@ function validateSettings(input: SettingsData): SettingsData {
         environmentDetail === 'low' || environmentDetail === 'medium' || environmentDetail === 'high'
           ? environmentDetail
           : defaults.graphics.environmentDetail,
+      debugMode:
+        typeof input.graphics.debugMode === 'boolean'
+          ? input.graphics.debugMode
+          : defaults.graphics.debugMode,
     },
     audio: {
       masterVolume: numberInRange(input.audio.masterVolume, defaults.audio.masterVolume),
