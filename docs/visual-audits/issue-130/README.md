@@ -39,3 +39,26 @@ Use the existing visual reference and dense scenes for comparison. The dense sce
 - No save schema change is required.
 - Silhouette changes are deterministic and do not add per-frame simulation work.
 - Defense-specific silhouette changes remain scoped to #133 so this pass does not overlap that phase.
+
+
+## Before / after evidence
+
+Final comparison workflow: [Actions run #36551298873](https://github.com/abolfazl2600/Castlegame/actions/runs/36551298873)
+
+Artifact: `issue-130-normal-zoom-before-after-f11be06b034fd53014d681c875a581c07045c091`
+
+The artifact contains the same deterministic dense settlement at the shared Normal gameplay camera for both revisions:
+
+- `before/dense-normal-desktop.png`
+- `after/dense-normal-desktop.png`
+- `before/dense-normal-mobile.png`
+- `after/dense-normal-mobile.png`
+
+The before revision is `34e06d331da0df4b8ada8936cddbfb0f8823d231` (phase-1 camera complete, before silhouette changes). The after revision is the current silhouette pass. Both builds use the same current camera fixture; the before capture runs on an isolated preview port so it cannot accidentally reuse the after build.
+
+A pixel-level sanity check confirms the captures are materially different rather than rendering noise:
+
+- desktop: 24,699 pixels differ by more than 10 RGB levels (about 2.01% of the frame)
+- mobile: 19,602 pixels differ by more than 10 RGB levels (about 5.96% of the frame)
+
+The visible change is concentrated in settlement rooflines and residential massing, while terrain, roads, castle footprint, placement and gameplay state remain unchanged.
