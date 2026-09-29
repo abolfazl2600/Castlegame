@@ -228,19 +228,25 @@ export class DistanceDetailBudgetSystem {
 
       const detail = this.applyDetailBudget(scene, budget);
       const shadow = this.applyShadowBudget(scene, budget.shadowCasters, renderer.shadowMap.enabled);
+      const estimatedDrawCalls = detail.estimatedDrawCalls + shadow.activeShadowCasters;
+      const baselineEstimatedDrawCalls =
+        detail.baselineEstimatedDrawCalls + shadow.baselineShadowCasters;
       this.lastSnapshot = {
         band: this.band,
         mobile,
         budget,
         ...detail,
         ...shadow,
+        estimatedDrawCalls,
+        baselineEstimatedDrawCalls,
+        suppressedEstimatedDrawCalls: Math.max(0, baselineEstimatedDrawCalls - estimatedDrawCalls),
       };
       scene.userData.visualPerformanceBudget = {
         band: this.band,
         mobile,
         ...budget,
         activeHighDetailMeshes: detail.activeHighDetailMeshes,
-        estimatedDrawCalls: detail.estimatedDrawCalls,
+        estimatedDrawCalls: this.lastSnapshot.estimatedDrawCalls,
       };
       this.lastProfileKey = profileKey;
     }
@@ -327,7 +333,12 @@ export class DistanceDetailBudgetSystem {
     candidates.sort((a, b) => b.radius - a.radius || a.order - b.order);
 
     const maxDetailMeshes = Math.max(0, budget.highDetailMeshes);
-    const availableDrawCalls = Math.max(0, budget.drawCalls - protectedDrawCalls);
+    // Reserve the active shadow budget because every shadow-casting mesh can
+    // add another renderer draw in the shadow pass.
+    const availableDrawCalls = Math.max(
+      0,
+      budget.drawCalls - protectedDrawCalls - budget.shadowCasters,
+    );
     let activeHighDetailMeshes = 0;
     let activeDetailDrawCalls = 0;
 
