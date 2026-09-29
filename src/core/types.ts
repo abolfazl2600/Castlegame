@@ -109,6 +109,8 @@ export interface TowerBridgeState {
   bx: number;
   by: number;
   kind: TowerBridgeKind;
+  /** Upgrade progression. Legacy saves without this field are treated as Level 1. */
+  level?: number;
 }
 
 export interface SavedBattleSetup {
