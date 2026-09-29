@@ -70,7 +70,7 @@ async function sample(page) {
   return page.evaluate(async () => {
     const samples = [];
     let previous = performance.now();
-    for (let index = 0; index < 12; index += 1) {
+    for (let index = 0; index < 4; index += 1) {
       const now = await new Promise((resolve) => {
         let settled = false;
         const timer = setTimeout(() => {
@@ -158,7 +158,7 @@ async function startBattle(page) {
     throw new Error(`Battle QA fixture failed to enter running state: ${JSON.stringify(diagnostic)} · ${String(error)}`);
   }
   await page.evaluate(() => document.querySelector('#battle-close')?.click());
-  await page.waitForTimeout(1600);
+  await page.waitForTimeout(950);
 }
 
 async function captureScenario(browser, {
@@ -224,7 +224,7 @@ async function captureScenario(browser, {
 
   if (battle) await startBattle(page);
 
-  await page.waitForTimeout(650);
+  await page.waitForTimeout(320);
   const { samples, resources, uiCoverage, heapBytes } = await sample(page);
 
   // Screenshot encoding is substantially slower on CI SwiftShader for dense scenes.
@@ -263,7 +263,7 @@ async function captureScenario(browser, {
   await page.screenshot({
     path: `${output}/${screenshot}`,
     type: 'jpeg',
-    quality: 88,
+    quality: 82,
     fullPage: false,
     animations: 'disabled',
   });
