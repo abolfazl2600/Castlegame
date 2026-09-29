@@ -421,7 +421,7 @@ export class ThreeGame {
   private viewMode: ViewMode = 'world3d';
   private toolbarOpen = window.innerWidth > 760;
   private activeBuildCategory: string | null = null;
-  private readonly saved3DCameraPosition = new THREE.Vector3(68, 80, 76);
+  private readonly saved3DCameraPosition = WORLD_STYLE.camera.position.clone();
   private readonly saved3DTarget = new THREE.Vector3(0, 0, 0);
   private wallThickness: WallThickness = 'medium';
   private wallBattlement = true;
@@ -627,8 +627,10 @@ export class ThreeGame {
     this.controls.dampingFactor = 0.06;
     this.controls.minDistance = WORLD_STYLE.camera.minDistance;
     this.controls.maxDistance = WORLD_STYLE.camera.maxDistance;
-    this.controls.maxPolarAngle = Math.PI / 2;
+    this.controls.maxPolarAngle = WORLD_STYLE.camera.maxPolarAngle;
+    this.controls.zoomToCursor = false;
     this.controls.target.set(0, 0, 0);
+    this.controls.addEventListener('change', () => this.enforceGameplayCameraBounds());
     applyInputSettings(this.controls, this.settingsStore.get());
     this.settingsStore.subscribe((settings) => {
       applyGraphicsSettings(this.renderer, settings);
@@ -2371,6 +2373,52 @@ export class ThreeGame {
     }
   }
 
+  private enforceGameplayCameraBounds(): void {
+    if (this.visualBenchmark) return;
+
+    const limit = Math.max(0, WORLD / 2 - WORLD_STYLE.camera.targetPadding);
+    const previousTarget = this.controls.target.clone();
+    const clampedTarget = previousTarget.clone();
+    clampedTarget.x = THREE.MathUtils.clamp(clampedTarget.x, -limit, limit);
+    clampedTarget.y = THREE.MathUtils.clamp(
+      clampedTarget.y,
+      WORLD_STYLE.camera.minTargetY,
+      WORLD_STYLE.camera.maxTargetY,
+    );
+    clampedTarget.z = THREE.MathUtils.clamp(clampedTarget.z, -limit, limit);
+
+    if (!clampedTarget.equals(previousTarget)) {
+      const offset = this.camera.position.clone().sub(previousTarget);
+      this.controls.target.copy(clampedTarget);
+      this.camera.position.copy(clampedTarget).add(offset);
+    }
+
+    const offset = this.camera.position.clone().sub(this.controls.target);
+    const distance = offset.length();
+    const clampedDistance = THREE.MathUtils.clamp(
+      distance,
+      WORLD_STYLE.camera.minDistance,
+      WORLD_STYLE.camera.maxDistance,
+    );
+    if (distance > 0.0001 && Math.abs(distance - clampedDistance) > 0.001) {
+      offset.setLength(clampedDistance);
+      this.camera.position.copy(this.controls.target).add(offset);
+    }
+  }
+
+  private resetGameplayCameraReference(): void {
+    this.saved3DTarget.set(0, 0, 0);
+    this.saved3DCameraPosition.copy(WORLD_STYLE.camera.position);
+
+    if (this.viewMode === 'world3d') {
+      this.controls.target.copy(this.saved3DTarget);
+      this.camera.position.copy(this.saved3DCameraPosition);
+      this.camera.lookAt(this.controls.target);
+      this.controls.update();
+      this.enforceGameplayCameraBounds();
+    }
+  }
+
   private setCameraView(view: '45' | 'top'): void {
     if (this.viewMode !== 'world3d' || this.battleSystem.isActive()) {
       this.setViewMode('world3d');
@@ -2457,12 +2505,12 @@ export class ThreeGame {
 
     if (planMode) {
       this.camera.up.set(0, 1, 0);
-      this.camera.position.set(0, 118, 0.001);
+      this.camera.position.set(0, WORLD_STYLE.camera.planDistance, 0.001);
       this.controls.target.set(0, 0, 0);
       this.controls.enableRotate = false;
       this.controls.enablePan = true;
-      this.controls.minDistance = 52;
-      this.controls.maxDistance = 155;
+      this.controls.minDistance = WORLD_STYLE.camera.minDistance;
+      this.controls.maxDistance = WORLD_STYLE.camera.maxDistance;
       this.setStatus('2D Plan mode · design first, then switch to 3D');
     } else {
       this.camera.up.set(0, 1, 0);
@@ -2470,8 +2518,8 @@ export class ThreeGame {
       this.controls.target.copy(this.saved3DTarget);
       this.controls.enableRotate = true;
       this.controls.enablePan = true;
-      this.controls.minDistance = 34;
-      this.controls.maxDistance = 150;
+      this.controls.minDistance = WORLD_STYLE.camera.minDistance;
+      this.controls.maxDistance = WORLD_STYLE.camera.maxDistance;
       this.setStatus('3D View · inspect your built castle');
     }
 
@@ -10515,6 +10563,7 @@ export class ThreeGame {
       this.selectedTowerBridgeId = null;
       this.undoStack.length = 0;
       this.redoStack.length = 0;
+      this.resetGameplayCameraReference();
       this.redraw();
     };
     get<HTMLButtonElement>('reset-button').onclick = () => {
@@ -12556,6 +12605,7 @@ export class ThreeGame {
     if (stoneSelect) stoneSelect.value = this.stoneStyle;
     const bridgeSelect = document.getElementById('tower-bridge-kind') as HTMLSelectElement | null;
     if (bridgeSelect) bridgeSelect.value = this.towerBridgeKind;
+    this.resetGameplayCameraReference();
     this.redraw();
     this.save();
     this.setStatus('Template loaded: ' + template);
@@ -13244,6 +13294,7 @@ export class ThreeGame {
     }
 
     this.controls.update();
+    this.enforceGameplayCameraBounds();
     this.renderer.render(this.scene, this.camera);
 
     requestAnimationFrame((nextTime) => this.animate(nextTime));
