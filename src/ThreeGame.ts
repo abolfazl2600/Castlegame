@@ -5780,10 +5780,14 @@ export class ThreeGame {
 
     if (cell.kind === 'tower') {
       const base = (cell.towerShape ?? 'round') === 'watch' ? 6.4 : 7.4;
-      return 2.58 + base + Math.max(0, (cell.level ?? 1) - 1) * 2.15;
+      const level = Math.max(1, Math.min(FORTIFICATION_MAX_LEVEL, Math.floor(cell.level ?? 1)));
+      return 2.58 + base + Math.max(0, level - 1) * 2.15;
     }
 
-    if (cell.kind === 'gate') return 7.85;
+    if (cell.kind === 'gate') {
+      const level = Math.max(1, Math.min(FORTIFICATION_MAX_LEVEL, Math.floor(cell.level ?? 1)));
+      return 7.85 + (level - 1) * 0.55;
+    }
     return 5.9;
   }
 
@@ -8562,6 +8566,7 @@ export class ThreeGame {
     const gx = point.x;
     const gy = point.y;
     this.selectedCell = point;
+    this.selectedTowerBridgeId = null;
 
     const cell = this.services.state.getCell(gx, gy);
     const current = cell?.kind;
@@ -8781,9 +8786,15 @@ export class ThreeGame {
 
     if (this.selectedTool === 'tower') {
       if (current === 'tower') {
+        const currentLevel = Math.max(1, Math.min(FORTIFICATION_MAX_LEVEL, Math.floor(cell?.level ?? 1)));
         const nextLevel = event.shiftKey
-          ? Math.max(1, (cell?.level ?? 1) - 1)
-          : (cell?.level ?? 1) + 1;
+          ? Math.max(1, currentLevel - 1)
+          : Math.min(FORTIFICATION_MAX_LEVEL, currentLevel + 1);
+        if (nextLevel === currentLevel) {
+          this.setStatus(event.shiftKey ? 'Tower is already at Level 1' : 'Tower is already at Level 4 · Royal Bastion');
+          this.syncArmyCampUpgradeUI();
+          return;
+        }
 
         this.recordHistory();
         const compatibleTop = this.compatibleTowerTop(this.towerShape, this.towerTop);
@@ -8794,6 +8805,7 @@ export class ThreeGame {
           towerTop: compatibleTop,
         });
         this.finishBuild();
+        this.setStatus(`Tower changed to Level ${nextLevel} · ${this.fortificationLevelDefinition('tower', nextLevel).name}`);
         return;
       }
 
@@ -8856,7 +8868,10 @@ export class ThreeGame {
       if (selectedFortification && currentFortification) {
         if (!this.ensureConstructionAffordable(selectedTile)) return;
         this.recordHistory();
-        this.services.state.setCell(gx, gy, selectedTile, cell?.level ?? 1, {
+        const inheritedLevel = selectedTile === 'gate'
+          ? Math.max(1, Math.min(FORTIFICATION_MAX_LEVEL, Math.floor(cell?.level ?? 1)))
+          : cell?.level ?? 1;
+        this.services.state.setCell(gx, gy, selectedTile, inheritedLevel, {
           wallLinks: cell?.wallLinks,
           rotation: cell?.rotation,
           rotationMode: 'auto',
@@ -10194,6 +10209,7 @@ export class ThreeGame {
     get<HTMLButtonElement>('select-clear').onclick = () => {
       this.selectedCell = null;
       this.selectedKeepId = null;
+      this.selectedTowerBridgeId = null;
       this.syncArmyCampUpgradeUI();
       this.setStatus('Selection cleared');
     };
@@ -10325,6 +10341,7 @@ export class ThreeGame {
       this.load();
       this.selectedCell = null;
       this.selectedKeepId = null;
+      this.selectedTowerBridgeId = null;
       this.undoStack.length = 0;
       this.redoStack.length = 0;
       this.redraw();
@@ -10480,6 +10497,7 @@ export class ThreeGame {
   private selectKeep(keep: KeepState): void {
     this.selectedKeepId = keep.id;
     this.selectedCell = null;
+    this.selectedTowerBridgeId = null;
     this.syncArmyCampUpgradeUI();
     this.keepWidth = keep.width;
     this.keepDepth = keep.depth;
@@ -10941,8 +10959,16 @@ export class ThreeGame {
       return;
     }
 
+    const currentLevel = Math.max(1, Math.floor(cell.level ?? 1));
+    const nextLevel = cell.kind === 'tower'
+      ? Math.max(1, Math.min(FORTIFICATION_MAX_LEVEL, currentLevel + delta))
+      : Math.max(1, currentLevel + delta);
+    if (nextLevel === currentLevel) {
+      this.setStatus(cell.kind === 'tower' ? 'Tower levels are limited to 1–4' : `Height level: ${currentLevel}`);
+      return;
+    }
+
     this.recordHistory();
-    const nextLevel = Math.max(1, (cell.level ?? 1) + delta);
     this.services.state.setLevel(this.selectedCell.x, this.selectedCell.y, nextLevel);
     this.redraw();
     this.scheduleSave();
