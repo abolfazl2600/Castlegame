@@ -23,7 +23,6 @@ const MEDIEVAL_BUILDINGS: readonly TileKind[] = [
   'road','dirtRoad','stoneRoad','harbor',
   'cottage','house','manor','villa','farm','cowBarn','appleOrchard','armyCamp',
   'market','basilica','windmill','mine','mountain','tree','rock','hut','moat',
-  'stoneStairs','woodenStairs','ramp','ladder',
 ];
 
 const COMMON_WORLD_TOOLS: readonly ToolKind[] = [
