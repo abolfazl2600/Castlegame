@@ -26,7 +26,7 @@ assert.match(budget, /parentHasReadabilityPriority/, 'silhouette-defining geomet
 assert.match(budget, /candidate\.mesh\.visible = false/, 'micro-detail budget must actively suppress excess detail');
 assert.match(budget, /activeHighDetailMeshes/, 'active high-detail mesh diagnostics are required');
 assert.match(budget, /estimatedDrawCalls/, 'estimated draw-call diagnostics are required');
-assert.match(budget, /budget\.drawCalls - protectedDrawCalls/, 'draw-call cap must reserve protected silhouette geometry first');
+assert.match(budget, /detailDrawAllowance/, 'detail draw allowance must keep normal and strategic LOD budgets distinct');
 assert.match(budget, /detailBudgetRoot/, 'distance governor must budget detail per logical structure or unit root');
 assert.match(budget, /current\.userData\.cellKey/, 'building roots must participate in per-structure LOD budgeting');
 assert.match(budget, /current\.userData\.visualRefs/, 'battle unit roots must participate in per-unit LOD budgeting');
