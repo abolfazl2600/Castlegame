@@ -263,6 +263,11 @@ export class OrchardSystem {
     }
 
     tree.position.set(x, 0, z);
+    tree.userData.ambientSway = {
+      phase: localSeed * 0.013,
+      amplitude: 0.016 + scale * 0.006,
+      speed: 0.00092,
+    };
     group.add(tree);
   }
 
