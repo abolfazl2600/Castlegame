@@ -75,7 +75,6 @@ interface UnitRuntime {
   activeLadderId?: string;
   climbProgress: number;
   wallSeconds: number;
-  accessTransition?: WallAccessTransition;
   attackProgress: number;
   attackDuration: number;
   attackApplied: boolean;
@@ -182,16 +181,6 @@ interface MissileProjectile {
   duration: number;
   impactRadius: number;
   damage: number;
-}
-
-interface WallAccessTransition {
-  start: THREE.Vector3;
-  end: THREE.Vector3;
-  progress: number;
-  duration: number;
-  destination: 'wall' | 'ground';
-  gridX: number;
-  gridY: number;
 }
 
 interface UnitVisualRefs {
@@ -1320,7 +1309,6 @@ export class BattleSystem {
       lastProgressPosition: position.clone(),
       climbProgress: 0,
       wallSeconds: 0,
-      accessTransition: undefined,
       attackProgress: 1,
       attackDuration: Math.max(0.24, Math.min(stats.attackCooldown * 0.46, 0.52)),
       attackApplied: false,
@@ -1536,13 +1524,6 @@ export class BattleSystem {
       return;
     }
 
-    if (runtime.accessTransition) {
-      this.updateWallAccessTransition(runtime, delta);
-      runtime.view.position.copy(runtime.position);
-      this.animateUnit(runtime);
-      return;
-    }
-
     let target = runtime.data.targetId
       ? this.units.get(runtime.data.targetId)
       : undefined;
@@ -1564,40 +1545,6 @@ export class BattleSystem {
           runtime.position.distanceTo(target.position) <= runtime.stats.attackRange
             ? 'attack'
             : 'chase';
-
-        if (
-          runtime.surface === 'ground' &&
-          this.isRangedUnit(runtime.data.unitType) &&
-          target.surface === 'ground' &&
-          runtime.position.distanceTo(target.position) > runtime.stats.attackRange * 0.72 &&
-          this.tryMoveDefenderToWallPosition(runtime, target, delta)
-        ) {
-          runtime.view.position.copy(runtime.position);
-          this.animateUnit(runtime);
-          return;
-        }
-      }
-      if (
-        runtime.data.faction === 'defender' &&
-        runtime.surface === 'ground' &&
-        target.surface === 'wall' &&
-        this.tryUseStairTowerToReach(runtime, target, delta)
-      ) {
-        runtime.view.position.copy(runtime.position);
-        this.animateUnit(runtime);
-        return;
-      }
-
-      if (
-        runtime.data.faction === 'defender' &&
-        this.isMeleeUnit(runtime.data.unitType) &&
-        runtime.surface === 'wall' &&
-        target.surface === 'ground' &&
-        this.tryUseStairTowerToDescend(runtime, target, delta)
-      ) {
-        runtime.view.position.copy(runtime.position);
-        this.animateUnit(runtime);
-        return;
       }
 
       this.faceTarget(runtime, target.position);
@@ -1956,206 +1903,6 @@ export class BattleSystem {
     runtime.data.state = state;
   }
 
-  private tryUseStairTowerToReach(
-    runtime: UnitRuntime,
-    target: UnitRuntime,
-    delta: number,
-  ): boolean {
-    if (runtime.data.faction !== 'defender') return false;
-    return this.tryMoveDefenderToWallPosition(runtime, target, delta);
-  }
-
-  private tryMoveDefenderToWallPosition(
-    runtime: UnitRuntime,
-    target: UnitRuntime,
-    delta: number,
-  ): boolean {
-    const accesses = this.navigation.stairTowerAccessNodes();
-    if (accesses.length === 0) return false;
-
-    const candidates = accesses
-      .map((access) => {
-        const path = this.navigation.findPath(
-          { x: runtime.gridX, y: runtime.gridY },
-          access.ground,
-          false,
-        );
-        return {
-          access,
-          path,
-          score:
-            (path.length > 0 ? path.length : 999) +
-            this.gridDistance(access.top, { x: target.gridX, y: target.gridY }) * 0.8,
-        };
-      })
-      .filter((candidate) => candidate.path.length > 0)
-      .sort((a, b) => a.score - b.score);
-
-    const chosen = candidates[0];
-    if (!chosen) return false;
-
-    const groundWorld = this.world.gridToWorld(
-      chosen.access.ground.x,
-      chosen.access.ground.y,
-    );
-    const distance = Math.hypot(
-      runtime.position.x - groundWorld.x,
-      runtime.position.z - groundWorld.z,
-    );
-
-    if (distance <= 0.72) {
-      if (!runtime.accessTransition) {
-        const topWorld = this.world.gridToWorld(
-          chosen.access.top.x,
-          chosen.access.top.y,
-        );
-        this.beginWallAccessTransition(
-          runtime,
-          new THREE.Vector3(topWorld.x, chosen.access.top.worldY, topWorld.z),
-          'wall',
-          chosen.access.top.x,
-          chosen.access.top.y,
-        );
-      }
-      runtime.data.state = 'moving';
-      return true;
-    }
-
-    if (
-      runtime.path.length === 0 ||
-      runtime.pathIndex >= runtime.path.length ||
-      runtime.path[runtime.path.length - 1]?.x !== chosen.access.ground.x ||
-      runtime.path[runtime.path.length - 1]?.y !== chosen.access.ground.y
-    ) {
-      runtime.path = chosen.path;
-      runtime.pathIndex = Math.min(1, Math.max(0, runtime.path.length - 1));
-    }
-
-    this.followGroundPath(runtime, delta, 'moving');
-    return true;
-  }
-
-  private tryUseStairTowerToDescend(
-    runtime: UnitRuntime,
-    target: UnitRuntime,
-    delta: number,
-  ): boolean {
-    if (runtime.data.faction !== 'defender') return false;
-
-    const accesses = this.navigation.stairTowerAccessNodes();
-    if (accesses.length === 0) return false;
-
-    accesses.sort(
-      (a, b) =>
-        this.gridDistance(a.top, { x: target.gridX, y: target.gridY }) -
-        this.gridDistance(b.top, { x: target.gridX, y: target.gridY }),
-    );
-    const chosen = accesses[0];
-
-    if (
-      runtime.gridX === chosen.top.x &&
-      runtime.gridY === chosen.top.y
-    ) {
-      const world = this.world.gridToWorld(
-        chosen.ground.x,
-        chosen.ground.y,
-      );
-      if (!runtime.accessTransition) {
-        this.beginWallAccessTransition(
-          runtime,
-          new THREE.Vector3(
-            world.x,
-            2.22 + this.world.elevationAt(chosen.ground.x, chosen.ground.y),
-            world.z,
-          ),
-          'ground',
-          chosen.ground.x,
-          chosen.ground.y,
-        );
-      }
-      runtime.data.state = 'moving';
-      return true;
-    }
-
-    const node = this.wallNodes.get(this.gridKey(runtime.gridX, runtime.gridY));
-    if (!node) return false;
-
-    const neighbors = this.navigation.connectedWallNeighbors(node, this.wallNodes);
-    if (neighbors.length === 0) return false;
-    neighbors.sort(
-      (a, b) =>
-        this.gridDistance(a, chosen.top) -
-        this.gridDistance(b, chosen.top),
-    );
-
-    const next = neighbors[0];
-    const world = this.world.gridToWorld(next.x, next.y);
-    const destination = new THREE.Vector3(world.x, next.worldY, world.z);
-    if (this.moveTowardWallPoint(runtime, destination, delta, 0.28)) {
-      runtime.gridX = next.x;
-      runtime.gridY = next.y;
-      runtime.position.y = next.worldY;
-    }
-    runtime.data.state = 'moving';
-    return true;
-  }
-
-  private beginWallAccessTransition(
-    runtime: UnitRuntime,
-    end: THREE.Vector3,
-    destination: 'wall' | 'ground',
-    gridX: number,
-    gridY: number,
-  ): void {
-    const distance = runtime.position.distanceTo(end);
-    runtime.accessTransition = {
-      start: runtime.position.clone(),
-      end: end.clone(),
-      progress: 0,
-      duration: THREE.MathUtils.clamp(
-        distance / Math.max(1.4, runtime.stats.moveSpeed * 0.72),
-        0.65,
-        1.5,
-      ),
-      destination,
-      gridX,
-      gridY,
-    };
-    runtime.path = [];
-    runtime.pathIndex = 0;
-    runtime.moving = true;
-    runtime.data.state = 'moving';
-  }
-
-  private updateWallAccessTransition(runtime: UnitRuntime, delta: number): void {
-    const transition = runtime.accessTransition;
-    if (!transition) return;
-
-    transition.progress = Math.min(
-      1,
-      transition.progress + delta / transition.duration,
-    );
-
-    const eased = transition.progress * transition.progress * (3 - 2 * transition.progress);
-    runtime.position.copy(transition.start).lerp(transition.end, eased);
-    this.rotateUnitToward(
-      runtime,
-      Math.atan2(transition.end.x - transition.start.x, transition.end.z - transition.start.z),
-      delta,
-      8,
-    );
-    runtime.moving = true;
-
-    if (transition.progress < 1) return;
-
-    runtime.position.copy(transition.end);
-    runtime.surface = transition.destination;
-    runtime.gridX = transition.gridX;
-    runtime.gridY = transition.gridY;
-    runtime.accessTransition = undefined;
-    runtime.wallSeconds = 0;
-    runtime.data.state = 'moving';
-  }
 
   private moveTowardTarget(
     runtime: UnitRuntime,
