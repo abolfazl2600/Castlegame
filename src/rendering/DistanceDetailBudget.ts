@@ -182,6 +182,20 @@ function coreMeshesPerRoot(band: DistanceDetailBand, mobile: boolean): number {
   return 1;
 }
 
+function detailDrawAllowance(
+  budget: VisualPerformanceBudget,
+  band: DistanceDetailBand,
+  mobile: boolean,
+): number {
+  const fraction =
+    band === 'inspection'
+      ? (mobile ? 0.25 : 0.42)
+      : band === 'gameplay'
+        ? (mobile ? 0.18 : 0.35)
+        : (mobile ? 0.05 : 0.12);
+  return Math.max(0, Math.floor(budget.drawCalls * fraction));
+}
+
 interface DetailBudgetResult {
   activeHighDetailMeshes: number;
   baselineHighDetailMeshes: number;
@@ -387,12 +401,10 @@ export class DistanceDetailBudgetSystem {
 
     candidates.sort((a, b) => b.radius - a.radius || a.order - b.order);
 
-    const maxDetailMeshes = Math.max(0, budget.highDetailMeshes);
-    // Reserve the active shadow budget because every shadow-casting mesh can
-    // add another renderer draw in the shadow pass.
-    const availableDrawCalls = Math.max(
-      0,
-      budget.drawCalls - protectedDrawCalls - budget.shadowCasters,
+    const availableDrawCalls = detailDrawAllowance(budget, band, mobile);
+    const maxDetailMeshes = Math.min(
+      Math.max(0, budget.highDetailMeshes),
+      availableDrawCalls,
     );
     let activeHighDetailMeshes = 0;
     let activeDetailDrawCalls = 0;
