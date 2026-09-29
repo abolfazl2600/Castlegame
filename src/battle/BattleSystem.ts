@@ -4800,9 +4800,24 @@ export class BattleSystem {
     };
     for (const runtime of this.units.values()) {
       if (runtime.data.faction !== 'defender' || runtime.data.state === 'dead') continue;
-      const type = runtime.data.unitType;
-      if (type === 'swordsman' || type === 'archer' || type === 'spearman' || type === 'crossbowman' || type === 'modernSoldier') {
-        counts[type] += 1;
+      switch (runtime.data.unitType) {
+        case 'swordsman':
+          counts.swordsman += 1;
+          break;
+        case 'archer':
+          counts.archer += 1;
+          break;
+        case 'spearman':
+          counts.spearman += 1;
+          break;
+        case 'crossbowman':
+          counts.crossbowman += 1;
+          break;
+        case 'modernSoldier':
+          counts.modernSoldier += 1;
+          break;
+        default:
+          break;
       }
     }
     return counts;
