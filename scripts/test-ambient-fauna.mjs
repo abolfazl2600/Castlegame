@@ -27,12 +27,14 @@ for (const position of positions) {
 first.rebuild(world, 'high');
 assert.equal(first.layer.children.length, first.counts.llamas + first.counts.birds, 'redraw does not duplicate fauna');
 const bird = first.layer.children[first.counts.llamas];
-first.update(16, 1000, { reducedMotion: false, animationScale: 1, cameraDistance: 20, strategicDistance: 80 });
+first.update(16, 1000, { reducedMotion: false, animationScale: 1, cameraDistance: 20, normalDistance: 50, strategicDistance: 80 });
 const before = bird.position.clone();
 const flap = bird.children[1].rotation.z;
-first.update(16, 1500, { reducedMotion: false, animationScale: 1, cameraDistance: 20, strategicDistance: 80 });
+first.update(16, 1500, { reducedMotion: false, animationScale: 1, cameraDistance: 20, normalDistance: 50, strategicDistance: 80 });
 assert.notDeepEqual(bird.position.toArray(), before.toArray());
 assert.notEqual(bird.children[1].rotation.z, flap);
+first.update(16, 1700, { reducedMotion: false, animationScale: 0.25, cameraDistance: 79, normalDistance: 50, strategicDistance: 80 });
+assert.equal(first.layer.visible, false, 'strategic zoom suppresses decorative draw calls');
 blocked.add(positions[0]);
 first.rebuild(world, 'low');
 assert.ok(first.counts.llamas <= 2);
