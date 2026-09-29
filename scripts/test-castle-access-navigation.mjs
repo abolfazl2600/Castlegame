@@ -103,20 +103,15 @@ for (const removed of ['stoneStairs', 'woodenStairs', 'ramp', 'ladder']) {
   );
 }
 
-const accessNodes = between(
+assert.doesNotMatch(
   battleNavigation,
-  'stairTowerAccessNodes():',
-  'private reconstruct(',
-);
-assert.match(
-  accessNodes,
-  /return \[\];/,
-  'Wall stair access transitions must be disabled completely.',
+  /stairTowerAccessNodes|isCastleAccessKind|generatedAccess/,
+  'BattleNavigation must not expose any wall stair access API.',
 );
 assert.doesNotMatch(
-  accessNodes,
-  /this\.context\.generatedAccess|isCastleAccessKind|cell\.kind\s*===\s*['"](stoneStairs|woodenStairs|ramp|ladder)['"]/,
-  'No legacy or generated wall stair source may produce wall transitions.',
+  battleSystem,
+  /tryUseStairTowerToReach|tryUseStairTowerToDescend|tryMoveDefenderToWallPosition|WallAccessTransition|accessTransition/,
+  'Battle runtime must not keep hidden ground-to-wall stair transitions.',
 );
 
 const attackVisibility = between(
