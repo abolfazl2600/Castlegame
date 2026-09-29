@@ -1,4 +1,4 @@
-# Issue 130 focused evidence pass 2
+# Issue 130 focused evidence pass 3
 name: Capture Visual Baseline
 
 on:
@@ -56,7 +56,7 @@ jobs:
       - name: Capture issue 130 before state
         run: |
           cd /tmp/castlegame-before
-          node scripts/capture-silhouette-comparison.mjs --out "$GITHUB_WORKSPACE/visual-baselines/issue-130/before"
+          VISUAL_PORT=4174 node scripts/capture-silhouette-comparison.mjs --out "$GITHUB_WORKSPACE/visual-baselines/issue-130/before"
 
       - name: Upload issue 130 comparison artifact
         uses: actions/upload-artifact@v4
