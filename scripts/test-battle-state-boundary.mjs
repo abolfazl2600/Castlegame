@@ -36,6 +36,62 @@ assert.doesNotMatch(
   /updateCell|GameState|save\s*\(/,
   'Battle wall damage must not mutate or persist world state.',
 );
+assert.match(
+  damageWall,
+  /spawnWallDestructionBurst\(wall, nextStage\)/,
+  'Wall damage stage transitions must trigger the procedural destruction burst.',
+);
+
+assert.match(
+  battleSystem,
+  /interface WallCollapseEffect[\s\S]*?fragments: WallCollapseFragment\[\][\s\S]*?dust: WallDustParticle\[\][\s\S]*?shockwaves: WallShockwave\[\]/,
+  'Detailed wall destruction must track stone fragments, dust, and shockwaves as one lifecycle.',
+);
+assert.match(
+  battleSystem,
+  /private addWallCrackNetwork\([\s\S]*?segments = 5 \+ intensity \* 5/,
+  'Damaged walls must build a multi-segment branching crack network.',
+);
+assert.match(
+  battleSystem,
+  /private addBrokenWallRemnants\([\s\S]*?for \(let i = 0; i < 30; i \+= 1\)/,
+  'Breached walls must leave a dense persistent rubble field and broken wall remnants.',
+);
+assert.match(
+  battleSystem,
+  /stage === 'breached' \? 52/,
+  'A full breach must launch the high-detail 52-fragment collapse burst.',
+);
+assert.match(
+  battleSystem,
+  /stage === 'breached' \? 20/,
+  'A full breach must launch a dense multi-puff dust cloud.',
+);
+assert.match(
+  battleSystem,
+  /fragment\.velocity\.y -= 10\.8 \* delta/,
+  'Flying wall debris must use gravity during collapse.',
+);
+assert.match(
+  battleSystem,
+  /fragment\.velocity\.y = Math\.abs\(fragment\.velocity\.y\) \* fragment\.bounce/,
+  'Wall debris must bounce and settle instead of simply disappearing.',
+);
+assert.match(
+  battleSystem,
+  /shockCount = stage === 'breached' \? 3 : 1/,
+  'Major wall failure must produce layered ground shockwaves.',
+);
+assert.match(
+  battleSystem,
+  /private clearWallCollapseEffects\(\): void/,
+  'Wall destruction effects must be explicitly cleaned up by the battle lifecycle.',
+);
+assert.match(
+  battleSystem,
+  /!this\.sharedGeometries\.includes\(object\.geometry\)/,
+  'Siege visual cleanup must not dispose shared destruction geometries.',
+);
 
 const battleIntegration = between(
   threeGame,
