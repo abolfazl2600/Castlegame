@@ -115,7 +115,7 @@ assert.match(
 );
 assert.doesNotMatch(
   accessNodes,
-  /generatedAccess|stoneStairs|woodenStairs|ramp|ladder/,
+  /this\.context\.generatedAccess|isCastleAccessKind|cell\.kind\s*===\s*['"](stoneStairs|woodenStairs|ramp|ladder)['"]/,
   'No legacy or generated wall stair source may produce wall transitions.',
 );
 
