@@ -37,17 +37,17 @@ assert.match(
 );
 assert.match(
   settlementStyle,
-  /house:[\s\S]*height:\s*1\.82/,
-  'House must keep a taller central dwelling for dense-block recognition.',
+  /house:[\s\S]*height:\s*2\.35/,
+  'House must keep a strongly taller central dwelling for dense-block recognition.',
 );
 assert.match(
   settlementStyle,
-  /manor:[\s\S]*width:\s*1\.72[\s\S]*height:\s*2\.55/,
+  /manor:[\s\S]*width:\s*1\.86[\s\S]*height:\s*3\.25/,
   'Manor must preserve a dominant central hall.',
 );
 assert.match(
   settlementStyle,
-  /villa:[\s\S]*rotation:\s*Math\.PI \/ 2[\s\S]*height:\s*1\.42/,
+  /villa:[\s\S]*height:\s*2\.72[\s\S]*rotation:\s*Math\.PI \/ 2/,
   'Villa must retain its open U-shaped court massing.',
 );
 assert.match(
