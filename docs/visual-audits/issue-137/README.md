@@ -4,11 +4,11 @@
 
 This is the final integration/QA pass for the currently implemented visual systems.
 
-The user explicitly requested execution of #137 while #134, #135, and #136 are still open. Those three issues are therefore treated as **focused follow-up work**, not silently marked complete and not folded into this issue.
+The user explicitly requested execution of #137 while #135 and #136 are still open. Those two issues are therefore treated as **focused follow-up work**, not silently marked complete and not folded into this issue.
 
-- #134 — broader ambient world-motion layer
-- #135 — seasonal/environment-state transitions
-- #136 — distance-aware detail / LOD / formal visual performance budgets
+- #134 — ambient world-motion layer is now implemented and covered by regression tests
+- #135 — seasonal/environment-state transitions remain focused follow-up work
+- #136 — distance-aware detail / LOD / formal visual performance budgets remain focused follow-up work
 
 The final QA verifies the systems that already exist and records those remaining areas as focused follow-ups rather than reopening a broad visual rewrite. In particular, #136 production performance targets are measured and reported here but are not falsely treated as complete.
 
@@ -48,7 +48,7 @@ The currently implemented ambient-motion path remains active when visual effects
 - Castle flag movement
 - Settlement/citizen and worker movement where applicable
 
-This does **not** claim #134 is complete. #134 remains the focused task for a broader ambient-motion layer such as foliage sway, smoke, harbor bobbing/activity and additional state-aware environmental motion.
+#134 is now complete. The final QA validates its centralized ambient-motion path, including quality, distance, Reduced Motion and Effects gates.
 
 ## Seasons/environment states
 
@@ -122,4 +122,4 @@ This phase is complete when:
 - final screenshots and metrics are stored as a workflow artifact
 - remaining broad future visual systems are represented by focused issues rather than hidden inside #137
 
-#134, #135, and #136 remain open and are **not marked complete** by this QA pass.
+#135 and #136 remain open and are **not marked complete** by this QA pass.
