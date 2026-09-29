@@ -1626,6 +1626,48 @@ export class ThreeGame {
     this.scene.add(warmBounce);
   }
 
+  private createAmbientWorld(): void {
+    const cloudMaterial = new THREE.MeshBasicMaterial({
+      color: 0xffffff,
+      transparent: true,
+      opacity: 0.18,
+      depthWrite: false,
+    });
+    const puffGeometry = new THREE.SphereGeometry(1, 8, 6);
+    const cloudSpecs = [
+      { x: -WORLD * 0.46, y: 23, z: -WORLD * 0.23, scale: 1.0, speed: 0.00034 },
+      { x: -WORLD * 0.18, y: 26, z: WORLD * 0.24, scale: 0.82, speed: 0.00028 },
+      { x: WORLD * 0.12, y: 21, z: -WORLD * 0.32, scale: 0.9, speed: 0.00031 },
+      { x: WORLD * 0.38, y: 25, z: WORLD * 0.12, scale: 1.1, speed: 0.00026 },
+    ] as const;
+
+    for (let index = 0; index < cloudSpecs.length; index += 1) {
+      const spec = cloudSpecs[index];
+      const cloud = new THREE.Group();
+      cloud.position.set(spec.x, spec.y, spec.z);
+      cloud.userData.ambientCloud = true;
+
+      for (const [offsetX, offsetY, offsetZ, scale] of [
+        [-3.8, 0, 0, 3.2],
+        [0, 0.45, 0.4, 4.4],
+        [4.0, -0.05, -0.25, 3.0],
+      ] as Array<[number, number, number, number]>) {
+        const puff = new THREE.Mesh(puffGeometry, cloudMaterial);
+        puff.position.set(offsetX * spec.scale, offsetY, offsetZ * spec.scale);
+        puff.scale.set(scale * spec.scale, 0.72 * spec.scale, 1.6 * spec.scale);
+        cloud.add(puff);
+      }
+
+      this.ambientLayer.add(cloud);
+      this.ambientMotion.registerCloud(
+        cloud,
+        spec.speed,
+        -WORLD * 0.62,
+        WORLD * 0.62,
+      );
+    }
+  }
+
   private createWorld(): void {
     const deepWater = new THREE.Mesh(
       new THREE.CircleGeometry(WORLD * 0.86, 112),
@@ -1937,6 +1979,7 @@ export class ThreeGame {
 
   private redraw(): void {
     const redrawStart = this.visualBenchmark ? performance.now() : 0;
+    this.ambientMotion.clearSceneBound();
     this.clearGroup(this.terrainLayer);
     this.clearGroup(this.buildLayer);
     this.services.gateSystem.clear();
@@ -2006,10 +2049,10 @@ export class ThreeGame {
     this.syncArmyCampUpgradeUI();
     this.syncIdleDefenderGarrison();
 
-    this.animatedFlags = [];
     this.buildLayer.traverse((object) => {
-      if (object instanceof THREE.Mesh && object.userData.castleFlag) {
-        this.animatedFlags.push(object);
+      if (object.userData.castleFlag) {
+        const phase = Number(object.userData.castleFlag?.phase ?? 0);
+        this.ambientMotion.registerFlag(object, phase);
       }
     });
     if (this.visualBenchmark) this.lastRedrawMs = performance.now() - redrawStart;
@@ -2514,6 +2557,7 @@ export class ThreeGame {
     const planMode = mode === 'plan2d';
 
     this.planLayer.visible = planMode;
+    this.ambientLayer.visible = !planMode;
     this.terrainLayer.visible = !planMode;
     this.buildLayer.visible = !planMode;
     this.workerLayer.visible = !planMode;
