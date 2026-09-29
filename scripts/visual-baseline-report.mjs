@@ -52,12 +52,23 @@ const lines = [
   '| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |',
 ];
 
+const normalReference = (report.results ?? []).find(
+  (result) => result.screenshot === 'reference-normal-desktop',
+)?.camera;
+
+const sameCamera = (a, b) =>
+  Boolean(a && b) &&
+  Math.abs(a.x - b.x) < 0.001 &&
+  Math.abs(a.y - b.y) < 0.001 &&
+  Math.abs(a.z - b.z) < 0.001 &&
+  Math.abs((a.targetX ?? 0) - (b.targetX ?? 0)) < 0.001 &&
+  Math.abs((a.targetY ?? 0) - (b.targetY ?? 0)) < 0.001 &&
+  Math.abs((a.targetZ ?? 0) - (b.targetZ ?? 0)) < 0.001;
+
 const normalDesktop = (report.results ?? []).filter((result) =>
   result.viewport?.width === 1365 &&
   result.viewport?.height === 900 &&
-  result.camera?.x === 68 &&
-  result.camera?.y === 80 &&
-  result.camera?.z === 76
+  sameCamera(result.camera, normalReference)
 );
 
 for (const result of normalDesktop) {
