@@ -103,3 +103,5 @@ The final pass is considered coherent when:
 - ambient motion remains centralized and accessibility-gated
 - reference screenshots and metrics are emitted for regression comparison
 - any remaining measured performance defect is isolated into a focused follow-up issue
+
+Current focused follow-up: #158 tracks enforcement of dense-scene draw-call and high-detail-mesh budgets that #136 documented but did not fully enforce.
