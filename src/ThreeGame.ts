@@ -390,6 +390,7 @@ export class ThreeGame {
   private readonly buildLayer = new THREE.Group();
   private readonly planLayer = new THREE.Group();
   private readonly wallPreviewLayer = new THREE.Group();
+  private buildPreviewKey = '';
   private readonly workerLayer = new THREE.Group();
   private readonly settlementLayer = new THREE.Group();
   private readonly battleLayer = new THREE.Group();
@@ -779,6 +780,12 @@ export class ThreeGame {
 
   private economyConstructionEnabled(): boolean {
     return this.gameMode === 'medieval' || this.gameMode === 'survival';
+  }
+
+  private isConstructionAffordable(tool: ToolKind, quantity = 1): boolean {
+    if (!this.economyConstructionEnabled()) return true;
+    const cost = this.services.economySystem.constructionCost(tool, quantity);
+    return this.services.economySystem.canAfford(cost);
   }
 
   private ensureConstructionAffordable(tool: ToolKind, quantity = 1): boolean {
@@ -1767,14 +1774,17 @@ export class ThreeGame {
    * Save/load therefore reconstructs it automatically, and erasing the fortress
    * releases the footprint immediately.
    */
-  private canEditTerrainAt(x: number, y: number): boolean {
+  private isStructureFootprintReserved(x: number, y: number): boolean {
     for (const anchor of this.services.state.entries()) {
-      if (anchor.kind !== 'futuristicCastle') continue;
       const footprint = getStructureFootprint(anchor.kind, anchor.x, anchor.y);
-      if (footprint.some((cell) => cell.x === x && cell.y === y)) return false;
+      if (footprint.length <= 1) continue;
+      if (footprint.some((cell) => cell.x === x && cell.y === y)) return true;
     }
+    return false;
+  }
 
-    return true;
+  private canEditTerrainAt(x: number, y: number): boolean {
+    return !this.isStructureFootprintReserved(x, y);
   }
 
   private isTerrainTool(tool: ToolKind): tool is TerrainToolKind {
@@ -7622,6 +7632,9 @@ export class ThreeGame {
         if (this.battleSystem.isActive()) return;
 
         const cell = this.pickGridCell(event);
+        if (cell && event.pointerType !== 'mouse') {
+          this.renderBuildPlacementPreview(cell, true);
+        }
         if (this.isGodModeTargeting()) {
           this.fireGodModeAt(cell);
           event.preventDefault();
@@ -7712,6 +7725,16 @@ export class ThreeGame {
           return;
         }
         this.cancelLongPressOnMovement(event);
+
+        if (
+          !this.wallDragStart &&
+          !this.roadDragStart &&
+          !this.mountainRangeStart &&
+          !this.terrainStrokeActive &&
+          !(this.selectedTool === 'towerBridge' && this.towerBridgeStart)
+        ) {
+          this.renderBuildPlacementPreview(this.pickGridCell(event));
+        }
 
         if (this.wallDragStart) {
           const cell = this.pickGridCell(event);
@@ -7891,10 +7914,27 @@ export class ThreeGame {
         );
         this.pointerStart = null;
 
-        if (movement <= 6) this.handleBuildClick(event);
+        if (movement <= 6) {
+          const previewCell = this.pickGridCell(event);
+          this.handleBuildClick(event);
+          if (event.pointerType === 'mouse') this.renderBuildPlacementPreview(previewCell, true);
+          else this.clearBuildPlacementPreview();
+        }
       },
       true,
     );
+
+    canvas.addEventListener('pointerleave', () => {
+      if (
+        !this.wallDragStart &&
+        !this.roadDragStart &&
+        !this.mountainRangeStart &&
+        !this.terrainStrokeActive &&
+        !(this.selectedTool === 'towerBridge' && this.towerBridgeStart)
+      ) {
+        this.clearBuildPlacementPreview();
+      }
+    });
 
     canvas.addEventListener(
       'pointercancel',
@@ -7910,6 +7950,7 @@ export class ThreeGame {
         this.terrainStrokeActive = false;
         this.terrainStrokeSnapshot = null;
         this.pointerStart = null;
+        this.buildPreviewKey = '';
         this.clearGroup(this.wallPreviewLayer);
         this.controls.enabled = true;
       },
@@ -8110,6 +8151,8 @@ export class ThreeGame {
     const costedTiles = path.filter((point) => {
       const terrain = this.terrainAt(point.x, point.y);
       const current = this.services.state.getCell(point.x, point.y);
+      if (this.services.keepSystem.findAtCell(point.x, point.y)) return false;
+      if (!current && this.isStructureFootprintReserved(point.x, point.y)) return false;
       if (current && !this.isRoadFamily(current.kind)) return false;
       if (terrain === 'water' || terrain === 'mountain') return false;
       return !current || current.kind !== roadKind;
@@ -8127,6 +8170,8 @@ export class ThreeGame {
       const terrain = this.terrainAt(point.x, point.y);
       const current = this.services.state.getCell(point.x, point.y);
 
+      if (this.services.keepSystem.findAtCell(point.x, point.y)) continue;
+      if (!current && this.isStructureFootprintReserved(point.x, point.y)) continue;
       if (current && !this.isRoadFamily(current.kind)) continue;
       if (terrain === 'water' || terrain === 'mountain') {
         continue;
@@ -8486,6 +8531,8 @@ export class ThreeGame {
     const costedSegments = path.filter((point) => {
       const terrain = this.terrainAt(point.x, point.y);
       const cell = this.services.state.getCell(point.x, point.y);
+      if (this.services.keepSystem.findAtCell(point.x, point.y)) return false;
+      if (!cell && this.isStructureFootprintReserved(point.x, point.y)) return false;
       if (single && cell?.kind === wallKind) return false;
       if (cell?.kind === 'tower' || cell?.kind === 'gate') return false;
       if (cell && !WALL_KINDS.includes(cell.kind as WallKind)) return false;
@@ -8504,6 +8551,9 @@ export class ThreeGame {
     for (const point of path) {
       const terrain = this.terrainAt(point.x, point.y);
       const cell = this.services.state.getCell(point.x, point.y);
+
+      if (this.services.keepSystem.findAtCell(point.x, point.y)) continue;
+      if (!cell && this.isStructureFootprintReserved(point.x, point.y)) continue;
 
       if (single && cell?.kind === wallKind) {
         const nextLevel = decrease
@@ -8553,6 +8603,350 @@ export class ThreeGame {
           : `Built ${path.length} snapped wall segments · 45° angles supported`,
       );
     }
+  }
+
+  private buildPlacementFootprint(tool: ToolKind, point: GridPoint): GridPoint[] {
+    if (tool === 'market') {
+      const cells: GridPoint[] = [];
+      for (let y = point.y - 1; y <= point.y + 1; y += 1) {
+        for (let x = point.x - 1; x <= point.x + 1; x += 1) cells.push({ x, y });
+      }
+      return cells;
+    }
+
+    if (tool === 'futuristicCastle') {
+      return getStructureFootprint('futuristicCastle', point.x, point.y);
+    }
+
+    if (tool === 'keep') {
+      return this.services.keepSystem.footprint({
+        x: point.x,
+        y: point.y,
+        width: this.keepWidth,
+        depth: this.keepDepth,
+        floors: this.keepFloors,
+        rotation: this.keepRotation,
+        cornerTowers: this.keepCornerTowers,
+        roof: this.keepRoof,
+        battlements: this.keepBattlements,
+      });
+    }
+
+    return [{ ...point }];
+  }
+
+  private evaluateBuildPlacement(
+    point: GridPoint,
+  ): { valid: boolean; cells: GridPoint[]; reason?: string } | null {
+    const tool = this.selectedTool;
+    if (tool === null || this.battleSystem.isActive()) return null;
+    if (tool === 'erase' || tool === 'towerBridge' || tool === 'mountainRange' || this.isTerrainTool(tool)) return null;
+
+    const cells = this.buildPlacementFootprint(tool, point);
+    const cell = this.services.state.getCell(point.x, point.y);
+    const current = cell?.kind;
+    const terrain = this.terrainAt(point.x, point.y);
+    const keepAtPoint = this.services.keepSystem.findAtCell(point.x, point.y);
+    const reserved = this.isStructureFootprintReserved(point.x, point.y);
+
+    if (this.isWallTool(tool)) {
+      const validCell =
+        !keepAtPoint &&
+        (!current
+          ? !reserved && this.canBuildFortificationOnTerrain(terrain)
+          : current === tool || WALL_KINDS.includes(current as WallKind) || current === 'tower' || current === 'gate');
+      const needsCost = !current || (WALL_KINDS.includes(current as WallKind) && current !== tool);
+      const affordable = !needsCost || this.isConstructionAffordable(tool);
+      return {
+        valid: validCell && affordable,
+        cells,
+        reason: !validCell ? 'Wall placement is blocked here' : !affordable ? 'Not enough construction resources' : undefined,
+      };
+    }
+
+    if (this.isRoadTool(tool)) {
+      const validCell =
+        !keepAtPoint &&
+        !reserved &&
+        (!current || this.isRoadFamily(current)) &&
+        terrain !== 'water' &&
+        terrain !== 'mountain';
+      const needsCost = !current || current !== tool;
+      const affordable = !needsCost || this.isConstructionAffordable(tool);
+      return {
+        valid: validCell && affordable,
+        cells,
+        reason: !validCell ? 'Road placement is blocked here' : !affordable ? 'Not enough construction resources' : undefined,
+      };
+    }
+
+    if (tool === 'keep') {
+      const draft = {
+        x: point.x,
+        y: point.y,
+        width: this.keepWidth,
+        depth: this.keepDepth,
+        floors: this.keepFloors,
+        rotation: this.keepRotation,
+        cornerTowers: this.keepCornerTowers,
+        roof: this.keepRoof,
+        battlements: this.keepBattlements,
+      };
+      const validation = this.validateKeepDraft(draft);
+      const costUnits = Math.max(1, Math.ceil((draft.width * draft.depth * draft.floors) / 6));
+      const affordable = this.isConstructionAffordable('keep', costUnits);
+      return {
+        valid: validation.valid && affordable,
+        cells,
+        reason: validation.reason ?? (!affordable ? 'Not enough construction resources' : undefined),
+      };
+    }
+
+    if (tool === 'river') {
+      const removableNatural =
+        current === 'tree' || current === 'rock' || current === 'hut' || current === 'mountain';
+      const valid = this.canEditTerrainAt(point.x, point.y) && (!current || removableNatural);
+      return { valid, cells, reason: valid ? undefined : 'River carving is blocked here' };
+    }
+
+    if (tool === 'land') {
+      const valid = this.canEditTerrainAt(point.x, point.y) && !current;
+      return { valid, cells, reason: valid ? undefined : 'Land fill is blocked here' };
+    }
+
+    if (this.isHarborTool(tool)) {
+      const valid =
+        !current &&
+        !keepAtPoint &&
+        !reserved &&
+        Boolean(this.maritimeSystem.canPlace(tool, point.x, point.y)) &&
+        this.isConstructionAffordable('harbor');
+      return { valid, cells, reason: valid ? undefined : 'Harbor needs a clear coastal tile and sufficient resources' };
+    }
+
+    if (tool === 'moat') {
+      const valid =
+        !current &&
+        !keepAtPoint &&
+        !reserved &&
+        !this.moatTasks.has(this.key(point.x, point.y)) &&
+        (terrain === 'plains' || terrain === 'shore');
+      return { valid, cells, reason: valid ? undefined : 'Moat placement is blocked here' };
+    }
+
+    if (tool === 'mountain') {
+      const valid =
+        this.canEditTerrainAt(point.x, point.y) &&
+        (current === 'mountain' || (!current && (terrain === 'plains' || terrain === 'shore' || terrain === 'forest')));
+      return { valid, cells, reason: valid ? undefined : 'Mountain placement is blocked here' };
+    }
+
+    if (tool === 'mine') {
+      const valid =
+        !keepAtPoint &&
+        !reserved &&
+        (current === 'mountain' || (!current && terrain === 'mountain')) &&
+        this.isConstructionAffordable('mine');
+      return { valid, cells, reason: valid ? undefined : 'Mine requires a mountain and sufficient resources' };
+    }
+
+    if (tool === 'appleOrchard') {
+      const existingCanChange = current === 'appleOrchard' && (cell?.level ?? 1) < 3;
+      const newCanBuild =
+        !current &&
+        !keepAtPoint &&
+        !reserved &&
+        terrain === 'plains' &&
+        this.isConstructionAffordable('appleOrchard');
+      return {
+        valid: existingCanChange || newCanBuild,
+        cells,
+        reason: existingCanChange || newCanBuild ? undefined : 'Apple Orchard placement is blocked here',
+      };
+    }
+
+    if (tool === 'tree') {
+      const valid =
+        !current &&
+        !keepAtPoint &&
+        !reserved &&
+        (terrain === 'plains' || terrain === 'shore' || terrain === 'forest');
+      return { valid, cells, reason: valid ? undefined : 'Tree placement is blocked here' };
+    }
+
+    if (tool === 'tower') {
+      const currentLevel = current === 'tower' ? Math.floor(cell?.level ?? 1) : 0;
+      const validCell =
+        !keepAtPoint &&
+        (current === 'tower'
+          ? currentLevel < FORTIFICATION_MAX_LEVEL
+          : current
+            ? this.isWallFamily(current)
+            : !reserved && this.canBuildFortificationOnTerrain(terrain));
+      const needsCost = current !== 'tower';
+      const affordable = !needsCost || this.isConstructionAffordable('tower');
+      return {
+        valid: validCell && affordable,
+        cells,
+        reason: !validCell ? 'Tower placement is blocked here' : !affordable ? 'Not enough construction resources' : undefined,
+      };
+    }
+
+    const selectedTile = tool as TileKind;
+    if (!this.isBuildingAvailable(selectedTile)) {
+      return { valid: false, cells, reason: 'Building is unavailable in this game mode' };
+    }
+
+    if (selectedTile === 'cowBarn') {
+      const valid =
+        !current &&
+        !keepAtPoint &&
+        !reserved &&
+        terrain === 'plains' &&
+        this.isConstructionAffordable('cowBarn');
+      return { valid, cells, reason: valid ? undefined : 'Cow Barn requires clear plains and sufficient resources' };
+    }
+
+    if (selectedTile === 'market') {
+      const valid =
+        !current &&
+        !keepAtPoint &&
+        this.canBuildMarketAt(point.x, point.y) &&
+        this.isConstructionAffordable('market');
+      return { valid, cells, reason: valid ? undefined : 'Market needs a clear 3×3 land area and sufficient resources' };
+    }
+
+    if (selectedTile === 'futuristicCastle') {
+      const valid =
+        cells.length > 0 &&
+        cells.every((footprintCell) => {
+          if (
+            footprintCell.x < 0 || footprintCell.y < 0 ||
+            footprintCell.x >= SIZE || footprintCell.y >= SIZE
+          ) return false;
+          if (this.services.state.getCell(footprintCell.x, footprintCell.y)) return false;
+          if (this.services.keepSystem.findAtCell(footprintCell.x, footprintCell.y)) return false;
+          if (this.isStructureFootprintReserved(footprintCell.x, footprintCell.y)) return false;
+          return this.canBuildOnTerrain(selectedTile, this.terrainAt(footprintCell.x, footprintCell.y));
+        }) &&
+        this.isConstructionAffordable(selectedTile);
+      return { valid, cells, reason: valid ? undefined : 'Modern Fortress requires a clear 9×9 buildable footprint' };
+    }
+
+    if (current) {
+      const gateReplacement = selectedTile === 'gate' && this.isWallFamily(current);
+      const affordable = gateReplacement && this.isConstructionAffordable(selectedTile);
+      return {
+        valid: Boolean(gateReplacement && affordable),
+        cells,
+        reason: gateReplacement && !affordable ? 'Not enough construction resources' : 'Tile is already occupied',
+      };
+    }
+
+    const valid =
+      !keepAtPoint &&
+      !reserved &&
+      this.canBuildOnTerrain(tool, terrain) &&
+      this.isConstructionAffordable(selectedTile);
+    return {
+      valid,
+      cells,
+      reason: valid ? undefined : 'Placement is blocked by terrain, occupancy, footprint, or resources',
+    };
+  }
+
+  private clearBuildPlacementPreview(): void {
+    this.buildPreviewKey = '';
+    this.clearGroup(this.wallPreviewLayer);
+  }
+
+  private renderBuildPlacementPreview(point: GridPoint | null, force = false): void {
+    if (!point) {
+      this.clearBuildPlacementPreview();
+      return;
+    }
+
+    const preview = this.evaluateBuildPlacement(point);
+    if (!preview) {
+      if (
+        !this.wallDragStart &&
+        !this.roadDragStart &&
+        !this.mountainRangeStart &&
+        !(this.selectedTool === 'towerBridge' && this.towerBridgeStart)
+      ) {
+        this.clearBuildPlacementPreview();
+      }
+      return;
+    }
+
+    const key =
+      `${this.selectedTool}:${point.x},${point.y}:${preview.valid}:${preview.cells.map((cell) => `${cell.x},${cell.y}`).join(';')}:` +
+      `${this.keepWidth}x${this.keepDepth}x${this.keepFloors}:${this.keepRotation}:${this.viewMode}`;
+    if (!force && key === this.buildPreviewKey) return;
+    this.buildPreviewKey = key;
+    this.clearGroup(this.wallPreviewLayer);
+
+    const color = preview.valid ? 0x66e5a3 : 0xff625f;
+    const fillMaterial = new THREE.MeshBasicMaterial({
+      color,
+      transparent: true,
+      opacity: preview.valid ? 0.32 : 0.4,
+      depthTest: false,
+      depthWrite: false,
+    });
+    const edgeMaterial = new THREE.LineBasicMaterial({
+      color,
+      transparent: true,
+      opacity: 0.96,
+      depthTest: false,
+      depthWrite: false,
+    });
+    const anchorMaterial = new THREE.MeshBasicMaterial({
+      color,
+      transparent: true,
+      opacity: 0.98,
+      depthTest: false,
+      depthWrite: false,
+      side: THREE.DoubleSide,
+    });
+
+    for (const footprintCell of preview.cells) {
+      if (
+        footprintCell.x < 0 || footprintCell.y < 0 ||
+        footprintCell.x >= SIZE || footprintCell.y >= SIZE
+      ) continue;
+
+      const world = this.gridToWorld(footprintCell.x, footprintCell.y);
+      const surfaceY = this.viewMode === 'plan2d'
+        ? 10.14
+        : 2.34 + this.terrainElevation(footprintCell.x, footprintCell.y);
+      const geometry = new THREE.BoxGeometry(TILE * 0.88, 0.07, TILE * 0.88);
+      const tile = new THREE.Mesh(geometry, fillMaterial);
+      tile.position.set(world.x, surfaceY, world.z);
+      tile.renderOrder = 90;
+      tile.castShadow = false;
+      tile.receiveShadow = false;
+      this.wallPreviewLayer.add(tile);
+
+      const outline = new THREE.LineSegments(new THREE.EdgesGeometry(geometry), edgeMaterial);
+      outline.position.copy(tile.position);
+      outline.renderOrder = 91;
+      this.wallPreviewLayer.add(outline);
+    }
+
+    const anchorWorld = this.gridToWorld(point.x, point.y);
+    const anchorY = this.viewMode === 'plan2d'
+      ? 10.22
+      : 2.44 + this.terrainElevation(point.x, point.y);
+    const anchor = new THREE.Mesh(
+      new THREE.RingGeometry(TILE * 0.16, TILE * 0.28, 4),
+      anchorMaterial,
+    );
+    anchor.rotation.x = -Math.PI / 2;
+    anchor.rotation.z = Math.PI / 4;
+    anchor.position.set(anchorWorld.x, anchorY, anchorWorld.z);
+    anchor.renderOrder = 92;
+    this.wallPreviewLayer.add(anchor);
   }
 
   private canBuildFortificationOnTerrain(terrain: TerrainKind): boolean {
@@ -8631,6 +9025,15 @@ export class ThreeGame {
     }
 
     this.selectedKeepId = null;
+
+    if (
+      BUILDING_KINDS.includes(this.selectedTool as TileKind) &&
+      !current &&
+      this.isStructureFootprintReserved(gx, gy)
+    ) {
+      this.setStatus('Placement blocked by an existing structure footprint');
+      return;
+    }
 
     if (this.selectedTool === 'river' || this.selectedTool === 'land') {
       if (this.moatTasks.has(overrideKey)) return;
@@ -8864,6 +9267,14 @@ export class ThreeGame {
       return;
     }
 
+    if (selectedTile === 'futuristicCastle') {
+      const placement = this.evaluateBuildPlacement(point);
+      if (!placement?.valid) {
+        this.setStatus(placement?.reason ?? 'Modern Fortress cannot be built here');
+        return;
+      }
+    }
+
     if (current) {
       if (selectedFortification && currentFortification) {
         if (!this.ensureConstructionAffordable(selectedTile)) return;
@@ -8899,7 +9310,11 @@ export class ThreeGame {
     for (let y = gy - radius; y <= gy + radius; y += 1) {
       for (let x = gx - radius; x <= gx + radius; x += 1) {
         if (x < 0 || y < 0 || x >= SIZE || y >= SIZE) return false;
-        if (this.services.state.getCell(x, y) || this.services.keepSystem.findAtCell(x, y)) return false;
+        if (
+          this.services.state.getCell(x, y) ||
+          this.services.keepSystem.findAtCell(x, y) ||
+          this.isStructureFootprintReserved(x, y)
+        ) return false;
         const terrain = this.terrainAt(x, y);
         if (terrain === 'water' || terrain === 'river' || terrain === 'mountain' || terrain === 'forest') return false;
       }
@@ -8918,6 +9333,7 @@ export class ThreeGame {
   }
 
   private finishBuild(): void {
+    this.buildPreviewKey = '';
     audioEvents.emit({ action: 'play_sfx', assetId: 'building.place' });
     this.redraw();
     this.scheduleSave();
@@ -10542,7 +10958,9 @@ export class ThreeGame {
       SIZE,
       (x, y) => this.terrainAt(x, y),
       (x, y) => this.terrainElevation(x, y),
-      (x, y) => Boolean(this.services.state.getCell(x, y)),
+      (x, y) =>
+        Boolean(this.services.state.getCell(x, y)) ||
+        this.isStructureFootprintReserved(x, y),
       ignoreKeepId,
     );
   }
@@ -12996,10 +13414,11 @@ export class ThreeGame {
       return;
     }
 
+    this.buildPreviewKey = '';
+    this.clearGroup(this.wallPreviewLayer);
     if (tool !== 'towerBridge') {
       this.towerBridgeStart = null;
       this.towerBridgeHover = null;
-      this.clearGroup(this.wallPreviewLayer);
     }
 
     this.wallDragStart = null;
