@@ -20,10 +20,12 @@ assert.match(budget, /shadowCasters:\s*36/, 'mobile strategic shadow budget chan
 assert.match(budget, /pixelRatioScale:\s*0\.78/, 'desktop strategic raster scale changed unexpectedly');
 assert.match(budget, /pixelRatioScale:\s*0\.62/, 'mobile strategic raster scale changed unexpectedly');
 assert.match(budget, /parentHasReadabilityPriority/, 'silhouette/readability shadow priority is required');
+assert.match(budget, /invalidate\(\): void/, 'scene redraws must be able to invalidate the active budget');
 assert.doesNotMatch(budget, /\.visible\s*=\s*false/, 'distance governor must not hide silhouette geometry');
 
 assert.match(game, /DistanceDetailBudgetSystem/, 'ThreeGame must own the distance budget governor');
 assert.match(game, /distanceDetailBudget\.update\(/, 'distance budget must update from the render loop');
+assert.match(game, /distanceDetailBudget\.invalidate\(\)/, 'redraw must invalidate the budget for newly-created meshes');
 assert.match(game, /budgetScale:\s*visualBudget\.budget\.animationScale/, 'animation budget must feed ambient motion');
 assert.match(game, /controlScheme === 'touch'/, 'touch/mobile preset selection must be supported');
 
