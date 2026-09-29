@@ -182,6 +182,10 @@ export class DistanceDetailBudgetSystem {
     return this.lastSnapshot;
   }
 
+  invalidate(): void {
+    this.lastProfileKey = '';
+  }
+
   private resolveBand(distance: number): DistanceDetailBand {
     const refs = WORLD_STYLE.camera.referenceDistances;
     const inspectionBoundary = (refs.nearInspection + refs.normalGameplay) / 2;
