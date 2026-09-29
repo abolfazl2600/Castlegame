@@ -13148,9 +13148,6 @@ export class ThreeGame {
     }
 
     this.syncPopulationDefenseAssignments(this.services.state.entries());
-    this.populationBattleCommitted = false;
-    this.populationBattleStart = { ...this.battleSetup };
-    this.services.populationSystem.setMilitiaMobilized(true);
     this.syncBattleSetupUI();
 
     const attackerTotal =
@@ -13174,6 +13171,10 @@ export class ThreeGame {
     if (defenderTotal <= 0) {
       this.setStatus('No Defenders configured · attackers will attempt an immediate capture');
     }
+
+    this.populationBattleCommitted = false;
+    this.populationBattleStart = { ...this.battleSetup };
+    this.services.populationSystem.setMilitiaMobilized(true);
 
     this.setViewMode('world3d');
     this.setToolbarOpen(false);
@@ -13416,6 +13417,10 @@ export class ThreeGame {
       audioEvents.emit({ action: 'play_sfx', assetId: 'combat.battle-reset' });
     }
     this.services.gateSystem.setAttackState(false);
+    const preResetStatus = this.battleSystem.status();
+    if (preResetStatus.mode !== 'idle') {
+      this.commitPopulationBattleOutcome(preResetStatus, true);
+    }
     this.battleSystem.reset();
     this.services.populationSystem.setMilitiaMobilized(false);
     this.populationBattleCommitted = false;
@@ -13430,8 +13435,14 @@ export class ThreeGame {
     this.setStatus('Battle reset · castle restored unchanged');
   }
 
-  private commitPopulationBattleOutcome(status: BattleStatus): void {
-    if (this.populationBattleCommitted || !this.populationBattleStart || status.mode !== 'finished') return;
+  private commitPopulationBattleOutcome(status: BattleStatus, force = false): void {
+    if (
+      this.populationBattleCommitted ||
+      !this.populationBattleStart ||
+      (!force && status.mode !== 'finished')
+    ) {
+      return;
+    }
 
     const started = this.populationBattleStart;
     const alive = status.defenderAliveByType;
