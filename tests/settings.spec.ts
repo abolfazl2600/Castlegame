@@ -198,3 +198,42 @@ test('Audio pane is navigable and unlocks the procedural audio engine', async ({
   });
   await expect(audioPane.locator('[data-setting-output="masterVolume"]')).toHaveText('42%');
 });
+
+
+test('Touch / Mobile preference forces the touch layout at desktop widths', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await loadApp(page);
+
+  const root = page.locator('html');
+  await expect(root).not.toHaveClass(/mobile-ui-active/);
+  await expect(page.locator('.mobile-ui')).toBeHidden();
+
+  await openSettings(page);
+  await page.locator('[data-settings-nav="gameplay"]').click();
+  await page.locator('[data-setting="controlScheme"]').selectOption('touch');
+
+  await expect(root).toHaveClass(/mobile-ui-active/);
+  await expect(root).toHaveClass(/touch-ui-forced/);
+  await expect(root).toHaveAttribute('data-input-mode', 'touch');
+  await expect(page.locator('.mobile-ui')).toBeVisible();
+  await expect(page.locator('.topbar')).toBeHidden();
+
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await expect(root).toHaveClass(/mobile-ui-active/);
+  await expect(page.locator('.mobile-ui')).toBeVisible();
+
+  await page.reload({ waitUntil: 'domcontentloaded' });
+  await expect(page.locator('#game canvas')).toHaveCount(1, { timeout: 20_000 });
+  await expect(root).toHaveClass(/mobile-ui-active/);
+  await expect(root).toHaveClass(/touch-ui-forced/);
+  await expect(page.locator('.mobile-ui')).toBeVisible();
+
+  await page.locator('.mobile-header [data-mobile-proxy="settings-button"]').click();
+  await page.locator('[data-settings-nav="gameplay"]').click();
+  await page.locator('[data-setting="controlScheme"]').selectOption('standard');
+
+  await expect(root).not.toHaveClass(/touch-ui-forced/);
+  await expect(root).not.toHaveClass(/mobile-ui-active/);
+  await expect(root).toHaveAttribute('data-input-mode', 'standard');
+  await expect(page.locator('.topbar')).toBeVisible();
+});

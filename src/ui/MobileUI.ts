@@ -1,4 +1,5 @@
 import { requestOpenSettings } from '../app/applicationActions';
+import type { SettingsStore } from '../settings/SettingsStore';
 
 /**
  * Mobile presentation layer for Castle Role.
@@ -11,8 +12,9 @@ export class MobileUI {
   private readonly root: HTMLElement;
   private readonly mediaQuery = window.matchMedia('(max-width: 760px)');
   private readonly observers: MutationObserver[] = [];
+  private touchPreference = false;
 
-  constructor() {
+  constructor(private readonly settingsStore: SettingsStore) {
     const shell = document.getElementById('game-shell');
     const root = document.documentElement;
     if (!shell) throw new Error('Game shell was not found');
@@ -84,9 +86,16 @@ export class MobileUI {
 
   private bindResponsiveState(): void {
     const apply = (): void => {
-      this.root.classList.toggle('mobile-ui-active', this.mediaQuery.matches);
+      const active = this.mediaQuery.matches || this.touchPreference;
+      this.root.classList.toggle('mobile-ui-active', active);
+      this.root.classList.toggle('touch-ui-forced', this.touchPreference);
+      this.root.dataset.inputMode = this.touchPreference ? 'touch' : 'standard';
     };
-    apply();
+
+    this.settingsStore.subscribe((settings) => {
+      this.touchPreference = settings.gameplay.controlScheme === 'touch';
+      apply();
+    });
     this.mediaQuery.addEventListener('change', apply);
   }
 
