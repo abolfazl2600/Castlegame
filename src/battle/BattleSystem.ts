@@ -667,10 +667,6 @@ export class BattleSystem {
       'gate',
       'tower',
       'armyCamp',
-      'stoneStairs',
-      'woodenStairs',
-      'ramp',
-      'ladder',
     ]);
     const parts: string[] = [];
 
@@ -683,10 +679,6 @@ export class BattleSystem {
 
     for (const keep of this.world.keeps()) {
       parts.push(`keep:${keep.id}:${keep.x},${keep.y},${keep.width},${keep.depth},${keep.floors},${keep.rotation}`);
-    }
-
-    for (const access of this.world.generatedAccess?.() ?? []) {
-      parts.push(`access:${access.x},${access.y},${access.kind}`);
     }
 
     return parts.join('|');
