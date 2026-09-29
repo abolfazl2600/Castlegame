@@ -3150,7 +3150,11 @@ export class ThreeGame {
     else if (cell.kind === 'appleOrchard') this.services.orchardSystem.create(group, cell.level ?? 1, cell.x * 97 + cell.y * 53);
     else if (cell.kind === 'armyCamp') this.makeArmyCamp(group, Math.max(1, Math.min(ARMY_CAMP_MAX_LEVEL, cell.level ?? 1)));
     else if (cell.kind === 'market') this.makeMarketBuilding(group, cell.x, cell.y);
-    else if (cell.kind === 'basilica') group.add(this.basilicaRenderer.render(this.stoneStyle, cell.x, cell.y));
+    else if (cell.kind === 'basilica') {
+      group.userData.settlementFamily = 'basilica';
+      group.userData.settlementReadabilityClass = 'landmark';
+      group.add(this.basilicaRenderer.render(this.stoneStyle, cell.x, cell.y));
+    }
     else if (cell.kind === 'futuristicCastle') group.add(this.futuristicCastleRenderer.render(cell.x * 97 + cell.y * 53));
     else if (cell.kind === 'windmill') this.services.windmillSystem.create(group);
     else if (cell.kind === 'mine') this.makeMine(group);
