@@ -11,7 +11,7 @@ new SettingsUI(settingsStore, () => {
 });
 
 try {
-  new MobileUI();
+  new MobileUI(settingsStore);
 } catch (error) {
   console.error('Mobile UI initialization failed', error);
 }
