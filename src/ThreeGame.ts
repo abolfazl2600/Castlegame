@@ -2118,6 +2118,7 @@ export class ThreeGame {
         );
       }
     });
+    this.distanceDetailBudget.invalidate();
     if (this.visualBenchmark) this.lastRedrawMs = performance.now() - redrawStart;
   }
 
