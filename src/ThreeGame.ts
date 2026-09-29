@@ -12,6 +12,7 @@ import { BasilicaRenderer } from './rendering/BasilicaRenderer';
 import { MedievalMaterials } from './rendering/MedievalMaterials';
 import { CASTLE_ARCHITECTURE_STYLE } from './rendering/CastleArchitectureStyle';
 import { WORLD_STYLE, styleTone } from './rendering/WorldStyle';
+import { AmbientMotionSystem } from './rendering/AmbientMotionSystem';
 import {
   RESIDENCE_LAYOUTS,
   RESIDENCE_VISUAL_LEVELS,
@@ -395,6 +396,8 @@ export class ThreeGame {
   private readonly worldLayoutLayer = new THREE.Group();
   private readonly terrainLayer = new THREE.Group();
   private readonly buildLayer = new THREE.Group();
+  private readonly ambientLayer = new THREE.Group();
+  private readonly ambientMotion = new AmbientMotionSystem();
   private readonly planLayer = new THREE.Group();
   private readonly wallPreviewLayer = new THREE.Group();
   private buildPreviewKey = '';
@@ -456,7 +459,6 @@ export class ThreeGame {
   private keepRoof: KeepRoofStyle = 'flatBattlement';
   private keepBattlements = true;
   private selectedKeepId: number | null = null;
-  private animatedFlags: THREE.Mesh[] = [];
   private brushSize = 2;
   private brushStrength = 1;
   private battleSetup: BattleSetup = {
@@ -578,6 +580,8 @@ export class ThreeGame {
       emissive: 0x123b43,
       emissiveIntensity: 0.08,
     });
+    this.ambientMotion.registerTextureFlow(this.riverTexture, 0.000035, -0.00032);
+    this.ambientMotion.registerTextureFlow(this.oceanTexture, 0.000018, -0.000012);
     const initialSettings = this.settingsStore.get();
     applyGraphicsSettings(this.renderer, initialSettings);
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
@@ -666,7 +670,9 @@ export class ThreeGame {
 
     this.addLights();
     this.createWorld();
+    this.createAmbientWorld();
 
+    this.scene.add(this.ambientLayer);
     this.scene.add(this.terrainLayer);
     this.scene.add(this.buildLayer);
     this.scene.add(this.planLayer);
