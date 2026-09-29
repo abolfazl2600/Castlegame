@@ -96,11 +96,12 @@ export class AmbientFaunaSystem {
   }
 
   update(deltaMs: number, timeMs: number, options: {
-    reducedMotion: boolean; animationScale: number; cameraDistance: number; strategicDistance: number;
+    reducedMotion: boolean; animationScale: number; cameraDistance: number;
+    normalDistance: number; strategicDistance: number;
   }): void {
     if (!this.world) return;
     const motion = options.reducedMotion ? 0.08 : Math.max(0.12, options.animationScale);
-    this.layer.visible = options.cameraDistance < options.strategicDistance * 1.35;
+    this.layer.visible = options.cameraDistance < (options.normalDistance + options.strategicDistance) / 2 + 6;
     if (!this.layer.visible) return;
     for (const llama of this.llamas) {
       if (timeMs >= llama.idleUntil && llama.x === llama.targetX && llama.y === llama.targetY) {
