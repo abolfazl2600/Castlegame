@@ -270,6 +270,29 @@ h1 { margin: 3px 0 0; font-size: 22px; line-height: 1; letter-spacing: -.035em; 
   background: rgba(219,102,104,.1);
 }
 
+.build-population-breakdown {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 4px;
+  padding: 6px 7px;
+  border: 1px solid rgba(111, 196, 218, .1);
+  border-radius: 10px;
+  background: rgba(65, 143, 164, .035);
+}
+.build-population-breakdown span {
+  min-width: 0;
+  overflow: hidden;
+  padding: 4px 5px;
+  border-radius: 7px;
+  color: rgba(211, 235, 242, .65);
+  background: rgba(255,255,255,.022);
+  font-size: 7px;
+  font-weight: 800;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
 .build-economy-summary {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
