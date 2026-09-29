@@ -143,6 +143,50 @@ export interface EconomyResourceState {
   food: number;
 }
 
+export type CivilianOccupation =
+  | 'idle'
+  | 'farmer'
+  | 'builder'
+  | 'miner'
+  | 'sailor'
+  | 'merchant'
+  | 'worker'
+  | 'militia';
+
+export type MilitiaUnitType = 'swordsman' | 'archer' | 'spearman' | 'crossbowman';
+
+export interface PopulationGridRef {
+  x: number;
+  y: number;
+}
+
+export interface SavedCitizenState {
+  id: string;
+  alive: boolean;
+  home?: PopulationGridRef;
+  occupation: CivilianOccupation;
+  workplace?: PopulationGridRef;
+  previousOccupation?: Exclude<CivilianOccupation, 'militia'>;
+  previousWorkplace?: PopulationGridRef;
+  militiaType?: MilitiaUnitType;
+  mobilized?: boolean;
+}
+
+export interface SavedProfessionalSoldierState {
+  id: string;
+  alive: boolean;
+  unitType: 'modernSoldier';
+  camp?: PopulationGridRef;
+}
+
+export interface PopulationSimulationState {
+  nextCitizenId: number;
+  nextSoldierId: number;
+  housingCapacityHighWater: number;
+  citizens: SavedCitizenState[];
+  professionalArmy: SavedProfessionalSoldierState[];
+}
+
 export interface SavedGame {
   version: number;
   gameMode?: GameMode;
@@ -176,6 +220,7 @@ export interface SavedGame {
   militaryTier?: number;
   missiles?: MissileInventoryState;
   economy?: EconomyResourceState;
+  population?: PopulationSimulationState;
 }
 
 export interface SaveMetadata {
