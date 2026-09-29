@@ -20,6 +20,12 @@ export interface VisualBudgetSnapshot {
   budget: VisualPerformanceBudget;
   activeShadowCasters: number;
   baselineShadowCasters: number;
+  activeHighDetailMeshes: number;
+  baselineHighDetailMeshes: number;
+  suppressedHighDetailMeshes: number;
+  estimatedDrawCalls: number;
+  baselineEstimatedDrawCalls: number;
+  suppressedEstimatedDrawCalls: number;
 }
 
 const DESKTOP_BUDGETS: Record<DistanceDetailBand, VisualPerformanceBudget> = {
@@ -83,6 +89,8 @@ const MOBILE_BUDGETS: Record<DistanceDetailBand, VisualPerformanceBudget> = {
 };
 
 const BAND_HYSTERESIS = 4;
+const GENERIC_MICRO_DETAIL_RADIUS = 0.78;
+const PROP_HEAVY_MICRO_DETAIL_RADIUS = 1.32;
 
 function settingsPixelRatioScale(settings: SettingsData): number {
   const quality =
@@ -103,24 +111,75 @@ function parentHasReadabilityPriority(object: THREE.Object3D): boolean {
       current.userData.defenseSilhouette ||
       current.userData.settlementReadabilityClass === 'landmark' ||
       current.userData.cellKind === 'keep' ||
-      current.userData.cellKind === 'futuristicCastle'
+      current.userData.cellKind === 'futuristicCastle' ||
+      current.userData.distanceDetailPriority === 'silhouette'
     ) return true;
     current = current.parent;
   }
   return false;
 }
 
+function parentHasPropHeavyContext(object: THREE.Object3D): boolean {
+  let current: THREE.Object3D | null = object;
+  while (current) {
+    if (
+      current.userData.activeFarm ||
+      current.userData.cowBarnLevel ||
+      current.userData.harborLevel ||
+      current.userData.armyCampLevel
+    ) return true;
+    current = current.parent;
+  }
+  return false;
+}
+
+function estimatedDrawCost(object: THREE.Object3D): number {
+  if (!(object instanceof THREE.Mesh || object instanceof THREE.Line || object instanceof THREE.Points)) return 0;
+  const material = object.material;
+  return Array.isArray(material) ? Math.max(1, material.length) : 1;
+}
+
+function worldRadius(mesh: THREE.Mesh): number {
+  if (!mesh.geometry.boundingSphere) mesh.geometry.computeBoundingSphere();
+  const radius = mesh.geometry.boundingSphere?.radius ?? Number.POSITIVE_INFINITY;
+  const scale = new THREE.Vector3();
+  mesh.getWorldScale(scale);
+  return radius * Math.max(Math.abs(scale.x), Math.abs(scale.y), Math.abs(scale.z));
+}
+
+function isSuppressibleMicroDetail(mesh: THREE.Mesh): boolean {
+  if (mesh instanceof THREE.InstancedMesh || mesh instanceof THREE.SkinnedMesh) return false;
+  if (parentHasReadabilityPriority(mesh)) return false;
+  if (mesh.userData.distanceDetailPriority === 'micro') return true;
+  if (mesh.userData.waterLayer || mesh.userData.godModeMarker) return false;
+
+  const threshold = parentHasPropHeavyContext(mesh)
+    ? PROP_HEAVY_MICRO_DETAIL_RADIUS
+    : GENERIC_MICRO_DETAIL_RADIUS;
+  return worldRadius(mesh) <= threshold;
+}
+
+interface DetailBudgetResult {
+  activeHighDetailMeshes: number;
+  baselineHighDetailMeshes: number;
+  suppressedHighDetailMeshes: number;
+  estimatedDrawCalls: number;
+  baselineEstimatedDrawCalls: number;
+  suppressedEstimatedDrawCalls: number;
+}
+
 /**
  * Camera-distance performance governor.
  *
- * It never removes silhouette-defining geometry. Instead it reduces raster cost,
- * ambient animation work, and the number of active shadow casters as the camera
- * moves toward strategic zoom. Shadow changes happen only after hysteresis-aware
- * band transitions, which prevents rapid toggling around distance thresholds.
+ * Silhouette-defining geometry is never removed. The governor suppresses only
+ * stable, small micro-detail meshes at band transitions, while also reducing
+ * raster cost, ambient animation work and active shadow casters. Hysteresis
+ * keeps normal camera movement from rapidly toggling detail around thresholds.
  */
 export class DistanceDetailBudgetSystem {
   private band: DistanceDetailBand = 'gameplay';
   private readonly baseShadowCaster = new WeakMap<THREE.Object3D, boolean>();
+  private readonly detailHidden = new WeakSet<THREE.Object3D>();
   private lastProfileKey = '';
   private lastSnapshot: VisualBudgetSnapshot = {
     band: 'gameplay',
@@ -128,6 +187,12 @@ export class DistanceDetailBudgetSystem {
     budget: DESKTOP_BUDGETS.gameplay,
     activeShadowCasters: 0,
     baselineShadowCasters: 0,
+    activeHighDetailMeshes: 0,
+    baselineHighDetailMeshes: 0,
+    suppressedHighDetailMeshes: 0,
+    estimatedDrawCalls: 0,
+    baselineEstimatedDrawCalls: 0,
+    suppressedEstimatedDrawCalls: 0,
   };
 
   update(
@@ -161,16 +226,21 @@ export class DistanceDetailBudgetSystem {
         settings.graphics.quality !== 'low' &&
         budget.shadowCasters > 0;
 
+      const detail = this.applyDetailBudget(scene, budget);
+      const shadow = this.applyShadowBudget(scene, budget.shadowCasters, renderer.shadowMap.enabled);
       this.lastSnapshot = {
         band: this.band,
         mobile,
         budget,
-        ...this.applyShadowBudget(scene, budget.shadowCasters, renderer.shadowMap.enabled),
+        ...detail,
+        ...shadow,
       };
       scene.userData.visualPerformanceBudget = {
         band: this.band,
         mobile,
         ...budget,
+        activeHighDetailMeshes: detail.activeHighDetailMeshes,
+        estimatedDrawCalls: detail.estimatedDrawCalls,
       };
       this.lastProfileKey = profileKey;
     }
@@ -210,6 +280,82 @@ export class DistanceDetailBudgetSystem {
     return 'gameplay';
   }
 
+  private restoreSuppressedDetail(scene: THREE.Scene): void {
+    scene.traverse((object) => {
+      if (!this.detailHidden.has(object)) return;
+      object.visible = true;
+      this.detailHidden.delete(object);
+    });
+  }
+
+  private applyDetailBudget(
+    scene: THREE.Scene,
+    budget: VisualPerformanceBudget,
+  ): DetailBudgetResult {
+    this.restoreSuppressedDetail(scene);
+    scene.updateMatrixWorld(true);
+
+    const candidates: Array<{
+      mesh: THREE.Mesh;
+      radius: number;
+      drawCost: number;
+      order: number;
+    }> = [];
+    let traversalOrder = 0;
+    let baselineEstimatedDrawCalls = 0;
+    let protectedDrawCalls = 0;
+
+    scene.traverse((object) => {
+      if (!object.visible) return;
+      const drawCost = estimatedDrawCost(object);
+      if (drawCost <= 0) return;
+      baselineEstimatedDrawCalls += drawCost;
+
+      if (object instanceof THREE.Mesh && isSuppressibleMicroDetail(object)) {
+        candidates.push({
+          mesh: object,
+          radius: worldRadius(object),
+          drawCost,
+          order: traversalOrder,
+        });
+      } else {
+        protectedDrawCalls += drawCost;
+      }
+      traversalOrder += 1;
+    });
+
+    candidates.sort((a, b) => b.radius - a.radius || a.order - b.order);
+
+    const maxDetailMeshes = Math.max(0, budget.highDetailMeshes);
+    const availableDrawCalls = Math.max(0, budget.drawCalls - protectedDrawCalls);
+    let activeHighDetailMeshes = 0;
+    let activeDetailDrawCalls = 0;
+
+    for (const candidate of candidates) {
+      const withinMeshBudget = activeHighDetailMeshes < maxDetailMeshes;
+      const withinDrawBudget = activeDetailDrawCalls + candidate.drawCost <= availableDrawCalls;
+      const keep = withinMeshBudget && withinDrawBudget;
+
+      if (keep) {
+        activeHighDetailMeshes += 1;
+        activeDetailDrawCalls += candidate.drawCost;
+      } else {
+        candidate.mesh.visible = false;
+        this.detailHidden.add(candidate.mesh);
+      }
+    }
+
+    const estimatedDrawCalls = protectedDrawCalls + activeDetailDrawCalls;
+    return {
+      activeHighDetailMeshes,
+      baselineHighDetailMeshes: candidates.length,
+      suppressedHighDetailMeshes: candidates.length - activeHighDetailMeshes,
+      estimatedDrawCalls,
+      baselineEstimatedDrawCalls,
+      suppressedEstimatedDrawCalls: Math.max(0, baselineEstimatedDrawCalls - estimatedDrawCalls),
+    };
+  }
+
   private applyShadowBudget(
     scene: THREE.Scene,
     maxShadowCasters: number,
@@ -217,7 +363,7 @@ export class DistanceDetailBudgetSystem {
   ): Pick<VisualBudgetSnapshot, 'activeShadowCasters' | 'baselineShadowCasters'> {
     const candidates: THREE.Mesh[] = [];
     scene.traverse((object) => {
-      if (!(object instanceof THREE.Mesh)) return;
+      if (!(object instanceof THREE.Mesh) || !object.visible) return;
       if (!this.baseShadowCaster.has(object)) this.baseShadowCaster.set(object, object.castShadow);
       if (this.baseShadowCaster.get(object)) candidates.push(object);
     });
