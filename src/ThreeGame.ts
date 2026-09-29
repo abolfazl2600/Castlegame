@@ -12,6 +12,7 @@ import { BasilicaRenderer } from './rendering/BasilicaRenderer';
 import { MedievalMaterials } from './rendering/MedievalMaterials';
 import { CASTLE_ARCHITECTURE_STYLE } from './rendering/CastleArchitectureStyle';
 import { WORLD_STYLE, styleTone } from './rendering/WorldStyle';
+import { AmbientMotionSystem } from './rendering/AmbientMotionSystem';
 import {
   RESIDENCE_LAYOUTS,
   RESIDENCE_VISUAL_LEVELS,
@@ -395,6 +396,8 @@ export class ThreeGame {
   private readonly worldLayoutLayer = new THREE.Group();
   private readonly terrainLayer = new THREE.Group();
   private readonly buildLayer = new THREE.Group();
+  private readonly ambientLayer = new THREE.Group();
+  private readonly ambientMotion = new AmbientMotionSystem();
   private readonly planLayer = new THREE.Group();
   private readonly wallPreviewLayer = new THREE.Group();
   private buildPreviewKey = '';
@@ -456,7 +459,6 @@ export class ThreeGame {
   private keepRoof: KeepRoofStyle = 'flatBattlement';
   private keepBattlements = true;
   private selectedKeepId: number | null = null;
-  private animatedFlags: THREE.Mesh[] = [];
   private brushSize = 2;
   private brushStrength = 1;
   private battleSetup: BattleSetup = {
@@ -578,6 +580,8 @@ export class ThreeGame {
       emissive: 0x123b43,
       emissiveIntensity: 0.08,
     });
+    this.ambientMotion.registerTextureFlow(this.riverTexture, 0.000035, -0.00032);
+    this.ambientMotion.registerTextureFlow(this.oceanTexture, 0.000018, -0.000012);
     const initialSettings = this.settingsStore.get();
     applyGraphicsSettings(this.renderer, initialSettings);
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
@@ -612,6 +616,7 @@ export class ThreeGame {
           gpuGeometries: this.renderer.info.memory.geometries,
           gpuTextures: this.renderer.info.memory.textures,
           lastRedrawMs: this.lastRedrawMs,
+          ambientMotion: this.ambientMotion.stats(),
           pixelRatio: this.renderer.getPixelRatio(),
           drawingBuffer: { width: drawingBuffer.x, height: drawingBuffer.y },
           gpu: {
@@ -666,7 +671,9 @@ export class ThreeGame {
 
     this.addLights();
     this.createWorld();
+    this.createAmbientWorld();
 
+    this.scene.add(this.ambientLayer);
     this.scene.add(this.terrainLayer);
     this.scene.add(this.buildLayer);
     this.scene.add(this.planLayer);
@@ -1620,6 +1627,48 @@ export class ThreeGame {
     this.scene.add(warmBounce);
   }
 
+  private createAmbientWorld(): void {
+    const cloudMaterial = new THREE.MeshBasicMaterial({
+      color: 0xffffff,
+      transparent: true,
+      opacity: 0.18,
+      depthWrite: false,
+    });
+    const puffGeometry = new THREE.SphereGeometry(1, 8, 6);
+    const cloudSpecs = [
+      { x: -WORLD * 0.46, y: 23, z: -WORLD * 0.23, scale: 1.0, speed: 0.00034 },
+      { x: -WORLD * 0.18, y: 26, z: WORLD * 0.24, scale: 0.82, speed: 0.00028 },
+      { x: WORLD * 0.12, y: 21, z: -WORLD * 0.32, scale: 0.9, speed: 0.00031 },
+      { x: WORLD * 0.38, y: 25, z: WORLD * 0.12, scale: 1.1, speed: 0.00026 },
+    ] as const;
+
+    for (let index = 0; index < cloudSpecs.length; index += 1) {
+      const spec = cloudSpecs[index];
+      const cloud = new THREE.Group();
+      cloud.position.set(spec.x, spec.y, spec.z);
+      cloud.userData.ambientCloud = true;
+
+      for (const [offsetX, offsetY, offsetZ, scale] of [
+        [-3.8, 0, 0, 3.2],
+        [0, 0.45, 0.4, 4.4],
+        [4.0, -0.05, -0.25, 3.0],
+      ] as Array<[number, number, number, number]>) {
+        const puff = new THREE.Mesh(puffGeometry, cloudMaterial);
+        puff.position.set(offsetX * spec.scale, offsetY, offsetZ * spec.scale);
+        puff.scale.set(scale * spec.scale, 0.72 * spec.scale, 1.6 * spec.scale);
+        cloud.add(puff);
+      }
+
+      this.ambientLayer.add(cloud);
+      this.ambientMotion.registerCloud(
+        cloud,
+        spec.speed,
+        -WORLD * 0.62,
+        WORLD * 0.62,
+      );
+    }
+  }
+
   private createWorld(): void {
     const deepWater = new THREE.Mesh(
       new THREE.CircleGeometry(WORLD * 0.86, 112),
@@ -1931,6 +1980,7 @@ export class ThreeGame {
 
   private redraw(): void {
     const redrawStart = this.visualBenchmark ? performance.now() : 0;
+    this.ambientMotion.clearSceneBound();
     this.clearGroup(this.terrainLayer);
     this.clearGroup(this.buildLayer);
     this.services.gateSystem.clear();
@@ -2000,10 +2050,23 @@ export class ThreeGame {
     this.syncArmyCampUpgradeUI();
     this.syncIdleDefenderGarrison();
 
-    this.animatedFlags = [];
     this.buildLayer.traverse((object) => {
-      if (object instanceof THREE.Mesh && object.userData.castleFlag) {
-        this.animatedFlags.push(object);
+      if (object.userData.castleFlag) {
+        const phase = Number(object.userData.castleFlag?.phase ?? 0);
+        this.ambientMotion.registerFlag(object, phase);
+      }
+      if (object.userData.ambientSway) {
+        const sway = object.userData.ambientSway as {
+          phase?: number;
+          amplitude?: number;
+          speed?: number;
+        };
+        this.ambientMotion.registerSway(
+          object,
+          Number(sway.phase ?? 0),
+          Number(sway.amplitude ?? 0.02),
+          Number(sway.speed ?? 0.001),
+        );
       }
     });
     if (this.visualBenchmark) this.lastRedrawMs = performance.now() - redrawStart;
@@ -2508,6 +2571,7 @@ export class ThreeGame {
     const planMode = mode === 'plan2d';
 
     this.planLayer.visible = planMode;
+    this.ambientLayer.visible = !planMode;
     this.terrainLayer.visible = !planMode;
     this.buildLayer.visible = !planMode;
     this.workerLayer.visible = !planMode;
@@ -3632,6 +3696,14 @@ export class ThreeGame {
       this.addBox(boat, 0.06, 1.15, 0.06, mast, -0.15, 1.96, 0);
       this.addBox(boat, 0.75, 0.04, 0.04, mast, 0.18, 2.38, 0);
     }
+
+    const bobPhase = Math.abs(x * 0.41 + z * 0.29 + kind.length * 0.67);
+    this.ambientMotion.registerBob(
+      boat,
+      bobPhase,
+      kind === 'fishingBoat' ? 0.085 : 0.11,
+      0.00125,
+    );
   }
 
   private wallThicknessValue(kind: WallKind, thickness: WallThickness): number {
@@ -6401,16 +6473,42 @@ export class ThreeGame {
       0.1,
     );
 
-    if (chimneyVisible) this.addSettlementBox(
-      house,
-      0.14,
-      0.58,
-      0.14,
-      stone,
-      width * 0.28,
-      2.32 + height + 0.38,
-      depth * 0.12,
-    );
+    if (chimneyVisible) {
+      const chimneyX = width * 0.28;
+      const chimneyZ = depth * 0.12;
+      this.addSettlementBox(
+        house,
+        0.14,
+        0.58,
+        0.14,
+        stone,
+        chimneyX,
+        2.32 + height + 0.38,
+        chimneyZ,
+      );
+
+      if (detailed) {
+        const smokeMaterial = this.environmentMaterial('ambient-chimney-smoke', 0xc8c4b8, 1);
+        smokeMaterial.transparent = true;
+        smokeMaterial.opacity = 0.24;
+        smokeMaterial.depthWrite = false;
+
+        const smoke = new THREE.Group();
+        smoke.position.set(chimneyX, 2.32 + height + 0.78, chimneyZ);
+        for (const [sx, sy, scale] of [
+          [0, 0, 0.13],
+          [0.07, 0.24, 0.17],
+        ] as Array<[number, number, number]>) {
+          const puff = new THREE.Mesh(new THREE.SphereGeometry(1, 6, 5), smokeMaterial);
+          puff.position.set(sx, sy, 0);
+          puff.scale.set(scale, scale * 0.72, scale);
+          smoke.add(puff);
+        }
+        house.add(smoke);
+        const smokePhase = Math.abs(x * 0.37 + z * 0.53 + height * 0.19) % 1;
+        this.ambientMotion.registerSmoke(smoke, smokePhase, 0.38, 0.00019);
+      }
+    }
 
     if (detailed) {
       const awning = this.addSettlementBox(
@@ -6975,6 +7073,12 @@ export class ThreeGame {
       const flame = new THREE.Mesh(new THREE.ConeGeometry(0.16 * scale, 0.46 * scale, 7), fire);
       flame.position.set(x, 2.62 + 0.18 * scale, z);
       group.add(flame);
+      this.ambientMotion.registerSway(
+        flame,
+        Math.abs(x * 0.61 + z * 0.43),
+        0.055,
+        0.0038,
+      );
     };
 
     const addBanner = (x: number, z: number, scale = 1, material = canvasDark): void => {
@@ -7128,13 +7232,17 @@ export class ThreeGame {
     trunkMesh.castShadow = true;
     group.add(trunkMesh);
 
+    const crown = new THREE.Group();
+    group.add(crown);
     for (const [radius, y] of [[1.05, 4.25], [0.78, 5.3], [0.5, 6.05]] as Array<[number, number]>) {
       const cone = new THREE.Mesh(new THREE.ConeGeometry(radius, radius * 1.95, 8), foliage);
       cone.position.y = y;
       cone.castShadow = true;
-      group.add(cone);
+      crown.add(cone);
     }
 
+    const swayPhase = variant * 0.73 + group.position.x * 0.017 + group.position.z * 0.023;
+    this.ambientMotion.registerSway(crown, swayPhase, 0.032 + (variant % 3) * 0.004, 0.00115);
     return group;
   }
 
@@ -13487,19 +13595,18 @@ export class ThreeGame {
     this.services.session.update(deltaMs, time);
     this.updateLongPress(time);
     this.updateGodModeEffects(deltaMs);
-    if (!settings.interface.reducedMotion && settings.graphics.effectsEnabled) {
-      this.services.windmillSystem.update(deltaMs / 1000);
-      this.riverTexture.offset.y -= deltaMs * 0.00032;
-      this.riverTexture.offset.x += deltaMs * 0.000035;
-      this.oceanTexture.offset.x += deltaMs * 0.000018;
-      this.oceanTexture.offset.y -= deltaMs * 0.000012;
-
-      for (const flag of this.animatedFlags) {
-        const phase = Number(flag.userData.castleFlag?.phase ?? 0);
-        const wave = Math.sin(time * 0.0032 + phase);
-        flag.rotation.y = wave * 0.08;
-        flag.scale.x = 0.94 + Math.abs(wave) * 0.09;
-      }
+    const ambientScale = this.ambientMotion.update(deltaMs, time, {
+      effectsEnabled: settings.graphics.effectsEnabled,
+      reducedMotion: settings.interface.reducedMotion,
+      quality: settings.graphics.quality,
+      environmentDetail: settings.graphics.environmentDetail,
+      performanceMode: settings.graphics.performanceMode,
+      cameraDistance: this.camera.position.distanceTo(this.controls.target),
+      normalDistance: WORLD_STYLE.camera.referenceDistances.normalGameplay,
+      strategicDistance: WORLD_STYLE.camera.referenceDistances.maximumStrategic,
+    });
+    if (ambientScale > 0) {
+      this.services.windmillSystem.update((deltaMs / 1000) * ambientScale);
     }
 
     this.controls.update();
