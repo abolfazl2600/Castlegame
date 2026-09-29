@@ -18,11 +18,23 @@ export const WORLD_STYLE = {
     terrainRock: 0x817b70,
   },
   camera: {
-    position: new THREE.Vector3(68, 80, 76),
+    // Authoritative gameplay camera contract shared by mouse-wheel and touch-pinch zoom.
+    // Reference distances are used for visual QA and future distance-aware detail/LOD work.
+    position: new THREE.Vector3(55, 64, 61),
     near: 0.1,
     far: 700,
-    minDistance: 32,
+    minDistance: 40,
     maxDistance: 150,
+    referenceDistances: {
+      nearInspection: 48,
+      normalGameplay: 104,
+      maximumStrategic: 148,
+    },
+    planDistance: 118,
+    maxPolarAngle: 1.34,
+    targetPadding: 8,
+    minTargetY: 0,
+    maxTargetY: 12,
   },
   lighting: {
     sky: 0xc4e1e7,
