@@ -4012,7 +4012,10 @@ export class ThreeGame {
       }
     }
 
-    const corner = this.services.wallCornerSystem.analyze(cell, links, gx, gy);
+    const topology = this.castleBlocksByCell.get(this.key(gx, gy))?.topology;
+    const corner = topology === 'corner' || topology === 't-junction' || topology === '4-way' || topology === 'multi-junction'
+      ? this.services.wallCornerSystem.analyze(cell, links, gx, gy)
+      : null;
     if (corner) {
       this.addAutomaticCorner(
         group,
