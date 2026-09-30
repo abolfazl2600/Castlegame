@@ -66,8 +66,8 @@ assert.ok(
   'Ordinary redraws must preserve an unchanged standing garrison without visible respawn flicker',
 );
 assert.ok(
-  game.includes("if (String(field).startsWith('defender')) this.syncIdleDefenderGarrison(true);"),
-  'Changing defender counts must immediately rebuild the standing garrison',
+  game.includes("if (String(field).startsWith('defender')) return;"),
+  'Defenders must not be editable in Battle Setup',
 );
 assert.ok(
   game.includes('this.battleLayer.visible = !planMode;'),
