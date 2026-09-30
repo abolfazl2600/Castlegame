@@ -55,6 +55,24 @@ async function loadQaRuntime(page: Page): Promise<void> {
   const record = emptyAutosave();
   await page.addInitScript(({ markerKey, autosaveKey, seededRecord }) => {
     localStorage.setItem(markerKey, '1');
+    // Interaction tests should not compete with expensive high-quality WebGL rendering on CI.
+    // Matched-view visual QA runs separately using high-quality settings.
+    localStorage.setItem('castle-role.settings.v2', JSON.stringify({
+      schemaVersion: 2,
+      gameplay: { controlScheme: 'standard', tutorialCompleted: true, cameraSensitivity: 1, combatFeedback: true },
+      graphics: {
+        quality: 'low', performanceMode: 'performance', environmentDetail: 'low',
+        shadowsEnabled: false, effectsEnabled: false, debugMode: false,
+      },
+      interface: {
+        uiScale: 1, language: 'en', reducedMotion: true, highContrast: false,
+        confirmDestructiveActions: false, showHelp: false,
+      },
+      audio: {
+        masterVolume: 0, musicEnabled: false, musicVolume: 0,
+        sfxEnabled: false, sfxVolume: 0, muted: true,
+      },
+    }));
     if (!localStorage.getItem(autosaveKey)) {
       localStorage.setItem(autosaveKey, JSON.stringify(seededRecord));
     }
@@ -63,6 +81,8 @@ async function loadQaRuntime(page: Page): Promise<void> {
   await page.goto('/Castlegame/?visualBaseline=1', { waitUntil: 'domcontentloaded' });
   await expect(page.locator('#toolbar [data-build-none]')).toHaveCount(1, { timeout: 30_000 });
   await expect(page.locator('#game-canvas')).toHaveCount(1, { timeout: 30_000 });
+  await expect(page.locator('#rotate-selected')).toHaveCount(1, { timeout: 30_000 });
+  await expect(page.locator('#selected-gate-toggle')).toHaveCount(1, { timeout: 30_000 });
   await page.waitForFunction(() => {
     const qa = window as unknown as { __castleVisualGridPoint?: unknown };
     return typeof qa.__castleVisualGridPoint === 'function';
@@ -177,11 +197,15 @@ test('Carcassonne template serializes its documented landmark plan', async ({ pa
 });
 
 test('Carcassonne remains editable and gate state survives the normal autosave/reload path', async ({ page }) => {
+  // Two expensive full-world redraws and a reload are needed; CI software WebGL
+  // can exceed the suite's general 45s timeout even when the app works correctly.
+  test.setTimeout(180_000);
   await loadQaRuntime(page);
   await applyCarcassonne(page);
   await setTopQaCamera(page);
 
   await clickGridCell(page, 13, 12);
+  await expect(page.locator('#rotate-selected')).toHaveCount(1);
   await page.locator('#rotate-selected').evaluate((button) => (button as HTMLButtonElement).click());
 
   await expect.poll(async () => {
@@ -199,6 +223,7 @@ test('Carcassonne remains editable and gate state survives the normal autosave/r
     const qa = window as unknown as { __castleVisualGridPoint?: unknown };
     return typeof qa.__castleVisualGridPoint === 'function';
   });
+  await expect(page.locator('#selected-gate-toggle')).toHaveCount(1);
   await setTopQaCamera(page);
   await clickGridCell(page, 19, 9);
 

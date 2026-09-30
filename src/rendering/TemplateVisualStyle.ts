@@ -19,6 +19,7 @@ export const TEMPLATE_VISUAL_PRESETS: Readonly<Record<string, TemplateVisualPres
   'split-isles': { stoneStyle: 'sandstone', towerBridgeKind: 'wood', family: 'medieval' },
   'carcassonne': { stoneStyle: 'limestone', towerBridgeKind: 'stone', family: 'medieval' },
   'himeji-castle': { stoneStyle: 'whitePlaster', towerBridgeKind: 'stone', family: 'medieval' },
+  'arg-e-bam': { stoneStyle: 'earthen', towerBridgeKind: 'wood', family: 'medieval' },
   'empty-land': { stoneStyle: 'limestone', towerBridgeKind: 'stone', family: 'medieval' },
   'small-castle': { stoneStyle: 'limestone', towerBridgeKind: 'stone', family: 'medieval' },
   'motte-bailey': { stoneStyle: 'frontier', towerBridgeKind: 'wood', family: 'medieval' },
