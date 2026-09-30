@@ -199,8 +199,16 @@ function estimatedDrawCost(object: THREE.Object3D): number {
 }
 
 function worldRadius(mesh: THREE.Mesh): number {
-  if (!mesh.geometry.boundingSphere) mesh.geometry.computeBoundingSphere();
-  const radius = mesh.geometry.boundingSphere?.radius ?? Number.POSITIVE_INFINITY;
+  // An instanced cube is geometrically tiny (unit box), but its instances can
+  // cover a whole wall. Use the instance union, never the source box radius.
+  if (mesh instanceof THREE.InstancedMesh) {
+    if (!mesh.boundingSphere) mesh.computeBoundingSphere();
+  } else if (!mesh.geometry.boundingSphere) {
+    mesh.geometry.computeBoundingSphere();
+  }
+  const radius = mesh instanceof THREE.InstancedMesh
+    ? mesh.boundingSphere?.radius ?? Number.POSITIVE_INFINITY
+    : mesh.geometry.boundingSphere?.radius ?? Number.POSITIVE_INFINITY;
   const scale = new THREE.Vector3();
   mesh.getWorldScale(scale);
   return radius * Math.max(Math.abs(scale.x), Math.abs(scale.y), Math.abs(scale.z));
@@ -441,7 +449,9 @@ export class DistanceDetailBudgetSystem {
       if (drawCost <= 0) return;
       baselineEstimatedDrawCalls += drawCost;
 
-      if (!(object instanceof THREE.Mesh)) {
+      // Instanced batches contain many visually important pieces.
+      // Suppressing a single batch hides the entire set, not one tiny detail.
+      if (!(object instanceof THREE.Mesh) || object instanceof THREE.InstancedMesh) {
         protectedDrawCalls += drawCost;
         traversalOrder += 1;
         return;
