@@ -11408,10 +11408,6 @@ export class ThreeGame {
     get<HTMLButtonElement>('battle-speed-up').onclick = () => {
       this.battleSystem.increaseBattleSpeed();
     };
-    get<HTMLButtonElement>('battle-speed-reset').onclick = () => {
-      this.battleSystem.resetBattleSpeed();
-    };
-
     this.syncBattleSetupUI();
     this.syncMilitaryUI();
     this.updateBattleUI(this.battleSystem.status());
