@@ -3782,7 +3782,7 @@ html.mobile-ui-active .minimap-hint { display: none; }
   width: min(360px, calc(100vw - 28px));
   max-height: calc(100vh - 116px);
   overflow: auto;
-  pointer-events: none;
+  pointer-events: auto;
   border: 1px solid rgba(126, 226, 255, .2);
   border-radius: 14px;
   background: rgba(5, 14, 22, .92);
