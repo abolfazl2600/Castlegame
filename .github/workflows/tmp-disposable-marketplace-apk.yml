@@ -1,0 +1,79 @@
+name: Temporary disposable APK signing smoke test (remove before PR)
+
+on:
+  push:
+    branches:
+      - feat/marketplace-signed-apk
+
+permissions:
+  contents: read
+
+jobs:
+  apk-smoke:
+    name: Validate release APK signing and reject bad fingerprint
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - name: Checkout
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          persist-credentials: false
+      - name: Set up Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '22'
+          cache: npm
+      - name: Set up Java
+        uses: actions/setup-java@cf277c60eb25467037889841efdb72551f06f6c3
+        with:
+          java-version: '21'
+          distribution: temurin
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@ed408507eac070d1f99cc633dbcf757c94c7933a
+        with:
+          cache-read-only: true
+      - name: SDK build-tools
+        shell: bash
+        run: |
+          set -euo pipefail
+          SDKMANAGER="$(find "$ANDROID_HOME/cmdline-tools" -type f -name sdkmanager | head -n 1)"
+          test -n "$SDKMANAGER"
+          yes | "$SDKMANAGER" --licenses > /dev/null || true
+          "$SDKMANAGER" "platforms;android-36" "build-tools;36.0.0" "platform-tools"
+      - name: Build local Vite assets and sync Android
+        run: |
+          npm ci --no-audit --no-fund
+          npm run android:sync
+          test -s android/app/src/main/assets/public/index.html
+          ! grep -q '/Castlegame/assets/' android/app/src/main/assets/public/index.html
+      - name: Sign APK with ephemeral test key and verify positive and negative SHA256
+        shell: bash
+        run: |
+          set -euo pipefail
+          set +x
+          umask 077
+          export ANDROID_KEYSTORE_PASSWORD="$(openssl rand -hex 24)"
+          export ANDROID_KEY_PASSWORD="$(openssl rand -hex 24)"
+          export ANDROID_KEY_ALIAS=disposable-apk-CI-only
+          export ANDROID_KEYSTORE_PATH="$RUNNER_TEMP/throwaway-marketplace-ci.jks"
+          trap 'rm -f "$ANDROID_KEYSTORE_PATH"' EXIT
+          keytool -genkeypair -storetype JKS \
+            -keystore "$ANDROID_KEYSTORE_PATH" \
+            -alias "$ANDROID_KEY_ALIAS" -keyalg RSA -keysize 3072 \
+            -validity 2 -dname "CN=Disposable Testing Certificate, O=CI" \
+            -storepass:env ANDROID_KEYSTORE_PASSWORD \
+            -keypass:env ANDROID_KEY_PASSWORD > /dev/null 2>&1
+          export ANDROID_EXPECTED_UPLOAD_SHA256="$(keytool -list -v \
+            -keystore "$ANDROID_KEYSTORE_PATH" \
+            -storepass:env ANDROID_KEYSTORE_PASSWORD \
+            -alias "$ANDROID_KEY_ALIAS" | awk -F 'SHA256:' '/SHA256:/{print $2; exit}')"
+          (cd android && ./gradlew --no-daemon --no-build-cache --no-configuration-cache assembleRelease)
+          APK=android/app/build/outputs/apk/release/app-release.apk
+          test -s "$APK"
+          bash scripts/android/verify-signed-apk.sh "$APK"
+          export ANDROID_EXPECTED_UPLOAD_SHA256=0000000000000000000000000000000000000000000000000000000000000000
+          if bash scripts/android/verify-signed-apk.sh "$APK"; then
+            echo "::error::A bad fingerprint was accepted."
+            exit 1
+          fi
+          echo "Disposable signed APK passed apksigner validation and rejected mismatched fingerprint."
