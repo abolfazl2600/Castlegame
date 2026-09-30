@@ -151,6 +151,8 @@ test('Persian portrait touch layout keeps controls and Settings on-screen', asyn
   // Reopen Settings and exercise the canonical Load action instead of a removed mobile-header proxy.
   await page.locator('.mobile-header [data-mobile-proxy="settings-button"]').click();
   await expect(page.locator('#settings-modal')).toBeVisible();
+  await page.locator('[data-settings-nav="overview"]').click();
+  await expect(page.locator('[data-system-action="load"]')).toBeVisible();
   await page.locator('[data-system-action="load"]').click();
   await expect(page.locator('#save-load-title')).toHaveText('بارگذاری بازی');
   await assertVisibleDialogInsideViewport(page, '.save-load-backdrop .help-modal');
