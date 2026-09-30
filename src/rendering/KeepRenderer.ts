@@ -28,6 +28,9 @@ export class KeepRenderer {
       cornerTowers: keep.cornerTowers,
       roof: keep.roof,
     };
+    if (keep.roof === 'japaneseTiered') {
+      group.userData.architectureFamily = 'japanese-castle';
+    }
     const rotated = keep.rotation % 2 !== 0;
     const widthCells = rotated ? keep.depth : keep.width;
     const depthCells = rotated ? keep.width : keep.depth;
@@ -59,7 +62,8 @@ export class KeepRenderer {
     const stoneDark = this.materials.castleStone(context.stoneStyle, 'foundation', keep.x, keep.y);
     const stoneLight = this.materials.castleStone(context.stoneStyle, 'alt', keep.x, keep.y);
     const wood = this.materials.timber;
-    const roof = this.materials.roofTile;
+    const japaneseTiered = keep.roof === 'japaneseTiered';
+    const roof = japaneseTiered ? this.materials.japaneseRoofTile : this.materials.roofTile;
     const roofDark = this.materials.roofDark;
     const slit = this.materials.arrowVoid;
     const windowMaterial = new THREE.MeshStandardMaterial({
@@ -98,18 +102,41 @@ export class KeepRenderer {
 
     for (let floor = 0; floor < keep.floors; floor += 1) {
       const y = bodyBottom + floor * floorHeight + floorHeight / 2;
-      this.addBox(group, width, floorHeight - floorGap, depth, stone, 0, y, 0);
-
+      const tierScale = japaneseTiered ? Math.max(0.64, 1 - floor * 0.065) : 1;
+      const floorWidth = width * tierScale;
+      const floorDepth = depth * tierScale;
       this.addBox(
         group,
-        width + 0.16,
-        0.16,
-        depth + 0.16,
-        floor % 2 === 0 ? stoneDark : stoneLight,
+        floorWidth,
+        floorHeight - floorGap,
+        floorDepth,
+        japaneseTiered ? stoneLight : stone,
         0,
-        bodyBottom + (floor + 1) * floorHeight - 0.08,
+        y,
         0,
       );
+
+      if (japaneseTiered) {
+        this.addJapaneseRoofTier(
+          group,
+          floorWidth,
+          floorDepth,
+          bodyBottom + (floor + 1) * floorHeight - 0.08,
+          roof,
+          this.materials.timberDark,
+        );
+      } else {
+        this.addBox(
+          group,
+          width + 0.16,
+          0.16,
+          depth + 0.16,
+          floor % 2 === 0 ? stoneDark : stoneLight,
+          0,
+          bodyBottom + (floor + 1) * floorHeight - 0.08,
+          0,
+        );
+      }
     }
 
     this.addKeepOpenings(
@@ -139,7 +166,7 @@ export class KeepRenderer {
 
     const bodyTop = bodyBottom + totalBodyHeight;
 
-    if (keep.cornerTowers) {
+    if (keep.cornerTowers && !japaneseTiered) {
       this.addCornerTowers(
         group,
         keep,
@@ -154,13 +181,17 @@ export class KeepRenderer {
       );
     }
 
-    this.addRoof(group, keep, width, depth, bodyTop, stone, roof, roofDark);
+    if (!japaneseTiered) {
+      this.addRoof(group, keep, width, depth, bodyTop, stone, roof, roofDark);
+    }
 
-    if (keep.battlements || keep.roof === 'flatBattlement' || keep.roof === 'defensivePlatform') {
+    if (!japaneseTiered && (keep.battlements || keep.roof === 'flatBattlement' || keep.roof === 'defensivePlatform')) {
       this.addBattlements(group, width, depth, bodyTop + 0.18, stone);
     }
 
-    this.addFlags(group, keep, width, depth, bodyTop, wood, roof);
+    if (!japaneseTiered) {
+      this.addFlags(group, keep, width, depth, bodyTop, wood, roof);
+    }
 
     group.userData.castleAccess = {
       groundConnected: true,
@@ -489,6 +520,39 @@ export class KeepRenderer {
         z + Math.sin(angle) * radius,
       );
     }
+  }
+
+  private addJapaneseRoofTier(
+    group: THREE.Group,
+    width: number,
+    depth: number,
+    y: number,
+    roof: THREE.Material,
+    trim: THREE.Material,
+  ): void {
+    const maxSpan = Math.max(width, depth);
+    this.addBox(group, width + 0.72, 0.14, depth + 0.72, trim, 0, y, 0);
+
+    const cap = new THREE.Mesh(
+      new THREE.ConeGeometry(maxSpan * 0.7, 0.64, 4),
+      roof,
+    );
+    cap.position.y = y + 0.38;
+    cap.rotation.y = Math.PI / 4;
+    cap.scale.set(width / maxSpan, 1, depth / maxSpan);
+    cap.castShadow = true;
+    group.add(cap);
+
+    this.addBox(
+      group,
+      Math.max(0.6, width * 0.42),
+      0.12,
+      0.16,
+      roof,
+      0,
+      y + 0.73,
+      0,
+    );
   }
 
   private addRoof(

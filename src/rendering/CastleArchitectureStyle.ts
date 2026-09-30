@@ -31,6 +31,13 @@ export const CASTLE_STONE_PALETTES: Record<
     foundation: 0x79654c,
     walkway: 0xac9068,
   },
+  frontier: {
+    body: 0x908b81,
+    alt: 0xa6a094,
+    dark: 0x666159,
+    foundation: 0x57524b,
+    walkway: 0x7d776f,
+  },
   earthen: {
     body: 0xb98555,
     alt: 0xc79765,
@@ -38,12 +45,12 @@ export const CASTLE_STONE_PALETTES: Record<
     foundation: 0x755139,
     walkway: 0xa9784e,
   },
-  frontier: {
-    body: 0x908b81,
-    alt: 0xa6a094,
-    dark: 0x666159,
-    foundation: 0x57524b,
-    walkway: 0x7d776f,
+  whitePlaster: {
+    body: 0xf0eee4,
+    alt: 0xf8f6ed,
+    dark: 0xc5c1b5,
+    foundation: 0x8d8b83,
+    walkway: 0xd7d3c8,
   },
 };
 

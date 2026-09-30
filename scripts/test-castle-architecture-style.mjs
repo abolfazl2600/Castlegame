@@ -10,7 +10,7 @@ const [style, materials, game, keep, accessTest, gateTest] = await Promise.all([
   readFile(new URL('./test-gate-orientation.mjs', import.meta.url), 'utf8'),
 ]);
 
-for (const stoneStyle of ['limestone', 'darkStone', 'sandstone', 'frontier']) {
+for (const stoneStyle of ['limestone', 'darkStone', 'sandstone', 'frontier', 'whitePlaster']) {
   assert.match(style, new RegExp(`\\b${stoneStyle}: \\{`));
 }
 
@@ -26,6 +26,9 @@ assert.match(materials, /CASTLE_STONE_PALETTES/);
 assert.match(materials, /CASTLE_ARCHITECTURE_STYLE\.palette\.timber/);
 assert.match(materials, /CASTLE_ARCHITECTURE_STYLE\.palette\.roofTerracotta/);
 assert.match(materials, /createStylePalette/);
+assert.match(materials, /japaneseRoofTile/);
+assert.match(keep, /addJapaneseRoofTier/);
+assert.match(keep, /architectureFamily = 'japanese-castle'/);
 
 assert.match(game, /CASTLE_ARCHITECTURE_STYLE\.wall\.stoneBaseHeight/);
 assert.match(game, /CASTLE_ARCHITECTURE_STYLE\.battlement/);

@@ -24,7 +24,9 @@ export interface GraphicsSettings {
 
 export interface AudioSettings {
   masterVolume: number;
+  musicEnabled: boolean;
   musicVolume: number;
+  sfxEnabled: boolean;
   sfxVolume: number;
   muted: boolean;
 }
@@ -65,7 +67,9 @@ export function createDefaultSettings(): SettingsData {
     },
     audio: {
       masterVolume: 1,
+      musicEnabled: true,
       musicVolume: 0.8,
+      sfxEnabled: true,
       sfxVolume: 1,
       muted: false,
     },

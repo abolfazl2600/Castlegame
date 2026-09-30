@@ -22,12 +22,12 @@ export type TowerTop =
   | 'flat'
   | 'flag'
   | 'watch';
-export type StoneStyle = 'limestone' | 'darkStone' | 'sandstone' | 'frontier' | 'earthen';
+export type StoneStyle = 'limestone' | 'darkStone' | 'sandstone' | 'frontier' | 'whitePlaster' | 'earthen';
 export type TowerBridgeKind = 'stone' | 'wood';
 export type AccessKind = 'stoneStairs' | 'woodenStairs' | 'ramp' | 'ladder';
 export type GeneratedAccessKind = AccessKind | 'stairTower';
 export type TerrainToolKind = 'raise' | 'lower' | 'flatten' | 'smooth' | 'hill' | 'cliff';
-export type KeepRoofStyle = 'flatBattlement' | 'sloped' | 'defensivePlatform' | 'towered';
+export type KeepRoofStyle = 'flatBattlement' | 'sloped' | 'defensivePlatform' | 'towered' | 'japaneseTiered';
 
 export interface KeepState {
   id: number;

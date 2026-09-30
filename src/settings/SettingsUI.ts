@@ -153,8 +153,10 @@ export class SettingsUI {
               <div class="settings-audio-status"><span>♪</span><div><strong>Procedural sound engine</strong><small>No external audio download is required.</small></div></div>
               <div class="settings-control-card">
                 ${this.rangeRow('Master volume', 'Overall game volume.', 'masterVolume', 0, 1, 0.01)}
-                ${this.rangeRow('Music', 'Ambient background sound.', 'musicVolume', 0, 1, 0.01)}
-                ${this.rangeRow('Sound effects', 'Building, UI and battle feedback.', 'sfxVolume', 0, 1, 0.01)}
+                ${this.toggleRow('Music enabled', 'Allow ambient background music and ambience.', 'musicEnabled')}
+                ${this.rangeRow('Music volume', 'Ambient background sound level.', 'musicVolume', 0, 1, 0.01)}
+                ${this.toggleRow('Sound effects enabled', 'Allow building, UI and battle feedback sounds.', 'sfxEnabled')}
+                ${this.rangeRow('Sound effects volume', 'Building, UI and battle feedback level.', 'sfxVolume', 0, 1, 0.01)}
                 ${this.toggleRow('Mute all', 'Silence all game audio immediately.', 'muted')}
               </div>
             </section>
@@ -379,8 +381,14 @@ export class SettingsUI {
       case 'masterVolume':
         this.store.setAudio({ masterVolume: Number(value) });
         break;
+      case 'musicEnabled':
+        this.store.setAudio({ musicEnabled: Boolean(value) });
+        break;
       case 'musicVolume':
         this.store.setAudio({ musicVolume: Number(value) });
+        break;
+      case 'sfxEnabled':
+        this.store.setAudio({ sfxEnabled: Boolean(value) });
         break;
       case 'sfxVolume':
         this.store.setAudio({ sfxVolume: Number(value) });
@@ -430,7 +438,9 @@ export class SettingsUI {
     set('environmentDetail', settings.graphics.environmentDetail);
     set('debugMode', settings.graphics.debugMode);
     set('masterVolume', settings.audio.masterVolume);
+    set('musicEnabled', settings.audio.musicEnabled);
     set('musicVolume', settings.audio.musicVolume);
+    set('sfxEnabled', settings.audio.sfxEnabled);
     set('sfxVolume', settings.audio.sfxVolume);
     set('muted', settings.audio.muted);
     set('uiScale', settings.interface.uiScale);
