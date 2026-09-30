@@ -43,6 +43,9 @@ assert.ok(
 assert.ok(threeGame.includes('const bamMoat: GridPoint[]'), 'Template must author the perimeter dry moat.');
 assert.ok(threeGame.includes("place(point.x, point.y, 'moat')"), 'Authored moat cells must remain normal editable state.');
 assert.ok(threeGame.includes('const earthen = this.stoneStyle === \'earthen\';'), 'Residential renderer must react to earthen style.');
+assert.ok(threeGame.includes("'layout-arid-ground'"), 'Earthen style must replace the green plains top with arid ground.');
+assert.ok(threeGame.includes("'arid-scrub'"), 'Earthen plains must use sparse dry environmental detail.');
+assert.ok(threeGame.includes("'terrain-elev-arid'"), 'Raised citadel terrain must remain dry instead of using green elevation caps.');
 assert.ok(threeGame.includes("group.userData.landmark = 'courtyard-mosque'"), 'Mosque renderer must expose a stable landmark contract.');
 
 for (const source of [
