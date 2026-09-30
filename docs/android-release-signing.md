@@ -105,3 +105,7 @@ If the upload key might be exposed: suspend releases; review Actions logs/runs a
 - Review changes to the release workflow, Git history, upload fingerprint, and protected environment rules before each release.
 
 This issue does not cover automatic store publishing, store listing, privacy/content declarations or production rollout.
+
+## 7. Bazaar/Myket signed APK
+
+To build a directly installed signed APK for Cafe Bazaar or Myket, use the separate [manual protected marketplace APK workflow](./android-marketplace-apk.md). It reuses the same protected environment and JKS but produces an `app-release.apk`, checks it with Android `apksigner`, and **does not change** the Google Play AAB pipeline. Before the first public store release, evaluate cross-store update compatibility if Google Play uses a different distribution signing certificate.
