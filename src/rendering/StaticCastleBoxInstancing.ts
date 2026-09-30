@@ -44,7 +44,7 @@ export function instanceStaticCastleBoxes(root: THREE.Object3D): CastleBoxBatchS
       if (!(child.material instanceof THREE.MeshStandardMaterial)) continue;
       if (child.material.transparent || child.material.opacity !== 1 || !child.material.depthWrite) continue;
       if (!child.visible || child.children.length > 0 || Object.keys(child.userData).length > 0) continue;
-      if (child.morphTargetInfluences?.length || child.isSkinnedMesh) continue;
+      if (child.morphTargetInfluences?.length || child instanceof THREE.SkinnedMesh) continue;
 
       const box = child.geometry;
       const { width, height, depth, widthSegments, heightSegments, depthSegments } = box.parameters;
