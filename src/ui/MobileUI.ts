@@ -39,6 +39,7 @@ export class MobileUI {
         </div>
         <div class="mobile-header-actions" role="toolbar" aria-label="Game actions">
           <button type="button" data-mobile-proxy="game-mode-button" class="mobile-action mobile-mode-action"></button>
+          <button type="button" data-mobile-proxy="toolbar-open" class="mobile-action mobile-build-action" aria-label="Build tools" aria-controls="toolbar" aria-expanded="false"><span aria-hidden="true">🧱</span><span>Build</span></button>
           <button type="button" data-mobile-proxy="battle-button" class="mobile-action" aria-label="Battle and military">⚔️</button>
           <button type="button" data-mobile-proxy="god-mode-button" class="mobile-action" aria-label="God Mode">⚡</button>
           <button type="button" data-mobile-action="templates" class="mobile-action" aria-label="Templates">▧</button>
@@ -48,11 +49,6 @@ export class MobileUI {
           <button type="button" data-mobile-proxy="reset-button" class="mobile-action mobile-danger" aria-label="Reset">↻</button>
         </div>
       </header>
-
-      <nav class="mobile-bottom-dock" aria-label="Mobile game controls">
-        <button type="button" data-mobile-proxy="toolbar-open" class="mobile-dock-button" aria-controls="toolbar" aria-expanded="false"><span aria-hidden="true">🧱</span><small>Build</small></button>
-        <button type="button" data-mobile-proxy="view-3d-button" class="mobile-dock-button"><span aria-hidden="true">◇</span><small>3D</small></button>
-      </nav>
 
       <div class="mobile-status" aria-live="polite">
         <span class="mobile-status-dot" aria-hidden="true"></span>
