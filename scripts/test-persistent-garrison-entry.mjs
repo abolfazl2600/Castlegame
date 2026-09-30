@@ -73,9 +73,14 @@ assert.ok(
   game.includes('this.battleLayer.visible = !planMode;'),
   'Persistent 3D defenders must stay out of the top-down planning layer',
 );
-assert.ok(
-  game.includes('this.battleSystem.reset();\n    this.syncIdleDefenderGarrison(true);'),
-  'Reset Battle must restore castle guards immediately',
+const resetBattle = game.slice(
+  game.indexOf('private resetBattleFromUI(): void {'),
+  game.indexOf('private commitPopulationBattleOutcome('),
+);
+assert.match(
+  resetBattle,
+  /this\.battleSystem\.reset\(\);[\s\S]*?this\.syncIdleDefenderGarrison\(true\);/,
+  'Reset Battle must restore guards after synchronizing the camp-based roster',
 );
 
 console.log('Persistent defender garrison and off-map attacker entry regression checks passed.');
