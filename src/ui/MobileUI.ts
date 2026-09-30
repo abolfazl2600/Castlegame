@@ -33,20 +33,13 @@ export class MobileUI {
     layer.className = 'mobile-ui';
     layer.innerHTML = `
       <header class="mobile-header" aria-label="Mobile game actions">
-        <div class="mobile-brand">
-          <span class="mobile-eyebrow">CASTLE ROLE</span>
-          <strong>Stronghold</strong>
-        </div>
         <div class="mobile-header-actions" role="toolbar" aria-label="Game actions">
           <button type="button" data-mobile-proxy="game-mode-button" class="mobile-action mobile-mode-action"></button>
           <button type="button" data-mobile-proxy="toolbar-open" class="mobile-action mobile-build-action" aria-label="Build tools" aria-controls="toolbar" aria-expanded="false"><span aria-hidden="true">🧱</span><span>Build</span></button>
           <button type="button" data-mobile-proxy="battle-button" class="mobile-action" aria-label="Battle and military">⚔️</button>
           <button type="button" data-mobile-proxy="god-mode-button" class="mobile-action" aria-label="God Mode">⚡</button>
           <button type="button" data-mobile-action="templates" class="mobile-action" aria-label="Templates">▧</button>
-          <button type="button" data-mobile-action="save" class="mobile-action" aria-label="Save game">↓</button>
-          <button type="button" data-mobile-action="load" class="mobile-action" aria-label="Load game">↑</button>
           <button type="button" data-mobile-proxy="settings-button" class="mobile-action" aria-label="Settings">⚙</button>
-          <button type="button" data-mobile-proxy="reset-button" class="mobile-action mobile-danger" aria-label="Reset">↻</button>
         </div>
       </header>
 
