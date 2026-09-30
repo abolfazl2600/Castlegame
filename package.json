@@ -57,7 +57,7 @@
     "test:ambient-world-motion": "node scripts/test-ambient-world-motion.mjs",
     "test:living-population": "node scripts/test-living-population.mjs",
     "test:distance-detail-budget": "node scripts/test-distance-detail-budget.mjs",
-    "test:mobile-render-performance": "node scripts/test-mobile-render-performance.mjs",
+    "test:mobile-render-performance": "node --experimental-strip-types scripts/test-mobile-render-performance.mjs",
     "test:seasonal-environment": "node scripts/test-seasonal-environment.mjs",
     "test:castle-block-model": "node scripts/test-castle-block-model.mjs",
     "test:modern-mode-removed": "node scripts/test-modern-mode-removed.mjs",
