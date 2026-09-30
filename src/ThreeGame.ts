@@ -9162,6 +9162,7 @@ export class ThreeGame {
 
   private evaluateBuildPlacement(
     point: GridPoint,
+    decrease = false,
   ): { valid: boolean; cells: GridPoint[]; reason?: string } | null {
     const tool = this.selectedTool;
     if (tool === null || this.battleSystem.isActive()) return null;
@@ -9311,10 +9312,12 @@ export class ThreeGame {
 
     if (tool === 'tower') {
       const currentLevel = current === 'tower' ? Math.floor(cell?.level ?? 1) : 0;
+      const towerCanChange = current === 'tower' &&
+        (decrease ? currentLevel > 1 : currentLevel < FORTIFICATION_MAX_LEVEL);
       const validCell =
         !keepAtPoint &&
         (current === 'tower'
-          ? currentLevel < FORTIFICATION_MAX_LEVEL
+          ? towerCanChange
           : current
             ? this.isWallFamily(current)
             : !reserved && this.canBuildFortificationOnTerrain(terrain));
@@ -9441,7 +9444,7 @@ export class ThreeGame {
       return;
     }
 
-    const preview = this.evaluateBuildPlacement(point);
+    const preview = this.evaluateBuildPlacement(point, decrease);
     if (!preview) {
       if (
         !this.wallDragStart &&
