@@ -39,7 +39,12 @@ const budget = readFileSync(new URL('../src/rendering/DistanceDetailBudget.ts', 
 const store = readFileSync(new URL('../src/settings/SettingsStore.ts', import.meta.url), 'utf8');
 
 assert.doesNotMatch(game, /settings\.gameplay\.controlScheme === 'touch'/, 'Touch must not select graphics budget');
-assert.doesNotMatch(game, /window\.innerWidth <= 760/, 'Viewport width must not select graphics budget');
+const renderSelection = game.slice(
+  game.indexOf('const selectedProfile ='),
+  game.indexOf('const visualBudget = this.distanceDetailBudget.update('),
+);
+assert.ok(renderSelection.includes('adaptiveRenderProfile.resolve'), 'render selection must exist');
+assert.doesNotMatch(renderSelection, /controlScheme|innerWidth|matchMedia/, 'render selection must be independent from touch and viewport');
 assert.match(game, /this\.adaptiveRenderProfile\.resolve\(settings\.graphics\.performanceMode\)/);
 assert.match(budget, /budgetForProfile\(profile, this\.band\)/, 'LOD uses the active render preset');
 assert.match(budget, /isSuppressibleMicroDetail/, 'LOD preserves non-suppressible geometry');
