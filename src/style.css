@@ -4253,3 +4253,8 @@ html[dir="rtl"].mobile-ui-active .minimap {
     transform: translateX(calc(100% + 32px));
   }
 }
+
+/* Mobile: advanced military development is desktop-only and must not appear in the battle panel. */
+html.mobile-ui-active .battle-advanced {
+  display: none !important;
+}
