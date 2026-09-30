@@ -1,10 +1,12 @@
 import { MobileUI } from './ui/MobileUI';
+import { installLocalization } from './i18n/localization';
 import { SettingsStore } from './settings/SettingsStore';
 import { SettingsUI } from './settings/SettingsUI';
 import { installAndroidBackNavigation } from './android/androidBackNavigation';
 import './style.css';
 
 const settingsStore = new SettingsStore(localStorage);
+installLocalization(settingsStore);
 
 new SettingsUI(settingsStore, () => {
   settingsStore.resetLocalSave();
