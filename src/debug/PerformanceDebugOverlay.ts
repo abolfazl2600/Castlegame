@@ -188,6 +188,8 @@ export class PerformanceDebugOverlay {
   private setEnabled(enabled: boolean): void {
     if (this.enabled === enabled) return;
     this.enabled = enabled;
+    // A hidden debug overlay must never leave the game on an emulated budget.
+    if (!enabled) this.mobileBudgetEmulation = false;
     this.element.hidden = !enabled;
     this.element.setAttribute('aria-hidden', String(!enabled));
     document.documentElement.toggleAttribute('data-debug-performance', enabled);
