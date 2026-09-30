@@ -35,7 +35,7 @@ import {
   WALL_SILHOUETTE_PROFILES,
   towerSilhouetteProfile,
 } from './rendering/DefenseVisualLanguage';
-import { BattleSystem, getUnitCombatStats } from './battle/BattleSystem';
+import { BattleSystem } from './battle/BattleSystem';
 import { MILITARY_TIERS, militaryTierDefinition, normalizeMilitaryTier, type MilitaryTier } from './battle/MilitaryProgression';
 import {
   beginMissileProduction,
@@ -478,12 +478,12 @@ export class ThreeGame {
     attackerArchers: 20,
     attackerSpearmen: 12,
     attackerCrossbowmen: 8,
-    defenderSwordsmen: 10,
-    defenderArchers: 15,
-    defenderSpearmen: 8,
-    defenderCrossbowmen: 6,
+    defenderSwordsmen: 0,
+    defenderArchers: 0,
+    defenderSpearmen: 0,
+    defenderCrossbowmen: 0,
     attackerModernSoldiers: 0,
-    defenderModernSoldiers: 4,
+    defenderModernSoldiers: 0,
   };
   private militaryTier: MilitaryTier = 1;
   private populationBattleCommitted = false;
@@ -815,7 +815,6 @@ export class ThreeGame {
     this.redraw();
     this.applyEnvironmentVisuals(true);
     this.bindUI();
-    this.syncBattleCombatStatsUI();
     // Keep the construction tool initialized during world creation/redraw, then enter the neutral mode only after UI binding.
     this.selectTool(null);
     this.setToolbarOpen(this.toolbarOpen);
@@ -2073,24 +2072,21 @@ export class ThreeGame {
     const battleSystem = (this as unknown as { battleSystem?: BattleSystem }).battleSystem;
     if (battleSystem?.isActive()) return false;
 
-    const militia = this.services.populationSystem.setMilitiaComposition({
-      swordsman: this.battleSetup.defenderSwordsmen,
-      archer: this.battleSetup.defenderArchers,
-      spearman: this.battleSetup.defenderSpearmen,
-      crossbowman: this.battleSetup.defenderCrossbowmen,
+    // Camp construction/upgrade defines the guard roster; the player never edits it.
+    // Dedicated camp guards do not consume civilian housing or jobs.
+    this.services.populationSystem.setMilitiaComposition({
+      swordsman: 0, archer: 0, spearman: 0, crossbowman: 0,
     });
-    const professional = this.services.populationSystem.setProfessionalArmyCount(
-      this.battleSetup.defenderModernSoldiers,
-      cells,
-    );
-
+    const capacity = this.services.populationSystem.professionalArmyCapacity(cells);
+    this.services.populationSystem.setProfessionalArmyCount(capacity, cells);
+    const garrison = this.services.populationSystem.professionalArmyComposition();
     const next: BattleSetup = {
       ...this.battleSetup,
-      defenderSwordsmen: militia.swordsman,
-      defenderArchers: militia.archer,
-      defenderSpearmen: militia.spearman,
-      defenderCrossbowmen: militia.crossbowman,
-      defenderModernSoldiers: professional,
+      defenderSwordsmen: garrison.swordsman,
+      defenderArchers: garrison.archer,
+      defenderSpearmen: garrison.spearman,
+      defenderCrossbowmen: garrison.crossbowman,
+      defenderModernSoldiers: 0,
     };
     const changed =
       next.defenderSwordsmen !== this.battleSetup.defenderSwordsmen ||
@@ -12304,7 +12300,6 @@ export class ThreeGame {
     if (nextLevel > this.militaryTier) {
       this.militaryTier = normalizeMilitaryTier(nextLevel);
       this.syncMilitaryUI();
-      this.syncBattleCombatStatsUI();
     }
     this.redraw();
     this.scheduleSave();
@@ -14136,10 +14131,9 @@ export class ThreeGame {
     this.setBattleSetupValue(field, this.battleSetup[field] + delta);
   }
 
-  private setBattleSetupValue(
-    field: keyof BattleSetup,
-    value: number,
-  ): void {
+  private setBattleSetupValue(field: keyof BattleSetup, value: number): void {
+    // Only attacker unit counts are configurable. Army Camps determine every defender.
+    if (String(field).startsWith('defender')) return;
     if (this.battleSystem.isActive()) {
       this.setStatus('Reset the current battle before changing army sizes');
       this.syncBattleSetupUI();
@@ -14152,53 +14146,11 @@ export class ThreeGame {
       120,
     );
     this.battleSetup = { ...this.battleSetup, [field]: normalized };
-
-    if (String(field).startsWith('defender')) {
-      const requested = normalized;
-      this.syncPopulationDefenseAssignments(this.services.state.entries());
-      const actual = this.battleSetup[field];
-      if (actual < requested) {
-        this.setStatus(
-          field === 'defenderModernSoldiers'
-            ? `Professional Army limited to ${actual} by Army Camp capacity`
-            : `Militia limited to ${actual}; no extra citizens are available`,
-        );
-      }
-      this.reconcileSettlementAgents(this.services.state.entries());
-      this.syncIdleDefenderGarrison(true);
-    }
-
     this.syncBattleSetupUI();
-    this.syncBattleCombatStatsUI();
-    this.updatePopulationUI();
-  }
-
-  private syncBattleCombatStatsUI(): void {
-    const mappings: Array<[string, 'swordsman' | 'spearman' | 'archer' | 'crossbowman' | 'modernSoldier']> = [
-      ['swordsman', 'swordsman'],
-      ['spearman', 'spearman'],
-      ['archer', 'archer'],
-      ['crossbowman', 'crossbowman'],
-      ['modernSoldier', 'modernSoldier'],
-    ];
-
-    for (const [key, unitType] of mappings) {
-      const stats = getUnitCombatStats(unitType);
-      if (!stats) continue;
-      const attack = document.getElementById(`battle-stat-${key}-attack`);
-      const defense = document.getElementById(`battle-stat-${key}-defense`);
-      if (attack) attack.textContent = String(stats.attack);
-      if (defense) defense.textContent = String(stats.defense);
-    }
   }
 
   private syncBattleSetupUI(): void {
     const mappings: Array<[keyof BattleSetup, string]> = [
-      ['defenderSwordsmen', 'battle-defender-swordsmen'],
-      ['defenderArchers', 'battle-defender-archers'],
-      ['defenderSpearmen', 'battle-defender-spearmen'],
-      ['defenderCrossbowmen', 'battle-defender-crossbowmen'],
-      ['defenderModernSoldiers', 'battle-defender-modern-soldiers'],
       ['attackerSwordsmen', 'battle-attacker-swordsmen'],
       ['attackerArchers', 'battle-attacker-archers'],
       ['attackerSpearmen', 'battle-attacker-spearmen'],
@@ -14246,7 +14198,7 @@ export class ThreeGame {
     }
 
     if (defenderTotal <= 0) {
-      this.setStatus('No Defenders configured · attackers will attempt an immediate capture');
+      this.setStatus('No Army Camp garrison available · attackers will attempt an immediate capture');
     }
 
     this.populationBattleCommitted = false;
@@ -14276,7 +14228,6 @@ export class ThreeGame {
     this.militaryTier = normalizeMilitaryTier(this.militaryTier + 1);
     this.syncIdleDefenderGarrison(true);
     this.syncMilitaryUI();
-    this.syncBattleCombatStatsUI();
     this.save();
     this.setStatus(`Military upgraded to Tier ${this.militaryTier}`);
   }
@@ -14524,15 +14475,12 @@ export class ThreeGame {
 
     const started = this.populationBattleStart;
     const alive = status.defenderAliveByType;
-    this.services.populationSystem.applyMilitiaCasualties({
+    this.services.populationSystem.applyProfessionalCasualties({
       swordsman: Math.max(0, started.defenderSwordsmen - alive.swordsman),
       archer: Math.max(0, started.defenderArchers - alive.archer),
       spearman: Math.max(0, started.defenderSpearmen - alive.spearman),
       crossbowman: Math.max(0, started.defenderCrossbowmen - alive.crossbowman),
     });
-    this.services.populationSystem.applyProfessionalCasualties(
-      Math.max(0, started.defenderModernSoldiers - alive.modernSoldier),
-    );
     this.services.populationSystem.setMilitiaMobilized(false);
     this.battleSetup = {
       ...this.battleSetup,
@@ -14540,7 +14488,7 @@ export class ThreeGame {
       defenderArchers: alive.archer,
       defenderSpearmen: alive.spearman,
       defenderCrossbowmen: alive.crossbowman,
-      defenderModernSoldiers: alive.modernSoldier,
+      defenderModernSoldiers: 0,
     };
     this.populationBattleCommitted = true;
     this.populationBattleStart = null;

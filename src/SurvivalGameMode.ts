@@ -158,15 +158,12 @@ export class SurvivalGameMode implements GameModeLifecycle {
     waveElapsedTime: 0,
   };
 
-  private hud: HTMLElement | null = null;
   private lastBattleMode: BattleStatus['mode'] = 'idle';
 
   constructor(private readonly dependencies: SurvivalLifecycleDependencies) {}
 
   initialize(context: GameModeLifecycleContext): void {
     this.assertContext(context);
-    this.ensureHud();
-    this.renderHud();
   }
 
   start(context: GameModeLifecycleContext): void {
@@ -176,7 +173,6 @@ export class SurvivalGameMode implements GameModeLifecycle {
     this.dependencies.battleSystem.reset(false);
     this.resetRuntime();
     this.dependencies.setAttackState(true);
-    this.ensureHud();
     this.startWave(1, context);
   }
 
@@ -186,7 +182,6 @@ export class SurvivalGameMode implements GameModeLifecycle {
     if (this.dependencies.battleSystem.isRunning()) {
       this.dependencies.battleSystem.stop();
     }
-    this.renderHud();
   }
 
   resume(context: GameModeLifecycleContext): void {
@@ -195,7 +190,6 @@ export class SurvivalGameMode implements GameModeLifecycle {
     if (this.dependencies.battleSystem.status().mode === 'paused') {
       this.dependencies.battleSystem.resume();
     }
-    this.renderHud();
   }
 
   restart(context: GameModeLifecycleContext): void {
@@ -203,7 +197,6 @@ export class SurvivalGameMode implements GameModeLifecycle {
     this.dependencies.battleSystem.reset(false);
     this.resetRuntime();
     this.dependencies.setAttackState(true);
-    this.ensureHud();
     this.startWave(1, context);
   }
 
@@ -218,14 +211,12 @@ export class SurvivalGameMode implements GameModeLifecycle {
     this.runtime.waveState =
       this.runtime.waveState === 'defeat' ? 'defeat' : 'ended';
     this.dependencies.setAttackState(false);
-    this.renderHud();
   }
 
   cleanup(context: GameModeLifecycleContext): void {
     this.assertContext(context);
     this.dependencies.battleSystem.reset(false);
     this.dependencies.setAttackState(false);
-    this.removeHud();
     this.resetRuntime();
   }
 
@@ -250,7 +241,6 @@ export class SurvivalGameMode implements GameModeLifecycle {
       if (battleStatus.result?.winner === 'attacker') {
         this.runtime.waveState = 'defeat';
         this.dependencies.setAttackState(false);
-        this.renderHud();
         this.dependencies.onDefeat();
         return;
       }
@@ -268,7 +258,6 @@ export class SurvivalGameMode implements GameModeLifecycle {
         this.dependencies.setStatus(
           `Wave ${this.runtime.currentWave} cleared · next wave incoming`,
         );
-        this.renderHud();
         return;
       }
     }
@@ -287,7 +276,6 @@ export class SurvivalGameMode implements GameModeLifecycle {
         alive > 0 && this.lastBattleMode === 'running' ? 'active' : 'spawning';
     }
     this.runtime.activeWaveEnemyCount = alive;
-    this.renderHud();
   }
 
   private startWave(waveNumber: number, context: GameModeLifecycleContext): void {
@@ -298,7 +286,6 @@ export class SurvivalGameMode implements GameModeLifecycle {
       this.runtime.waveState = 'ended';
       this.dependencies.setAttackState(false);
       this.dependencies.setStatus('Survival configuration contains an empty wave');
-      this.renderHud();
       return;
     }
 
@@ -324,7 +311,6 @@ export class SurvivalGameMode implements GameModeLifecycle {
     this.dependencies.setStatus(
       `Survival · Wave ${waveNumber} · ${enemyTotal} enemies`,
     );
-    this.renderHud();
   }
 
   private resetRuntime(): void {
@@ -343,58 +329,6 @@ export class SurvivalGameMode implements GameModeLifecycle {
     }
   }
 
-  private ensureHud(): void {
-    if (this.hud?.isConnected) return;
-
-    let hud = document.getElementById('survival-hud');
-    if (!hud) {
-      hud = document.createElement('section');
-      hud.id = 'survival-hud';
-      hud.setAttribute('aria-live', 'polite');
-      hud.innerHTML =
-        '<div class="survival-hud-title">SURVIVAL</div>' +
-        '<div class="survival-hud-row"><span>Wave</span><strong data-survival-wave>—</strong></div>' +
-        '<div class="survival-hud-row"><span>Status</span><strong data-survival-status>READY</strong></div>' +
-        '<div class="survival-hud-row"><span>Enemies</span><strong data-survival-enemies>0</strong></div>' +
-        '<div class="survival-hud-row"><span>Time</span><strong data-survival-time>00:00</strong></div>';
-      document.body.appendChild(hud);
-    }
-    this.hud = hud;
-  }
-
-  private renderHud(): void {
-    if (!this.hud) return;
-
-    const wave = this.hud.querySelector<HTMLElement>('[data-survival-wave]');
-    const status = this.hud.querySelector<HTMLElement>('[data-survival-status]');
-    const enemies = this.hud.querySelector<HTMLElement>('[data-survival-enemies]');
-    const time = this.hud.querySelector<HTMLElement>('[data-survival-time]');
-
-    if (wave) wave.textContent = String(this.runtime.currentWave || '—');
-    if (status) {
-      status.textContent =
-        this.runtime.waveState === 'spawning' ? 'SPAWNING' :
-        this.runtime.waveState === 'active' ? 'DEFENDING' :
-        this.runtime.waveState === 'intermission' ? 'WAVE CLEARED' :
-        this.runtime.waveState === 'defeat' ? 'DEFEATED' :
-        this.runtime.waveState === 'ended' ? 'ENDED' :
-        'READY';
-    }
-    if (enemies) enemies.textContent = String(this.runtime.activeWaveEnemyCount);
-    if (time) time.textContent = formatTime(this.runtime.survivalElapsedTime);
-  }
-
-  private removeHud(): void {
-    this.hud?.remove();
-    this.hud = null;
-  }
-}
-
-function formatTime(seconds: number): string {
-  const total = Math.max(0, Math.floor(seconds));
-  const minutes = Math.floor(total / 60);
-  const remainder = total % 60;
-  return `${String(minutes).padStart(2, '0')}:${String(remainder).padStart(2, '0')}`;
 }
 
 export const SURVIVAL_MODE_ID: GameModeId = 'survival';

@@ -45,11 +45,6 @@ const BATTLE_SETUP = {
   attackerSpearmen: 10,
   attackerCrossbowmen: 6,
   attackerModernSoldiers: 0,
-  defenderSwordsmen: 14,
-  defenderArchers: 10,
-  defenderSpearmen: 10,
-  defenderCrossbowmen: 6,
-  defenderModernSoldiers: 0,
 };
 
 async function waitForServer() {
@@ -135,9 +130,14 @@ async function startBattle(page) {
   await page.evaluate(() => document.querySelector('#battle-button')?.click());
   await page.waitForSelector('#battle-panel:not([hidden])', { timeout: 30000 });
   await page.evaluate((setup) => {
+    // Defenders are recruited automatically from Army Camps; never configure
+    // their counts in the Battle panel or reintroduce the removed inputs.
+    if (document.querySelector('[data-battle-input^="defender"]')) {
+      throw new Error('Battle panel must not expose editable defender counts');
+    }
     for (const [field, value] of Object.entries(setup)) {
       const input = document.querySelector(`[data-battle-input="${field}"]`);
-      if (!(input instanceof HTMLInputElement)) throw new Error(`Missing battle input: ${field}`);
+      if (!(input instanceof HTMLInputElement)) throw new Error(`Missing attacker battle input: ${field}`);
       input.value = String(value);
       input.dispatchEvent(new Event('input', { bubbles: true }));
       input.dispatchEvent(new Event('change', { bubbles: true }));

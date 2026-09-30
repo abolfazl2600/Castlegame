@@ -176,7 +176,8 @@ export interface SavedCitizenState {
 export interface SavedProfessionalSoldierState {
   id: string;
   alive: boolean;
-  unitType: 'modernSoldier';
+  /** Soldiers are camp-assigned; legacy modernSoldier saves remain readable. */
+  unitType: MilitiaUnitType | 'modernSoldier';
   camp?: PopulationGridRef;
 }
 
