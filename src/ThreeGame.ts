@@ -100,6 +100,7 @@ const PLAYABLE_LAYOUT_TEMPLATES: Readonly<Record<string, { layoutId: MapLayoutId
   'coastal-peninsula': { layoutId: 'peninsula', seed: 5502 },
   'split-isles': { layoutId: 'twin-isles', seed: 5503 },
   'carcassonne': { layoutId: 'mainland', seed: 5601 },
+  'himeji-castle': { layoutId: 'mainland', seed: 5801 },
 };
 const ARMY_CAMP_LEVELS = [
   { level: 1, name: 'Field Camp', description: 'A basic tent camp with a fire, supplies, and a small weapon rack.' },
@@ -13241,6 +13242,132 @@ export class ThreeGame {
       placeKeepTemplate(center,center-1,2,2,2,'flatBattlement',false);
       for(let x=center-7;x<=center+7;x+=1) if(!this.services.state.getCell(x,center+3)) place(x,center+3,'dirtRoad');
       for(let y=center-5;y<=center+5;y+=1) if(!this.services.state.getCell(center,y)) place(center,y,'road');
+    } else if (template === 'himeji-castle') {
+      // Present-day preserved Himeji core: the early-17th-century tenshu group,
+      // surviving bailey hierarchy, Hishi Gate approach, winding gates and moats.
+      // The whole composition uses editable Castle Role primitives.
+      for (let y = 0; y < SIZE; y += 1) {
+        for (let x = 0; x < SIZE; x += 1) {
+          this.services.state.removeCell(x, y);
+          this.terrainOverrides.set(this.key(x, y), 'plains');
+
+          const keepDistance = Math.hypot((x - 14) * 0.62, (y - 7) * 0.68);
+          const westBaileyDistance = Math.hypot((x - 7) * 0.52, (y - 10) * 0.5);
+          const keepHill = Math.max(0, 2.8 - keepDistance * 0.5);
+          const westBailey = Math.max(0, 1.25 - westBaileyDistance * 0.28);
+          this.setAbsoluteElevation(x, y, 0.12 + Math.max(keepHill, westBailey));
+        }
+      }
+
+      // The surviving core is read as an inland hill castle. A continuous moat
+      // perimeter and the internal Sangoku moat preserve Himeji's layered water defense.
+      const outerMoat: GridPoint[] = [
+        { x: 3, y: 3 }, { x: 18, y: 3 }, { x: 21, y: 7 }, { x: 20, y: 16 },
+        { x: 17, y: 20 }, { x: 5, y: 20 }, { x: 1, y: 16 }, { x: 1, y: 7 },
+      ];
+      for (const point of rasterizeWallPath(outerMoat, true)) {
+        this.services.state.removeCell(point.x, point.y);
+        this.terrainOverrides.set(this.key(point.x, point.y), 'river');
+        this.setAbsoluteElevation(point.x, point.y, 0);
+      }
+
+      const sangokuMoat: GridPoint[] = [];
+      for (let y = 14; y <= 15; y += 1) {
+        for (let x = 12; x <= 14; x += 1) {
+          sangokuMoat.push({ x, y });
+          this.services.state.removeCell(x, y);
+          this.terrainOverrides.set(this.key(x, y), 'river');
+          this.setAbsoluteElevation(x, y, 0);
+        }
+      }
+
+      const outerDefense: GridPoint[] = [
+        { x: 5, y: 5 }, { x: 11, y: 4 }, { x: 17, y: 5 }, { x: 19, y: 8 },
+        { x: 18, y: 15 }, { x: 14, y: 18 }, { x: 7, y: 17 }, { x: 4, y: 13 },
+        { x: 4, y: 8 },
+      ];
+      const innerKeepDefense: GridPoint[] = [
+        { x: 10, y: 5 }, { x: 14, y: 4 }, { x: 18, y: 6 }, { x: 18, y: 10 },
+        { x: 15, y: 12 }, { x: 11, y: 11 }, { x: 9, y: 8 },
+      ];
+      const westBaileyDefense: GridPoint[] = [
+        { x: 5, y: 7 }, { x: 8, y: 6 }, { x: 10, y: 8 }, { x: 10, y: 13 },
+        { x: 7, y: 15 }, { x: 4, y: 13 }, { x: 4, y: 9 },
+      ];
+
+      placeWallPath(outerDefense, 'wall1', 2, {
+        battlement: false,
+        walkway: true,
+        thickness: 'thick',
+      }, true);
+      placeWallPath(innerKeepDefense, 'wall1', 3, {
+        battlement: false,
+        walkway: true,
+        thickness: 'thick',
+      }, true);
+      placeWallPath(westBaileyDefense, 'wall1', 2, {
+        battlement: false,
+        walkway: true,
+        thickness: 'medium',
+      }, true);
+
+      const defensiveTowers: Array<[number, number, number, TowerShape, TowerTop]> = [
+        [5, 5, 2, 'square', 'hipped'],
+        [17, 5, 3, 'corner', 'pyramidal'],
+        [19, 8, 3, 'square', 'hipped'],
+        [18, 15, 2, 'watch', 'hipped'],
+        [7, 17, 2, 'square', 'pyramidal'],
+        [4, 9, 2, 'watch', 'hipped'],
+        [10, 5, 3, 'square', 'hipped'],
+        [18, 10, 3, 'corner', 'pyramidal'],
+      ];
+      for (const [x, y, level, towerShape, towerTop] of defensiveTowers) {
+        place(x, y, 'tower', level, { towerShape, towerTop });
+      }
+
+      // Hishi Gate and the chained i/ro/ha/ni/Bizen gate sequence make the
+      // approach intentionally indirect instead of a straight European causeway.
+      const authoredGates: Array<[number, number, number]> = [
+        [11, 17, 2], // Hishi Gate
+        [8, 13, 2],  // I Gate
+        [10, 12, 2], // Ro Gate
+        [8, 10, 2],  // Ha Gate
+        [11, 9, 3],  // Ni Gate
+        [16, 11, 3], // Bizen Gate
+      ];
+      for (const [x, y, level] of authoredGates) place(x, y, 'gate', level);
+
+      // Tenshu-gun: dominant six-floor main keep with three subordinate keeps.
+      // Japanese-tiered is a reusable Keep roof language, not a Himeji-only mesh.
+      placeKeepTemplate(14, 7, 3, 3, 6, 'japaneseTiered', false, 0, false);
+      placeKeepTemplate(11, 7, 2, 2, 3, 'japaneseTiered', false, 0, false);
+      placeKeepTemplate(17, 7, 2, 2, 3, 'japaneseTiered', false, 1, false);
+      placeKeepTemplate(12, 10, 2, 2, 3, 'japaneseTiered', false, 0, false);
+
+      // Nishi-no-Maru and its long gallery are compressed into a low elongated,
+      // editable Japanese Keep inside the western bailey rather than a generic house.
+      placeKeepTemplate(7, 10, 4, 2, 2, 'japaneseTiered', false, 0, false);
+
+      const windingApproach: GridPoint[] = [
+        { x: 10, y: 21 }, { x: 11, y: 17 }, { x: 7, y: 16 }, { x: 7, y: 13 },
+        { x: 10, y: 13 }, { x: 10, y: 11 }, { x: 8, y: 11 }, { x: 8, y: 9 },
+        { x: 11, y: 9 }, { x: 12, y: 10 }, { x: 14, y: 10 }, { x: 14, y: 9 },
+      ];
+      for (const point of rasterizeWallPath(windingApproach)) {
+        if (!this.services.state.getCell(point.x, point.y) && !this.services.keepSystem.findAtCell(point.x, point.y)) {
+          place(point.x, point.y, 'stoneRoad');
+        }
+      }
+
+      // Sparse trees frame the white tenshu without obscuring the defensive plan.
+      for (const point of [
+        { x: 3, y: 5 }, { x: 6, y: 4 }, { x: 20, y: 5 }, { x: 19, y: 18 },
+        { x: 5, y: 18 }, { x: 3, y: 15 }, { x: 9, y: 6 }, { x: 6, y: 14 },
+      ]) {
+        if (!this.services.state.getCell(point.x, point.y) && this.terrainAt(point.x, point.y) !== 'river') {
+          place(point.x, point.y, 'tree', 2);
+        }
+      }
     } else if (template === 'carcassonne') {
       // Present-day fortified city after the Viollet-le-Duc restoration campaign:
       // two concentric enclosures, dense round towers, Narbonnaise/Aude gates,
