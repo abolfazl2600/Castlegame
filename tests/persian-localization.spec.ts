@@ -145,7 +145,13 @@ test('Persian portrait touch layout keeps controls and Settings on-screen', asyn
   expect(rootWidth.scroll).toBeLessThanOrEqual(rootWidth.viewport + 2);
 
   await page.locator('#settings-close').click();
-  await page.locator('.mobile-header [data-mobile-action="load"]').click();
+  await expect(page.locator('.mobile-header [data-mobile-proxy="settings-button"]')).toBeVisible();
+
+  // Save/Load/Templates are intentionally owned by Settings on the current mobile UI.
+  // Reopen Settings and exercise the canonical Load action instead of a removed mobile-header proxy.
+  await page.locator('.mobile-header [data-mobile-proxy="settings-button"]').click();
+  await expect(page.locator('#settings-modal')).toBeVisible();
+  await page.locator('[data-system-action="load"]').click();
   await expect(page.locator('#save-load-title')).toHaveText('بارگذاری بازی');
   await assertVisibleDialogInsideViewport(page, '.save-load-backdrop .help-modal');
   await captureEvidence(page, testInfo, 'mobile-portrait-load-fa.png');
