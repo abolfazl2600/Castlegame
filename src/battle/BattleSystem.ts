@@ -3,8 +3,6 @@ import type { GridCell, KeepState, TerrainKind, TileKind, TowerBridgeState, Wall
 import { BattleNavigation, type NavPoint, type WallNavNode } from './BattleNavigation';
 import { WallSystem } from '../building/WallSystem';
 import { FactionRelations } from './FactionRelations';
-import { BattleObjectiveSystem } from './objectives/BattleObjectiveSystem';
-import { DEFAULT_BATTLE_SCENARIO } from './objectives/BattleObjectiveDefinitions';
 import type { BattleScenario, ObjectiveBuildingSnapshot, ObjectivePositionSnapshot } from './objectives/BattleObjectiveTypes';
 import type {
   BattleMissileLaunchOptions,
@@ -470,7 +468,6 @@ export class BattleSystem {
   private battleSpeed = DEFAULT_BATTLE_SPEED;
   private militaryTier: MilitaryTier = 1;
   private preparedDefenderSignature = '';
-  private readonly objectiveSystem = new BattleObjectiveSystem();
 
   constructor(
     private readonly layer: THREE.Group,
@@ -582,7 +579,6 @@ export class BattleSystem {
     if (!reusePreparedGarrison) this.spawnDefenders(normalized);
     this.preparedDefenderSignature = '';
     this.refreshSiegePlan(true);
-    this.objectiveSystem.start(options.scenario ?? DEFAULT_BATTLE_SCENARIO, this.battleSeconds);
     this.emitStatus();
   }
 
@@ -711,7 +707,6 @@ export class BattleSystem {
     }
 
     this.clearSiegeState();
-    this.objectiveSystem.reset();
     this.pendingAttackerSpawns = [];
     this.attackerSpawnCells = [];
     this.attackerSpawnCursor = 0;
@@ -828,7 +823,6 @@ export class BattleSystem {
     this.animateObjective(timeMs);
 
     if (this.statusTimer <= 0) {
-      this.objectiveSystem.update(this.createObjectiveContext(delta));
       this.statusTimer = 0.22;
       this.emitStatus();
     }
@@ -930,7 +924,7 @@ export class BattleSystem {
       defendersAlive,
       defenderAliveByType,
       result: this.finalResult,
-      objectives: this.objectiveSystem.getState().runtime,
+      objectives: [],
     };
   }
 
@@ -3369,7 +3363,6 @@ export class BattleSystem {
     this.wallNodes.delete(this.gridKey(wall.x, wall.y));
     this.world.setWallBattleVisibility(wall.x, wall.y, false);
     this.navigation.invalidate();
-    this.objectiveSystem.emit({ type: 'WALL_BREACHED', entityId: this.gridKey(wall.x, wall.y) });
     this.reactDefendersToBreach(wall);
     this.refreshSiegePlan(true);
   }
@@ -4588,16 +4581,6 @@ export class BattleSystem {
 
     const attackersAlive = this.countAlive('attacker');
 
-    if (this.objectiveSystem.hasFailedPrimaryObjective()) {
-      this.finishBattle('defender', 'objective_failed');
-      return;
-    }
-
-    if (this.objectiveSystem.isVictorySatisfied()) {
-      this.finishBattle('attacker', 'objective_completed');
-      return;
-    }
-
     if (
       attackersAlive === 0 &&
       this.attackerStartCount > 0 &&
@@ -4630,11 +4613,10 @@ export class BattleSystem {
       defendersKilled: Math.max(0, this.defenderStartCount - defendersRemaining),
       durationSeconds: Math.round(this.battleSeconds * 10) / 10,
       reason,
-      completedObjectives: this.objectiveSystem.getState().runtime.filter((objective) => objective.status === 'completed').map((objective) => objective.id),
-      failedObjectives: this.objectiveSystem.getState().runtime.filter((objective) => objective.status === 'failed').map((objective) => objective.id),
+      completedObjectives: [],
+      failedObjectives: [],
     };
 
-    this.objectiveSystem.stop();
     this.clearSiegeState();
     this.clearMissiles();
     for (const effect of this.impactEffects) this.layer.remove(effect.view);
@@ -4659,7 +4641,6 @@ export class BattleSystem {
     runtime.data.health = 0;
     runtime.data.state = 'dead';
     runtime.data.targetId = undefined;
-    this.objectiveSystem.emit({ type: 'UNIT_KILLED', entityId: runtime.data.id, faction: runtime.data.faction });
     runtime.deathTime = 0;
 
     for (const other of this.units.values()) {
@@ -4896,43 +4877,6 @@ export class BattleSystem {
       }
     }
     return counts;
-  }
-
-  private createObjectiveContext(deltaSeconds: number) {
-    const units = Array.from(this.units.values()).map((runtime) => ({
-      id: runtime.data.id,
-      faction: runtime.data.faction,
-      unitType: runtime.data.unitType,
-      health: runtime.data.health,
-      maxHealth: runtime.data.maxHealth,
-      state: runtime.data.state,
-      x: runtime.position.x,
-      y: runtime.position.y,
-      z: runtime.position.z,
-    }));
-    const walls = Array.from(this.wallStates.values()).map((wall) => ({
-      id: this.gridKey(wall.x, wall.y),
-      health: wall.health,
-      maxHealth: wall.maxHealth,
-      breached: wall.stage === 'breached',
-      x: wall.x,
-      y: wall.y,
-    }));
-    const buildings = this.world.objectiveBuildings?.() ?? [];
-    const positions = [
-      ...(this.world.objectivePositions?.() ?? []),
-      { id: 'castle-objective', x: this.objectiveWorld.x, y: this.objectiveWorld.y, z: this.objectiveWorld.z, controlledBy: this.captureSeconds >= this.captureRequiredSeconds ? 'attacker' as Faction : undefined },
-    ];
-    return {
-      battleTime: this.battleSeconds,
-      deltaSeconds,
-      units,
-      walls,
-      buildings,
-      positions,
-      captureProgress: THREE.MathUtils.clamp(this.captureSeconds / this.captureRequiredSeconds, 0, 1),
-      battleFinished: this.mode === 'finished',
-    };
   }
 
   private emitStatus(): void {
