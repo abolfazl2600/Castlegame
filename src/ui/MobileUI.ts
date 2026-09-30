@@ -10,7 +10,7 @@ import type { SettingsStore } from '../settings/SettingsStore';
 export class MobileUI {
   private readonly shell: HTMLElement;
   private readonly root: HTMLElement;
-  private readonly mediaQuery = window.matchMedia('(max-width: 760px)');
+  private readonly mediaQuery = window.matchMedia('(max-width: 760px), (pointer: coarse) and (max-height: 700px)');
   private readonly observers: MutationObserver[] = [];
   private touchPreference = false;
 
