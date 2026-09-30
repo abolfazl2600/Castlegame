@@ -13,6 +13,7 @@ import { isGameMode } from './GameMode';
 import type { GameState } from '../state/GameState';
 import type { KeepSystem } from '../building/KeepSystem';
 import { APPLICATION_METADATA } from '../app/applicationMetadata';
+import { getCurrentLocale, t } from '../i18n/localization';
 import type {
   EconomyResourceState,
   EnvironmentSimulationState,
@@ -328,18 +329,21 @@ export class SaveSystem {
   }
 
   private metadataText(meta: SaveMetadata): string {
-    const date = new Date(meta.updatedAt).toLocaleString();
+    const date = new Date(meta.updatedAt).toLocaleString(getCurrentLocale() === 'fa' ? 'fa-IR' : 'en-US');
+    // Display localized defaults without ever rewriting user-provided names or save metadata.
+    const displayName = /^(?:Save Slot \d+|Quick Save|Auto Save)$/.test(meta.name) ? t(meta.name) : meta.name;
     return '<small>' +
-      escapeHtml(meta.name) + ' · ' + escapeHtml(date) + '<br>' +
-      escapeHtml(meta.gameMode ? meta.gameMode : 'Unknown mode') + ' · ' +
-      meta.summary.buildings + ' buildings · ' + meta.summary.keeps + ' keeps' +
+      '<bdi dir="auto">' + escapeHtml(displayName) + '</bdi> · <bdi dir="auto">' + escapeHtml(date) + '</bdi><br>' +
+      escapeHtml(t(meta.gameMode || 'Unknown mode')) + ' · ' +
+      escapeHtml(t(`${meta.summary.buildings} buildings · ${meta.summary.keeps} keeps`)) +
       '</small>';
   }
 
   private handleManualSave(slot: number): void {
     const existing = this.readRecord(slot);
-    if (existing && !confirm(`Overwrite Save Slot ${slot}?`)) return;
-    const name = prompt('Save name', existing?.metadata.name || `Save Slot ${slot}`);
+    if (existing && !confirm(t(`Overwrite Save Slot ${slot}?`))) return;
+    const suggestedName = existing?.metadata.name || `Save Slot ${slot}`;
+    const name = prompt(t('Save name'), /^Save Slot \d+$/.test(suggestedName) ? t(suggestedName) : suggestedName);
     if (name === null) return;
     this.manualSave(slot, name);
     this.renderModal();
@@ -357,7 +361,8 @@ export class SaveSystem {
     const parsed: SaveTarget = Number(target);
     const record = this.readRecord(parsed);
     if (!record) return;
-    const name = prompt('Save name', record.metadata.name);
+    const previousName = record.metadata.name;
+    const name = prompt(t('Save name'), /^Save Slot \d+$/.test(previousName) ? t(previousName) : previousName);
     if (name === null) return;
     this.rename(parsed, name);
     this.renderModal();
@@ -365,16 +370,16 @@ export class SaveSystem {
 
   private handleDelete(target: string): void {
     const parsed: SaveTarget = Number(target);
-    if (!confirm(`Delete Save Slot ${parsed}? This cannot be undone.`)) return;
+    if (!confirm(t(`Delete Save Slot ${parsed}? This cannot be undone.`))) return;
     this.delete(parsed);
     this.renderModal();
   }
 
   private confirmDiscardForLoad(): boolean {
     if (!this.dirty) return true;
-    const saveBeforeLoad = confirm('There are changes since the last manual save. Press OK to Quick Save before loading, or Cancel to abort.');
+    const saveBeforeLoad = confirm(t('There are changes since the last manual save. Press OK to Quick Save before loading, or Cancel to abort.'));
     if (saveBeforeLoad) return this.quickSave();
-    return confirm('Discard the current changes and continue loading?');
+    return confirm(t('Discard the current changes and continue loading?'));
   }
 
   private writeRecord(
