@@ -4,12 +4,27 @@ import { readFileSync } from 'node:fs';
 const mobileUi = readFileSync(new URL('../src/ui/MobileUI.ts', import.meta.url), 'utf8');
 const css = readFileSync(new URL('../src/style.css', import.meta.url), 'utf8');
 const game = readFileSync(new URL('../src/ThreeGame.ts', import.meta.url), 'utf8');
+const settings = readFileSync(new URL('../src/settings/SettingsUI.ts', import.meta.url), 'utf8');
 
 const header = mobileUi.match(/<header class="mobile-header"[\s\S]*?<\/header>/)?.[0];
 assert.ok(header, 'Mobile header markup must exist.');
 assert.match(header, /data-mobile-proxy="toolbar-open"/, 'Build must appear in the mobile header.');
 assert.match(header, /aria-controls="toolbar"/, 'Build must be associated with the build panel.');
 assert.match(header, /aria-expanded="false"/, 'Build must have an accessible initial state.');
+assert.doesNotMatch(header, /mobile-brand|Stronghold|CASTLE ROLE/,
+  'Touch header must not display the game name.');
+assert.doesNotMatch(header, /data-mobile-action="(?:save|load)"/,
+  'Save and Load must not appear twice in the touch header.');
+assert.doesNotMatch(header, /data-mobile-proxy="reset-button"/,
+  'Reset must be accessed through Settings rather than the touch header.');
+assert.match(header, /data-mobile-proxy="settings-button"/, 'Settings must remain reachable.');
+assert.match(settings, /this\.actionButton\('save'/, 'Save must still be available in Settings.');
+assert.match(settings, /this\.actionButton\('load'/, 'Load must still be available in Settings.');
+assert.match(settings, /data-action="reset-world"/, 'Reset World must remain available in Settings.');
+assert.match(settings, /this\.close\(\);\s*resetButton\.click\(\);/,
+  'Settings must close before invoking the existing world-reset flow.');
+assert.match(game, /get<HTMLButtonElement>\('reset-button'\)\.onclick/,
+  'The existing reset button must retain its confirmation and game mode behavior.');
 assert.doesNotMatch(mobileUi, /mobile-bottom-dock/, 'Mobile footer must no longer occupy screen space.');
 assert.doesNotMatch(mobileUi, /data-mobile-proxy="view-3d-button"/, 'Redundant mobile 3D action must be removed.');
 assert.match(mobileUi, /target instanceof HTMLButtonElement\) target\.click\(\)/,
