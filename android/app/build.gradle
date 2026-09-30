@@ -1,5 +1,22 @@
 apply plugin: 'com.android.application'
 
+// Signing is opt-in: ordinary debug and unsigned AAB builds require no secrets.
+// The release workflow provides these variables only on its protected signing steps.
+def uploadSigningKeys = [
+    'ANDROID_KEYSTORE_PATH',
+    'ANDROID_KEYSTORE_PASSWORD',
+    'ANDROID_KEY_ALIAS',
+    'ANDROID_KEY_PASSWORD'
+]
+def uploadSigningValues = uploadSigningKeys.collectEntries { key -> [(key): System.getenv(key)] }
+def hasUploadSigning = uploadSigningValues.values().any { it != null && !it.isEmpty() }
+if (hasUploadSigning && uploadSigningValues.values().any { it == null || it.isEmpty() }) {
+    throw new GradleException('Incomplete Android upload signing configuration. All four environment variables are required.')
+}
+if (hasUploadSigning && !file(uploadSigningValues['ANDROID_KEYSTORE_PATH']).isFile()) {
+    throw new GradleException('Android upload keystore file does not exist.')
+}
+
 android {
     namespace = "com.castlerole.game"
     compileSdk = rootProject.ext.compileSdkVersion
@@ -16,8 +33,21 @@ android {
             ignoreAssetsPattern = '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
         }
     }
+    signingConfigs {
+        if (hasUploadSigning) {
+            release {
+                storeFile file(uploadSigningValues['ANDROID_KEYSTORE_PATH'])
+                storePassword uploadSigningValues['ANDROID_KEYSTORE_PASSWORD']
+                keyAlias uploadSigningValues['ANDROID_KEY_ALIAS']
+                keyPassword uploadSigningValues['ANDROID_KEY_PASSWORD']
+            }
+        }
+    }
     buildTypes {
         release {
+            if (hasUploadSigning) {
+                signingConfig signingConfigs.release
+            }
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
         }
