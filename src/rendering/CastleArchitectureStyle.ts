@@ -31,6 +31,13 @@ export const CASTLE_STONE_PALETTES: Record<
     foundation: 0x79654c,
     walkway: 0xac9068,
   },
+  earthen: {
+    body: 0xb98555,
+    alt: 0xc79765,
+    dark: 0x865c3d,
+    foundation: 0x755139,
+    walkway: 0xa9784e,
+  },
   frontier: {
     body: 0x908b81,
     alt: 0xa6a094,
