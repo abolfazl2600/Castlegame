@@ -276,3 +276,68 @@ test('Debug mode shows performance diagnostics and persists across reloads', asy
   await page.locator('[data-setting="debugMode"]').uncheck();
   await expect(page.locator('#debug-performance-overlay')).toBeHidden();
 });
+
+
+test.describe('touch Settings layouts', () => {
+  test.use({ hasTouch: true, isMobile: true, viewport: { width: 915, height: 412 } });
+
+  test('landscape Android viewport uses a readable, scrollable Settings layout', async ({ page }) => {
+    await loadApp(page);
+    await expect(page.locator('html')).toHaveClass(/mobile-ui-active/);
+    await page.locator('.mobile-header [data-mobile-proxy="settings-button"]').click();
+
+    const modal = page.locator('#settings-modal');
+    await expect(modal).toBeVisible();
+    await expect(page.locator('[data-settings-nav="overview"] strong')).toBeVisible();
+    await expect(page.locator('#settings-close')).toBeInViewport();
+
+    const bounds = await modal.evaluate((element) => {
+      const rect = element.getBoundingClientRect();
+      const nav = element.querySelector<HTMLElement>('.settings-nav')!;
+      const content = element.querySelector<HTMLElement>('.settings-scroll')!;
+      return {
+        left: rect.left, top: rect.top, right: rect.right, bottom: rect.bottom,
+        windowWidth: innerWidth, windowHeight: innerHeight,
+        navDirection: getComputedStyle(nav).flexDirection,
+        contentOverflow: getComputedStyle(content).overflowY,
+        layoutColumns: getComputedStyle(element.querySelector('.settings-layout')!).gridTemplateColumns.split(' ').length,
+      };
+    });
+    expect(bounds.left).toBeGreaterThanOrEqual(0);
+    expect(bounds.top).toBeGreaterThanOrEqual(0);
+    expect(bounds.right).toBeLessThanOrEqual(bounds.windowWidth);
+    expect(bounds.bottom).toBeLessThanOrEqual(bounds.windowHeight);
+    expect(bounds.navDirection).toBe('row');
+    expect(bounds.contentOverflow).toBe('auto');
+    expect(bounds.layoutColumns).toBe(1);
+
+    await page.locator('[data-settings-nav="graphics"]').click();
+    await expect(page.locator('[data-settings-pane="graphics"]')).toBeVisible();
+    const scroll = page.locator('.settings-scroll');
+    expect(await scroll.evaluate((element) => element.scrollHeight > element.clientHeight)).toBe(true);
+    await page.locator('[data-setting="debugMode"]').check();
+    await expect(page.locator('[data-setting="debugMode"]')).toBeChecked();
+    await page.locator('[data-settings-nav="overview"]').click();
+    await page.locator('[data-system-action="save"]').click();
+    await expectSettingsClosed(page);
+    await expect(page.locator('.save-load-backdrop')).toBeVisible();
+  });
+
+  test('rotating to portrait preserves a visible close button and labeled navigation', async ({ page }) => {
+    await loadApp(page);
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.locator('.mobile-header [data-mobile-proxy="settings-button"]').click();
+    await expect(page.locator('#settings-close')).toBeInViewport();
+    await expect(page.locator('[data-settings-nav="general"] strong')).toBeVisible();
+    await page.locator('[data-settings-nav="audio"]').click();
+    await expect(page.locator('[data-settings-pane="audio"]')).toBeVisible();
+    const bounds = await page.locator('#settings-modal').boundingBox();
+    expect(bounds).not.toBeNull();
+    expect(bounds!.x).toBeGreaterThanOrEqual(0);
+    expect(bounds!.y).toBeGreaterThanOrEqual(0);
+    expect(bounds!.x + bounds!.width).toBeLessThanOrEqual(390);
+    expect(bounds!.y + bounds!.height).toBeLessThanOrEqual(844);
+    await page.locator('#settings-close').click();
+    await expectSettingsClosed(page);
+  });
+});
