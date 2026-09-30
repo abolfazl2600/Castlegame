@@ -30,11 +30,14 @@ jobs:
         with:
           distribution: temurin
           java-version: '21'
-      - name: Check preinstalled Android SDK
+      - name: Locate runner Android SDK manager
         run: |
           echo "ANDROID_HOME=$ANDROID_HOME"
-          command -v sdkmanager
-          sdkmanager --version
+          SDKMANAGER="$(find "$ANDROID_HOME/cmdline-tools" -type f -name sdkmanager | head -n 1)"
+          test -n "$SDKMANAGER"
+          echo "$(dirname "$SDKMANAGER")" >> "$GITHUB_PATH"
+          "$SDKMANAGER" --version
+          yes | "$SDKMANAGER" --licenses > /dev/null || true
       - name: Install Android 16 platform
         run: sdkmanager "platforms;android-36" "build-tools;36.0.0" "platform-tools"
       - name: Regenerate lockfile for Android dependencies
