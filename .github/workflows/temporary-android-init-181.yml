@@ -1,0 +1,84 @@
+name: Temporary native Android initialization (Issue 181)
+
+on:
+  push:
+    branches: [feat/android-native-project-181]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  generate-and-build:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout issue branch
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - name: Setup Java 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: Install Android SDK
+        uses: android-actions/setup-android@v3
+      - name: Install Android 16 platform
+        run: sdkmanager "platforms;android-36" "build-tools;36.0.0" "platform-tools"
+      - name: Regenerate lockfile for Android dependencies
+        run: npm install --package-lock-only --ignore-scripts --no-audit --no-fund
+      - name: Install project dependencies
+        run: npm ci --no-audit --no-fund
+      - name: Build local Android assets
+        run: npm run build:android
+      - name: Initialize Android platform
+        run: npx cap add android
+      - name: Set fixed landscape orientation
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path('android/app/src/main/AndroidManifest.xml')
+          manifest = path.read_text()
+          if 'android:screenOrientation=' not in manifest:
+              manifest = manifest.replace('<activity', '<activity android:screenOrientation="landscape"', 1)
+          path.write_text(manifest)
+          PY
+      - name: Validate generated native configuration
+        run: |
+          grep -F 'com.castlerole.game' android/app/build.gradle
+          grep -F 'Castle Role' android/app/src/main/res/values/strings.xml
+          grep -F 'android:screenOrientation="landscape"' android/app/src/main/AndroidManifest.xml
+          test -f android/app/src/main/assets/public/index.html
+          if grep -q '/Castlegame/assets/' android/app/src/main/assets/public/index.html; then
+            echo 'Found GitHub Pages asset paths in bundled Android game' >&2
+            exit 1
+          fi
+          test -f android/gradlew
+          test -f android/gradle/wrapper/gradle-wrapper.jar
+      - name: Commit generated native project and npm lockfile
+        run: |
+          git add android package-lock.json
+          if git diff --cached --name-only | grep -E '(^|/)(local.properties|key.properties|.*\.jks|.*\.keystore|.*\.iml)$'; then
+            echo 'Unsafe or machine-specific file was staged' >&2
+            exit 1
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git diff --cached --quiet || git commit -m "feat(android): commit Capacitor native platform skeleton"
+          git push origin HEAD:feat/android-native-project-181
+      - name: Verify clean checkout with reproducible install
+        run: |
+          git clean -fdx
+          npm ci --no-audit --no-fund
+          npm run android:sync
+          cd android
+          ./gradlew --no-daemon assembleDebug
+      - name: Verify APK output
+        run: |
+          test -s android/app/build/outputs/apk/debug/app-debug.apk
+          echo "Unsigned debug APK generated successfully"
