@@ -3,7 +3,6 @@ import type { GridCell, KeepState, TerrainKind, TileKind, TowerBridgeState, Wall
 import { BattleNavigation, type NavPoint, type WallNavNode } from './BattleNavigation';
 import { WallSystem } from '../building/WallSystem';
 import { FactionRelations } from './FactionRelations';
-import type { BattleScenario, ObjectiveBuildingSnapshot, ObjectivePositionSnapshot } from './objectives/BattleObjectiveTypes';
 import type {
   BattleMissileLaunchOptions,
   BattleMissileLaunchResult,
@@ -39,8 +38,6 @@ export interface BattleWorldContext {
   gatePassable?: (x: number, y: number) => boolean;
   wallWeaponVisuals?: () => THREE.Object3D[];
   effectsEnabled?: () => boolean;
-  objectiveBuildings?: () => ObjectiveBuildingSnapshot[];
-  objectivePositions?: () => ObjectivePositionSnapshot[];
 }
 
 interface UnitRuntime {
@@ -198,7 +195,6 @@ interface UnitVisualRefs {
 export interface BattleStartOptions {
   readonly attackerSpawnInterval?: number;
   readonly attackerSpawnBatchSize?: number;
-  readonly scenario?: BattleScenario;
   /**
    * Keeps battle-only wall damage across consecutive BattleSystem.start() calls.
    * Intended for multi-wave sessions such as Survival; never writes to GameState.
