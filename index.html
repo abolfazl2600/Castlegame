@@ -17,7 +17,7 @@
         <div class="status-group">
           <span id="save-status" class="status-pill">3D Ready</span>
           <button id="battle-button" class="secondary-button battle-button" type="button">Battle</button>
-          <button id="military-button" class="secondary-button battle-button" type="button">Military</button>
+          <button id="military-button" class="secondary-button battle-button" type="button" hidden>Military</button>
           <button id="god-mode-button" class="secondary-button god-mode-button" type="button" hidden>God Mode</button>
           <button id="game-mode-button" class="secondary-button mode-button" type="button" aria-label="Current game mode: Medieval Castle">Mode: <span id="game-mode-label">Medieval Castle</span></button>
           <button id="templates-button" class="secondary-button system-action-bridge" type="button" hidden>Templates</button>
@@ -67,9 +67,11 @@
 
           <div class="battle-live">
             <span>Attackers alive <b id="battle-attacker-alive">0</b></span>
-            <span>Defenders alive <b id="battle-defender-alive">0</b></span>
           </div>
 
+          <details class="battle-advanced" open>
+            <summary>Military &amp; advanced options</summary>
+            <div class="battle-advanced-content">
           <section class="military-progress" aria-label="Military progression">
             <div class="military-progress-heading">
               <span class="eyebrow">MILITARY DEVELOPMENT</span>
@@ -108,60 +110,11 @@
             <button id="military-missile-launch" class="battle-primary" type="button" disabled>Launch Missile</button>
             <small id="military-missile-hint">Modern missiles unlock at Military Tier 4.</small>
           </section>
+          <p class="battle-hint">Attack and Defense are shared combat stats for each unit type. Attack drives outgoing unit damage; Defense reduces incoming unit damage. Values are read from the BattleSystem definitions.</p>
+            </div>
+          </details>
 
           <div class="battle-armies">
-            <section class="battle-faction battle-defenders">
-              <div class="battle-faction-title">
-                <span class="battle-color-dot defender-dot"></span>
-                <strong>DEFENDERS</strong>
-              </div>
-
-              <div class="battle-unit-row">
-                <span>Swordsman <small>balanced melee · Attack <b id="battle-stat-swordsman-attack">20</b> · Defense <b id="battle-stat-swordsman-defense">24</b></small></span>
-                <div class="battle-stepper">
-                  <button type="button" data-battle-field="defenderSwordsmen" data-delta="-1">−</button>
-                  <input id="battle-defender-swordsmen" data-battle-input="defenderSwordsmen" type="number" min="0" max="120" step="1" value="10" inputmode="numeric" />
-                  <button type="button" data-battle-field="defenderSwordsmen" data-delta="1">+</button>
-                </div>
-              </div>
-
-              <div class="battle-unit-row">
-                <span>Spearman <small>longer melee reach · Attack <b id="battle-stat-spearman-attack">18</b> · Defense <b id="battle-stat-spearman-defense">30</b></small></span>
-                <div class="battle-stepper">
-                  <button type="button" data-battle-field="defenderSpearmen" data-delta="-1">−</button>
-                  <input id="battle-defender-spearmen" data-battle-input="defenderSpearmen" type="number" min="0" max="120" step="1" value="8" inputmode="numeric" />
-                  <button type="button" data-battle-field="defenderSpearmen" data-delta="1">+</button>
-                </div>
-              </div>
-
-              <div class="battle-unit-row">
-                <span>Archer <small>fast ranged fire · Attack <b id="battle-stat-archer-attack">14</b> · Defense <b id="battle-stat-archer-defense">10</b></small></span>
-                <div class="battle-stepper">
-                  <button type="button" data-battle-field="defenderArchers" data-delta="-1">−</button>
-                  <input id="battle-defender-archers" data-battle-input="defenderArchers" type="number" min="0" max="120" step="1" value="15" inputmode="numeric" />
-                  <button type="button" data-battle-field="defenderArchers" data-delta="1">+</button>
-                </div>
-              </div>
-
-              <div class="battle-unit-row">
-                <span>Crossbowman <small>slow heavy shot · Attack <b id="battle-stat-crossbowman-attack">25</b> · Defense <b id="battle-stat-crossbowman-defense">14</b></small></span>
-                <div class="battle-stepper">
-                  <button type="button" data-battle-field="defenderCrossbowmen" data-delta="-1">−</button>
-                  <input id="battle-defender-crossbowmen" data-battle-input="defenderCrossbowmen" type="number" min="0" max="120" step="1" value="6" inputmode="numeric" />
-                  <button type="button" data-battle-field="defenderCrossbowmen" data-delta="1">+</button>
-                </div>
-              </div>
-               <div class="battle-unit-row">
-                <span>Modern Soldier <small>modern rifle ranged defense · Attack <b id="battle-stat-modernSoldier-attack">23</b> · Defense <b id="battle-stat-modernSoldier-defense">22</b></small></span>
-                <div class="battle-stepper">
-                  <button type="button" data-battle-field="defenderModernSoldiers" data-delta="-1">−</button>
-                  <input id="battle-defender-modern-soldiers" data-battle-input="defenderModernSoldiers" type="number" min="0" max="120" step="1" value="4" inputmode="numeric" />
-                  <button type="button" data-battle-field="defenderModernSoldiers" data-delta="1">+</button>
-                </div>
-              </div>
-
-           </section>
-
             <section class="battle-faction battle-attackers">
               <div class="battle-faction-title">
                 <span class="battle-color-dot attacker-dot"></span>
@@ -238,7 +191,6 @@
           </div>
 
           <div id="battle-result" class="battle-result" hidden></div>
-          <p class="battle-hint">Attack and Defense are shared combat stats for each unit type. Attack drives outgoing unit damage; Defense reduces incoming unit damage. Values are read from the BattleSystem definitions.</p>
         </aside>
 
         <aside id="god-mode-panel" class="god-mode-panel" aria-label="God Mode" hidden>
@@ -249,7 +201,7 @@
             </div>
             <button id="god-mode-close" class="icon-button battle-close" type="button" aria-label="Close God Mode">×</button>
           </div>
-          <p class="god-mode-instructions">Choose a weapon model, then click a valid building in the world to fire immediately. World changes use the same undo and save systems as construction.</p>
+          <p class="god-mode-instructions">Choose a weapon model, then select a building. On touch, confirm the selected target to fire. World changes use the same undo and save systems as construction.</p>
           <div id="god-mode-capacity" class="god-mode-capacity">Missiles: 10/10</div>
           <div class="god-mode-actions" role="group" aria-label="God Mode actions">
             <button type="button" data-god-action="missileStrike" class="god-mode-action is-selected"><strong>🚀 Missile Strike</strong><small>Target one building with a visible impact.</small></button>
@@ -422,8 +374,8 @@
 
               <div class="help-section">
                 <strong>Camera & Mobile UI</strong>
-                <span>2D Plan locks the camera overhead; right drag pans and the wheel/pinch zooms.</span>
-                <span>3D View restores orbit camera controls.</span>
+                <span>2D Plan locks the camera overhead; drag to pan and pinch to zoom. On desktop, right drag pans and the wheel zooms.</span>
+                <span>3D View uses one finger to orbit and two fingers to pan or zoom.</span>
                 <span>The Build panel can be closed at any time and automatically collapses after choosing a tool on mobile.</span>
               </div>
             </div>
@@ -473,7 +425,7 @@
               <button id="templates-close-button" class="icon-button" type="button" aria-label="Close templates">×</button>
             </div>
 
-            <p class="template-intro">Choose from 32 complete starting worlds or start with one of the editable terrain-only worlds. Every template becomes normal editable game state after loading.</p>
+            <p class="template-intro">Choose from 34 complete starting worlds or start with one of the editable terrain-only worlds. Every template becomes normal editable game state after loading.</p>
 
             <div class="template-grid">
               <button class="template-card" type="button" data-template="mainland-frontier">
@@ -654,6 +606,24 @@
                 <span class="template-preview template-preview-castle">◉♜◉</span>
                 <strong>Carcassonne · France</strong>
                 <small>Historic fortified city · double irregular ramparts, dense round towers, Narbonnaise and Aude gates, Château Comtal, Saint-Nazaire basilica, raised cité, and Aude approach.</small>
+              </button>
+
+              <button class="template-card" type="button" data-template="crac-des-chevaliers">
+                <span class="template-preview template-preview-castle">◉▣◉</span>
+                <strong>Crac des Chevaliers · Syria</strong>
+                <small>Mid-13th-century Hospitaller fortress · concentric enceintes, elevated inner ward, eastern access ramp, southern cistern and barbican, major round towers, chapel, and keep.</small>
+              </button>
+
+              <button class="template-card" type="button" data-template="himeji-castle">
+                <span class="template-preview template-preview-castle">🏯</span>
+                <strong>Himeji Castle · Japan</strong>
+                <small>Historic Japanese hill castle · white-plaster tenshu group, tiered tiled roofs, layered baileys and moats, Hishi Gate, winding fortified approach, and Nishi-no-Maru.</small>
+              </button>
+
+              <button class="template-card" type="button" data-template="arg-e-bam">
+                <span class="template-preview template-preview-motte">▰◫</span>
+                <strong>Arg-e Bam · Iran</strong>
+                <small>Pre-2003 earthen citadel · southern gate, dry moat, towered enclosure, bazaar axis, courtyard mosque, dense lower town, and raised governor's citadel.</small>
               </button>
 
               <button class="template-card" type="button" data-template="island-monastery">

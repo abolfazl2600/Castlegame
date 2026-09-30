@@ -1,6 +1,7 @@
 import { MobileUI } from './ui/MobileUI';
 import { SettingsStore } from './settings/SettingsStore';
 import { SettingsUI } from './settings/SettingsUI';
+import { installAndroidBackNavigation } from './android/androidBackNavigation';
 import './style.css';
 
 const settingsStore = new SettingsStore(localStorage);
@@ -16,6 +17,7 @@ try {
   console.error('Mobile UI initialization failed', error);
 }
 
+installAndroidBackNavigation();
 void startGameRuntime();
 
 async function startGameRuntime(): Promise<void> {

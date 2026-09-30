@@ -44,7 +44,8 @@ assert.match(game, /distanceDetailBudget\.update\(/, 'distance budget must updat
 assert.match(game, /distanceDetailBudget\.invalidate\(\)/, 'redraw must invalidate the budget for newly-created meshes');
 assert.match(game, /budgetScale:\s*visualBudget\.budget\.animationScale/, 'animation budget must feed ambient motion');
 assert.match(game, /visualBudget: this\.distanceDetailBudget\.snapshot\(\)/, 'visual diagnostics must expose the enforced detail budget snapshot');
-assert.match(game, /controlScheme === 'touch'/, 'touch/mobile preset selection must be supported');
+assert.match(game, /adaptiveRenderProfile\.resolve\(settings\.graphics\.performanceMode\)/, 'render profile must be independent from input controls');
+assert.doesNotMatch(game, /settings\.gameplay\.controlScheme === 'touch'/, 'touch controls must never select a render budget');
 
 assert.match(ambient, /budgetScale\?: number/, 'ambient motion options must accept budget scaling');
 assert.match(ambient, /options\.budgetScale \?\? 1/, 'ambient motion must apply budget scaling');

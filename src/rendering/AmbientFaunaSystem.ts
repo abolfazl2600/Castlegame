@@ -41,6 +41,8 @@ function hash(seed: number, x: number, y: number, salt = 0): number {
   return ((value ^ value >>> 13) >>> 0) / 4294967296;
 }
 
+const LLAMA_VISUAL_SCALE = 0.65;
+
 /** Decorative only: no GameState writes, collision objects or pathfinding agents. */
 export class AmbientFaunaSystem {
   readonly layer = new THREE.Group();
@@ -174,6 +176,7 @@ export class AmbientFaunaSystem {
 
   private addLlama(world: FaunaWorld, x: number, y: number, index: number): void {
     const root = new THREE.Group();
+    root.scale.setScalar(LLAMA_VISUAL_SCALE);
     const body = new THREE.Group();
     root.add(body);
     const add = (geometry: THREE.BufferGeometry, material: THREE.Material, px: number, py: number, pz: number) => {

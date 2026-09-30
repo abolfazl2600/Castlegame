@@ -16,6 +16,9 @@ first.rebuild(world, 'high');
 second.rebuild(world, 'high');
 assert.ok(first.counts.llamas > 0 && first.counts.llamas <= 4);
 assert.equal(first.counts.birds, 7);
+for (const llama of first.layer.children.slice(0, first.counts.llamas)) {
+  assert.deepEqual(llama.scale.toArray(), [0.65, 0.65, 0.65], 'llama geometry is uniformly 35% smaller');
+}
 const positions = first.layer.children.slice(0, first.counts.llamas).map((root) => `${root.position.x},${root.position.z}`);
 assert.deepEqual(positions, second.layer.children.slice(0, second.counts.llamas).map((root) => `${root.position.x},${root.position.z}`));
 for (const position of positions) {

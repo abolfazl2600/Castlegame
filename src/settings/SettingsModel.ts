@@ -1,7 +1,7 @@
 export const SETTINGS_SCHEMA_VERSION = 2 as const;
 
 export type GraphicsQuality = 'low' | 'medium' | 'high';
-export type PerformanceMode = 'balanced' | 'performance' | 'quality';
+export type PerformanceMode = 'auto' | 'performance' | 'balanced' | 'quality';
 export type EnvironmentDetail = 'low' | 'medium' | 'high';
 export type LanguageCode = 'system' | 'en';
 export type ControlScheme = 'standard' | 'touch';
@@ -19,11 +19,14 @@ export interface GraphicsSettings {
   shadowsEnabled: boolean;
   performanceMode: PerformanceMode;
   environmentDetail: EnvironmentDetail;
+  debugMode: boolean;
 }
 
 export interface AudioSettings {
   masterVolume: number;
+  musicEnabled: boolean;
   musicVolume: number;
+  sfxEnabled: boolean;
   sfxVolume: number;
   muted: boolean;
 }
@@ -58,12 +61,15 @@ export function createDefaultSettings(): SettingsData {
       quality: 'high',
       effectsEnabled: true,
       shadowsEnabled: true,
-      performanceMode: 'balanced',
+      performanceMode: 'auto',
       environmentDetail: 'high',
+      debugMode: false,
     },
     audio: {
       masterVolume: 1,
+      musicEnabled: true,
       musicVolume: 0.8,
+      sfxEnabled: true,
       sfxVolume: 1,
       muted: false,
     },

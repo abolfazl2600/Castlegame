@@ -66,16 +66,21 @@ assert.ok(
   'Ordinary redraws must preserve an unchanged standing garrison without visible respawn flicker',
 );
 assert.ok(
-  game.includes("if (String(field).startsWith('defender')) this.syncIdleDefenderGarrison(true);"),
-  'Changing defender counts must immediately rebuild the standing garrison',
+  game.includes("if (String(field).startsWith('defender')) return;"),
+  'Defenders must not be editable in Battle Setup',
 );
 assert.ok(
   game.includes('this.battleLayer.visible = !planMode;'),
   'Persistent 3D defenders must stay out of the top-down planning layer',
 );
-assert.ok(
-  game.includes('this.battleSystem.reset();\n    this.syncIdleDefenderGarrison(true);'),
-  'Reset Battle must restore castle guards immediately',
+const resetBattle = game.slice(
+  game.indexOf('private resetBattleFromUI(): void {'),
+  game.indexOf('private commitPopulationBattleOutcome('),
+);
+assert.match(
+  resetBattle,
+  /this\.battleSystem\.reset\(\);[\s\S]*?this\.syncIdleDefenderGarrison\(true\);/,
+  'Reset Battle must restore guards after synchronizing the camp-based roster',
 );
 
 console.log('Persistent defender garrison and off-map attacker entry regression checks passed.');

@@ -728,7 +728,7 @@ function validMapLayoutId(value: unknown): value is MapLayoutId {
 }
 
 function validStoneStyle(value: unknown): value is StoneStyle {
-  return value === 'limestone' || value === 'darkStone' || value === 'sandstone' || value === 'frontier';
+  return value === 'limestone' || value === 'darkStone' || value === 'sandstone' || value === 'frontier' || value === 'whitePlaster' || value === 'earthen';
 }
 
 function clamp(value: number, min: number, max: number): number {

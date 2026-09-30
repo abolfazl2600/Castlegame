@@ -32,6 +32,13 @@ The draw-call, particle, and high-detail-mesh values are explicit scene budgets 
 
 Shadow priority is biased toward defensive silhouette objects and landmark/readability objects. Geometry visibility is not switched off by the distance governor, which keeps walls, towers, keeps, fortresses, and building upgrade silhouettes stable at normal and strategic zoom.
 
-## Mobile behavior
+## Independent render profiles (Graphics settings)
 
-A mobile profile is selected when touch controls are active, a coarse pointer is detected, or the viewport is narrow. Mobile reduces pixel density, animation work, and shadow casters more aggressively while preserving the same geometry silhouette.
+Input controls and viewport size do not select a render profile. Touch / Mobile only changes input and layout.
+
+- **Auto (default for new settings)** starts Balanced and evaluates observed requestAnimationFrame intervals. Sustained slow frames (roughly 3 seconds above 29 ms smoothed) step down one preset; sustained fast frames (12 seconds below 18 ms) step up. A 12-second cooldown prevents visual oscillation. Long background/tab gaps are ignored. Frame pacing includes CPU and GPU delays but is not a direct GPU benchmark.
+- **Performance** applies the former mobile/constrained budgets, with stricter pixel, animation, shadow and micro-detail limits even on desktop.
+- **Balanced** interpolates the existing constrained and desktop budgets; decorative detail is not suppressed solely for having a touchscreen.
+- **Quality** uses the desktop budgets, retaining decorative detail at ordinary gameplay distances unless strategic LOD, explicit Low quality or memory pressure calls for reduction.
+
+The debug-only **Mobile rendering budget** switch overrides the active profile with Performance until disabled; it never emulates actual phone hardware. Auto sampling is paused during this override. Existing manual user settings continue to load unchanged. The 2 GiB JavaScript heap budget does not measure the phone's full RAM or VRAM.

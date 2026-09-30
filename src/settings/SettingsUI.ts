@@ -119,6 +119,7 @@ export class SettingsUI {
                 ${this.actionButton('load', '↓', 'Load Game', 'Choose autosave, quick save or a slot')}
                 ${this.actionButton('save', '↑', 'Save Game', 'Quick save or choose a manual slot')}
                 ${this.actionButton('templates', '▦', 'Templates', 'Choose a starting world')}
+                <button type="button" data-action="reset-world"><span class="settings-action-icon" aria-hidden="true">↻</span><span class="settings-action-copy"><strong>Reset World</strong><small>Start a new world and choose a game mode</small></span><span aria-hidden="true">›</span></button>
               </div>
               <div class="settings-info-strip" data-settings-action-status>
                 <span class="settings-info-dot"></span>
@@ -140,10 +141,11 @@ export class SettingsUI {
               ${this.paneHeading('VISUALS', 'Graphics', 'Balance scene detail and performance.')}
               <div class="settings-control-card">
                 ${this.selectRow('Graphics quality', 'Overall rendering quality preset.', 'quality', '<option value="low">Low</option><option value="medium">Medium</option><option value="high">High</option>')}
-                ${this.selectRow('Performance mode', 'Prioritize speed, balance or image quality.', 'performanceMode', '<option value="performance">Performance</option><option value="balanced">Balanced</option><option value="quality">Quality</option>')}
+                ${this.selectRow('Render profile', 'Auto adapts to sustained frame rate; manual presets never depend on touch controls.', 'performanceMode', '<option value="auto">Auto (adaptive)</option><option value="performance">Performance</option><option value="balanced">Balanced</option><option value="quality">Quality</option>')}
                 ${this.selectRow('Environment detail', 'Controls decorative world detail.', 'environmentDetail', '<option value="low">Low</option><option value="medium">Medium</option><option value="high">High</option>')}
                 ${this.toggleRow('Shadows', 'Render dynamic scene shadows.', 'shadowsEnabled')}
                 ${this.toggleRow('Visual effects', 'Enable enhanced lighting and effects.', 'effectsEnabled')}
+                ${this.toggleRow('Debug mode', 'Show live FPS, memory, renderer and LOD diagnostics over the game.', 'debugMode')}
               </div>
             </section>
 
@@ -152,8 +154,10 @@ export class SettingsUI {
               <div class="settings-audio-status"><span>♪</span><div><strong>Procedural sound engine</strong><small>No external audio download is required.</small></div></div>
               <div class="settings-control-card">
                 ${this.rangeRow('Master volume', 'Overall game volume.', 'masterVolume', 0, 1, 0.01)}
-                ${this.rangeRow('Music', 'Ambient background sound.', 'musicVolume', 0, 1, 0.01)}
-                ${this.rangeRow('Sound effects', 'Building, UI and battle feedback.', 'sfxVolume', 0, 1, 0.01)}
+                ${this.toggleRow('Music enabled', 'Allow ambient background music and ambience.', 'musicEnabled')}
+                ${this.rangeRow('Music volume', 'Ambient background sound level.', 'musicVolume', 0, 1, 0.01)}
+                ${this.toggleRow('Sound effects enabled', 'Allow building, UI and battle feedback sounds.', 'sfxEnabled')}
+                ${this.rangeRow('Sound effects volume', 'Building, UI and battle feedback level.', 'sfxVolume', 0, 1, 0.01)}
                 ${this.toggleRow('Mute all', 'Silence all game audio immediately.', 'muted')}
               </div>
             </section>
@@ -161,7 +165,7 @@ export class SettingsUI {
             <section class="settings-pane" data-settings-pane="gameplay">
               ${this.paneHeading('GAMEPLAY', 'Controls & Feedback', 'Adjust camera behavior and combat feedback.')}
               <div class="settings-control-card">
-                ${this.selectRow('Control preference', 'Choose standard mouse controls or touch-oriented input.', 'controlScheme', '<option value="standard">Standard</option><option value="touch">Touch / Mobile</option>')}
+                ${this.selectRow('Control preference', 'Only changes controls and layout; graphics quality is configured separately.', 'controlScheme', '<option value="standard">Standard</option><option value="touch">Touch / Mobile</option>')}
                 ${this.rangeRow('Camera sensitivity', 'Adjust orbit and camera response.', 'cameraSensitivity', 0.5, 2, 0.05)}
                 ${this.toggleRow('Combat feedback', 'Enable battle feedback and battle sound cues.', 'combatFeedback')}
               </div>
@@ -267,6 +271,17 @@ export class SettingsUI {
   }
 
   private bindCoreControls(): void {
+    // Reuse the desktop reset control so confirmation and world-mode selection stay authoritative.
+    this.panel.querySelector('[data-action="reset-world"]')?.addEventListener('click', () => {
+      const resetButton = document.getElementById('reset-button');
+      if (!(resetButton instanceof HTMLButtonElement) || !resetButton.onclick) {
+        const status = this.panel.querySelector<HTMLElement>('[data-settings-action-status] span:last-child');
+        if (status) status.textContent = 'Game runtime is still initializing. Try again after the world appears.';
+        return;
+      }
+      this.close();
+      resetButton.click();
+    });
     this.panel.querySelector('[data-action="reset-save"]')?.addEventListener('click', () => {
       if (window.confirm('Delete all local game saves? Your settings will be kept. This cannot be undone.')) this.onResetSave();
     });
@@ -367,16 +382,25 @@ export class SettingsUI {
         this.store.setGraphics({ shadowsEnabled: Boolean(value) });
         break;
       case 'performanceMode':
-        this.store.setGraphics({ performanceMode: value === 'performance' || value === 'quality' ? value : 'balanced' });
+        this.store.setGraphics({ performanceMode: value === 'auto' || value === 'performance' || value === 'quality' ? value : 'balanced' });
         break;
       case 'environmentDetail':
         this.store.setGraphics({ environmentDetail: value === 'low' || value === 'medium' ? value : 'high' });
         break;
+      case 'debugMode':
+        this.store.setGraphics({ debugMode: Boolean(value) });
+        break;
       case 'masterVolume':
         this.store.setAudio({ masterVolume: Number(value) });
         break;
+      case 'musicEnabled':
+        this.store.setAudio({ musicEnabled: Boolean(value) });
+        break;
       case 'musicVolume':
         this.store.setAudio({ musicVolume: Number(value) });
+        break;
+      case 'sfxEnabled':
+        this.store.setAudio({ sfxEnabled: Boolean(value) });
         break;
       case 'sfxVolume':
         this.store.setAudio({ sfxVolume: Number(value) });
@@ -424,8 +448,11 @@ export class SettingsUI {
     set('shadowsEnabled', settings.graphics.shadowsEnabled);
     set('performanceMode', settings.graphics.performanceMode);
     set('environmentDetail', settings.graphics.environmentDetail);
+    set('debugMode', settings.graphics.debugMode);
     set('masterVolume', settings.audio.masterVolume);
+    set('musicEnabled', settings.audio.musicEnabled);
     set('musicVolume', settings.audio.musicVolume);
+    set('sfxEnabled', settings.audio.sfxEnabled);
     set('sfxVolume', settings.audio.sfxVolume);
     set('muted', settings.audio.muted);
     set('uiScale', settings.interface.uiScale);

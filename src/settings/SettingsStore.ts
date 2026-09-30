@@ -219,17 +219,29 @@ function validateSettings(input: SettingsData): SettingsData {
           ? input.graphics.shadowsEnabled
           : defaults.graphics.shadowsEnabled,
       performanceMode:
-        performanceMode === 'balanced' || performanceMode === 'performance' || performanceMode === 'quality'
+        performanceMode === 'auto' || performanceMode === 'balanced' || performanceMode === 'performance' || performanceMode === 'quality'
           ? performanceMode
           : defaults.graphics.performanceMode,
       environmentDetail:
         environmentDetail === 'low' || environmentDetail === 'medium' || environmentDetail === 'high'
           ? environmentDetail
           : defaults.graphics.environmentDetail,
+      debugMode:
+        typeof input.graphics.debugMode === 'boolean'
+          ? input.graphics.debugMode
+          : defaults.graphics.debugMode,
     },
     audio: {
       masterVolume: numberInRange(input.audio.masterVolume, defaults.audio.masterVolume),
+      musicEnabled:
+        typeof input.audio.musicEnabled === 'boolean'
+          ? input.audio.musicEnabled
+          : defaults.audio.musicEnabled,
       musicVolume: numberInRange(input.audio.musicVolume, defaults.audio.musicVolume),
+      sfxEnabled:
+        typeof input.audio.sfxEnabled === 'boolean'
+          ? input.audio.sfxEnabled
+          : defaults.audio.sfxEnabled,
       sfxVolume: numberInRange(input.audio.sfxVolume, defaults.audio.sfxVolume),
       muted: typeof input.audio.muted === 'boolean' ? input.audio.muted : defaults.audio.muted,
     },

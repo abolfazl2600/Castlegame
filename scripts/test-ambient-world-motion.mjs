@@ -14,7 +14,6 @@ for (const method of [
   'registerSway',
   'registerBob',
   'registerSmoke',
-  'registerCloud',
   'clearSceneBound',
   'motionScale',
   'stats',
@@ -35,13 +34,11 @@ assert.match(ambient, /this\.sways\.length = 0/);
 assert.match(ambient, /this\.bobs\.length = 0/);
 assert.match(ambient, /this\.smokes\.length = 0/);
 
-assert.match(game, /private readonly ambientLayer = new THREE\.Group\(\)/);
 assert.match(game, /private readonly ambientMotion = new AmbientMotionSystem\(\)/);
+assert.doesNotMatch(ambient, /\b(?:CloudDrift|registerCloud|clouds)\b/, 'Cloud motion must not be registered or updated.');
+assert.doesNotMatch(game, /\b(?:ambientCloud|createAmbientWorld|ambientLayer|registerCloud)\b/, 'Cloud meshes and their scene layer must be removed.');
 assert.match(game, /registerTextureFlow\(this\.riverTexture, 0\.000035, -0\.00032\)/);
 assert.match(game, /registerTextureFlow\(this\.oceanTexture, 0\.000018, -0\.000012\)/);
-assert.match(game, /private createAmbientWorld\(\): void/);
-assert.match(game, /registerCloud\(/);
-assert.match(game, /this\.ambientLayer\.visible = !planMode/);
 
 const redraw = game.slice(game.indexOf('private redraw(): void'), game.indexOf('private renderMinimap(): void'));
 assert.match(redraw, /ambientMotion\.clearSceneBound\(\)/);

@@ -10,29 +10,65 @@ const basilica = await readFile(new URL('../src/rendering/BasilicaRenderer.ts', 
 const visualStyle = await readFile(new URL('../src/rendering/TemplateVisualStyle.ts', import.meta.url), 'utf8');
 const docs = await readFile(new URL('../docs/templates/carcassonne.md', import.meta.url), 'utf8');
 
-assert.equal(html.split('data-template="carcassonne"').length - 1, 1, 'Carcassonne must appear once in the template picker.');
-assert.match(html, /Choose from 32 complete starting worlds/);
-assert.match(threeGame, /'carcassonne': { layoutId: 'mainland', seed: 5601 }/);
-assert.match(threeGame, /template === 'carcassonne'/);
-assert.match(visualStyle, /'carcassonne': { stoneStyle: 'limestone', towerBridgeKind: 'stone', family: 'medieval' }/);
+assert.equal(
+  html.split('data-template="carcassonne"').length - 1,
+  1,
+  'Carcassonne must appear once in the template picker.',
+);
+assert.match(html, /Choose from 34 complete starting worlds/);
+assert.ok(threeGame.includes("'carcassonne': { layoutId: 'mainland', seed: 5601 }"));
+assert.ok(threeGame.includes("template === 'carcassonne'"));
+assert.ok(
+  visualStyle.includes(
+    "'carcassonne': { stoneStyle: 'limestone', towerBridgeKind: 'stone', family: 'medieval' }",
+  ),
+);
 
-assert.match(threeGame, /placeWallPath(outerRampart,[sS]*?true);/);
-assert.match(threeGame, /placeWallPath(innerRampart,[sS]*?true);/);
-assert.match(threeGame, /place(19, 9, 'gate', 2);[sS]*?place(17, 9, 'gate', 3);/);
-assert.match(threeGame, /place(3, 13, 'gate', 2);[sS]*?place(6, 13, 'gate', 3);/);
-assert.match(threeGame, /placeKeepTemplate(8, 10, 3, 3, 4, 'towered', true/);
-assert.match(threeGame, /place(13, 12, 'basilica', 2/);
-assert.match(threeGame, /this.terrainOverrides.set(this.key(x, y), 'river')/);
+assert.match(
+  threeGame,
+  /placeWallPath\(outerRampart,[\s\S]*?\}, true\);/,
+  'Outer rampart must be emitted as a closed wall path.',
+);
+assert.match(
+  threeGame,
+  /placeWallPath\(innerRampart,[\s\S]*?\}, true\);/,
+  'Inner rampart must be emitted as a closed wall path.',
+);
+assert.match(
+  threeGame,
+  /place\(19, 9, 'gate', 2\);[\s\S]*?place\(17, 9, 'gate', 3\);/,
+  'Porte Narbonnaise must keep its outer and inner gates.',
+);
+assert.match(
+  threeGame,
+  /place\(3, 13, 'gate', 2\);[\s\S]*?place\(6, 13, 'gate', 3\);/,
+  'Porte d\'Aude must keep its outer and inner gates.',
+);
+assert.ok(
+  threeGame.includes("placeKeepTemplate(8, 10, 3, 3, 4, 'towered', true"),
+  'Château Comtal keep placement must remain present.',
+);
+assert.ok(
+  threeGame.includes("place(13, 12, 'basilica', 2"),
+  'Saint-Nazaire basilica landmark must remain present.',
+);
+assert.ok(
+  threeGame.includes("this.terrainOverrides.set(this.key(x, y), 'river')"),
+  'The authored Aude river channel must remain present.',
+);
 
-assert.match(types, /| 'basilica'/);
-assert.ok(gameMode.split("'basilica'").length - 1 >= 4, 'Basilica should be available in medieval-capable building groups.');
-assert.match(threeGame, /new BasilicaRenderer(this.medievalMaterials)/);
-assert.match(basilica, /landmark = 'basilica'/);
-assert.match(basilica, /RingGeometry/);
+assert.ok(types.includes("| 'basilica'"));
+assert.ok(
+  gameMode.split("'basilica'").length - 1 >= 4,
+  'Basilica should be available in medieval-capable building groups.',
+);
+assert.ok(threeGame.includes('new BasilicaRenderer(this.medievalMaterials)'));
+assert.ok(basilica.includes("landmark = 'basilica'"));
+assert.ok(basilica.includes('RingGeometry'));
 
-assert.match(wallPath, /every consecutive point is cardinally/);
-assert.match(wallPath, /export function rasterizeWallPath/);
-assert.match(wallPath, /closed = false/);
+assert.ok(wallPath.includes('every consecutive point is cardinally'));
+assert.ok(wallPath.includes('export function rasterizeWallPath'));
+assert.ok(wallPath.includes('closed = false'));
 
 for (const source of [
   'whc.unesco.org/en/list/345',
@@ -41,8 +77,8 @@ for (const source of [
 ]) {
   assert.ok(docs.includes(source), `Historic source pack is missing ${source}`);
 }
-assert.match(docs, /present-day fortified city as documented in 2025/);
-assert.match(docs, /Fidelity and scale compromises/);
-assert.match(docs, /Matched-view comparison checklist/);
+assert.ok(docs.includes('present-day fortified city as documented in 2025'));
+assert.ok(docs.includes('Fidelity and scale compromises'));
+assert.ok(docs.includes('Matched-view comparison checklist'));
 
 console.log('Carcassonne historic template contract checks passed.');

@@ -1,4 +1,4 @@
-import { requestOpenSettings } from '../app/applicationActions';
+import { requestOpenSettings, requestSystemAction, type SystemAction } from '../app/applicationActions';
 import type { SettingsStore } from '../settings/SettingsStore';
 
 /**
@@ -10,7 +10,7 @@ import type { SettingsStore } from '../settings/SettingsStore';
 export class MobileUI {
   private readonly shell: HTMLElement;
   private readonly root: HTMLElement;
-  private readonly mediaQuery = window.matchMedia('(max-width: 760px)');
+  private readonly mediaQuery = window.matchMedia('(max-width: 760px), (pointer: coarse) and (max-height: 700px)');
   private readonly observers: MutationObserver[] = [];
   private touchPreference = false;
 
@@ -33,27 +33,15 @@ export class MobileUI {
     layer.className = 'mobile-ui';
     layer.innerHTML = `
       <header class="mobile-header" aria-label="Mobile game actions">
-        <div class="mobile-brand">
-          <span class="mobile-eyebrow">CASTLE ROLE</span>
-          <strong>Stronghold</strong>
-        </div>
         <div class="mobile-header-actions" role="toolbar" aria-label="Game actions">
           <button type="button" data-mobile-proxy="game-mode-button" class="mobile-action mobile-mode-action"></button>
-          <button type="button" data-mobile-proxy="battle-button" class="mobile-action" aria-label="Battle">⚔️</button>
+          <button type="button" data-mobile-proxy="toolbar-open" class="mobile-action mobile-build-action" aria-label="Build tools" aria-controls="toolbar" aria-expanded="false"><span aria-hidden="true">🧱</span><span>Build</span></button>
+          <button type="button" data-mobile-proxy="battle-button" class="mobile-action" aria-label="Battle and military">⚔️</button>
+          <button type="button" data-mobile-proxy="god-mode-button" class="mobile-action" aria-label="God Mode">⚡</button>
+          <button type="button" data-mobile-action="templates" class="mobile-action" aria-label="Templates">▧</button>
           <button type="button" data-mobile-proxy="settings-button" class="mobile-action" aria-label="Settings">⚙</button>
-          <button type="button" data-mobile-proxy="fullscreen-button" class="mobile-action" aria-label="Fullscreen">⛶</button>
-          <button type="button" data-mobile-proxy="reset-button" class="mobile-action mobile-danger" aria-label="Reset">↻</button>
         </div>
       </header>
-
-      <nav class="mobile-bottom-dock" aria-label="Mobile game controls">
-        <button type="button" data-mobile-proxy="toolbar-open" class="mobile-dock-button"><span aria-hidden="true">🧱</span><small>Build</small></button>
-        <button type="button" data-mobile-proxy="view-3d-button" class="mobile-dock-button"><span aria-hidden="true">◇</span><small>3D</small></button>
-        <button type="button" data-mobile-proxy="view-2d-button" class="mobile-dock-button"><span aria-hidden="true">▦</span><small>Plan</small></button>
-        <button type="button" data-mobile-proxy="camera-45-button" class="mobile-dock-button"><span aria-hidden="true">◒</span><small>45°</small></button>
-        <button type="button" data-mobile-proxy="camera-top-button" class="mobile-dock-button"><span aria-hidden="true">⊙</span><small>Top</small></button>
-        <button type="button" data-mobile-proxy="settings-button" class="mobile-dock-button"><span aria-hidden="true">⚙</span><small>Settings</small></button>
-      </nav>
 
       <div class="mobile-status" aria-live="polite">
         <span class="mobile-status-dot" aria-hidden="true"></span>
@@ -78,15 +66,34 @@ export class MobileUI {
       });
     });
 
+    layer.querySelectorAll<HTMLButtonElement>('[data-mobile-action]').forEach((button) => {
+      button.addEventListener('click', () => {
+        const action = button.dataset.mobileAction as SystemAction | undefined;
+        if (action) requestSystemAction(action);
+      });
+    });
+
     this.syncModeLabel();
     this.observeText('game-mode-label', () => this.syncModeLabel());
     this.observeText('save-status', () => this.syncStatus());
+    const godModeButton = document.getElementById('god-mode-button');
+    if (godModeButton) {
+      const observer = new MutationObserver(() => this.syncProxyVisibility());
+      observer.observe(godModeButton, { attributes: true, attributeFilter: ['hidden'] });
+      this.observers.push(observer);
+    }
+    this.syncProxyVisibility();
     this.syncStatus();
   }
 
   private bindResponsiveState(): void {
     const apply = (): void => {
       const active = this.mediaQuery.matches || this.touchPreference;
+      // Keep the full military information visible on desktop; start mobile in compact mode.
+      if (active !== this.root.classList.contains('mobile-ui-active')) {
+        const advanced = document.querySelector<HTMLDetailsElement>('.battle-advanced');
+        if (advanced) advanced.open = !active;
+      }
       this.root.classList.toggle('mobile-ui-active', active);
       this.root.classList.toggle('touch-ui-forced', this.touchPreference);
       this.root.dataset.inputMode = this.touchPreference ? 'touch' : 'standard';
@@ -122,7 +129,7 @@ export class MobileUI {
       const targetId = proxy.dataset.mobileProxy;
       if (!targetId || targetId === 'game-mode-button') return;
       const target = document.getElementById(targetId);
-      proxy.hidden = target instanceof HTMLButtonElement && target.hidden;
+      proxy.hidden = !(target instanceof HTMLButtonElement) || target.hidden;
     });
   }
 

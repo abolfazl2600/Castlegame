@@ -50,6 +50,8 @@ const RESIDENTIAL_CAPACITY: Partial<Record<TileKind, number>> = {
 
 const ARMY_CAMP_CAPACITY = [0, 6, 12, 20, 32] as const;
 const MILITIA_TYPES: MilitiaUnitType[] = ['swordsman', 'archer', 'spearman', 'crossbowman'];
+/** Army Camp slots determine a reproducible medieval defender roster. */
+const GARRISON_ROLES: readonly MilitiaUnitType[] = ['swordsman', 'spearman', 'archer', 'swordsman', 'crossbowman'];
 
 function clonePoint(point?: PopulationGridRef): PopulationGridRef | undefined {
   return point ? { x: point.x, y: point.y } : undefined;
@@ -212,7 +214,7 @@ export class PopulationSystem {
           .map((soldier) => ({
             ...soldier,
             alive: soldier.alive !== false,
-            unitType: 'modernSoldier' as const,
+            unitType: soldier.unitType === 'modernSoldier' ? 'swordsman' : soldier.unitType,
             camp: clonePoint(soldier.camp),
           }))
       : [];
@@ -370,7 +372,7 @@ export class PopulationSystem {
           const soldier: SavedProfessionalSoldierState = {
             id: `soldier-${this.state.nextSoldierId++}`,
             alive: true,
-            unitType: 'modernSoldier',
+            unitType: 'swordsman',
             camp: { x: camp.x, y: camp.y },
           };
           this.state.professionalArmy.push(soldier);
@@ -386,17 +388,34 @@ export class PopulationSystem {
     return this.state.professionalArmy.filter((soldier) => soldier.alive).length;
   }
 
-  applyProfessionalCasualties(losses: number): number {
-    let remaining = this.normalizeCount(losses);
+  applyProfessionalCasualties(losses: number | Partial<MilitiaComposition>): number {
+    if (typeof losses === 'number') {
+      let remaining = this.normalizeCount(losses);
+      let killed = 0;
+      const alive = this.state.professionalArmy
+        .filter((soldier) => soldier.alive)
+        .sort((a, b) => numericId(b.id) - numericId(a.id));
+      for (const soldier of alive) {
+        if (remaining <= 0) break;
+        soldier.alive = false;
+        killed += 1;
+        remaining -= 1;
+      }
+      return killed;
+    }
+
     let killed = 0;
-    const alive = this.state.professionalArmy
-      .filter((soldier) => soldier.alive)
-      .sort((a, b) => numericId(b.id) - numericId(a.id));
-    for (const soldier of alive) {
-      if (remaining <= 0) break;
-      soldier.alive = false;
-      killed += 1;
-      remaining -= 1;
+    for (const type of MILITIA_TYPES) {
+      let remaining = this.normalizeCount(losses[type]);
+      const matching = this.state.professionalArmy
+        .filter((soldier) => soldier.alive && soldier.unitType === type)
+        .sort((a, b) => numericId(b.id) - numericId(a.id));
+      for (const soldier of matching) {
+        if (remaining <= 0) break;
+        soldier.alive = false;
+        killed += 1;
+        remaining -= 1;
+      }
     }
     return killed;
   }
@@ -406,6 +425,16 @@ export class PopulationSystem {
       (sum, camp) => sum + this.armyCampCapacity(camp.level),
       0,
     );
+  }
+
+  professionalArmyComposition(): MilitiaComposition {
+    const result: MilitiaComposition = { swordsman: 0, archer: 0, spearman: 0, crossbowman: 0 };
+    for (const soldier of this.state.professionalArmy) {
+      if (!soldier.alive) continue;
+      const type = soldier.unitType === 'modernSoldier' ? 'swordsman' : soldier.unitType;
+      result[type] += 1;
+    }
+    return result;
   }
 
   professionalArmyCampAssignments(): PopulationGridRef[] {
@@ -614,6 +643,16 @@ export class PopulationSystem {
       // Removing military infrastructure retires overflow troops instead of duplicating
       // or teleport-spawning replacements. They can be recruited again through a camp.
       if (!assigned) soldier.alive = false;
+    }
+
+    // Stable camp assignments also migrate any saved modernSoldier identities.
+    const slotByCamp = new Map<string, number>();
+    for (const soldier of alive) {
+      if (!soldier.alive || !soldier.camp) continue;
+      const key = pointKey(soldier.camp);
+      const slot = slotByCamp.get(key) ?? 0;
+      soldier.unitType = GARRISON_ROLES[slot % GARRISON_ROLES.length];
+      slotByCamp.set(key, slot + 1);
     }
   }
 

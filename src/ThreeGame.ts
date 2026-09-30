@@ -18,6 +18,9 @@ import { WORLD_STYLE, styleTone } from './rendering/WorldStyle';
 import { AmbientMotionSystem } from './rendering/AmbientMotionSystem';
 import { EnvironmentSystem } from './systems/EnvironmentSystem';
 import { DistanceDetailBudgetSystem } from './rendering/DistanceDetailBudget';
+import { AdaptiveRenderProfile } from './rendering/AdaptiveRenderProfile';
+import { PerformanceDebugOverlay } from './debug/PerformanceDebugOverlay';
+import { instanceStaticCastleBoxes } from './rendering/StaticCastleBoxInstancing';
 import {
   RESIDENCE_LAYOUTS,
   RESIDENCE_VISUAL_LEVELS,
@@ -33,7 +36,7 @@ import {
   WALL_SILHOUETTE_PROFILES,
   towerSilhouetteProfile,
 } from './rendering/DefenseVisualLanguage';
-import { BattleSystem, getUnitCombatStats } from './battle/BattleSystem';
+import { BattleSystem } from './battle/BattleSystem';
 import { MILITARY_TIERS, militaryTierDefinition, normalizeMilitaryTier, type MilitaryTier } from './battle/MilitaryProgression';
 import {
   beginMissileProduction,
@@ -99,6 +102,9 @@ const PLAYABLE_LAYOUT_TEMPLATES: Readonly<Record<string, { layoutId: MapLayoutId
   'coastal-peninsula': { layoutId: 'peninsula', seed: 5502 },
   'split-isles': { layoutId: 'twin-isles', seed: 5503 },
   'carcassonne': { layoutId: 'mainland', seed: 5601 },
+  'crac-des-chevaliers': { layoutId: 'mainland', seed: 5901 },
+  'arg-e-bam': { layoutId: 'mainland', seed: 5701 },
+  'himeji-castle': { layoutId: 'mainland', seed: 5801 },
 };
 const ARMY_CAMP_LEVELS = [
   { level: 1, name: 'Field Camp', description: 'A basic tent camp with a fire, supplies, and a small weapon rack.' },
@@ -186,6 +192,7 @@ const BUILDING_KINDS: TileKind[] = [
   'armyCamp',
   'market',
   'basilica',
+  'mosque',
   'windmill',
   'mine',
   'mountain',
@@ -197,7 +204,7 @@ const BUILDING_KINDS: TileKind[] = [
 const CONSTRUCTION_VISUAL_KINDS = new Set<TileKind>([
   'wall1', 'wall2', 'wall3', 'gate', 'tower', 'cottage', 'house', 'manor', 'villa',
   'hut', 'farm', 'cowBarn', 'appleOrchard', 'market', 'windmill', 'mine',
-  'armyCamp', 'harbor', 'basilica',
+  'armyCamp', 'harbor', 'basilica', 'mosque',
 ]);
 
 type ViewMode = 'plan2d' | 'world3d';
@@ -302,6 +309,7 @@ const TOOL_GROUPS: Array<{ label: string; tools: ToolDefinition[] }> = [
     tools: [
       { id: 'market', icon: '🏪', label: 'Market', detail: 'Large medieval marketplace · tents · stalls · shops', shortcut: '-' },
       { id: 'basilica', icon: '⛪', label: 'Basilica', detail: 'Large stone church landmark · nave · transept · tower', shortcut: '-' },
+      { id: 'mosque', icon: '◫', label: 'Courtyard Mosque', detail: 'Low-rise prayer hall · courtyard · domed bays', shortcut: '-' },
     ],
   },
   {
@@ -377,6 +385,8 @@ export class ThreeGame {
   private readonly settingsStore: SettingsStore;
   private readonly audioManager: AudioManager;
   private readonly distanceDetailBudget = new DistanceDetailBudgetSystem();
+  private readonly adaptiveRenderProfile = new AdaptiveRenderProfile();
+  private readonly performanceDebug: PerformanceDebugOverlay;
   /** Domain state and gameplay services are composed here, away from rendering/UI concerns. */
   private readonly services = createGameDomainServices();
   private readonly castleBlockSystem = new CastleBlockSystem();
@@ -399,7 +409,6 @@ export class ThreeGame {
   private readonly worldLayoutLayer = new THREE.Group();
   private readonly terrainLayer = new THREE.Group();
   private readonly buildLayer = new THREE.Group();
-  private readonly ambientLayer = new THREE.Group();
   private readonly ambientMotion = new AmbientMotionSystem();
   private readonly environmentSystem = new EnvironmentSystem();
   private readonly planLayer = new THREE.Group();
@@ -470,12 +479,12 @@ export class ThreeGame {
     attackerArchers: 20,
     attackerSpearmen: 12,
     attackerCrossbowmen: 8,
-    defenderSwordsmen: 10,
-    defenderArchers: 15,
-    defenderSpearmen: 8,
-    defenderCrossbowmen: 6,
+    defenderSwordsmen: 0,
+    defenderArchers: 0,
+    defenderSpearmen: 0,
+    defenderCrossbowmen: 0,
     attackerModernSoldiers: 0,
-    defenderModernSoldiers: 4,
+    defenderModernSoldiers: 0,
   };
   private militaryTier: MilitaryTier = 1;
   private populationBattleCommitted = false;
@@ -489,6 +498,7 @@ export class ThreeGame {
   private godModeActionId = 'missileStrike';
   private godModeTarget: GodModeTarget | null = null;
   private godModeHover: GridPoint | null = null;
+  private godModeTouchStart: { pointerId: number; x: number; y: number } | null = null;
   private godModeCapacity = 10;
   private readonly godModeMaxCapacity = 10;
   private readonly godModeEffects: Array<{ group: THREE.Group; elapsed: number; duration: number }> = [];
@@ -499,6 +509,7 @@ export class ThreeGame {
 
   private wallDragStart: GridPoint | null = null;
   private wallDragEnd: GridPoint | null = null;
+  private wallPreviewStatus = '';
   private roadDragStart: GridPoint | null = null;
   private roadDragEnd: GridPoint | null = null;
   private mountainRangeStart: GridPoint | null = null;
@@ -509,6 +520,8 @@ export class ThreeGame {
   private longPressStartedAt = 0;
   private longPressTriggered = false;
   private longPressStartScreen: { x: number; y: number } | null = null;
+  private readonly activeTouchPointers = new Set<number>();
+  private readonly suppressedTouchPointers = new Set<number>();
 
   private saveTimer: number | null = null;
   private economySaveAccumulatorMs = 0;
@@ -604,6 +617,7 @@ export class ThreeGame {
     this.renderer.toneMappingExposure = 1.0;
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     applyGraphicsSettings(this.renderer, initialSettings);
+    this.renderer.domElement.id = 'game-canvas';
     root.appendChild(this.renderer.domElement);
     if (this.visualBenchmark) {
       // Opt-in diagnostics and fixed camera for the reproducible visual baseline script.
@@ -650,6 +664,20 @@ export class ThreeGame {
         this.controls.target.set(position.targetX, position.targetY, position.targetZ);
         this.controls.update();
       };
+      (window as unknown as {
+        __castleVisualGridPoint: (x: number, y: number) => { x: number; y: number };
+      }).__castleVisualGridPoint = (x, y) => {
+        if (!Number.isInteger(x) || !Number.isInteger(y) || x < 0 || y < 0 || x >= SIZE || y >= SIZE) {
+          throw new Error(`Visual QA grid point is outside the world: ${x},${y}`);
+        }
+        const world = this.gridToWorld(x, y);
+        const projected = new THREE.Vector3(world.x, this.groundHit.position.y, world.z).project(this.camera);
+        const rect = this.renderer.domElement.getBoundingClientRect();
+        return {
+          x: (projected.x + 1) * 0.5 * rect.width,
+          y: (1 - projected.y) * 0.5 * rect.height,
+        };
+      };
     }
 
     this.scene.background = new THREE.Color(WORLD_STYLE.lighting.fog);
@@ -667,13 +695,39 @@ export class ThreeGame {
     this.controls.target.set(0, 0, 0);
     this.controls.addEventListener('change', () => this.enforceGameplayCameraBounds());
     applyInputSettings(this.controls, this.settingsStore.get());
+    this.performanceDebug = new PerformanceDebugOverlay(this.settingsStore, {
+      renderer: this.renderer,
+      scene: this.scene,
+      getCameraDistance: () => this.camera.position.distanceTo(this.controls.target),
+      getViewMode: () => this.viewMode,
+      getVisualBudget: () => this.distanceDetailBudget.snapshot(),
+      getRenderLayers: () => [
+        { name: 'Terrain', root: this.terrainLayer },
+        { name: 'Buildings / Castle', root: this.buildLayer },
+        { name: 'Fauna', root: this.ambientFauna.layer },
+        { name: 'Workers', root: this.workerLayer },
+        { name: 'NPCs', root: this.settlementLayer },
+        { name: 'Battle', root: this.battleLayer },
+        { name: 'Plan / preview', root: this.planLayer },
+        { name: 'Build preview', root: this.wallPreviewLayer },
+        { name: 'Effects', root: this.godModeLayer },
+        { name: 'Effect markers', root: this.godModeMarkerLayer },
+      ],
+      getRuntimeCounts: () => ({
+        workers: this.workers.length,
+        settlementAgents: this.settlementAgents.length,
+        battleObjects: this.battleLayer.children.length,
+      }),
+    });
     this.settingsStore.subscribe((settings) => {
       applyGraphicsSettings(this.renderer, settings);
       applySceneGraphicsSettings(this.scene, settings);
       this.renderer.toneMappingExposure = settings.graphics.effectsEnabled ? 1.0 : 1;
       applyInputSettings(this.controls, settings);
       this.audioManager.setMasterVolume(settings.audio.masterVolume);
+      this.audioManager.setMusicEnabled(settings.audio.musicEnabled);
       this.audioManager.setMusicVolume(settings.audio.musicVolume);
+      this.audioManager.setSfxEnabled(settings.audio.sfxEnabled);
       this.audioManager.setSfxVolume(settings.audio.sfxVolume);
       this.audioManager.setMuted(settings.audio.muted);
       document.documentElement.style.setProperty('--castle-ui-scale', String(settings.interface.uiScale));
@@ -689,9 +743,7 @@ export class ThreeGame {
 
     this.addLights();
     this.createWorld();
-    this.createAmbientWorld();
 
-    this.scene.add(this.ambientLayer);
     this.scene.add(this.ambientFauna.layer);
     this.scene.add(this.terrainLayer);
     this.scene.add(this.buildLayer);
@@ -761,7 +813,6 @@ export class ThreeGame {
     this.redraw();
     this.applyEnvironmentVisuals(true);
     this.bindUI();
-    this.syncBattleCombatStatsUI();
     // Keep the construction tool initialized during world creation/redraw, then enter the neutral mode only after UI binding.
     this.selectTool(null);
     this.setToolbarOpen(this.toolbarOpen);
@@ -827,6 +878,16 @@ export class ThreeGame {
     if (!this.economyConstructionEnabled()) return true;
     const cost = this.services.economySystem.constructionCost(tool, quantity);
     return this.services.economySystem.canAfford(cost);
+  }
+
+  private constructionCostPreviewLabel(tool: ToolKind, quantity = 1): string {
+    if (quantity <= 0) return 'no new cost';
+    if (!this.economyConstructionEnabled()) return 'free build';
+    const cost = this.services.economySystem.constructionCost(tool, quantity);
+    const parts: string[] = [];
+    if ((cost.wood ?? 0) > 0.001) parts.push(`${Math.ceil(cost.wood ?? 0)} wood`);
+    if ((cost.stone ?? 0) > 0.001) parts.push(`${Math.ceil(cost.stone ?? 0)} stone`);
+    return parts.length > 0 ? parts.join(' + ') : 'no material cost';
   }
 
   private ensureConstructionAffordable(tool: ToolKind, quantity = 1): boolean {
@@ -941,6 +1002,9 @@ export class ThreeGame {
       return;
     }
     this.godModeOpen = true;
+    this.setToolbarOpen(false);
+    const battlePanel = document.getElementById('battle-panel');
+    if (battlePanel) battlePanel.hidden = true;
     this.godModeActionId = 'missileStrike';
     this.setGodModeTarget(null);
     const panel = document.getElementById('god-mode-panel');
@@ -951,6 +1015,7 @@ export class ThreeGame {
 
   private closeGodMode(): void {
     this.godModeOpen = false;
+    this.godModeTouchStart = null;
     this.setGodModeTarget(null);
     const panel = document.getElementById('god-mode-panel');
     if (panel) panel.hidden = true;
@@ -1653,48 +1718,6 @@ export class ThreeGame {
     this.scene.add(warmBounce);
   }
 
-  private createAmbientWorld(): void {
-    const cloudMaterial = new THREE.MeshBasicMaterial({
-      color: 0xffffff,
-      transparent: true,
-      opacity: 0.18,
-      depthWrite: false,
-    });
-    const puffGeometry = new THREE.SphereGeometry(1, 8, 6);
-    const cloudSpecs = [
-      { x: -WORLD * 0.46, y: 23, z: -WORLD * 0.23, scale: 1.0, speed: 0.00034 },
-      { x: -WORLD * 0.18, y: 26, z: WORLD * 0.24, scale: 0.82, speed: 0.00028 },
-      { x: WORLD * 0.12, y: 21, z: -WORLD * 0.32, scale: 0.9, speed: 0.00031 },
-      { x: WORLD * 0.38, y: 25, z: WORLD * 0.12, scale: 1.1, speed: 0.00026 },
-    ] as const;
-
-    for (let index = 0; index < cloudSpecs.length; index += 1) {
-      const spec = cloudSpecs[index];
-      const cloud = new THREE.Group();
-      cloud.position.set(spec.x, spec.y, spec.z);
-      cloud.userData.ambientCloud = true;
-
-      for (const [offsetX, offsetY, offsetZ, scale] of [
-        [-3.8, 0, 0, 3.2],
-        [0, 0.45, 0.4, 4.4],
-        [4.0, -0.05, -0.25, 3.0],
-      ] as Array<[number, number, number, number]>) {
-        const puff = new THREE.Mesh(puffGeometry, cloudMaterial);
-        puff.position.set(offsetX * spec.scale, offsetY, offsetZ * spec.scale);
-        puff.scale.set(scale * spec.scale, 0.72 * spec.scale, 1.6 * spec.scale);
-        cloud.add(puff);
-      }
-
-      this.ambientLayer.add(cloud);
-      this.ambientMotion.registerCloud(
-        cloud,
-        spec.speed,
-        -WORLD * 0.62,
-        WORLD * 0.62,
-      );
-    }
-  }
-
   private createWorld(): void {
     const deepWater = new THREE.Mesh(
       new THREE.CircleGeometry(WORLD * 0.86, 112),
@@ -2005,24 +2028,21 @@ export class ThreeGame {
     const battleSystem = (this as unknown as { battleSystem?: BattleSystem }).battleSystem;
     if (battleSystem?.isActive()) return false;
 
-    const militia = this.services.populationSystem.setMilitiaComposition({
-      swordsman: this.battleSetup.defenderSwordsmen,
-      archer: this.battleSetup.defenderArchers,
-      spearman: this.battleSetup.defenderSpearmen,
-      crossbowman: this.battleSetup.defenderCrossbowmen,
+    // Camp construction/upgrade defines the guard roster; the player never edits it.
+    // Dedicated camp guards do not consume civilian housing or jobs.
+    this.services.populationSystem.setMilitiaComposition({
+      swordsman: 0, archer: 0, spearman: 0, crossbowman: 0,
     });
-    const professional = this.services.populationSystem.setProfessionalArmyCount(
-      this.battleSetup.defenderModernSoldiers,
-      cells,
-    );
-
+    const capacity = this.services.populationSystem.professionalArmyCapacity(cells);
+    this.services.populationSystem.setProfessionalArmyCount(capacity, cells);
+    const garrison = this.services.populationSystem.professionalArmyComposition();
     const next: BattleSetup = {
       ...this.battleSetup,
-      defenderSwordsmen: militia.swordsman,
-      defenderArchers: militia.archer,
-      defenderSpearmen: militia.spearman,
-      defenderCrossbowmen: militia.crossbowman,
-      defenderModernSoldiers: professional,
+      defenderSwordsmen: garrison.swordsman,
+      defenderArchers: garrison.archer,
+      defenderSpearmen: garrison.spearman,
+      defenderCrossbowmen: garrison.crossbowman,
+      defenderModernSoldiers: 0,
     };
     const changed =
       next.defenderSwordsmen !== this.battleSetup.defenderSwordsmen ||
@@ -2065,6 +2085,7 @@ export class ThreeGame {
       building.userData.cellKey = this.key(cell.x, cell.y);
       building.userData.cellKind = cell.kind;
       const castleBlock = castleBlocks.get(this.key(cell.x, cell.y));
+      if (castleBlock?.kind === 'wall') instanceStaticCastleBoxes(building);
       if (castleBlock) building.userData.castleBlock = castleBlock;
       this.buildObjectsByCell.set(this.key(cell.x, cell.y), building);
       this.constructionObjects.set(`cell:${cell.x},${cell.y}`, building);
@@ -2080,6 +2101,7 @@ export class ThreeGame {
           kindAt: (x, y) => this.kindAt(x, y),
           stoneStyle: this.stoneStyle,
         });
+      instanceStaticCastleBoxes(renderedKeep);
       this.constructionObjects.set(`keep:${keep.id}`, renderedKeep);
       this.buildLayer.add(renderedKeep);
     }
@@ -2195,6 +2217,7 @@ export class ThreeGame {
       building.userData.cellKey = key;
       building.userData.cellKind = cell.kind;
       building.userData.castleBlock = nextBlocks.get(key);
+      if (nextBlocks.get(key)?.kind === 'wall') instanceStaticCastleBoxes(building);
       this.buildObjectsByCell.set(key, building);
       this.constructionObjects.set(`cell:${key}`, building);
       this.buildLayer.add(building);
@@ -2503,6 +2526,7 @@ export class ThreeGame {
       appleOrchard: 0x9c6d3e,
       armyCamp: 0x8f6b4d,
       basilica: 0xd8d2bd,
+      mosque: 0xb98a5b,
       mine: 0x665f59,
       mountain: 0x71675f,
       tree: 0x356c43,
@@ -2581,7 +2605,7 @@ export class ThreeGame {
         cell.kind === 'road' ? 2.0 :
         cell.kind === 'tree' || cell.kind === 'rock' ? 1.25 :
         cell.kind === 'farm' || cell.kind === 'appleOrchard' || cell.kind === 'armyCamp' ? 3.5 :
-        cell.kind === 'basilica' ? 3.4 :
+        cell.kind === 'basilica' || cell.kind === 'mosque' ? 3.4 :
         cell.kind === 'moat' ? 3.65 :
         2.7;
 
@@ -2783,7 +2807,6 @@ export class ThreeGame {
     const planMode = mode === 'plan2d';
 
     this.planLayer.visible = planMode;
-    this.ambientLayer.visible = !planMode;
     this.terrainLayer.visible = !planMode;
     this.buildLayer.visible = !planMode;
     this.workerLayer.visible = !planMode;
@@ -2798,6 +2821,8 @@ export class ThreeGame {
       this.controls.target.set(0, 0, 0);
       this.controls.enableRotate = false;
       this.controls.enablePan = true;
+      this.controls.touches.ONE = THREE.TOUCH.PAN;
+      this.controls.touches.TWO = THREE.TOUCH.DOLLY_PAN;
       this.controls.minDistance = WORLD_STYLE.camera.minDistance;
       this.controls.maxDistance = WORLD_STYLE.camera.maxDistance;
       this.setStatus('2D Plan mode · design first, then switch to 3D');
@@ -2807,6 +2832,8 @@ export class ThreeGame {
       this.controls.target.copy(this.saved3DTarget);
       this.controls.enableRotate = true;
       this.controls.enablePan = true;
+      this.controls.touches.ONE = THREE.TOUCH.ROTATE;
+      this.controls.touches.TWO = THREE.TOUCH.DOLLY_PAN;
       this.controls.minDistance = WORLD_STYLE.camera.minDistance;
       this.controls.maxDistance = WORLD_STYLE.camera.maxDistance;
       this.setStatus('3D View · inspect your built castle');
@@ -2846,6 +2873,9 @@ export class ThreeGame {
       opener.classList.toggle('is-visible', !open);
       opener.setAttribute('aria-expanded', String(open));
     }
+    const mobileOpener = document.querySelector<HTMLButtonElement>('[data-mobile-proxy="toolbar-open"]');
+    mobileOpener?.setAttribute('aria-expanded', String(open));
+    if (open && document.documentElement.classList.contains('mobile-ui-active')) toolbar?.scrollTo(0, 0);
   }
 
   private renderTerrain(): void {
@@ -3436,6 +3466,7 @@ export class ThreeGame {
       group.userData.settlementReadabilityClass = 'landmark';
       group.add(this.basilicaRenderer.render(this.stoneStyle, cell.x, cell.y));
     }
+    else if (cell.kind === 'mosque') this.makeMosque(group, cell.x, cell.y);
     else if (cell.kind === 'windmill') this.services.windmillSystem.create(group);
     else if (cell.kind === 'mine') this.makeMine(group);
     else if (cell.kind === 'mountain') this.makeMountain(group, cell.level ?? 1, cell.x, cell.y);
@@ -6498,6 +6529,52 @@ export class ThreeGame {
     return mesh;
   }
 
+  private makeMosque(group: THREE.Group, gx: number, gy: number): THREE.Group {
+    const body = this.medievalMaterials.castleStone(this.stoneStyle, 'body', gx, gy);
+    const alt = this.medievalMaterials.castleStone(this.stoneStyle, 'alt', gx + 1, gy);
+    const dark = this.medievalMaterials.castleStone(this.stoneStyle, 'dark', gx, gy + 1);
+    const foundation = this.medievalMaterials.castleStone(this.stoneStyle, 'foundation', gx, gy);
+
+    // Reusable low-rise courtyard mosque language. It deliberately avoids a
+    // generic tall minaret so earthen fortified settlements keep their skyline.
+    this.addSettlementBox(group, 3.78, 0.12, 3.78, foundation, 0, 2.22, 0);
+    this.addSettlementBox(group, 3.18, 0.08, 2.2, alt, 0, 2.31, 0.62);
+
+    // Prayer hall and thick qibla wall occupy the northern edge of the court.
+    this.addSettlementBox(group, 3.55, 1.42, 1.0, body, 0, 3.02, -1.28);
+    this.addSettlementBox(group, 3.64, 0.22, 1.08, dark, 0, 3.79, -1.28);
+    this.addSettlementBox(group, 0.76, 1.58, 0.42, body, 0, 3.1, -1.86);
+
+    // Courtyard arcades keep the centre open and readable from gameplay zoom.
+    for (const x of [-1.62, 1.62]) {
+      this.addSettlementBox(group, 0.2, 1.0, 2.22, body, x, 2.78, 0.54);
+      for (const z of [-0.18, 0.58, 1.34]) {
+        this.addSettlementBox(group, 0.34, 1.08, 0.34, dark, x, 2.82, z);
+      }
+    }
+    this.addSettlementBox(group, 3.45, 0.2, 0.3, body, 0, 3.15, 1.72);
+
+    // Three shallow domes preserve a low earthen silhouette.
+    for (const x of [-1.02, 0, 1.02]) {
+      const dome = new THREE.Mesh(
+        new THREE.SphereGeometry(0.5, 12, 7, 0, Math.PI * 2, 0, Math.PI / 2),
+        alt,
+      );
+      dome.scale.y = 0.48;
+      dome.position.set(x, 3.92, -1.28);
+      dome.castShadow = true;
+      dome.receiveShadow = true;
+      group.add(dome);
+    }
+
+    const doorway = this.addSettlementBox(group, 0.52, 0.86, 0.06, dark, 0, 2.87, -1.82);
+    doorway.userData.opening = true;
+    group.userData.settlementFamily = 'mosque';
+    group.userData.settlementReadabilityClass = 'landmark';
+    group.userData.landmark = 'courtyard-mosque';
+    return group;
+  }
+
   private makeHouse(
     group: THREE.Group,
     kind: ResidenceKind,
@@ -6511,11 +6588,32 @@ export class ThreeGame {
       group.userData.residenceVisualVariant = RESIDENCE_VISUAL_VARIANTS[kind];
     }
 
-    const pathMaterial = this.environmentMaterial('village-path', 0xa98d70, 1);
-    const pathDark = this.environmentMaterial('village-path-dark', 0x826b55, 1);
-    const fenceMaterial = this.environmentMaterial('village-fence', 0x6f4e37, 1);
-    const grassPatch = this.environmentMaterial('village-grass', 0x93b75c, 0.96);
-    const yardMaterial = this.environmentMaterial('village-yard', 0xa7b967, 0.98);
+    const earthen = this.stoneStyle === 'earthen';
+    const pathMaterial = this.environmentMaterial(
+      earthen ? 'earthen-village-path' : 'village-path',
+      earthen ? 0x9f7956 : 0xa98d70,
+      1,
+    );
+    const pathDark = this.environmentMaterial(
+      earthen ? 'earthen-village-path-dark' : 'village-path-dark',
+      earthen ? 0x79563f : 0x826b55,
+      1,
+    );
+    const fenceMaterial = this.environmentMaterial(
+      earthen ? 'earthen-village-fence' : 'village-fence',
+      earthen ? 0x75513a : 0x6f4e37,
+      1,
+    );
+    const grassPatch = this.environmentMaterial(
+      earthen ? 'earthen-village-ground' : 'village-grass',
+      earthen ? 0xb69268 : 0x93b75c,
+      0.98,
+    );
+    const yardMaterial = this.environmentMaterial(
+      earthen ? 'earthen-village-yard' : 'village-yard',
+      earthen ? 0xa37d59 : 0xa7b967,
+      0.98,
+    );
 
     // Each residential cell is a compact lived-in medieval block rather than
     // one oversized house. Narrow alleys keep silhouettes readable from the
@@ -6527,8 +6625,14 @@ export class ThreeGame {
 
     RESIDENCE_LAYOUTS[kind].forEach((part, index) => {
       const variation = settlementVariant(gx, gy, index, kind.length);
-      const wallColor = SETTLEMENT_STYLE.plaster[variation % SETTLEMENT_STYLE.plaster.length];
-      const roofColor = SETTLEMENT_STYLE.roof[(variation >>> 4) % SETTLEMENT_STYLE.roof.length];
+      const earthenWalls = [0xb98555, 0xc39261, 0xaa744d, 0xc89b6c];
+      const earthenRoofs = [0x9a6948, 0xa97850, 0x8d6044];
+      const wallColor = earthen
+        ? earthenWalls[variation % earthenWalls.length]
+        : SETTLEMENT_STYLE.plaster[variation % SETTLEMENT_STYLE.plaster.length];
+      const roofColor = earthen
+        ? earthenRoofs[(variation >>> 4) % earthenRoofs.length]
+        : SETTLEMENT_STYLE.roof[(variation >>> 4) % SETTLEMENT_STYLE.roof.length];
       this.addMiniHouse(
         group,
         part.x + ((variation >>> 8) % 3 - 1) * 0.025,
@@ -6541,6 +6645,7 @@ export class ThreeGame {
         roofColor,
         part.detailed,
         variation % 3 === 0,
+        earthen,
       );
     });
 
@@ -6600,6 +6705,7 @@ export class ThreeGame {
     roofColor: number,
     detailed: boolean,
     chimneyVisible: boolean,
+    earthen = false,
   ): void {
     const house = new THREE.Group();
     house.position.set(x, 0, z);
@@ -6611,14 +6717,18 @@ export class ThreeGame {
     const roof = this.environmentMaterial(`residence-roof-${roofColor}`, roofColor, 0.94);
     const roofDark = this.environmentMaterial('residence-roof-shadow', SETTLEMENT_STYLE.roofShadow, 0.98);
     const wood = this.environmentMaterial('house-timber', SETTLEMENT_STYLE.timber, 0.98);
-    const stone = this.environmentMaterial('house-stone', SETTLEMENT_STYLE.foundation, 1);
+    const stone = this.environmentMaterial(
+      earthen ? 'house-earthen-foundation' : 'house-stone',
+      earthen ? 0x78533b : SETTLEMENT_STYLE.foundation,
+      1,
+    );
     const glass = this.environmentMaterial('house-window', SETTLEMENT_STYLE.window, 0.88);
 
     this.addSettlementBox(house, width + 0.14, 0.18, depth + 0.14, stone, 0, 2.3, 0);
     this.addSettlementBox(house, width, height, depth, wall, 0, 2.32 + height / 2, 0);
 
-    // Slightly projecting upper timber floor on richer houses.
-    if (detailed) {
+    // Slightly projecting upper timber floor on richer non-earthen houses.
+    if (detailed && !earthen) {
       this.addSettlementBox(
         house,
         width + 0.1,
@@ -6636,28 +6746,60 @@ export class ThreeGame {
     }
 
     const roofHeight = 0.68 + height * 0.2;
-    const eave = this.addSettlementBox(
-      house,
-      width + 0.22,
-      0.1,
-      depth + 0.22,
-      roofDark,
-      0,
-      2.32 + height + 0.02,
-      0,
-    );
-    eave.castShadow = true;
+    if (earthen) {
+      const roofSlab = this.addSettlementBox(
+        house,
+        width + 0.16,
+        0.14,
+        depth + 0.16,
+        roof,
+        0,
+        2.32 + height + 0.08,
+        0,
+      );
+      roofSlab.castShadow = true;
 
-    const roofMesh = new THREE.Mesh(
-      new THREE.ConeGeometry(width * 0.68, roofHeight, 4),
-      roof,
-    );
-    roofMesh.position.y = 2.32 + height + roofHeight / 2;
-    roofMesh.rotation.y = Math.PI / 4;
-    roofMesh.scale.z = Math.max(0.72, depth / Math.max(0.1, width));
-    roofMesh.castShadow = true;
-    roofMesh.receiveShadow = true;
-    house.add(roofMesh);
+      const parapetY = 2.32 + height + 0.24;
+      this.addSettlementBox(house, width + 0.16, 0.24, 0.12, wallShade, 0, parapetY, -depth / 2 - 0.02);
+      this.addSettlementBox(house, width + 0.16, 0.24, 0.12, wallShade, 0, parapetY, depth / 2 + 0.02);
+      this.addSettlementBox(house, 0.12, 0.24, depth, wallShade, -width / 2 - 0.02, parapetY, 0);
+      this.addSettlementBox(house, 0.12, 0.24, depth, wallShade, width / 2 + 0.02, parapetY, 0);
+
+      if (detailed) {
+        const dome = new THREE.Mesh(
+          new THREE.SphereGeometry(Math.min(width, depth) * 0.24, 10, 6, 0, Math.PI * 2, 0, Math.PI / 2),
+          roof,
+        );
+        dome.scale.y = 0.42;
+        dome.position.set(width * 0.18, 2.32 + height + 0.18, depth * 0.12);
+        dome.castShadow = true;
+        dome.receiveShadow = true;
+        house.add(dome);
+      }
+    } else {
+      const eave = this.addSettlementBox(
+        house,
+        width + 0.22,
+        0.1,
+        depth + 0.22,
+        roofDark,
+        0,
+        2.32 + height + 0.02,
+        0,
+      );
+      eave.castShadow = true;
+
+      const roofMesh = new THREE.Mesh(
+        new THREE.ConeGeometry(width * 0.68, roofHeight, 4),
+        roof,
+      );
+      roofMesh.position.y = 2.32 + height + roofHeight / 2;
+      roofMesh.rotation.y = Math.PI / 4;
+      roofMesh.scale.z = Math.max(0.72, depth / Math.max(0.1, width));
+      roofMesh.castShadow = true;
+      roofMesh.receiveShadow = true;
+      house.add(roofMesh);
+    }
 
     this.addSettlementBox(
       house,
@@ -6698,7 +6840,7 @@ export class ThreeGame {
       0.1,
     );
 
-    if (chimneyVisible) {
+    if (chimneyVisible && !earthen) {
       const chimneyX = width * 0.28;
       const chimneyZ = depth * 0.12;
       this.addSettlementBox(
@@ -6735,7 +6877,7 @@ export class ThreeGame {
       }
     }
 
-    if (detailed) {
+    if (detailed && !earthen) {
       const awning = this.addSettlementBox(
         house,
         width * 0.72,
@@ -7895,6 +8037,40 @@ export class ThreeGame {
     this.setStatus('Rotated selected structure');
   }
 
+  private cancelActiveTouchBuildGesture(canvas: HTMLCanvasElement): void {
+    const terrainSnapshot =
+      this.terrainStrokeActive && this.terrainStrokeChanged
+        ? this.terrainStrokeSnapshot
+        : null;
+
+    this.cancelLongPress();
+    this.godModeTouchStart = null;
+    this.longPressTriggered = false;
+    this.wallDragStart = null;
+    this.wallDragEnd = null;
+    this.roadDragStart = null;
+    this.roadDragEnd = null;
+    this.mountainRangeStart = null;
+    this.mountainRangeEnd = null;
+    this.terrainStrokeActive = false;
+    this.terrainStrokeChanged = false;
+    this.terrainStrokeSnapshot = null;
+    this.lastTerrainBrushKey = '';
+    this.pointerStart = null;
+    this.buildPreviewKey = '';
+    this.clearGroup(this.wallPreviewLayer);
+    this.controls.enabled = true;
+
+    for (const pointerId of this.activeTouchPointers) {
+      if (canvas.hasPointerCapture(pointerId)) canvas.releasePointerCapture(pointerId);
+    }
+
+    if (terrainSnapshot) {
+      this.restoreSnapshot(terrainSnapshot);
+      this.setStatus('Touch gesture changed · cancelled unfinished terrain edit');
+    }
+  }
+
   private bindPointerInput(): void {
     const canvas = this.renderer.domElement;
 
@@ -7904,11 +8080,30 @@ export class ThreeGame {
         if (event.button !== 0) return;
         if (this.battleSystem.isActive()) return;
 
+        if (event.pointerType === 'touch') {
+          this.activeTouchPointers.add(event.pointerId);
+          if (this.activeTouchPointers.size > 1) {
+            for (const pointerId of this.activeTouchPointers) {
+              this.suppressedTouchPointers.add(pointerId);
+            }
+            this.cancelActiveTouchBuildGesture(canvas);
+            this.setStatus('Multi-touch camera gesture · castle build action cancelled');
+            return;
+          }
+        }
+
         const cell = this.pickGridCell(event);
         if (cell && event.pointerType !== 'mouse') {
-          this.renderBuildPlacementPreview(cell, true);
+          this.renderBuildPlacementPreview(cell, true, event.shiftKey);
         }
         if (this.isGodModeTargeting()) {
+          if (event.pointerType !== 'mouse') {
+            // Keep OrbitControls' touch gestures available while aiming.
+            this.godModeTouchStart = this.godModeTouchStart
+              ? null // A second finger means a camera gesture, not a target tap.
+              : { pointerId: event.pointerId, x: event.clientX, y: event.clientY };
+            return;
+          }
           this.fireGodModeAt(cell);
           event.preventDefault();
           event.stopPropagation();
@@ -7922,8 +8117,8 @@ export class ThreeGame {
           this.wallDragEnd = cell;
           this.controls.enabled = false;
           canvas.setPointerCapture(event.pointerId);
-          this.renderWallPreview([cell]);
-          this.setStatus('Wall drag: choose end point · snaps to 45°');
+          this.renderWallPreview([cell], event.shiftKey);
+          this.setStatus(this.wallPreviewStatus);
           event.preventDefault();
           event.stopPropagation();
           return;
@@ -7979,7 +8174,7 @@ export class ThreeGame {
     canvas.addEventListener(
       'pointermove',
       (event) => {
-        if (this.isGodModeTargeting() && !this.wallDragStart && !this.roadDragStart && !this.terrainStrokeActive) {
+        if (this.isGodModeTargeting() && event.pointerType === 'mouse' && !this.wallDragStart && !this.roadDragStart && !this.terrainStrokeActive) {
           const cell = this.pickGridCell(event);
           if (cell && (cell.x !== this.godModeHover?.x || cell.y !== this.godModeHover?.y)) {
             this.godModeHover = cell;
@@ -8006,7 +8201,7 @@ export class ThreeGame {
           !this.terrainStrokeActive &&
           !(this.selectedTool === 'towerBridge' && this.towerBridgeStart)
         ) {
-          this.renderBuildPlacementPreview(this.pickGridCell(event));
+          this.renderBuildPlacementPreview(this.pickGridCell(event), false, event.shiftKey);
         }
 
         if (this.wallDragStart) {
@@ -8014,8 +8209,8 @@ export class ThreeGame {
           if (cell) {
             this.wallDragEnd = cell;
             const path = this.wallPath(this.wallDragStart, cell);
-            this.renderWallPreview(path);
-            this.setStatus(`Wall drag: ${path.length} segments · preview is final path`);
+            this.renderWallPreview(path, event.shiftKey);
+            this.setStatus(this.wallPreviewStatus);
           }
           event.preventDefault();
           event.stopPropagation();
@@ -8085,7 +8280,31 @@ export class ThreeGame {
       (event) => {
         if (event.button !== 0) return;
 
+        if (event.pointerType === 'touch') {
+          const suppressed = this.suppressedTouchPointers.has(event.pointerId);
+          this.activeTouchPointers.delete(event.pointerId);
+          this.suppressedTouchPointers.delete(event.pointerId);
+          if (suppressed) {
+            this.cancelLongPress();
+            this.longPressTriggered = false;
+            if (canvas.hasPointerCapture(event.pointerId)) canvas.releasePointerCapture(event.pointerId);
+            if (this.activeTouchPointers.size === 0) this.suppressedTouchPointers.clear();
+            event.preventDefault();
+            event.stopPropagation();
+            return;
+          }
+        }
+
         if (this.isGodModeTargeting()) {
+          const start = this.godModeTouchStart;
+          this.godModeTouchStart = null;
+          if (event.pointerType !== 'mouse') {
+            if (start?.pointerId === event.pointerId &&
+              Math.hypot(event.clientX - start.x, event.clientY - start.y) <= 10) {
+              this.setGodModeTarget(this.pickGridCell(event));
+            }
+            return;
+          }
           event.preventDefault();
           event.stopPropagation();
           return;
@@ -8190,7 +8409,7 @@ export class ThreeGame {
         if (movement <= 6) {
           const previewCell = this.pickGridCell(event);
           this.handleBuildClick(event);
-          if (event.pointerType === 'mouse') this.renderBuildPlacementPreview(previewCell, true);
+          if (event.pointerType === 'mouse') this.renderBuildPlacementPreview(previewCell, true, event.shiftKey);
           else this.clearBuildPlacementPreview();
         }
       },
@@ -8211,7 +8430,13 @@ export class ThreeGame {
 
     canvas.addEventListener(
       'pointercancel',
-      () => {
+      (event) => {
+        this.godModeTouchStart = null;
+        if (event.pointerType === 'touch') {
+          this.activeTouchPointers.delete(event.pointerId);
+          this.suppressedTouchPointers.delete(event.pointerId);
+          if (this.activeTouchPointers.size === 0) this.suppressedTouchPointers.clear();
+        }
         this.cancelLongPress();
         this.longPressTriggered = false;
         this.wallDragStart = null;
@@ -8229,6 +8454,17 @@ export class ThreeGame {
       },
       true,
     );
+
+    const cancelInterruptedTouchGesture = (): void => {
+      if (this.activeTouchPointers.size === 0) return;
+      this.cancelActiveTouchBuildGesture(canvas);
+      this.activeTouchPointers.clear();
+      this.suppressedTouchPointers.clear();
+    };
+    window.addEventListener('blur', cancelInterruptedTouchGesture);
+    document.addEventListener('visibilitychange', () => {
+      if (document.hidden) cancelInterruptedTouchGesture();
+    });
   }
 
   private beginLongPress(event: PointerEvent, cell: GridPoint): void {
@@ -8733,7 +8969,7 @@ export class ThreeGame {
     return WallSystem.createSnappedPath(start, end, SIZE);
   }
 
-  private renderWallPreview(path: GridPoint[]): void {
+  private renderWallPreview(path: GridPoint[], decrease = false): void {
     this.clearGroup(this.wallPreviewLayer);
     if (path.length === 0) return;
 
@@ -8779,8 +9015,31 @@ export class ThreeGame {
       if (!validity[index]) return;
       const key = this.key(point.x, point.y);
       const existing = draftCells.get(key);
-      if (!existing) draftCells.set(key, { x: point.x, y: point.y, kind: wallKind, level: 1 });
-      else if (WALL_KINDS.includes(existing.kind as WallKind)) existing.kind = wallKind;
+      if (!existing) {
+        draftCells.set(key, {
+          x: point.x,
+          y: point.y,
+          kind: wallKind,
+          level: 1,
+          thickness: this.wallThickness,
+          battlement: this.wallBattlement,
+          walkway: this.wallWalkway,
+        });
+      } else if (single && existing.kind === wallKind) {
+        const currentLevel = Math.max(1, Math.floor(existing.level ?? 1));
+        existing.level = decrease
+          ? Math.max(1, currentLevel - 1)
+          : Math.min(MAX_WALL_LEVEL, currentLevel + 1);
+        existing.damage = 0;
+        existing.thickness = this.wallThickness;
+        existing.battlement = this.wallBattlement;
+        existing.walkway = this.wallWalkway;
+      } else if (WALL_KINDS.includes(existing.kind as WallKind)) {
+        existing.kind = wallKind;
+        existing.thickness = this.wallThickness;
+        existing.battlement = this.wallBattlement;
+        existing.walkway = this.wallWalkway;
+      }
     });
     for (let i = 1; i < path.length; i += 1) {
       if (!validity[i - 1] || !validity[i]) continue;
@@ -8792,8 +9051,23 @@ export class ThreeGame {
         b.wallLinks = WallSystem.addLink(b, WallSystem.opposite(direction));
       }
     }
-    const draftBlocks = new Map(this.castleBlockSystem.build([...draftCells.values()], this.stoneStyle)
-      .blocks.map((block) => [this.key(block.x, block.y), block]));
+    const draftBlocks = new Map(this.castleBlockSystem.build(
+      [...draftCells.values()],
+      this.stoneStyle,
+      (x, y) => this.terrainElevation(x, y),
+    ).blocks.map((block) => [this.key(block.x, block.y), block]));
+    const invalidSegments = validity.filter((valid) => !valid).length;
+    const heightTarget = single && path[0]
+      ? draftBlocks.get(this.key(path[0].x, path[0].y))?.level
+      : undefined;
+    const heightSuffix = heightTarget !== undefined &&
+      this.services.state.getCell(path[0].x, path[0].y)?.kind === wallKind
+      ? ` · target height L${heightTarget}`
+      : '';
+    this.wallPreviewStatus =
+      `Wall preview · ${path.length} segment${path.length === 1 ? '' : 's'} · ` +
+      `${costedSegments} new/replace · cost ${this.constructionCostPreviewLabel(wallKind, costedSegments)}` +
+      `${invalidSegments > 0 ? ` · ${invalidSegments} invalid` : ''}${heightSuffix}`;
 
     for (let i = 0; i < path.length; i += 1) {
       const point = path[i];
@@ -8809,11 +9083,31 @@ export class ThreeGame {
       marker.position.set(position.x, y, position.z);
       marker.renderOrder = 90;
       marker.castShadow = false;
-      marker.userData.previewTopology = draftBlocks.get(this.key(point.x, point.y))?.topology;
+      const draftBlock = draftBlocks.get(this.key(point.x, point.y));
+      marker.userData.previewTopology = draftBlock?.topology;
+      marker.userData.previewLevel = draftBlock?.level;
       this.wallPreviewLayer.add(marker);
 
+      if (validity[i] && draftBlock && this.viewMode === 'world3d') {
+        const bodyHeight = Math.max(0.42, draftBlock.topLocal - 2.58);
+        const body = new THREE.Mesh(
+          new THREE.BoxGeometry(TILE * 0.34, bodyHeight, TILE * 0.34),
+          validMaterial,
+        );
+        body.position.set(
+          position.x,
+          2.58 + this.terrainElevation(point.x, point.y) + bodyHeight / 2,
+          position.z,
+        );
+        body.renderOrder = 88;
+        body.castShadow = false;
+        body.userData.previewTopology = draftBlock.topology;
+        body.userData.previewLevel = draftBlock.level;
+        this.wallPreviewLayer.add(body);
+      }
+
       if (validity[i]) {
-        const links = draftBlocks.get(this.key(point.x, point.y))?.links ?? [];
+        const links = draftBlock?.links ?? [];
         for (const direction of links) {
           const vector = WallSystem.vector(direction);
           const arm = new THREE.Mesh(
@@ -9001,6 +9295,7 @@ export class ThreeGame {
 
   private evaluateBuildPlacement(
     point: GridPoint,
+    decrease = false,
   ): { valid: boolean; cells: GridPoint[]; reason?: string } | null {
     const tool = this.selectedTool;
     if (tool === null || this.battleSystem.isActive()) return null;
@@ -9150,10 +9445,12 @@ export class ThreeGame {
 
     if (tool === 'tower') {
       const currentLevel = current === 'tower' ? Math.floor(cell?.level ?? 1) : 0;
+      const towerCanChange = current === 'tower' &&
+        (decrease ? currentLevel > 1 : currentLevel < FORTIFICATION_MAX_LEVEL);
       const validCell =
         !keepAtPoint &&
         (current === 'tower'
-          ? currentLevel < FORTIFICATION_MAX_LEVEL
+          ? towerCanChange
           : current
             ? this.isWallFamily(current)
             : !reserved && this.canBuildFortificationOnTerrain(terrain));
@@ -9212,18 +9509,75 @@ export class ThreeGame {
     };
   }
 
+  private previewCastlePlacementBlock(point: GridPoint, decrease = false): CastleBlockState | null {
+    const tool = this.selectedTool;
+    if (tool !== 'gate' && tool !== 'tower') return null;
+
+    const cells = this.services.state.entries().map((cell) => ({
+      ...cell,
+      wallLinks: cell.wallLinks ? [...cell.wallLinks] : undefined,
+    }));
+    const byKey = new Map(cells.map((cell) => [this.key(cell.x, cell.y), cell]));
+    const key = this.key(point.x, point.y);
+    const existing = byKey.get(key);
+
+    if (tool === 'tower') {
+      const currentLevel = Math.max(1, Math.floor(existing?.level ?? 1));
+      const level = existing?.kind === 'tower'
+        ? (decrease
+          ? Math.max(1, currentLevel - 1)
+          : Math.min(FORTIFICATION_MAX_LEVEL, currentLevel + 1))
+        : Math.min(FORTIFICATION_MAX_LEVEL, currentLevel);
+      const compatibleTop = this.compatibleTowerTop(this.towerShape, this.towerTop);
+      byKey.set(key, {
+        ...(existing ?? { x: point.x, y: point.y, kind: 'tower' as const }),
+        x: point.x,
+        y: point.y,
+        kind: 'tower',
+        level,
+        towerShape: this.towerShape,
+        towerTop: compatibleTop,
+        wallLinks: existing?.wallLinks,
+      });
+    } else {
+      const level = Math.max(
+        1,
+        Math.min(FORTIFICATION_MAX_LEVEL, Math.floor(existing?.level ?? 1)),
+      );
+      byKey.set(key, {
+        ...(existing ?? { x: point.x, y: point.y, kind: 'gate' as const }),
+        x: point.x,
+        y: point.y,
+        kind: 'gate',
+        level,
+        wallLinks: existing?.wallLinks,
+        rotationMode: 'auto',
+      });
+    }
+
+    return this.castleBlockSystem.build(
+      [...byKey.values()],
+      this.stoneStyle,
+      (x, y) => this.terrainElevation(x, y),
+    ).blocks.find((block) => block.x === point.x && block.y === point.y) ?? null;
+  }
+
   private clearBuildPlacementPreview(): void {
     this.buildPreviewKey = '';
     this.clearGroup(this.wallPreviewLayer);
   }
 
-  private renderBuildPlacementPreview(point: GridPoint | null, force = false): void {
+  private renderBuildPlacementPreview(
+    point: GridPoint | null,
+    force = false,
+    decrease = false,
+  ): void {
     if (!point) {
       this.clearBuildPlacementPreview();
       return;
     }
 
-    const preview = this.evaluateBuildPlacement(point);
+    const preview = this.evaluateBuildPlacement(point, decrease);
     if (!preview) {
       if (
         !this.wallDragStart &&
@@ -9236,9 +9590,11 @@ export class ThreeGame {
       return;
     }
 
+    const castlePreview = preview.valid ? this.previewCastlePlacementBlock(point, decrease) : null;
     const key =
       `${this.selectedTool}:${point.x},${point.y}:${preview.valid}:${preview.cells.map((cell) => `${cell.x},${cell.y}`).join(';')}:` +
-      `${this.keepWidth}x${this.keepDepth}x${this.keepFloors}:${this.keepRotation}:${this.viewMode}`;
+      `${this.keepWidth}x${this.keepDepth}x${this.keepFloors}:${this.keepRotation}:${this.viewMode}:${decrease}:` +
+      `${castlePreview?.topology ?? ''}:${castlePreview?.level ?? ''}:${castlePreview?.orientation ?? ''}`;
     if (!force && key === this.buildPreviewKey) return;
     this.buildPreviewKey = key;
     this.clearGroup(this.wallPreviewLayer);
@@ -9267,6 +9623,16 @@ export class ThreeGame {
       side: THREE.DoubleSide,
     });
 
+    if (!preview.valid && preview.reason) {
+      this.setStatus(`Invalid placement · ${preview.reason}`);
+    } else if (castlePreview) {
+      const label = castlePreview.kind === 'gate' ? 'Gate' : 'Tower';
+      const attachment = castlePreview.attachment ? ` · ${castlePreview.attachment}` : '';
+      this.setStatus(
+        `${label} preview · ${castlePreview.topology}${attachment} · height L${castlePreview.level} · tap/release to confirm`,
+      );
+    }
+
     for (const footprintCell of preview.cells) {
       if (
         footprintCell.x < 0 || footprintCell.y < 0 ||
@@ -9289,6 +9655,53 @@ export class ThreeGame {
       outline.position.copy(tile.position);
       outline.renderOrder = 91;
       this.wallPreviewLayer.add(outline);
+    }
+
+    if (castlePreview && this.viewMode === 'world3d') {
+      const world = this.gridToWorld(point.x, point.y);
+      const terrainY = this.terrainElevation(point.x, point.y);
+      const bodyHeight = Math.max(0.5, castlePreview.topLocal - 2.58);
+      const isGate = castlePreview.kind === 'gate';
+      const horizontalLinks =
+        Number(castlePreview.links.includes('E')) + Number(castlePreview.links.includes('W'));
+      const verticalLinks =
+        Number(castlePreview.links.includes('N')) + Number(castlePreview.links.includes('S'));
+      const body = new THREE.Mesh(
+        new THREE.BoxGeometry(
+          TILE * (isGate ? 0.76 : 0.62),
+          bodyHeight,
+          TILE * (isGate ? 0.38 : 0.62),
+        ),
+        fillMaterial,
+      );
+      body.position.set(world.x, 2.58 + terrainY + bodyHeight / 2, world.z);
+      body.rotation.y = isGate
+        ? (verticalLinks > horizontalLinks ? Math.PI / 2 : 0)
+        : THREE.MathUtils.degToRad(castlePreview.orientation);
+      body.renderOrder = 89;
+      body.castShadow = false;
+      body.userData.previewTopology = castlePreview.topology;
+      body.userData.previewLevel = castlePreview.level;
+      body.userData.previewAttachment = castlePreview.attachment;
+      this.wallPreviewLayer.add(body);
+
+      const connectionY = 2.86 + terrainY;
+      for (const direction of castlePreview.links) {
+        const vector = WallSystem.vector(direction);
+        const arm = new THREE.Mesh(
+          new THREE.BoxGeometry(0.42, 0.16, TILE * 0.54),
+          fillMaterial,
+        );
+        arm.position.set(
+          world.x + vector.x * TILE * 0.27,
+          connectionY,
+          world.z + vector.y * TILE * 0.27,
+        );
+        arm.rotation.y = WallSystem.worldAngle(direction);
+        arm.renderOrder = 90;
+        arm.castShadow = false;
+        this.wallPreviewLayer.add(arm);
+      }
     }
 
     const anchorWorld = this.gridToWorld(point.x, point.y);
@@ -10578,7 +10991,7 @@ export class ThreeGame {
       '<div class="settings-actions"><button id="selected-gate-toggle" type="button" disabled>Select a Gate</button></div>' +
       '<label class="settings-row"><span>Stone Style</span><select id="castle-stone-style">' +
       '<option value="limestone" selected>Limestone</option><option value="darkStone">Dark Stone</option>' +
-      '<option value="sandstone">Sandstone</option><option value="frontier">Rough Frontier</option>' +
+      '<option value="sandstone">Sandstone</option><option value="frontier">Rough Frontier</option><option value="whitePlaster">White Plaster</option>' +
       '</select></label>' +
       '<label class="settings-row"><span>Tower Bridge</span><select id="tower-bridge-kind">' +
       '<option value="stone" selected>Stone Bridge</option><option value="wood">Wooden Bridge</option>' +
@@ -10605,7 +11018,7 @@ export class ThreeGame {
       '<option value="1">1 floor</option><option value="2">2 floors</option><option value="3" selected>3 floors</option><option value="4">4 floors</option><option value="5">5 floors</option><option value="6">6 floors</option><option value="7">7 floors</option><option value="8">8 floors</option><option value="9">9 floors</option>' +
       '</select></label>' +
       '<label class="settings-row"><span>Roof</span><select id="keep-roof">' +
-      '<option value="flatBattlement">Flat Battlement</option><option value="sloped">Medieval Sloped</option><option value="defensivePlatform">Defensive Platform</option><option value="towered">Towered Roof</option>' +
+      '<option value="flatBattlement">Flat Battlement</option><option value="sloped">Medieval Sloped</option><option value="defensivePlatform">Defensive Platform</option><option value="towered">Towered Roof</option><option value="japaneseTiered">Japanese Tiered</option>' +
       '</select></label>' +
       '<label class="settings-check"><input id="keep-corner-towers" type="checkbox" checked /><span>Corner Towers</span></label>' +
       '<label class="settings-check"><input id="keep-battlements" type="checkbox" checked /><span>Keep Battlements</span></label>' +
@@ -10667,6 +11080,7 @@ export class ThreeGame {
         this.activeBuildCategory = category;
         if (buildSearch) buildSearch.value = '';
         this.filterBuildTools();
+        if (document.documentElement.classList.contains('mobile-ui-active')) toolbar.scrollTo(0, 0);
         return true;
       }
 
@@ -10674,7 +11088,7 @@ export class ThreeGame {
       if (tool) {
         event?.preventDefault();
         this.selectTool(tool);
-        if (this.selectedTool === tool && window.matchMedia('(max-width: 760px)').matches) {
+        if (this.selectedTool === tool && document.documentElement.classList.contains('mobile-ui-active')) {
           this.setToolbarOpen(false);
         }
         return true;
@@ -10932,6 +11346,8 @@ export class ThreeGame {
     const battlePanel = get<HTMLElement>('battle-panel');
 
     get<HTMLButtonElement>('battle-button').onclick = () => {
+      if (this.godModeOpen) this.closeGodMode();
+      this.setToolbarOpen(false);
       battlePanel.hidden = false;
       this.syncBattleSetupUI();
       this.updateBattleUI(this.battleSystem.status());
@@ -10940,6 +11356,8 @@ export class ThreeGame {
       battlePanel.hidden = true;
     };
     get<HTMLButtonElement>('military-button').onclick = () => {
+      if (this.godModeOpen) this.closeGodMode();
+      this.setToolbarOpen(false);
       battlePanel.hidden = false;
       this.syncMilitaryUI();
     };
@@ -11071,10 +11489,13 @@ export class ThreeGame {
       else await document.documentElement.requestFullscreen();
     };
 
+    let wasNarrow = window.innerWidth <= 760;
     window.addEventListener('resize', () => {
-      if (window.innerWidth <= 760 && this.toolbarOpen) {
+      const narrow = window.innerWidth <= 760;
+      if (narrow && !wasNarrow && this.toolbarOpen) {
         this.setToolbarOpen(false);
       }
+      wasNarrow = narrow;
     });
 
     window.addEventListener('keydown', (event) => {
@@ -11834,7 +12255,6 @@ export class ThreeGame {
     if (nextLevel > this.militaryTier) {
       this.militaryTier = normalizeMilitaryTier(nextLevel);
       this.syncMilitaryUI();
-      this.syncBattleCombatStatsUI();
     }
     this.redraw();
     this.scheduleSave();
@@ -12961,6 +13381,132 @@ export class ThreeGame {
       placeKeepTemplate(center,center-1,2,2,2,'flatBattlement',false);
       for(let x=center-7;x<=center+7;x+=1) if(!this.services.state.getCell(x,center+3)) place(x,center+3,'dirtRoad');
       for(let y=center-5;y<=center+5;y+=1) if(!this.services.state.getCell(center,y)) place(center,y,'road');
+    } else if (template === 'himeji-castle') {
+      // Present-day preserved Himeji core: the early-17th-century tenshu group,
+      // surviving bailey hierarchy, Hishi Gate approach, winding gates and moats.
+      // The whole composition uses editable Castle Role primitives.
+      for (let y = 0; y < SIZE; y += 1) {
+        for (let x = 0; x < SIZE; x += 1) {
+          this.services.state.removeCell(x, y);
+          this.terrainOverrides.set(this.key(x, y), 'plains');
+
+          const keepDistance = Math.hypot((x - 14) * 0.62, (y - 7) * 0.68);
+          const westBaileyDistance = Math.hypot((x - 7) * 0.52, (y - 10) * 0.5);
+          const keepHill = Math.max(0, 2.8 - keepDistance * 0.5);
+          const westBailey = Math.max(0, 1.25 - westBaileyDistance * 0.28);
+          this.setAbsoluteElevation(x, y, 0.12 + Math.max(keepHill, westBailey));
+        }
+      }
+
+      // The surviving core is read as an inland hill castle. A continuous moat
+      // perimeter and the internal Sangoku moat preserve Himeji's layered water defense.
+      const outerMoat: GridPoint[] = [
+        { x: 3, y: 3 }, { x: 18, y: 3 }, { x: 21, y: 7 }, { x: 20, y: 16 },
+        { x: 17, y: 20 }, { x: 5, y: 20 }, { x: 1, y: 16 }, { x: 1, y: 7 },
+      ];
+      for (const point of rasterizeWallPath(outerMoat, true)) {
+        this.services.state.removeCell(point.x, point.y);
+        this.terrainOverrides.set(this.key(point.x, point.y), 'river');
+        this.setAbsoluteElevation(point.x, point.y, 0);
+      }
+
+      const sangokuMoat: GridPoint[] = [];
+      for (let y = 14; y <= 15; y += 1) {
+        for (let x = 12; x <= 14; x += 1) {
+          sangokuMoat.push({ x, y });
+          this.services.state.removeCell(x, y);
+          this.terrainOverrides.set(this.key(x, y), 'river');
+          this.setAbsoluteElevation(x, y, 0);
+        }
+      }
+
+      const outerDefense: GridPoint[] = [
+        { x: 5, y: 5 }, { x: 11, y: 4 }, { x: 17, y: 5 }, { x: 19, y: 8 },
+        { x: 18, y: 15 }, { x: 14, y: 18 }, { x: 7, y: 17 }, { x: 4, y: 13 },
+        { x: 4, y: 8 },
+      ];
+      const innerKeepDefense: GridPoint[] = [
+        { x: 10, y: 5 }, { x: 14, y: 4 }, { x: 18, y: 6 }, { x: 18, y: 10 },
+        { x: 15, y: 12 }, { x: 11, y: 11 }, { x: 9, y: 8 },
+      ];
+      const westBaileyDefense: GridPoint[] = [
+        { x: 5, y: 7 }, { x: 8, y: 6 }, { x: 10, y: 8 }, { x: 10, y: 13 },
+        { x: 7, y: 15 }, { x: 4, y: 13 }, { x: 4, y: 9 },
+      ];
+
+      placeWallPath(outerDefense, 'wall1', 2, {
+        battlement: false,
+        walkway: true,
+        thickness: 'thick',
+      }, true);
+      placeWallPath(innerKeepDefense, 'wall1', 3, {
+        battlement: false,
+        walkway: true,
+        thickness: 'thick',
+      }, true);
+      placeWallPath(westBaileyDefense, 'wall1', 2, {
+        battlement: false,
+        walkway: true,
+        thickness: 'medium',
+      }, true);
+
+      const defensiveTowers: Array<[number, number, number, TowerShape, TowerTop]> = [
+        [5, 5, 2, 'square', 'hipped'],
+        [17, 5, 3, 'corner', 'pyramidal'],
+        [19, 8, 3, 'square', 'hipped'],
+        [18, 15, 2, 'watch', 'hipped'],
+        [7, 17, 2, 'square', 'pyramidal'],
+        [4, 9, 2, 'watch', 'hipped'],
+        [10, 5, 3, 'square', 'hipped'],
+        [18, 10, 3, 'corner', 'pyramidal'],
+      ];
+      for (const [x, y, level, towerShape, towerTop] of defensiveTowers) {
+        place(x, y, 'tower', level, { towerShape, towerTop });
+      }
+
+      // Hishi Gate and the chained i/ro/ha/ni/Bizen gate sequence make the
+      // approach intentionally indirect instead of a straight European causeway.
+      const authoredGates: Array<[number, number, number]> = [
+        [11, 17, 2], // Hishi Gate
+        [8, 13, 2],  // I Gate
+        [10, 12, 2], // Ro Gate
+        [8, 10, 2],  // Ha Gate
+        [11, 9, 3],  // Ni Gate
+        [16, 11, 3], // Bizen Gate
+      ];
+      for (const [x, y, level] of authoredGates) place(x, y, 'gate', level);
+
+      // Tenshu-gun: dominant six-floor main keep with three subordinate keeps.
+      // Japanese-tiered is a reusable Keep roof language, not a Himeji-only mesh.
+      placeKeepTemplate(14, 7, 3, 3, 6, 'japaneseTiered', false, 0, false);
+      placeKeepTemplate(11, 7, 2, 2, 3, 'japaneseTiered', false, 0, false);
+      placeKeepTemplate(17, 7, 2, 2, 3, 'japaneseTiered', false, 1, false);
+      placeKeepTemplate(12, 10, 2, 2, 3, 'japaneseTiered', false, 0, false);
+
+      // Nishi-no-Maru and its long gallery are compressed into a low elongated,
+      // editable Japanese Keep inside the western bailey rather than a generic house.
+      placeKeepTemplate(7, 10, 4, 2, 2, 'japaneseTiered', false, 0, false);
+
+      const windingApproach: GridPoint[] = [
+        { x: 10, y: 21 }, { x: 11, y: 17 }, { x: 7, y: 16 }, { x: 7, y: 13 },
+        { x: 10, y: 13 }, { x: 10, y: 11 }, { x: 8, y: 11 }, { x: 8, y: 9 },
+        { x: 11, y: 9 }, { x: 12, y: 10 }, { x: 14, y: 10 }, { x: 14, y: 9 },
+      ];
+      for (const point of rasterizeWallPath(windingApproach)) {
+        if (!this.services.state.getCell(point.x, point.y) && !this.services.keepSystem.findAtCell(point.x, point.y)) {
+          place(point.x, point.y, 'stoneRoad');
+        }
+      }
+
+      // Sparse trees frame the white tenshu without obscuring the defensive plan.
+      for (const point of [
+        { x: 3, y: 5 }, { x: 6, y: 4 }, { x: 20, y: 5 }, { x: 19, y: 18 },
+        { x: 5, y: 18 }, { x: 3, y: 15 }, { x: 9, y: 6 }, { x: 6, y: 14 },
+      ]) {
+        if (!this.services.state.getCell(point.x, point.y) && this.terrainAt(point.x, point.y) !== 'river') {
+          place(point.x, point.y, 'tree', 2);
+        }
+      }
     } else if (template === 'carcassonne') {
       // Present-day fortified city after the Viollet-le-Duc restoration campaign:
       // two concentric enclosures, dense round towers, Narbonnaise/Aude gates,
@@ -13089,6 +13635,268 @@ export class ThreeGame {
         if (!this.services.state.getCell(point.x, point.y) && this.terrainAt(point.x, point.y) !== 'river') {
           place(point.x, point.y, 'tree', 2);
         }
+      }
+    } else if (template === 'crac-des-chevaliers') {
+      // Hospitaller final construction phase, c. mid-13th century to 1271:
+      // a lower outer enceinte surrounds a higher inner ward, with the eastern
+      // entrance ramp, southern cistern/ditch, major flanking towers and barbican.
+      for (let y = 0; y < SIZE; y += 1) {
+        for (let x = 0; x < SIZE; x += 1) {
+          this.services.state.removeCell(x, y);
+          this.terrainOverrides.set(this.key(x, y), 'plains');
+
+          const dx = (x - center) / 9.2;
+          const dy = (y - center) / 10.2;
+          const radial = Math.hypot(dx, dy);
+          let height = Math.max(0.15, 3.25 - radial * 3.1);
+          if (radial < 0.58) height += 0.72;
+          if (x >= 17) height = Math.max(0.25, height - (x - 16) * 0.34);
+          if (y >= 18) height = Math.max(0.32, height - (y - 17) * 0.2);
+          this.setAbsoluteElevation(x, y, height);
+        }
+      }
+
+      const outerEnceinte: GridPoint[] = [
+        { x: 6, y: 3 }, { x: 11, y: 2 }, { x: 16, y: 4 },
+        { x: 19, y: 7 }, { x: 19, y: 12 }, { x: 17, y: 16 },
+        { x: 14, y: 18 }, { x: 9, y: 18 }, { x: 5, y: 16 },
+        { x: 3, y: 12 }, { x: 3, y: 8 }, { x: 4, y: 5 },
+      ];
+      const innerEnceinte: GridPoint[] = [
+        { x: 8, y: 5 }, { x: 12, y: 4 }, { x: 15, y: 5 },
+        { x: 17, y: 8 }, { x: 17, y: 12 }, { x: 14, y: 16 },
+        { x: 10, y: 16 }, { x: 7, y: 14 }, { x: 6, y: 10 },
+        { x: 6, y: 7 },
+      ];
+
+      placeWallPath(outerEnceinte, 'wall1', 2, {
+        battlement: true,
+        walkway: true,
+        thickness: 'medium',
+      }, true);
+      placeWallPath(innerEnceinte, 'wall3', 4, {
+        battlement: true,
+        walkway: true,
+        thickness: 'thick',
+      }, true);
+
+      const outerTowers: GridPoint[] = [
+        { x: 6, y: 3 }, { x: 11, y: 2 }, { x: 16, y: 4 },
+        { x: 19, y: 7 }, { x: 19, y: 12 }, { x: 17, y: 16 },
+        { x: 14, y: 18 }, { x: 9, y: 18 }, { x: 5, y: 16 },
+        { x: 3, y: 12 }, { x: 3, y: 8 }, { x: 4, y: 5 },
+      ];
+      for (const [index, point] of outerTowers.entries()) {
+        place(point.x, point.y, 'tower', index % 4 === 0 ? 3 : 2, {
+          towerShape: 'round',
+          towerTop: 'openBattlement',
+        });
+      }
+
+      const innerTowers: Array<[number, number, number, TowerShape]> = [
+        [8, 5, 4, 'round'], [12, 4, 4, 'round'], [15, 5, 4, 'round'],
+        [17, 8, 4, 'round'], [17, 12, 4, 'round'],
+        [14, 16, 5, 'round'], [10, 16, 5, 'round'],
+        [7, 14, 5, 'round'], [6, 10, 4, 'round'], [6, 7, 4, 'round'],
+      ];
+      for (const [x, y, level, shape] of innerTowers) {
+        place(x, y, 'tower', level, {
+          towerShape: shape,
+          towerTop: 'openBattlement',
+        });
+      }
+
+      place(19, 9, 'gate', 2, { rotationMode: 'auto' });
+      place(17, 9, 'gate', 4, { rotationMode: 'auto' });
+      place(18, 7, 'tower', 3, { towerShape: 'round', towerTop: 'openBattlement' });
+      place(18, 11, 'tower', 3, { towerShape: 'round', towerTop: 'openBattlement' });
+
+      placeKeepTemplate(10, 12, 3, 3, 5, 'defensivePlatform', true, 0, true);
+
+      // Chapel: use the reusable stone religious landmark, not a residence placeholder.
+      place(12, 8, 'basilica', 1, { rotation: 1 });
+
+      // Great hall / service ranges leave the central court open.
+      for (const [x, y, kind] of [
+        [14, 10, 'manor'],
+        [14, 12, 'house'],
+        [8, 9, 'manor'],
+      ] as Array<[number, number, TileKind]>) {
+        if (!this.services.state.getCell(x, y) && !this.services.keepSystem.findAtCell(x, y)) {
+          place(x, y, kind, 1);
+        }
+      }
+
+      // Mid-13th-century open cistern in the former southern ditch.
+      for (let x = 9; x <= 14; x += 1) {
+        if (!this.services.state.getCell(x, 17)) {
+          this.terrainOverrides.set(this.key(x, 17), 'river');
+          this.setAbsoluteElevation(x, 17, 1.05);
+        }
+      }
+
+      const southBarbican: GridPoint[] = [
+        { x: 8, y: 19 }, { x: 11, y: 21 }, { x: 15, y: 19 },
+      ];
+      placeWallPath(southBarbican, 'wall1', 2, {
+        battlement: true,
+        walkway: true,
+        thickness: 'medium',
+      }, true);
+      place(11, 21, 'tower', 2, { towerShape: 'round', towerTop: 'openBattlement' });
+
+      const routes: GridPoint[][] = [
+        [{ x: 21, y: 8 }, { x: 19, y: 8 }, { x: 19, y: 9 }, { x: 17, y: 9 }, { x: 15, y: 10 }, { x: 12, y: 10 }],
+        [{ x: 12, y: 6 }, { x: 12, y: 10 }, { x: 11, y: 13 }],
+        [{ x: 11, y: 14 }, { x: 11, y: 16 }, { x: 11, y: 18 }, { x: 11, y: 20 }],
+      ];
+      for (const route of routes) {
+        for (const point of rasterizeWallPath(route)) {
+          if (
+            !this.services.state.getCell(point.x, point.y) &&
+            !this.services.keepSystem.findAtCell(point.x, point.y) &&
+            this.terrainAt(point.x, point.y) !== 'river'
+          ) {
+            place(point.x, point.y, 'stoneRoad');
+          }
+        }
+      }
+
+      for (const point of [
+        { x: 2, y: 5 }, { x: 20, y: 4 }, { x: 21, y: 14 },
+        { x: 4, y: 19 }, { x: 18, y: 19 }, { x: 2, y: 16 },
+      ]) {
+        if (!this.services.state.getCell(point.x, point.y)) place(point.x, point.y, 'tree', 1);
+      }
+    } else if (template === 'arg-e-bam') {
+      // Pre-earthquake Arg-e Bam, immediately before 26 December 2003.
+      // The authored plan preserves the southern entrance, bazaar axis,
+      // dense lower town, dry moat and raised governor's citadel to the north.
+      for (let y = 0; y < SIZE; y += 1) {
+        for (let x = 0; x < SIZE; x += 1) {
+          this.services.state.removeCell(x, y);
+          this.terrainOverrides.set(this.key(x, y), 'plains');
+          const broadRise = Math.max(
+            0,
+            0.34 - Math.hypot((x - center) / 13, (y - center) / 14) * 0.22,
+          );
+          const citadelRise =
+            x >= 7 && x <= 15 && y >= 4 && y <= 10
+              ? 0.58 + Math.max(0, 10 - y) * 0.09
+              : 0;
+          this.setAbsoluteElevation(x, y, 0.05 + broadRise + citadelRise);
+        }
+      }
+
+      const bamOuterRampart: GridPoint[] = [
+        { x: 6, y: 5 }, { x: 15, y: 5 }, { x: 18, y: 8 },
+        { x: 18, y: 16 }, { x: 15, y: 19 }, { x: 7, y: 19 },
+        { x: 4, y: 17 }, { x: 4, y: 8 },
+      ];
+      placeWallPath(bamOuterRampart, 'wall1', 2, {
+        battlement: true,
+        walkway: true,
+        thickness: 'thick',
+      }, true);
+
+      // Compressed tower rhythm represents the documented 38-tower enclosure.
+      const bamOuterTowers: GridPoint[] = [
+        { x: 6, y: 5 }, { x: 10, y: 5 }, { x: 15, y: 5 },
+        { x: 18, y: 8 }, { x: 18, y: 12 }, { x: 18, y: 16 },
+        { x: 15, y: 19 }, { x: 13, y: 19 }, { x: 9, y: 19 },
+        { x: 7, y: 19 }, { x: 4, y: 17 }, { x: 4, y: 13 },
+        { x: 4, y: 8 }, { x: 5, y: 6 },
+      ];
+      for (const [index, point] of bamOuterTowers.entries()) {
+        place(point.x, point.y, 'tower', index % 5 === 0 ? 3 : 2, {
+          towerShape: index % 4 === 0 ? 'round' : 'square',
+          towerTop: 'openBattlement',
+        });
+      }
+
+      // Main southern gate, aligned with the principal north-south route.
+      place(11, 19, 'gate', 3, { rotation: 0 });
+      place(10, 18, 'tower', 3, { towerShape: 'round', towerTop: 'openBattlement' });
+      place(12, 18, 'tower', 3, { towerShape: 'round', towerTop: 'openBattlement' });
+
+      // Higher governor's citadel / hakim-neshin in the north.
+      const bamCitadelRampart: GridPoint[] = [
+        { x: 8, y: 6 }, { x: 14, y: 6 }, { x: 15, y: 8 },
+        { x: 14, y: 10 }, { x: 8, y: 10 }, { x: 7, y: 8 },
+      ];
+      placeWallPath(bamCitadelRampart, 'wall1', 3, {
+        battlement: true,
+        walkway: true,
+        thickness: 'thick',
+      }, true);
+      for (const point of bamCitadelRampart) {
+        place(point.x, point.y, 'tower', 3, {
+          towerShape: 'square',
+          towerTop: 'openBattlement',
+        });
+      }
+      place(11, 10, 'gate', 3, { rotation: 0 });
+      placeKeepTemplate(11, 7, 3, 3, 4, 'flatBattlement', true, 0, true);
+
+      // Bazaar axis and principal circulation.
+      for (let y = 11; y <= 18; y += 1) {
+        if (!this.services.state.getCell(11, y) && !this.services.keepSystem.findAtCell(11, y)) {
+          place(11, y, 'dirtRoad');
+        }
+      }
+      place(11, 15, 'market', 1);
+      place(11, 14, 'market', 1);
+
+      for (const route of [
+        [{ x: 6, y: 13 }, { x: 16, y: 13 }],
+        [{ x: 6, y: 16 }, { x: 16, y: 16 }],
+      ] as GridPoint[][]) {
+        for (const point of rasterizeWallPath(route)) {
+          if (!this.services.state.getCell(point.x, point.y) && !this.services.keepSystem.findAtCell(point.x, point.y)) {
+            place(point.x, point.y, 'dirtRoad');
+          }
+        }
+      }
+
+      // Dedicated landmark instead of substituting a basilica or generic house.
+      place(8, 13, 'mosque', 2, { rotation: 0 });
+
+      // Dense earthen lower-town fabric.
+      const bamResidential: Array<[number, number, TileKind, number, number]> = [
+        [6, 11, 'cottage', 1, 0], [8, 11, 'house', 1, 1], [14, 11, 'house', 1, 3], [16, 11, 'cottage', 1, 0],
+        [6, 14, 'house', 1, 1], [14, 14, 'manor', 1, 2], [16, 14, 'cottage', 1, 3],
+        [6, 15, 'cottage', 1, 0], [8, 15, 'house', 1, 1], [14, 15, 'house', 1, 3], [16, 15, 'house', 1, 2],
+        [6, 17, 'house', 1, 1], [8, 17, 'cottage', 1, 2], [14, 17, 'manor', 1, 3], [16, 17, 'cottage', 1, 0],
+      ];
+      for (const [x, y, kind, level, rotation] of bamResidential) {
+        if (!this.services.state.getCell(x, y) && !this.services.keepSystem.findAtCell(x, y)) {
+          place(x, y, kind, level, { rotation });
+        }
+      }
+
+      // Service compounds stand in for barracks/stables using normal editable
+      // settlement cells rather than a visually unrelated bespoke placeholder.
+      for (const [x, y, kind, rotation] of [
+        [15, 12, 'hut', 0],
+        [16, 12, 'hut', 1],
+        [7, 12, 'house', 0],
+        [15, 9, 'hut', 0],
+      ] as Array<[number, number, TileKind, number]>) {
+        if (!this.services.state.getCell(x, y) && !this.services.keepSystem.findAtCell(x, y)) {
+          place(x, y, kind, 1, { rotation });
+        }
+      }
+
+      // Dry moat around the enclosure; keep the southern gate approach open.
+      const bamMoat: GridPoint[] = [];
+      for (let x = 6; x <= 15; x += 1) bamMoat.push({ x, y: 4 });
+      for (let x = 7; x <= 15; x += 1) {
+        if (x < 10 || x > 12) bamMoat.push({ x, y: 20 });
+      }
+      for (let y = 8; y <= 17; y += 1) bamMoat.push({ x: 3, y });
+      for (let y = 8; y <= 16; y += 1) bamMoat.push({ x: 19, y });
+      for (const point of bamMoat) {
+        if (!this.services.state.getCell(point.x, point.y)) place(point.x, point.y, 'moat');
       }
     } else if (template === 'island-monastery') {
       prepareArea(center-8,center-8,center+8,center+8,0.32);
@@ -13278,10 +14086,9 @@ export class ThreeGame {
     this.setBattleSetupValue(field, this.battleSetup[field] + delta);
   }
 
-  private setBattleSetupValue(
-    field: keyof BattleSetup,
-    value: number,
-  ): void {
+  private setBattleSetupValue(field: keyof BattleSetup, value: number): void {
+    // Only attacker unit counts are configurable. Army Camps determine every defender.
+    if (String(field).startsWith('defender')) return;
     if (this.battleSystem.isActive()) {
       this.setStatus('Reset the current battle before changing army sizes');
       this.syncBattleSetupUI();
@@ -13294,53 +14101,11 @@ export class ThreeGame {
       120,
     );
     this.battleSetup = { ...this.battleSetup, [field]: normalized };
-
-    if (String(field).startsWith('defender')) {
-      const requested = normalized;
-      this.syncPopulationDefenseAssignments(this.services.state.entries());
-      const actual = this.battleSetup[field];
-      if (actual < requested) {
-        this.setStatus(
-          field === 'defenderModernSoldiers'
-            ? `Professional Army limited to ${actual} by Army Camp capacity`
-            : `Militia limited to ${actual}; no extra citizens are available`,
-        );
-      }
-      this.reconcileSettlementAgents(this.services.state.entries());
-      this.syncIdleDefenderGarrison(true);
-    }
-
     this.syncBattleSetupUI();
-    this.syncBattleCombatStatsUI();
-    this.updatePopulationUI();
-  }
-
-  private syncBattleCombatStatsUI(): void {
-    const mappings: Array<[string, 'swordsman' | 'spearman' | 'archer' | 'crossbowman' | 'modernSoldier']> = [
-      ['swordsman', 'swordsman'],
-      ['spearman', 'spearman'],
-      ['archer', 'archer'],
-      ['crossbowman', 'crossbowman'],
-      ['modernSoldier', 'modernSoldier'],
-    ];
-
-    for (const [key, unitType] of mappings) {
-      const stats = getUnitCombatStats(unitType);
-      if (!stats) continue;
-      const attack = document.getElementById(`battle-stat-${key}-attack`);
-      const defense = document.getElementById(`battle-stat-${key}-defense`);
-      if (attack) attack.textContent = String(stats.attack);
-      if (defense) defense.textContent = String(stats.defense);
-    }
   }
 
   private syncBattleSetupUI(): void {
     const mappings: Array<[keyof BattleSetup, string]> = [
-      ['defenderSwordsmen', 'battle-defender-swordsmen'],
-      ['defenderArchers', 'battle-defender-archers'],
-      ['defenderSpearmen', 'battle-defender-spearmen'],
-      ['defenderCrossbowmen', 'battle-defender-crossbowmen'],
-      ['defenderModernSoldiers', 'battle-defender-modern-soldiers'],
       ['attackerSwordsmen', 'battle-attacker-swordsmen'],
       ['attackerArchers', 'battle-attacker-archers'],
       ['attackerSpearmen', 'battle-attacker-spearmen'],
@@ -13388,7 +14153,7 @@ export class ThreeGame {
     }
 
     if (defenderTotal <= 0) {
-      this.setStatus('No Defenders configured · attackers will attempt an immediate capture');
+      this.setStatus('No Army Camp garrison available · attackers will attempt an immediate capture');
     }
 
     this.populationBattleCommitted = false;
@@ -13418,7 +14183,6 @@ export class ThreeGame {
     this.militaryTier = normalizeMilitaryTier(this.militaryTier + 1);
     this.syncIdleDefenderGarrison(true);
     this.syncMilitaryUI();
-    this.syncBattleCombatStatsUI();
     this.save();
     this.setStatus(`Military upgraded to Tier ${this.militaryTier}`);
   }
@@ -13666,15 +14430,12 @@ export class ThreeGame {
 
     const started = this.populationBattleStart;
     const alive = status.defenderAliveByType;
-    this.services.populationSystem.applyMilitiaCasualties({
+    this.services.populationSystem.applyProfessionalCasualties({
       swordsman: Math.max(0, started.defenderSwordsmen - alive.swordsman),
       archer: Math.max(0, started.defenderArchers - alive.archer),
       spearman: Math.max(0, started.defenderSpearmen - alive.spearman),
       crossbowman: Math.max(0, started.defenderCrossbowmen - alive.crossbowman),
     });
-    this.services.populationSystem.applyProfessionalCasualties(
-      Math.max(0, started.defenderModernSoldiers - alive.modernSoldier),
-    );
     this.services.populationSystem.setMilitiaMobilized(false);
     this.battleSetup = {
       ...this.battleSetup,
@@ -13682,7 +14443,7 @@ export class ThreeGame {
       defenderArchers: alive.archer,
       defenderSpearmen: alive.spearman,
       defenderCrossbowmen: alive.crossbowman,
-      defenderModernSoldiers: alive.modernSoldier,
+      defenderModernSoldiers: 0,
     };
     this.populationBattleCommitted = true;
     this.populationBattleStart = null;
@@ -13694,6 +14455,7 @@ export class ThreeGame {
 
   private updateBattleUI(status: BattleStatus): void {
     const panel = document.getElementById('battle-panel');
+    if (panel) panel.dataset.battlePhase = status.mode;
     const mode = document.getElementById('battle-mode-status');
     const attackerAlive = document.getElementById('battle-attacker-alive');
     const defenderAlive = document.getElementById('battle-defender-alive');
@@ -13849,22 +14611,22 @@ export class ThreeGame {
   }
 
   private animate(time: number): void {
-    const deltaMs = this.lastFrameTime === 0 ? 16 : Math.min(50, time - this.lastFrameTime);
+    const frameStartCpuMs = performance.now();
+    const frameDeltaMs = this.lastFrameTime === 0 ? 16 : Math.max(0, time - this.lastFrameTime);
+    const deltaMs = Math.min(50, frameDeltaMs);
     this.lastFrameTime = time;
 
     const settings = this.settingsStore.get();
     const cameraDistance = this.camera.position.distanceTo(this.controls.target);
     this.constructionAnimation.update(time, settings.interface.reducedMotion);
-    const mobileRendering =
-      settings.gameplay.controlScheme === 'touch' ||
-      window.matchMedia?.('(pointer: coarse)').matches === true ||
-      window.innerWidth <= 760;
+    const selectedProfile = this.adaptiveRenderProfile.resolve(settings.graphics.performanceMode);
+    const renderProfile = this.performanceDebug.mobileBudgetEmulation ? 'performance' : selectedProfile;
     const visualBudget = this.distanceDetailBudget.update(
       this.scene,
       this.renderer,
       cameraDistance,
       settings,
-      mobileRendering,
+      renderProfile,
     );
     if (!this.battleSystem.isActive()) {
       this.updateWorkers(deltaMs);
@@ -13890,7 +14652,7 @@ export class ThreeGame {
       reducedMotion: settings.interface.reducedMotion,
       quality: settings.graphics.quality,
       environmentDetail: settings.graphics.environmentDetail,
-      performanceMode: settings.graphics.performanceMode,
+      performanceMode: renderProfile,
       cameraDistance,
       normalDistance: WORLD_STYLE.camera.referenceDistances.normalGameplay,
       strategicDistance: WORLD_STYLE.camera.referenceDistances.maximumStrategic,
@@ -13902,7 +14664,18 @@ export class ThreeGame {
 
     this.controls.update();
     this.enforceGameplayCameraBounds();
+    const renderStartCpuMs = performance.now();
+    this.performanceDebug.beginGpuFrame();
     this.renderer.render(this.scene, this.camera);
+    this.performanceDebug.endGpuFrame();
+    if (!this.performanceDebug.mobileBudgetEmulation && !document.hidden) {
+      this.adaptiveRenderProfile.recordFrame(frameDeltaMs, settings.graphics.performanceMode);
+    }
+    this.performanceDebug.update(
+      frameDeltaMs,
+      renderStartCpuMs - frameStartCpuMs,
+      performance.now() - renderStartCpuMs,
+    );
 
     requestAnimationFrame((nextTime) => this.animate(nextTime));
   }

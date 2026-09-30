@@ -30,7 +30,9 @@ export interface AudioEventDetail {
 
 export interface AudioSettings {
   masterVolume: number;
+  musicEnabled: boolean;
   musicVolume: number;
+  sfxEnabled: boolean;
   sfxVolume: number;
   muted: boolean;
 }
