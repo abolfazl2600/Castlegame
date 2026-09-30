@@ -22,7 +22,7 @@ const MEDIEVAL_BUILDINGS: readonly TileKind[] = [
   'wall1','wall2','wall3','gate','tower',
   'road','dirtRoad','stoneRoad','harbor',
   'cottage','house','manor','villa','farm','cowBarn','appleOrchard','armyCamp',
-  'market','basilica','windmill','mine','mountain','tree','rock','hut','moat',
+  'market','basilica','mosque','windmill','mine','mountain','tree','rock','hut','moat',
 ];
 
 const COMMON_WORLD_TOOLS: readonly ToolKind[] = [
@@ -48,7 +48,7 @@ export const GAME_MODE_CONFIG: Record<GameMode, GameModeDefinition> = {
     description: 'Stone fortifications, medieval buildings, soldiers, and siege systems.',
     toolGroups: [
       { label: 'Castle & Defense', toolIds: ['wall1','wall2','wall3','gate','tower','towerBridge','keep','moat'] },
-      { label: 'Buildings', toolIds: ['cottage','house','manor','villa','market','basilica','farm','cowBarn','appleOrchard','windmill','mine','hut'] },
+      { label: 'Buildings', toolIds: ['cottage','house','manor','villa','market','basilica','mosque','farm','cowBarn','appleOrchard','windmill','mine','hut'] },
       { label: 'Military', toolIds: ['armyCamp'] },
       { label: 'Environment', toolIds: COMMON_WORLD_TOOLS },
       { label: 'Roads & Harbor', toolIds: ['road','dirtRoad','stoneRoad','harbor'] },
@@ -64,7 +64,7 @@ export const GAME_MODE_CONFIG: Record<GameMode, GameModeDefinition> = {
     description: 'Endless wave defense using the existing castle, enemy, combat, and navigation systems.',
     toolGroups: [
       { label: 'Castle & Defense', toolIds: ['wall1','wall2','wall3','gate','tower','towerBridge','keep','moat'] },
-      { label: 'Buildings', toolIds: ['cottage','house','manor','villa','market','basilica','farm','cowBarn','appleOrchard','windmill','mine','hut'] },
+      { label: 'Buildings', toolIds: ['cottage','house','manor','villa','market','basilica','mosque','farm','cowBarn','appleOrchard','windmill','mine','hut'] },
       { label: 'Military', toolIds: ['armyCamp'] },
       { label: 'Environment', toolIds: COMMON_WORLD_TOOLS },
       { label: 'Roads & Harbor', toolIds: ['road','dirtRoad','stoneRoad','harbor'] },
@@ -80,7 +80,7 @@ export const GAME_MODE_CONFIG: Record<GameMode, GameModeDefinition> = {
     description: 'Free-form construction and experimentation using all building and world tools supported by the existing game.',
     toolGroups: [
       { label: 'Castle & Defense', toolIds: ['wall1','wall2','wall3','gate','tower','towerBridge','keep','moat'] },
-      { label: 'Buildings', toolIds: ['cottage','house','manor','villa','market','basilica','farm','cowBarn','appleOrchard','windmill','mine','hut'] },
+      { label: 'Buildings', toolIds: ['cottage','house','manor','villa','market','basilica','mosque','farm','cowBarn','appleOrchard','windmill','mine','hut'] },
       { label: 'Roads & Harbor', toolIds: ['road','dirtRoad','stoneRoad','harbor'] },
       { label: 'Military', toolIds: ['armyCamp'] },
       { label: 'Environment', toolIds: ['tree','rock','mountain'] },

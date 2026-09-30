@@ -6,7 +6,7 @@ const threeGame = await readFile(new URL('../src/ThreeGame.ts', import.meta.url)
 const templateStyle = await readFile(new URL('../src/rendering/TemplateVisualStyle.ts', import.meta.url), 'utf8');
 
 const templateIds = [...html.matchAll(/data-template="([^"]+)"/g)].map((match) => match[1]);
-assert.equal(templateIds.length, 32, 'Template picker should expose the current 32 complete starting worlds.');
+assert.equal(templateIds.length, 33, 'Template picker should expose the current 33 complete starting worlds.');
 assert.equal(new Set(templateIds).size, templateIds.length, 'Complete template IDs must be unique.');
 
 for (const id of templateIds) {
@@ -17,7 +17,7 @@ for (const id of templateIds) {
   );
 }
 
-for (const stoneStyle of ['limestone', 'darkStone', 'sandstone', 'frontier']) {
+for (const stoneStyle of ['limestone', 'darkStone', 'sandstone', 'frontier', 'earthen']) {
   assert.match(
     templateStyle,
     new RegExp(`stoneStyle: '${stoneStyle}'`),
@@ -43,7 +43,7 @@ assert.match(
 );
 assert.doesNotMatch(
   applyTemplate,
-  /this\.stoneStyle = '(?:limestone|darkStone|sandstone|frontier)'/,
+  /this\.stoneStyle = '(?:limestone|darkStone|sandstone|frontier|whitePlaster|earthen)'/,
   'Template branches must not bypass the shared visual preset with one-off stone assignments.',
 );
 assert.doesNotMatch(
