@@ -67,7 +67,6 @@
 
           <div class="battle-live">
             <span>Attackers alive <b id="battle-attacker-alive">0</b></span>
-            <span>Defenders alive <b id="battle-defender-alive">0</b></span>
           </div>
 
           <section class="military-progress" aria-label="Military progression">
@@ -110,58 +109,6 @@
           </section>
 
           <div class="battle-armies">
-            <section class="battle-faction battle-defenders">
-              <div class="battle-faction-title">
-                <span class="battle-color-dot defender-dot"></span>
-                <strong>DEFENDERS</strong>
-              </div>
-
-              <div class="battle-unit-row">
-                <span>Swordsman <small>balanced melee · Attack <b id="battle-stat-swordsman-attack">20</b> · Defense <b id="battle-stat-swordsman-defense">24</b></small></span>
-                <div class="battle-stepper">
-                  <button type="button" data-battle-field="defenderSwordsmen" data-delta="-1">−</button>
-                  <input id="battle-defender-swordsmen" data-battle-input="defenderSwordsmen" type="number" min="0" max="120" step="1" value="10" inputmode="numeric" />
-                  <button type="button" data-battle-field="defenderSwordsmen" data-delta="1">+</button>
-                </div>
-              </div>
-
-              <div class="battle-unit-row">
-                <span>Spearman <small>longer melee reach · Attack <b id="battle-stat-spearman-attack">18</b> · Defense <b id="battle-stat-spearman-defense">30</b></small></span>
-                <div class="battle-stepper">
-                  <button type="button" data-battle-field="defenderSpearmen" data-delta="-1">−</button>
-                  <input id="battle-defender-spearmen" data-battle-input="defenderSpearmen" type="number" min="0" max="120" step="1" value="8" inputmode="numeric" />
-                  <button type="button" data-battle-field="defenderSpearmen" data-delta="1">+</button>
-                </div>
-              </div>
-
-              <div class="battle-unit-row">
-                <span>Archer <small>fast ranged fire · Attack <b id="battle-stat-archer-attack">14</b> · Defense <b id="battle-stat-archer-defense">10</b></small></span>
-                <div class="battle-stepper">
-                  <button type="button" data-battle-field="defenderArchers" data-delta="-1">−</button>
-                  <input id="battle-defender-archers" data-battle-input="defenderArchers" type="number" min="0" max="120" step="1" value="15" inputmode="numeric" />
-                  <button type="button" data-battle-field="defenderArchers" data-delta="1">+</button>
-                </div>
-              </div>
-
-              <div class="battle-unit-row">
-                <span>Crossbowman <small>slow heavy shot · Attack <b id="battle-stat-crossbowman-attack">25</b> · Defense <b id="battle-stat-crossbowman-defense">14</b></small></span>
-                <div class="battle-stepper">
-                  <button type="button" data-battle-field="defenderCrossbowmen" data-delta="-1">−</button>
-                  <input id="battle-defender-crossbowmen" data-battle-input="defenderCrossbowmen" type="number" min="0" max="120" step="1" value="6" inputmode="numeric" />
-                  <button type="button" data-battle-field="defenderCrossbowmen" data-delta="1">+</button>
-                </div>
-              </div>
-               <div class="battle-unit-row">
-                <span>Modern Soldier <small>modern rifle ranged defense · Attack <b id="battle-stat-modernSoldier-attack">23</b> · Defense <b id="battle-stat-modernSoldier-defense">22</b></small></span>
-                <div class="battle-stepper">
-                  <button type="button" data-battle-field="defenderModernSoldiers" data-delta="-1">−</button>
-                  <input id="battle-defender-modern-soldiers" data-battle-input="defenderModernSoldiers" type="number" min="0" max="120" step="1" value="4" inputmode="numeric" />
-                  <button type="button" data-battle-field="defenderModernSoldiers" data-delta="1">+</button>
-                </div>
-              </div>
-
-           </section>
-
             <section class="battle-faction battle-attackers">
               <div class="battle-faction-title">
                 <span class="battle-color-dot attacker-dot"></span>
