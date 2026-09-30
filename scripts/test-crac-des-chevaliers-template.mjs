@@ -7,7 +7,7 @@ const visualStyle = await readFile(new URL('../src/rendering/TemplateVisualStyle
 const docs = await readFile(new URL('../docs/templates/crac-des-chevaliers.md', import.meta.url), 'utf8');
 
 assert.equal(html.split('data-template="crac-des-chevaliers"').length - 1, 1);
-assert.match(html, /Choose from 33 complete starting worlds/);
+assert.match(html, /Choose from 34 complete starting worlds/);
 assert.match(threeGame, /'crac-des-chevaliers': { layoutId: 'mainland', seed: 5901 }/);
 assert.match(threeGame, /template === 'crac-des-chevaliers'/);
 assert.match(visualStyle, /'crac-des-chevaliers': { stoneStyle: 'limestone', towerBridgeKind: 'stone', family: 'medieval' }/);

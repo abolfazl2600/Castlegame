@@ -11,7 +11,7 @@ const visualStyle = await readFile(new URL('../src/rendering/TemplateVisualStyle
 const docs = await readFile(new URL('../docs/templates/carcassonne.md', import.meta.url), 'utf8');
 
 assert.equal(html.split('data-template="carcassonne"').length - 1, 1, 'Carcassonne must appear once in the template picker.');
-assert.match(html, /Choose from 33 complete starting worlds/);
+assert.match(html, /Choose from 34 complete starting worlds/);
 assert.match(threeGame, /'carcassonne': { layoutId: 'mainland', seed: 5601 }/);
 assert.match(threeGame, /template === 'carcassonne'/);
 assert.match(visualStyle, /'carcassonne': { stoneStyle: 'limestone', towerBridgeKind: 'stone', family: 'medieval' }/);
