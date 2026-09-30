@@ -4075,3 +4075,81 @@ html.mobile-ui-active .debug-performance-overlay {
     display: none !important;
   }
 }
+
+
+/* Mobile battle setup: progressive disclosure and compact, thumb-friendly controls. */
+#military-button[hidden] { display: none !important; }
+.battle-advanced,
+.battle-advanced-content { display: contents; }
+.battle-advanced > summary { display: none; }
+
+html.mobile-ui-active .battle-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: min(58dvh, calc(100dvh - var(--mobile-header-height) - var(--mobile-dock-height) - var(--mobile-safe-top) - var(--mobile-safe-bottom) - 16px));
+  padding: 9px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+html.mobile-ui-active .battle-panel-header { order: 0; flex: 0 0 auto; }
+html.mobile-ui-active .battle-live { order: 1; flex: 0 0 auto; grid-template-columns: 1fr; }
+html.mobile-ui-active .battle-armies { order: 2; flex: 0 0 auto; grid-template-columns: 1fr; }
+html.mobile-ui-active .battle-speed-control { order: 3; flex: 0 0 auto; }
+html.mobile-ui-active .battle-advanced { order: 4; flex: 0 0 auto; display: block; }
+html.mobile-ui-active .battle-capture { order: 5; flex: 0 0 auto; }
+html.mobile-ui-active .battle-actions { order: 6; flex: 0 0 auto; }
+html.mobile-ui-active .battle-result { order: 7; flex: 0 0 auto; }
+html.mobile-ui-active .battle-advanced > summary {
+  display: list-item;
+  padding: 11px 12px;
+  min-height: 44px;
+  border: 1px solid rgba(255,255,255,.12);
+  border-radius: 10px;
+  background: rgba(255,255,255,.04);
+  color: #d3eaf2;
+  font-size: 11px;
+  font-weight: 750;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+html.mobile-ui-active .battle-advanced[open] > summary { margin-bottom: 8px; }
+html.mobile-ui-active .battle-advanced-content { display: grid; gap: 8px; }
+html.mobile-ui-active .battle-panel[data-battle-phase="idle"] .battle-live,
+html.mobile-ui-active .battle-panel[data-battle-phase="idle"] .battle-capture { display: none; }
+html.mobile-ui-active .battle-panel-header .eyebrow { display: none; }
+html.mobile-ui-active .battle-panel-header strong { font-size: 12px; }
+html.mobile-ui-active .battle-faction { padding: 7px 9px; gap: 3px; }
+html.mobile-ui-active .battle-faction-title { font-size: 11px; }
+html.mobile-ui-active .battle-unit-row { min-height: 44px; font-size: 12px; gap: 5px; }
+html.mobile-ui-active .battle-unit-row small { display: none; }
+html.mobile-ui-active .battle-stepper { grid-template-columns: 44px 46px 44px; }
+html.mobile-ui-active .battle-stepper button { width: 44px; height: 44px; }
+html.mobile-ui-active .battle-stepper input { width: 46px; height: 44px; font-size: 13px; }
+html.mobile-ui-active .battle-speed-control {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  margin-top: 0;
+  padding: 5px 9px;
+}
+html.mobile-ui-active .battle-speed-control small { display: none; }
+html.mobile-ui-active .battle-speed-actions { grid-template-columns: 34px 38px 34px 40px; gap: 3px; }
+html.mobile-ui-active .battle-speed-actions button { min-height: 44px; }
+html.mobile-ui-active .battle-actions {
+  position: sticky;
+  bottom: -9px;
+  z-index: 1;
+  grid-template-columns: minmax(0, 1.4fr) repeat(2, minmax(0, 1fr));
+  gap: 4px;
+  padding: 8px 0 2px;
+  background: #081823;
+}
+html.mobile-ui-active .battle-actions .battle-primary { grid-column: auto; }
+html.mobile-ui-active .battle-actions button { min-width: 0; padding: 5px 3px; font-size: 10px; }
+@media (orientation: landscape) {
+  html.mobile-ui-active .battle-panel {
+    max-height: calc(100dvh - var(--mobile-header-height) - var(--mobile-dock-height) - var(--mobile-safe-top) - var(--mobile-safe-bottom) - 16px);
+  }
+}
