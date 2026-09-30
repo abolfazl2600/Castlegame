@@ -1,11 +1,14 @@
 import type { GameMode } from '../core/GameMode';
 import { audioEvents } from './AudioEventBus';
 import { createAudioAssetRegistry } from './AudioAssets';
+import { AndroidAudioLifecycleBridge } from './AndroidAudioLifecycle';
 import type { AudioAsset, AudioEventDetail, AudioSettings } from './types';
 
 const DEFAULT_SETTINGS: AudioSettings = {
   masterVolume: 1,
+  musicEnabled: true,
   musicVolume: 0.7,
+  sfxEnabled: true,
   sfxVolume: 1,
   muted: false,
 };
@@ -41,6 +44,10 @@ export class AudioManager {
   private initializationRequested = false;
   private disposed = false;
   private unsubscribeEvents: (() => void) | null = null;
+  private readonly lifecycleBlocks = new Set<string>();
+  private readonly proceduralNodes = new Map<OscillatorNode, 'music' | 'sfx'>();
+  private readonly lifecycleBridge: AndroidAudioLifecycleBridge;
+  private resumePromise: Promise<void> | null = null;
 
   private audioContext: AudioContext | null = null;
   private musicGain: GainNode | null = null;
@@ -49,13 +56,6 @@ export class AudioManager {
 
   private readonly gestureHandler = (): void => {
     void this.initializeFromUserGesture();
-  };
-  private readonly visibilityHandler = (): void => {
-    if (document.hidden) this.pause();
-    else void this.resume();
-  };
-  private readonly pageShowHandler = (): void => {
-    void this.resume();
   };
 
   constructor(options: { initialMode?: GameMode; settingsStorageKey?: string } = {}) {
@@ -67,8 +67,7 @@ export class AudioManager {
     window.addEventListener('pointerdown', this.gestureHandler, { passive: true });
     window.addEventListener('keydown', this.gestureHandler, { passive: true });
     window.addEventListener('touchstart', this.gestureHandler, { passive: true });
-    document.addEventListener('visibilitychange', this.visibilityHandler);
-    window.addEventListener('pageshow', this.pageShowHandler);
+    this.lifecycleBridge = new AndroidAudioLifecycleBridge(this);
   }
 
   getSettings(): AudioSettings {
@@ -96,10 +95,35 @@ export class AudioManager {
     this.applyVolumes();
   }
 
+  setMusicEnabled(enabled: boolean): void {
+    if (this.settings.musicEnabled === enabled) return;
+    this.settings.musicEnabled = enabled;
+    this.persistSettings();
+    this.applyVolumes();
+    if (!enabled) {
+      this.currentMusic?.element.pause();
+      this.stopProceduralAmbience();
+      this.stopProceduralNodes('music');
+      return;
+    }
+    void this.resumePlaybackIfAllowed();
+  }
+
   setMusicVolume(value: number): void {
     this.settings.musicVolume = clamp01(value);
     this.persistSettings();
     this.applyVolumes();
+  }
+
+  setSfxEnabled(enabled: boolean): void {
+    if (this.settings.sfxEnabled === enabled) return;
+    this.settings.sfxEnabled = enabled;
+    this.persistSettings();
+    this.applyVolumes();
+    if (!enabled) {
+      this.clearSfxVoices();
+      this.stopProceduralNodes('sfx');
+    }
   }
 
   setSfxVolume(value: number): void {
@@ -109,16 +133,25 @@ export class AudioManager {
   }
 
   setMuted(muted: boolean): void {
+    if (this.settings.muted === muted) return;
     this.settings.muted = muted;
     this.persistSettings();
     this.applyVolumes();
+    if (muted) {
+      this.currentMusic?.element.pause();
+      this.stopProceduralAmbience();
+      this.clearSfxVoices();
+      this.stopProceduralNodes();
+      return;
+    }
+    void this.resumePlaybackIfAllowed();
   }
 
   async initializeFromUserGesture(): Promise<boolean> {
     if (this.disposed) return false;
 
     if (this.initialized) {
-      if (this.audioContext?.state === 'suspended') await this.audioContext.resume().catch(() => undefined);
+      await this.resumePlaybackIfAllowed();
       return true;
     }
     if (this.initializationRequested) return false;
@@ -129,8 +162,14 @@ export class AudioManager {
       await context.resume();
       this.initialized = true;
       document.documentElement.dataset.audioEngine = 'ready';
-      if (this.currentMusic) await this.currentMusic.element.play().catch(() => undefined);
-      this.startProceduralAmbience();
+
+      if (this.lifecycleBlocks.size > 0 || document.hidden) {
+        await context.suspend().catch(() => undefined);
+        document.documentElement.dataset.audioLifecycle = 'suspended';
+        return true;
+      }
+
+      await this.resumePlaybackIfAllowed();
       return true;
     } catch {
       this.initialized = false;
@@ -149,19 +188,24 @@ export class AudioManager {
   playMusic(assetId: string): void {
     const asset = this.resolveAsset(assetId);
     if (!asset) {
-      if (this.initialized) this.startProceduralAmbience();
+      if (this.canPlayMusicNow()) this.startProceduralAmbience();
       return;
     }
     if (asset.bus !== 'music' || (!asset.loop && !asset.src)) return;
 
-    if (this.currentMusic?.assetId === assetId) return;
+    if (this.currentMusic?.assetId === assetId) {
+      if (this.canPlayMusicNow() && this.currentMusic.element.paused) {
+        void this.currentMusic.element.play().catch(() => undefined);
+      }
+      return;
+    }
     this.stopHtmlMusic();
 
     const element = this.createElement(asset);
     element.loop = asset.loop ?? true;
     this.currentMusic = { assetId, element };
 
-    if (this.initialized) {
+    if (this.canPlayMusicNow()) {
       void element.play().catch(() => undefined);
     }
     this.applyVolumes();
@@ -173,7 +217,13 @@ export class AudioManager {
   }
 
   playSfx(assetId: string): void {
-    if (!this.initialized || this.settings.muted) return;
+    if (
+      !this.initialized
+      || this.settings.muted
+      || !this.settings.sfxEnabled
+      || this.lifecycleBlocks.size > 0
+      || document.hidden
+    ) return;
 
     const asset = this.resolveAsset(assetId);
     if (!asset) {
@@ -210,22 +260,33 @@ export class AudioManager {
     void element.play().catch(() => this.removeVoice(assetId, element));
   }
 
-  pause(): void {
-    this.currentMusic?.element.pause();
-    this.stopProceduralAmbience();
-    if (this.audioContext?.state === 'running') void this.audioContext.suspend();
-    for (const voices of this.sfxVoices.values()) {
-      for (const voice of voices) voice.pause();
-    }
+  pause(reason = 'manual'): void {
+    this.suspendForLifecycle(reason);
   }
 
-  async resume(): Promise<void> {
-    if (!this.initialized || document.hidden) return;
-    if (this.audioContext?.state === 'suspended') await this.audioContext.resume().catch(() => undefined);
-    if (!this.settings.muted && this.currentMusic) {
-      await this.currentMusic.element.play().catch(() => undefined);
-    }
-    this.startProceduralAmbience();
+  async resume(reason = 'manual'): Promise<void> {
+    this.lifecycleBlocks.delete(reason);
+    await this.resumePlaybackIfAllowed();
+  }
+
+  suspendForLifecycle(source: string): void {
+    if (this.disposed || this.lifecycleBlocks.has(source)) return;
+    const wasActive = this.lifecycleBlocks.size === 0;
+    this.lifecycleBlocks.add(source);
+    if (!wasActive) return;
+
+    this.currentMusic?.element.pause();
+    this.stopProceduralAmbience();
+    this.clearSfxVoices();
+    this.stopProceduralNodes();
+    if (this.audioContext?.state === 'running') void this.audioContext.suspend().catch(() => undefined);
+    document.documentElement.dataset.audioLifecycle = 'suspended';
+  }
+
+  resumeFromLifecycle(source: string): void {
+    if (this.disposed || !this.lifecycleBlocks.has(source)) return;
+    this.lifecycleBlocks.delete(source);
+    void this.resumePlaybackIfAllowed();
   }
 
   dispose(): void {
@@ -236,17 +297,11 @@ export class AudioManager {
     window.removeEventListener('pointerdown', this.gestureHandler);
     window.removeEventListener('keydown', this.gestureHandler);
     window.removeEventListener('touchstart', this.gestureHandler);
-    document.removeEventListener('visibilitychange', this.visibilityHandler);
-    window.removeEventListener('pageshow', this.pageShowHandler);
+    this.lifecycleBridge.dispose();
     this.stopMusic();
-    for (const voices of this.sfxVoices.values()) {
-      for (const voice of voices) {
-        voice.pause();
-        voice.removeAttribute('src');
-        voice.load();
-      }
-    }
-    this.sfxVoices.clear();
+    this.clearSfxVoices();
+    this.stopProceduralNodes();
+    this.lifecycleBlocks.clear();
     if (this.audioContext && this.audioContext.state !== 'closed') void this.audioContext.close();
     this.audioContext = null;
     this.musicGain = null;
@@ -331,12 +386,19 @@ export class AudioManager {
 
     oscillator.connect(envelope);
     envelope.connect(destination);
+    this.trackProceduralNode(oscillator, 'sfx');
     oscillator.start(startAt);
     oscillator.stop(endAt + 0.02);
   }
 
   private startProceduralAmbience(): void {
-    if (!this.initialized || !this.audioContext || !this.musicGain || document.hidden || this.ambientTimer !== null) return;
+    if (
+      !this.canPlayMusicNow()
+      || !this.audioContext
+      || this.audioContext.state !== 'running'
+      || !this.musicGain
+      || this.ambientTimer !== null
+    ) return;
     this.playAmbientPhrase();
     this.ambientTimer = window.setInterval(() => this.playAmbientPhrase(), 7000);
   }
@@ -351,7 +413,7 @@ export class AudioManager {
   private playAmbientPhrase(): void {
     const context = this.audioContext;
     const destination = this.musicGain;
-    if (!context || !destination || context.state !== 'running' || document.hidden) return;
+    if (!context || !destination || context.state !== 'running' || !this.canPlayMusicNow()) return;
 
     const root = 110;
     const ratios = [1, 1.5, 2];
@@ -368,6 +430,7 @@ export class AudioManager {
       envelope.gain.exponentialRampToValueAtTime(0.0001, startAt + duration);
       oscillator.connect(envelope);
       envelope.connect(destination);
+      this.trackProceduralNode(oscillator, 'music');
       oscillator.start(startAt);
       oscillator.stop(startAt + duration + 0.05);
     });
@@ -398,6 +461,8 @@ export class AudioManager {
 
   private effectiveVolume(bus: AudioAsset['bus']): number {
     if (this.settings.muted) return 0;
+    if (bus === 'music' && !this.settings.musicEnabled) return 0;
+    if (bus !== 'music' && !this.settings.sfxEnabled) return 0;
     const busVolume = bus === 'music' ? this.settings.musicVolume : this.settings.sfxVolume;
     return this.settings.masterVolume * busVolume;
   }
@@ -420,6 +485,86 @@ export class AudioManager {
     }
   }
 
+  private canResumeAudioContext(): boolean {
+    return (
+      this.initialized
+      && !this.disposed
+      && this.lifecycleBlocks.size === 0
+      && !document.hidden
+    );
+  }
+
+  private canPlayMusicNow(): boolean {
+    return (
+      this.canResumeAudioContext()
+      && !this.settings.muted
+      && this.settings.musicEnabled
+      && this.settings.masterVolume > 0
+      && this.settings.musicVolume > 0
+    );
+  }
+
+  private async resumePlaybackIfAllowed(): Promise<void> {
+    if (!this.canResumeAudioContext()) return;
+    if (this.resumePromise) return this.resumePromise;
+
+    this.resumePromise = (async () => {
+      if (this.audioContext?.state === 'suspended') {
+        await this.audioContext.resume().catch(() => undefined);
+      }
+
+      if (!this.canResumeAudioContext()) return;
+
+      if (this.canPlayMusicNow()) {
+        if (this.currentMusic?.element.paused) {
+          await this.currentMusic.element.play().catch(() => undefined);
+        }
+        this.startProceduralAmbience();
+      }
+
+      document.documentElement.dataset.audioLifecycle = 'active';
+    })();
+
+    try {
+      await this.resumePromise;
+    } finally {
+      this.resumePromise = null;
+    }
+  }
+
+  private clearSfxVoices(): void {
+    for (const voices of this.sfxVoices.values()) {
+      for (const voice of voices) {
+        voice.pause();
+        voice.removeAttribute('src');
+        voice.load();
+      }
+    }
+    this.sfxVoices.clear();
+  }
+
+  private trackProceduralNode(node: OscillatorNode, bus: 'music' | 'sfx'): void {
+    this.proceduralNodes.set(node, bus);
+    node.addEventListener('ended', () => this.proceduralNodes.delete(node), { once: true });
+  }
+
+  private stopProceduralNodes(bus?: 'music' | 'sfx'): void {
+    for (const [node, nodeBus] of Array.from(this.proceduralNodes.entries())) {
+      if (bus && nodeBus !== bus) continue;
+      this.proceduralNodes.delete(node);
+      try {
+        node.stop();
+      } catch {
+        // The node may already have naturally ended.
+      }
+      try {
+        node.disconnect();
+      } catch {
+        // Disconnection is best-effort during lifecycle teardown.
+      }
+    }
+  }
+
   private removeVoice(assetId: string, element: HTMLAudioElement): void {
     const voices = this.sfxVoices.get(assetId);
     if (!voices) return;
@@ -437,7 +582,9 @@ export class AudioManager {
       const parsed = JSON.parse(raw) as Partial<AudioSettings>;
       return {
         masterVolume: clamp01(Number(parsed.masterVolume ?? DEFAULT_SETTINGS.masterVolume)),
+        musicEnabled: Boolean(parsed.musicEnabled ?? DEFAULT_SETTINGS.musicEnabled),
         musicVolume: clamp01(Number(parsed.musicVolume ?? DEFAULT_SETTINGS.musicVolume)),
+        sfxEnabled: Boolean(parsed.sfxEnabled ?? DEFAULT_SETTINGS.sfxEnabled),
         sfxVolume: clamp01(Number(parsed.sfxVolume ?? DEFAULT_SETTINGS.sfxVolume)),
         muted: Boolean(parsed.muted ?? DEFAULT_SETTINGS.muted),
       };
