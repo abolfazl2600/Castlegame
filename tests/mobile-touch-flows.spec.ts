@@ -47,10 +47,16 @@ test('touch controls reach management, templates, and save/load without stacked 
 test('phone layout keeps 3D but omits Plan, 45°, Top and Fullscreen actions', async ({ page }) => {
   await expect(page.locator('html')).toHaveClass(/mobile-ui-active/);
   const dock = page.locator('.mobile-bottom-dock');
-  await expect(dock.locator('button')).toHaveCount(3);
+  await expect(dock.locator('button')).toHaveCount(2);
   await expect(dock.locator('[data-mobile-proxy="toolbar-open"]')).toBeVisible();
   await expect(dock.locator('[data-mobile-proxy="view-3d-button"]')).toBeVisible();
-  await expect(dock.locator('[data-mobile-proxy="settings-button"]')).toBeVisible();
+  await expect(dock.locator('[data-mobile-proxy="settings-button"]')).toHaveCount(0);
+  await expect(page.locator('.mobile-header [data-mobile-proxy="settings-button"]')).toBeVisible();
+
+  await page.locator('.mobile-header [data-mobile-proxy="settings-button"]').click();
+  await expect(page.locator('#settings-modal')).toBeVisible();
+  await page.locator('#settings-close').click();
+  await expect(page.locator('#settings-modal')).toBeHidden();
 
   for (const id of ['view-2d-button', 'camera-45-button', 'camera-top-button', 'fullscreen-button']) {
     await expect(page.locator(`[data-mobile-proxy="${id}"]`)).toHaveCount(0);
@@ -74,7 +80,7 @@ test.describe('Android landscape', () => {
   test('wide short touch screen hides four desktop-only controls', async ({ page }) => {
     await page.setViewportSize({ width: 915, height: 412 });
     await expect(page.locator('html')).toHaveClass(/mobile-ui-active/);
-    await expect(page.locator('.mobile-bottom-dock button')).toHaveCount(3);
+    await expect(page.locator('.mobile-bottom-dock button')).toHaveCount(2);
     await expect(page.locator('.mobile-bottom-dock [data-mobile-proxy="view-3d-button"]')).toBeVisible();
     for (const id of ['view-2d-button', 'camera-45-button', 'camera-top-button', 'fullscreen-button']) {
       await expect(page.locator(`#${id}`)).toBeHidden();
