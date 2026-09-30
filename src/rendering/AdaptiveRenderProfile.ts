@@ -37,7 +37,10 @@ export class AdaptiveRenderProfile {
     if (mode !== 'auto') return;
 
     if (!Number.isFinite(frameDeltaMs) || frameDeltaMs <= 0 || frameDeltaMs > MAX_VALID_FRAME_MS) {
-      this.resetSamples();
+      // Keep the transition cooldown across a tab pause, but discard bad samples.
+      this.smoothedFrameMs = null;
+      this.slowForMs = 0;
+      this.fastForMs = 0;
       return;
     }
 
