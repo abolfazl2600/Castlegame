@@ -39,8 +39,7 @@ export class MobileUI {
         </div>
         <div class="mobile-header-actions" role="toolbar" aria-label="Game actions">
           <button type="button" data-mobile-proxy="game-mode-button" class="mobile-action mobile-mode-action"></button>
-          <button type="button" data-mobile-proxy="battle-button" class="mobile-action" aria-label="Battle">⚔️</button>
-          <button type="button" data-mobile-proxy="military-button" class="mobile-action" aria-label="Military">🛡️</button>
+          <button type="button" data-mobile-proxy="battle-button" class="mobile-action" aria-label="Battle and military">⚔️</button>
           <button type="button" data-mobile-proxy="god-mode-button" class="mobile-action" aria-label="God Mode">⚡</button>
           <button type="button" data-mobile-action="templates" class="mobile-action" aria-label="Templates">▧</button>
           <button type="button" data-mobile-action="save" class="mobile-action" aria-label="Save game">↓</button>
@@ -101,6 +100,11 @@ export class MobileUI {
   private bindResponsiveState(): void {
     const apply = (): void => {
       const active = this.mediaQuery.matches || this.touchPreference;
+      // Keep the full military information visible on desktop; start mobile in compact mode.
+      if (active !== this.root.classList.contains('mobile-ui-active')) {
+        const advanced = document.querySelector<HTMLDetailsElement>('.battle-advanced');
+        if (advanced) advanced.open = !active;
+      }
       this.root.classList.toggle('mobile-ui-active', active);
       this.root.classList.toggle('touch-ui-forced', this.touchPreference);
       this.root.dataset.inputMode = this.touchPreference ? 'touch' : 'standard';

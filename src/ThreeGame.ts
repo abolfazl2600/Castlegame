@@ -14500,6 +14500,7 @@ export class ThreeGame {
 
   private updateBattleUI(status: BattleStatus): void {
     const panel = document.getElementById('battle-panel');
+    if (panel) panel.dataset.battlePhase = status.mode;
     const mode = document.getElementById('battle-mode-status');
     const attackerAlive = document.getElementById('battle-attacker-alive');
     const defenderAlive = document.getElementById('battle-defender-alive');
