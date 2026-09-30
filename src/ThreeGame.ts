@@ -18,6 +18,7 @@ import { WORLD_STYLE, styleTone } from './rendering/WorldStyle';
 import { AmbientMotionSystem } from './rendering/AmbientMotionSystem';
 import { EnvironmentSystem } from './systems/EnvironmentSystem';
 import { DistanceDetailBudgetSystem } from './rendering/DistanceDetailBudget';
+import { AdaptiveRenderProfile } from './rendering/AdaptiveRenderProfile';
 import { PerformanceDebugOverlay } from './debug/PerformanceDebugOverlay';
 import { instanceStaticCastleBoxes } from './rendering/StaticCastleBoxInstancing';
 import {
@@ -384,6 +385,7 @@ export class ThreeGame {
   private readonly settingsStore: SettingsStore;
   private readonly audioManager: AudioManager;
   private readonly distanceDetailBudget = new DistanceDetailBudgetSystem();
+  private readonly adaptiveRenderProfile = new AdaptiveRenderProfile();
   private readonly performanceDebug: PerformanceDebugOverlay;
   /** Domain state and gameplay services are composed here, away from rendering/UI concerns. */
   private readonly services = createGameDomainServices();
@@ -14617,17 +14619,14 @@ export class ThreeGame {
     const settings = this.settingsStore.get();
     const cameraDistance = this.camera.position.distanceTo(this.controls.target);
     this.constructionAnimation.update(time, settings.interface.reducedMotion);
-    const mobileRendering =
-      settings.gameplay.controlScheme === 'touch' ||
-      window.matchMedia?.('(pointer: coarse)').matches === true ||
-      window.innerWidth <= 760 ||
-      this.performanceDebug.mobileBudgetEmulation;
+    const selectedProfile = this.adaptiveRenderProfile.resolve(settings.graphics.performanceMode);
+    const renderProfile = this.performanceDebug.mobileBudgetEmulation ? 'performance' : selectedProfile;
     const visualBudget = this.distanceDetailBudget.update(
       this.scene,
       this.renderer,
       cameraDistance,
       settings,
-      mobileRendering,
+      renderProfile,
     );
     if (!this.battleSystem.isActive()) {
       this.updateWorkers(deltaMs);
@@ -14653,7 +14652,7 @@ export class ThreeGame {
       reducedMotion: settings.interface.reducedMotion,
       quality: settings.graphics.quality,
       environmentDetail: settings.graphics.environmentDetail,
-      performanceMode: settings.graphics.performanceMode,
+      performanceMode: renderProfile,
       cameraDistance,
       normalDistance: WORLD_STYLE.camera.referenceDistances.normalGameplay,
       strategicDistance: WORLD_STYLE.camera.referenceDistances.maximumStrategic,
@@ -14669,6 +14668,9 @@ export class ThreeGame {
     this.performanceDebug.beginGpuFrame();
     this.renderer.render(this.scene, this.camera);
     this.performanceDebug.endGpuFrame();
+    if (!this.performanceDebug.mobileBudgetEmulation && !document.hidden) {
+      this.adaptiveRenderProfile.recordFrame(frameDeltaMs, settings.graphics.performanceMode);
+    }
     this.performanceDebug.update(
       frameDeltaMs,
       renderStartCpuMs - frameStartCpuMs,

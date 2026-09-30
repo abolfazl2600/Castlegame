@@ -239,6 +239,31 @@ test('Touch / Mobile preference forces the touch layout at desktop widths', asyn
 });
 
 
+test('Touch preference does not override a manually chosen Quality graphics profile', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await loadApp(page);
+  await openSettings(page);
+  await page.locator('[data-settings-nav="graphics"]').click();
+  await page.locator('[data-setting="performanceMode"]').selectOption('quality');
+  await page.locator('[data-setting="debugMode"]').check();
+
+  const activeProfile = page.locator('#debug-performance-overlay')
+    .getByText('Active render profile', { exact: true })
+    .locator('xpath=following-sibling::strong[1]');
+  await expect(activeProfile).toHaveText('QUALITY');
+
+  await page.locator('[data-settings-nav="gameplay"]').click();
+  await page.locator('[data-setting="controlScheme"]').selectOption('touch');
+
+  await expect(page.locator('html')).toHaveClass(/mobile-ui-active/);
+  await expect(activeProfile).toHaveText('QUALITY');
+
+  await page.reload({ waitUntil: 'domcontentloaded' });
+  await expect(page.locator('#game canvas')).toHaveCount(1, { timeout: 20_000 });
+  await expect(page.locator('html')).toHaveClass(/mobile-ui-active/);
+  await expect(activeProfile).toHaveText('QUALITY');
+});
+
 test('Debug mode shows performance diagnostics and persists across reloads', async ({ page }) => {
   await loadApp(page);
 

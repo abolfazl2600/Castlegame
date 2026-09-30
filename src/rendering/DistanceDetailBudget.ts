@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import type { SettingsData } from '../settings/SettingsModel';
+import type { ActiveRenderProfile } from './AdaptiveRenderProfile';
 import { WORLD_STYLE } from './WorldStyle';
 
 export type DistanceDetailBand = 'inspection' | 'gameplay' | 'strategic';
@@ -21,6 +22,7 @@ export interface VisualPerformanceBudget {
 
 export interface VisualBudgetSnapshot {
   band: DistanceDetailBand;
+  renderProfile: ActiveRenderProfile;
   mobile: boolean;
   budget: VisualPerformanceBudget;
   activeShadowCasters: number;
@@ -97,6 +99,25 @@ const MOBILE_BUDGETS: Record<DistanceDetailBand, VisualPerformanceBudget> = {
   },
 };
 
+function budgetForProfile(
+  profile: ActiveRenderProfile,
+  band: DistanceDetailBand,
+): VisualPerformanceBudget {
+  if (profile === 'performance') return MOBILE_BUDGETS[band];
+  if (profile === 'quality') return DESKTOP_BUDGETS[band];
+  const low = MOBILE_BUDGETS[band];
+  const high = DESKTOP_BUDGETS[band];
+  return {
+    drawCalls: Math.round((low.drawCalls + high.drawCalls) / 2),
+    animatedObjects: Math.round((low.animatedObjects + high.animatedObjects) / 2),
+    particles: Math.round((low.particles + high.particles) / 2),
+    shadowCasters: Math.round((low.shadowCasters + high.shadowCasters) / 2),
+    highDetailMeshes: Math.round((low.highDetailMeshes + high.highDetailMeshes) / 2),
+    pixelRatioScale: (low.pixelRatioScale + high.pixelRatioScale) / 2,
+    animationScale: (low.animationScale + high.animationScale) / 2,
+  };
+}
+
 const BAND_HYSTERESIS = 4;
 const GENERIC_MICRO_DETAIL_RADIUS = 2.4;
 const PROP_HEAVY_MICRO_DETAIL_RADIUS = 3.4;
@@ -147,19 +168,18 @@ function shouldSuppressDetail(
     pressure !== 'normal' ||
     band === 'strategic' ||
     mobile ||
-    settings.graphics.quality === 'low' ||
-    settings.graphics.performanceMode === 'performance'
+    settings.graphics.quality === 'low'
   );
 }
 
-function settingsPixelRatioScale(settings: SettingsData): number {
+function settingsPixelRatioScale(settings: SettingsData, profile: ActiveRenderProfile): number {
   const quality =
     settings.graphics.quality === 'low' ? 0.75 :
     settings.graphics.quality === 'medium' ? 1 :
     1.35;
   const performance =
-    settings.graphics.performanceMode === 'performance' ? 0.75 :
-    settings.graphics.performanceMode === 'quality' ? 1.15 :
+    profile === 'performance' ? 0.75 :
+    profile === 'quality' ? 1.15 :
     1;
   return quality * performance;
 }
@@ -285,8 +305,9 @@ export class DistanceDetailBudgetSystem {
   private lastProfileKey = '';
   private lastSnapshot: VisualBudgetSnapshot = {
     band: 'gameplay',
+    renderProfile: 'balanced',
     mobile: false,
-    budget: DESKTOP_BUDGETS.gameplay,
+    budget: budgetForProfile('balanced', 'gameplay'),
     activeShadowCasters: 0,
     baselineShadowCasters: 0,
     activeHighDetailMeshes: 0,
@@ -306,12 +327,14 @@ export class DistanceDetailBudgetSystem {
     renderer: THREE.WebGLRenderer,
     cameraDistance: number,
     settings: SettingsData,
-    mobile: boolean,
+    profile: ActiveRenderProfile,
   ): VisualBudgetSnapshot {
     this.band = this.resolveBand(cameraDistance);
+    // A legacy mobile budget is now a selectable quality preset, not a touch detector.
+    const mobile = profile === 'performance';
     const heapBytes = currentHeapBytes();
     const memoryPressure = resolveMemoryPressure(heapBytes);
-    const baseBudget = (mobile ? MOBILE_BUDGETS : DESKTOP_BUDGETS)[this.band];
+    const baseBudget = budgetForProfile(profile, this.band);
     const budget = memoryAdjustedBudget(baseBudget, memoryPressure);
     const detailSuppressionActive = shouldSuppressDetail(
       settings,
@@ -322,7 +345,7 @@ export class DistanceDetailBudgetSystem {
 
     const profileKey = [
       this.band,
-      mobile ? 'mobile' : 'desktop',
+      profile,
       settings.graphics.quality,
       settings.graphics.performanceMode,
       settings.graphics.shadowsEnabled ? 'shadows' : 'no-shadows',
@@ -334,7 +357,7 @@ export class DistanceDetailBudgetSystem {
     if (profileKey !== this.lastProfileKey || previousFrameOverBudget) {
       const maxPixelRatio = Math.min(window.devicePixelRatio, 2);
       const ratio = THREE.MathUtils.clamp(
-        settingsPixelRatioScale(settings) * budget.pixelRatioScale,
+        settingsPixelRatioScale(settings, profile) * budget.pixelRatioScale,
         0.6,
         maxPixelRatio,
       );
@@ -351,6 +374,7 @@ export class DistanceDetailBudgetSystem {
         detail.baselineEstimatedDrawCalls + shadow.baselineShadowCasters;
       this.lastSnapshot = {
         band: this.band,
+        renderProfile: profile,
         mobile,
         budget,
         ...detail,
@@ -365,6 +389,7 @@ export class DistanceDetailBudgetSystem {
       };
       scene.userData.visualPerformanceBudget = {
         band: this.band,
+        renderProfile: profile,
         mobile,
         ...budget,
         activeHighDetailMeshes: detail.activeHighDetailMeshes,

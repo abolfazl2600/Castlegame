@@ -141,7 +141,7 @@ export class SettingsUI {
               ${this.paneHeading('VISUALS', 'Graphics', 'Balance scene detail and performance.')}
               <div class="settings-control-card">
                 ${this.selectRow('Graphics quality', 'Overall rendering quality preset.', 'quality', '<option value="low">Low</option><option value="medium">Medium</option><option value="high">High</option>')}
-                ${this.selectRow('Performance mode', 'Prioritize speed, balance or image quality.', 'performanceMode', '<option value="performance">Performance</option><option value="balanced">Balanced</option><option value="quality">Quality</option>')}
+                ${this.selectRow('Render profile', 'Auto adapts to sustained frame rate; manual presets never depend on touch controls.', 'performanceMode', '<option value="auto">Auto (adaptive)</option><option value="performance">Performance</option><option value="balanced">Balanced</option><option value="quality">Quality</option>')}
                 ${this.selectRow('Environment detail', 'Controls decorative world detail.', 'environmentDetail', '<option value="low">Low</option><option value="medium">Medium</option><option value="high">High</option>')}
                 ${this.toggleRow('Shadows', 'Render dynamic scene shadows.', 'shadowsEnabled')}
                 ${this.toggleRow('Visual effects', 'Enable enhanced lighting and effects.', 'effectsEnabled')}
@@ -165,7 +165,7 @@ export class SettingsUI {
             <section class="settings-pane" data-settings-pane="gameplay">
               ${this.paneHeading('GAMEPLAY', 'Controls & Feedback', 'Adjust camera behavior and combat feedback.')}
               <div class="settings-control-card">
-                ${this.selectRow('Control preference', 'Choose standard mouse controls or touch-oriented input.', 'controlScheme', '<option value="standard">Standard</option><option value="touch">Touch / Mobile</option>')}
+                ${this.selectRow('Control preference', 'Only changes controls and layout; graphics quality is configured separately.', 'controlScheme', '<option value="standard">Standard</option><option value="touch">Touch / Mobile</option>')}
                 ${this.rangeRow('Camera sensitivity', 'Adjust orbit and camera response.', 'cameraSensitivity', 0.5, 2, 0.05)}
                 ${this.toggleRow('Combat feedback', 'Enable battle feedback and battle sound cues.', 'combatFeedback')}
               </div>
@@ -382,7 +382,7 @@ export class SettingsUI {
         this.store.setGraphics({ shadowsEnabled: Boolean(value) });
         break;
       case 'performanceMode':
-        this.store.setGraphics({ performanceMode: value === 'performance' || value === 'quality' ? value : 'balanced' });
+        this.store.setGraphics({ performanceMode: value === 'auto' || value === 'performance' || value === 'quality' ? value : 'balanced' });
         break;
       case 'environmentDetail':
         this.store.setGraphics({ environmentDetail: value === 'low' || value === 'medium' ? value : 'high' });

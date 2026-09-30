@@ -57,7 +57,7 @@ export class PerformanceDebugOverlay {
   private readonly deviceMemoryGb: number | null;
 
   constructor(
-    settingsStore: SettingsStore,
+    private readonly settingsStore: SettingsStore,
     private readonly options: PerformanceDebugOverlayOptions,
   ) {
     this.element = document.createElement('aside');
@@ -256,7 +256,8 @@ export class PerformanceDebugOverlay {
         this.row('CPU game update', updateCpuMs > 0 ? `${updateCpuMs.toFixed(2)} ms` : 'Sampling…'),
         this.row('CPU render submit', renderCpuMs > 0 ? `${renderCpuMs.toFixed(2)} ms` : 'Sampling…'),
         this.row('GPU frame time', this.gpuFrameMs === null ? 'Unavailable' : `${this.gpuFrameMs.toFixed(2)} ms (async)`),
-        this.row('Render budget profile', budget.mobile ? 'MOBILE' : 'DESKTOP'),
+        this.row('Graphics selection', this.settingsStore.get().graphics.performanceMode.toUpperCase()),
+        this.row('Active render profile', budget.renderProfile.toUpperCase()),
         this.row('View / LOD', `${this.options.getViewMode()} · ${budget.band}`),
         this.row('Camera distance', `${this.options.getCameraDistance().toFixed(1)}`),
       ]),
