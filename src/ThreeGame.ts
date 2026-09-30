@@ -496,6 +496,7 @@ export class ThreeGame {
   private godModeActionId = 'missileStrike';
   private godModeTarget: GodModeTarget | null = null;
   private godModeHover: GridPoint | null = null;
+  private godModeTouchStart: { pointerId: number; x: number; y: number } | null = null;
   private godModeCapacity = 10;
   private readonly godModeMaxCapacity = 10;
   private readonly godModeEffects: Array<{ group: THREE.Group; elapsed: number; duration: number }> = [];
@@ -990,6 +991,9 @@ export class ThreeGame {
       return;
     }
     this.godModeOpen = true;
+    this.setToolbarOpen(false);
+    const battlePanel = document.getElementById('battle-panel');
+    if (battlePanel) battlePanel.hidden = true;
     this.godModeActionId = 'missileStrike';
     this.setGodModeTarget(null);
     const panel = document.getElementById('god-mode-panel');
@@ -1000,6 +1004,7 @@ export class ThreeGame {
 
   private closeGodMode(): void {
     this.godModeOpen = false;
+    this.godModeTouchStart = null;
     this.setGodModeTarget(null);
     const panel = document.getElementById('god-mode-panel');
     if (panel) panel.hidden = true;
@@ -2848,6 +2853,8 @@ export class ThreeGame {
       this.controls.target.set(0, 0, 0);
       this.controls.enableRotate = false;
       this.controls.enablePan = true;
+      this.controls.touches.ONE = THREE.TOUCH.PAN;
+      this.controls.touches.TWO = THREE.TOUCH.DOLLY_PAN;
       this.controls.minDistance = WORLD_STYLE.camera.minDistance;
       this.controls.maxDistance = WORLD_STYLE.camera.maxDistance;
       this.setStatus('2D Plan mode · design first, then switch to 3D');
@@ -2857,6 +2864,8 @@ export class ThreeGame {
       this.controls.target.copy(this.saved3DTarget);
       this.controls.enableRotate = true;
       this.controls.enablePan = true;
+      this.controls.touches.ONE = THREE.TOUCH.ROTATE;
+      this.controls.touches.TWO = THREE.TOUCH.DOLLY_PAN;
       this.controls.minDistance = WORLD_STYLE.camera.minDistance;
       this.controls.maxDistance = WORLD_STYLE.camera.maxDistance;
       this.setStatus('3D View · inspect your built castle');
@@ -8064,6 +8073,7 @@ export class ThreeGame {
         : null;
 
     this.cancelLongPress();
+    this.godModeTouchStart = null;
     this.longPressTriggered = false;
     this.wallDragStart = null;
     this.wallDragEnd = null;
@@ -8116,6 +8126,13 @@ export class ThreeGame {
           this.renderBuildPlacementPreview(cell, true, event.shiftKey);
         }
         if (this.isGodModeTargeting()) {
+          if (event.pointerType !== 'mouse') {
+            // Keep OrbitControls' touch gestures available while aiming.
+            this.godModeTouchStart = this.godModeTouchStart
+              ? null // A second finger means a camera gesture, not a target tap.
+              : { pointerId: event.pointerId, x: event.clientX, y: event.clientY };
+            return;
+          }
           this.fireGodModeAt(cell);
           event.preventDefault();
           event.stopPropagation();
@@ -8186,7 +8203,7 @@ export class ThreeGame {
     canvas.addEventListener(
       'pointermove',
       (event) => {
-        if (this.isGodModeTargeting() && !this.wallDragStart && !this.roadDragStart && !this.terrainStrokeActive) {
+        if (this.isGodModeTargeting() && event.pointerType === 'mouse' && !this.wallDragStart && !this.roadDragStart && !this.terrainStrokeActive) {
           const cell = this.pickGridCell(event);
           if (cell && (cell.x !== this.godModeHover?.x || cell.y !== this.godModeHover?.y)) {
             this.godModeHover = cell;
@@ -8308,6 +8325,15 @@ export class ThreeGame {
         }
 
         if (this.isGodModeTargeting()) {
+          const start = this.godModeTouchStart;
+          this.godModeTouchStart = null;
+          if (event.pointerType !== 'mouse') {
+            if (start?.pointerId === event.pointerId &&
+              Math.hypot(event.clientX - start.x, event.clientY - start.y) <= 10) {
+              this.setGodModeTarget(this.pickGridCell(event));
+            }
+            return;
+          }
           event.preventDefault();
           event.stopPropagation();
           return;
@@ -8434,6 +8460,7 @@ export class ThreeGame {
     canvas.addEventListener(
       'pointercancel',
       (event) => {
+        this.godModeTouchStart = null;
         if (event.pointerType === 'touch') {
           this.activeTouchPointers.delete(event.pointerId);
           this.suppressedTouchPointers.delete(event.pointerId);
@@ -11347,6 +11374,8 @@ export class ThreeGame {
     const battlePanel = get<HTMLElement>('battle-panel');
 
     get<HTMLButtonElement>('battle-button').onclick = () => {
+      if (this.godModeOpen) this.closeGodMode();
+      this.setToolbarOpen(false);
       battlePanel.hidden = false;
       this.syncBattleSetupUI();
       this.updateBattleUI(this.battleSystem.status());
@@ -11355,6 +11384,8 @@ export class ThreeGame {
       battlePanel.hidden = true;
     };
     get<HTMLButtonElement>('military-button').onclick = () => {
+      if (this.godModeOpen) this.closeGodMode();
+      this.setToolbarOpen(false);
       battlePanel.hidden = false;
       this.syncMilitaryUI();
     };
