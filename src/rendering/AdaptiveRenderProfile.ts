@@ -62,10 +62,10 @@ export class AdaptiveRenderProfile {
       this.fastForMs = 0;
     }
 
-    if (this.slowForMs >= DOWNGRADE_AFTER_MS) {
+    if (this.slowForMs >= DOWNGRADE_AFTER_MS && this.current !== 'performance') {
       this.current = this.current === 'quality' ? 'balanced' : 'performance';
       this.resetAfterChange();
-    } else if (this.fastForMs >= UPGRADE_AFTER_MS) {
+    } else if (this.fastForMs >= UPGRADE_AFTER_MS && this.current !== 'quality') {
       this.current = this.current === 'performance' ? 'balanced' : 'quality';
       this.resetAfterChange();
     }
