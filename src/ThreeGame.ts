@@ -100,6 +100,7 @@ const PLAYABLE_LAYOUT_TEMPLATES: Readonly<Record<string, { layoutId: MapLayoutId
   'coastal-peninsula': { layoutId: 'peninsula', seed: 5502 },
   'split-isles': { layoutId: 'twin-isles', seed: 5503 },
   'carcassonne': { layoutId: 'mainland', seed: 5601 },
+  'crac-des-chevaliers': { layoutId: 'mainland', seed: 5901 },
 };
 const ARMY_CAMP_LEVELS = [
   { level: 1, name: 'Field Camp', description: 'A basic tent camp with a fire, supplies, and a small weapon rack.' },
@@ -13369,6 +13370,138 @@ export class ThreeGame {
         if (!this.services.state.getCell(point.x, point.y) && this.terrainAt(point.x, point.y) !== 'river') {
           place(point.x, point.y, 'tree', 2);
         }
+      }
+    } else if (template === 'crac-des-chevaliers') {
+      // Hospitaller final construction phase, c. mid-13th century to 1271:
+      // a lower outer enceinte surrounds a higher inner ward, with the eastern
+      // entrance ramp, southern cistern/ditch, major flanking towers and barbican.
+      for (let y = 0; y < SIZE; y += 1) {
+        for (let x = 0; x < SIZE; x += 1) {
+          this.services.state.removeCell(x, y);
+          this.terrainOverrides.set(this.key(x, y), 'plains');
+
+          const dx = (x - center) / 9.2;
+          const dy = (y - center) / 10.2;
+          const radial = Math.hypot(dx, dy);
+          let height = Math.max(0.15, 3.25 - radial * 3.1);
+          if (radial < 0.58) height += 0.72;
+          if (x >= 17) height = Math.max(0.25, height - (x - 16) * 0.34);
+          if (y >= 18) height = Math.max(0.32, height - (y - 17) * 0.2);
+          this.setAbsoluteElevation(x, y, height);
+        }
+      }
+
+      const outerEnceinte: GridPoint[] = [
+        { x: 6, y: 3 }, { x: 11, y: 2 }, { x: 16, y: 4 },
+        { x: 19, y: 7 }, { x: 19, y: 12 }, { x: 17, y: 16 },
+        { x: 14, y: 18 }, { x: 9, y: 18 }, { x: 5, y: 16 },
+        { x: 3, y: 12 }, { x: 3, y: 8 }, { x: 4, y: 5 },
+      ];
+      const innerEnceinte: GridPoint[] = [
+        { x: 8, y: 5 }, { x: 12, y: 4 }, { x: 15, y: 5 },
+        { x: 17, y: 8 }, { x: 17, y: 12 }, { x: 14, y: 16 },
+        { x: 10, y: 16 }, { x: 7, y: 14 }, { x: 6, y: 10 },
+        { x: 6, y: 7 },
+      ];
+
+      placeWallPath(outerEnceinte, 'wall1', 2, {
+        battlement: true,
+        walkway: true,
+        thickness: 'medium',
+      }, true);
+      placeWallPath(innerEnceinte, 'wall3', 4, {
+        battlement: true,
+        walkway: true,
+        thickness: 'thick',
+      }, true);
+
+      const outerTowers: GridPoint[] = [
+        { x: 6, y: 3 }, { x: 11, y: 2 }, { x: 16, y: 4 },
+        { x: 19, y: 7 }, { x: 19, y: 12 }, { x: 17, y: 16 },
+        { x: 14, y: 18 }, { x: 9, y: 18 }, { x: 5, y: 16 },
+        { x: 3, y: 12 }, { x: 3, y: 8 }, { x: 4, y: 5 },
+      ];
+      for (const [index, point] of outerTowers.entries()) {
+        place(point.x, point.y, 'tower', index % 4 === 0 ? 3 : 2, {
+          towerShape: 'round',
+          towerTop: 'openBattlement',
+        });
+      }
+
+      const innerTowers: Array<[number, number, number, TowerShape]> = [
+        [8, 5, 4, 'round'], [12, 4, 4, 'round'], [15, 5, 4, 'round'],
+        [17, 8, 4, 'round'], [17, 12, 4, 'round'],
+        [14, 16, 5, 'round'], [10, 16, 5, 'round'],
+        [7, 14, 5, 'round'], [6, 10, 4, 'round'], [6, 7, 4, 'round'],
+      ];
+      for (const [x, y, level, shape] of innerTowers) {
+        place(x, y, 'tower', level, {
+          towerShape: shape,
+          towerTop: 'openBattlement',
+        });
+      }
+
+      place(19, 9, 'gate', 2, { rotationMode: 'auto' });
+      place(17, 9, 'gate', 4, { rotationMode: 'auto' });
+      place(18, 7, 'tower', 3, { towerShape: 'round', towerTop: 'openBattlement' });
+      place(18, 11, 'tower', 3, { towerShape: 'round', towerTop: 'openBattlement' });
+
+      placeKeepTemplate(10, 12, 3, 3, 5, 'defensivePlatform', true, 0, true);
+
+      // Chapel: use the reusable stone religious landmark, not a residence placeholder.
+      place(12, 8, 'basilica', 1, { rotation: 1 });
+
+      // Great hall / service ranges leave the central court open.
+      for (const [x, y, kind] of [
+        [14, 10, 'manor'],
+        [14, 12, 'house'],
+        [8, 9, 'manor'],
+      ] as Array<[number, number, TileKind]>) {
+        if (!this.services.state.getCell(x, y) && !this.services.keepSystem.findAtCell(x, y)) {
+          place(x, y, kind, 1);
+        }
+      }
+
+      // Mid-13th-century open cistern in the former southern ditch.
+      for (let x = 9; x <= 14; x += 1) {
+        if (!this.services.state.getCell(x, 17)) {
+          this.terrainOverrides.set(this.key(x, 17), 'river');
+          this.setAbsoluteElevation(x, 17, 1.05);
+        }
+      }
+
+      const southBarbican: GridPoint[] = [
+        { x: 8, y: 19 }, { x: 11, y: 21 }, { x: 15, y: 19 },
+      ];
+      placeWallPath(southBarbican, 'wall1', 2, {
+        battlement: true,
+        walkway: true,
+        thickness: 'medium',
+      }, true);
+      place(11, 21, 'tower', 2, { towerShape: 'round', towerTop: 'openBattlement' });
+
+      const routes: GridPoint[][] = [
+        [{ x: 21, y: 8 }, { x: 19, y: 8 }, { x: 19, y: 9 }, { x: 17, y: 9 }, { x: 15, y: 10 }, { x: 12, y: 10 }],
+        [{ x: 12, y: 6 }, { x: 12, y: 10 }, { x: 11, y: 13 }],
+        [{ x: 11, y: 14 }, { x: 11, y: 16 }, { x: 11, y: 18 }, { x: 11, y: 20 }],
+      ];
+      for (const route of routes) {
+        for (const point of rasterizeWallPath(route)) {
+          if (
+            !this.services.state.getCell(point.x, point.y) &&
+            !this.services.keepSystem.findAtCell(point.x, point.y) &&
+            this.terrainAt(point.x, point.y) !== 'river'
+          ) {
+            place(point.x, point.y, 'stoneRoad');
+          }
+        }
+      }
+
+      for (const point of [
+        { x: 2, y: 5 }, { x: 20, y: 4 }, { x: 21, y: 14 },
+        { x: 4, y: 19 }, { x: 18, y: 19 }, { x: 2, y: 16 },
+      ]) {
+        if (!this.services.state.getCell(point.x, point.y)) place(point.x, point.y, 'tree', 1);
       }
     } else if (template === 'island-monastery') {
       prepareArea(center-8,center-8,center+8,center+8,0.32);
