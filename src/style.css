@@ -3818,6 +3818,36 @@ html.mobile-ui-active .minimap-hint { display: none; }
   letter-spacing: 0;
 }
 
+.debug-performance-controls {
+  display: grid;
+  gap: 4px;
+  padding: 9px 12px 0;
+  pointer-events: auto;
+}
+
+.debug-performance-controls button {
+  cursor: pointer;
+  width: 100%;
+  padding: 7px 10px;
+  border: 1px solid rgba(131, 232, 255, .45);
+  border-radius: 7px;
+  background: rgba(131, 232, 255, .09);
+  color: #b9efff;
+  font: inherit;
+  font-weight: 700;
+}
+
+.debug-performance-controls button[aria-pressed="true"] {
+  border-color: #8addac;
+  color: #aef4c2;
+  background: rgba(106, 208, 144, .15);
+}
+
+.debug-performance-controls small {
+  color: rgba(231, 246, 255, .6);
+  font-size: 9px;
+}
+
 .debug-performance-content {
   display: grid;
   gap: 8px;
