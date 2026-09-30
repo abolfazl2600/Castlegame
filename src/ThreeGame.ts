@@ -690,7 +690,9 @@ export class ThreeGame {
       this.renderer.toneMappingExposure = settings.graphics.effectsEnabled ? 1.0 : 1;
       applyInputSettings(this.controls, settings);
       this.audioManager.setMasterVolume(settings.audio.masterVolume);
+      this.audioManager.setMusicEnabled(settings.audio.musicEnabled);
       this.audioManager.setMusicVolume(settings.audio.musicVolume);
+      this.audioManager.setSfxEnabled(settings.audio.sfxEnabled);
       this.audioManager.setSfxVolume(settings.audio.sfxVolume);
       this.audioManager.setMuted(settings.audio.muted);
       document.documentElement.style.setProperty('--castle-ui-scale', String(settings.interface.uiScale));
