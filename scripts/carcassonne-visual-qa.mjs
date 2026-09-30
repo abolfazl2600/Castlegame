@@ -98,10 +98,36 @@ async function setCamera(page, position) {
 }
 
 async function captureCanvas(page, filename) {
-  await page.locator('#game-canvas').screenshot({
+  // Locator screenshots wait for an element's bounding box to be stable across
+  // animation frames. Under CI software WebGL those frames can stall while a
+  // dense castle redraws. A clipped page screenshot captures the same real
+  // canvas pixels without requiring that expensive element-stability check.
+  const clip = await page.evaluate(() => {
+    const canvas = document.querySelector('#game-canvas');
+    if (!(canvas instanceof HTMLCanvasElement)) throw new Error('Carcassonne WebGL canvas is missing');
+    const bounds = canvas.getBoundingClientRect();
+    const left = Math.max(0, Math.ceil(bounds.left));
+    const top = Math.max(0, Math.ceil(bounds.top));
+    const right = Math.min(window.innerWidth, Math.floor(bounds.right));
+    const bottom = Math.min(window.innerHeight, Math.floor(bounds.bottom));
+    if (right <= left || bottom <= top) {
+      throw new Error('Carcassonne canvas is outside the visible viewport');
+    }
+    return {
+      x: left + window.scrollX,
+      y: top + window.scrollY,
+      width: right - left,
+      height: bottom - top,
+    };
+  });
+  await page.screenshot({
     path: `${output}/${filename}`,
     type: 'png',
+    clip,
     animations: 'disabled',
+    // Hide gameplay chrome without shifting layout or changing the WebGL scene.
+    style: 'header.topbar, #game-shell > :not(#game) { visibility: hidden !important; }',
+    timeout: 120_000,
   });
 }
 
