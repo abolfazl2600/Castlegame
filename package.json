@@ -6,6 +6,9 @@
   "scripts": {
     "dev": "vite",
     "build": "npm run test:battle-state-boundary && npm run test:gate-state && npm run test:castle-access-navigation && npm run test:castle-block-model && npm run test:castle-build-edit-ux && npm run test:construction-animation && npm run test:ambient-fauna && npm run test:settlement-lifecycle && npm run test:living-population && npm run test:river-water-visibility && npm run test:settings-bootstrap-order && npm run test:android-audio-lifecycle && npm run test:camera-zoom-contract && npm run test:building-silhouette-contract && npm run test:upgrade-visual-language && npm run test:settlement-upgrade-readability && npm run test:defense-silhouette-contract && npm run test:ambient-world-motion && npm run test:distance-detail-budget && npm run test:seasonal-environment && npm run test:final-visual-coherence-contract && npm run test:modern-mode-removed && npm run test:save-mode-ui-sync && npm run test:mobile-render-performance && tsc --noEmit && vite build",
+    "build:android": "tsc --noEmit && vite build --base=./",
+    "android:sync": "npm run build:android && cap sync android",
+    "android:copy": "npm run build:android && cap copy android",
     "preview": "vite preview",
     "test:battle-state-boundary": "node scripts/test-battle-state-boundary.mjs",
     "test:castle-access-navigation": "node scripts/test-castle-access-navigation.mjs",
@@ -70,9 +73,11 @@
     "visual:carcassonne-qa": "node scripts/carcassonne-visual-qa.mjs"
   },
   "dependencies": {
+    "@capacitor/core": "^8.5.2",
     "three": "^0.180.0"
   },
   "devDependencies": {
+    "@capacitor/cli": "^8.5.2",
     "@playwright/test": "^1.55.0",
     "@types/three": "^0.180.0",
     "typescript": "^7.0.2",
