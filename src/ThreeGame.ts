@@ -53,6 +53,7 @@ import { GAME_MODE_REGISTRY } from './core/GameModeFoundation';
 import { createSurvivalDefinition } from './SurvivalGameMode';
 import { createSandboxDefinition } from './SandboxGameMode';
 import type { SettingsStore } from './settings/SettingsStore';
+import { resolveLocale, t } from './i18n/localization';
 import { applyGraphicsSettings, applyInputSettings, applySceneGraphicsSettings } from './settings/SettingsSubsystems';
 import { getStructureFootprint } from './building/StructureFootprints';
 import { MAP_LAYOUTS, normalizeMapLayoutId, terrainForMapLayout } from './world/MapLayouts';
@@ -733,7 +734,7 @@ export class ThreeGame {
       document.documentElement.style.setProperty('--castle-ui-scale', String(settings.interface.uiScale));
       document.documentElement.toggleAttribute('data-reduced-motion', settings.interface.reducedMotion);
       document.documentElement.toggleAttribute('data-high-contrast', settings.interface.highContrast);
-      document.documentElement.lang = settings.interface.language === 'en' ? 'en' : (navigator.language || 'en');
+      document.documentElement.lang = resolveLocale(settings.interface.language);
       const helpModal = document.getElementById('help-modal');
       if (helpModal && !settings.interface.showHelp) helpModal.hidden = true;
       const battlePanel = document.getElementById('battle-panel');
@@ -11439,7 +11440,7 @@ export class ThreeGame {
     get<HTMLButtonElement>('templates-button').onclick = openTemplates;
     get<HTMLButtonElement>('game-mode-button').onclick = () => {
       const confirmRequired = this.settingsStore.get().interface.confirmDestructiveActions;
-      if (!confirmRequired || confirm('Start a new game and choose a game mode? Current changes will be replaced.')) this.openGameModeSelector();
+      if (!confirmRequired || confirm(t('Start a new game and choose a game mode? Current changes will be replaced.'))) this.openGameModeSelector();
     };
 
     get<HTMLButtonElement>('templates-close-button').onclick = () => {
@@ -11480,7 +11481,7 @@ export class ThreeGame {
     };
     get<HTMLButtonElement>('reset-button').onclick = () => {
       const confirmRequired = this.settingsStore.get().interface.confirmDestructiveActions;
-      if (!confirmRequired || confirm('Reset the entire world and choose a game mode?')) {
+      if (!confirmRequired || confirm(t('Reset the entire world and choose a game mode?'))) {
         this.openGameModeSelector();
       }
     };
