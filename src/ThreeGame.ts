@@ -19,6 +19,7 @@ import { AmbientMotionSystem } from './rendering/AmbientMotionSystem';
 import { EnvironmentSystem } from './systems/EnvironmentSystem';
 import { DistanceDetailBudgetSystem } from './rendering/DistanceDetailBudget';
 import { PerformanceDebugOverlay } from './debug/PerformanceDebugOverlay';
+import { instanceStaticCastleBoxes } from './rendering/StaticCastleBoxInstancing';
 import {
   RESIDENCE_LAYOUTS,
   RESIDENCE_VISUAL_LEVELS,
@@ -684,6 +685,13 @@ export class ThreeGame {
       getCameraDistance: () => this.camera.position.distanceTo(this.controls.target),
       getViewMode: () => this.viewMode,
       getVisualBudget: () => this.distanceDetailBudget.snapshot(),
+      getRenderLayers: () => [
+        { name: 'Terrain', root: this.terrainLayer },
+        { name: 'Buildings / Castle', root: this.buildLayer },
+        { name: 'Ambient', root: this.ambientLayer },
+        { name: 'NPCs', root: this.settlementLayer },
+        { name: 'Battle', root: this.battleLayer },
+      ],
       getRuntimeCounts: () => ({
         workers: this.workers.length,
         settlementAgents: this.settlementAgents.length,
@@ -2104,6 +2112,7 @@ export class ThreeGame {
       building.userData.cellKey = this.key(cell.x, cell.y);
       building.userData.cellKind = cell.kind;
       const castleBlock = castleBlocks.get(this.key(cell.x, cell.y));
+      if (castleBlock?.kind === 'wall') instanceStaticCastleBoxes(building);
       if (castleBlock) building.userData.castleBlock = castleBlock;
       this.buildObjectsByCell.set(this.key(cell.x, cell.y), building);
       this.constructionObjects.set(`cell:${cell.x},${cell.y}`, building);
@@ -2119,6 +2128,7 @@ export class ThreeGame {
           kindAt: (x, y) => this.kindAt(x, y),
           stoneStyle: this.stoneStyle,
         });
+      instanceStaticCastleBoxes(renderedKeep);
       this.constructionObjects.set(`keep:${keep.id}`, renderedKeep);
       this.buildLayer.add(renderedKeep);
     }
@@ -2234,6 +2244,7 @@ export class ThreeGame {
       building.userData.cellKey = key;
       building.userData.cellKind = cell.kind;
       building.userData.castleBlock = nextBlocks.get(key);
+      if (nextBlocks.get(key)?.kind === 'wall') instanceStaticCastleBoxes(building);
       this.buildObjectsByCell.set(key, building);
       this.constructionObjects.set(`cell:${key}`, building);
       this.buildLayer.add(building);
@@ -14668,6 +14679,7 @@ export class ThreeGame {
   }
 
   private animate(time: number): void {
+    const frameStartCpuMs = performance.now();
     const frameDeltaMs = this.lastFrameTime === 0 ? 16 : Math.max(0, time - this.lastFrameTime);
     const deltaMs = Math.min(50, frameDeltaMs);
     this.lastFrameTime = time;
@@ -14678,7 +14690,8 @@ export class ThreeGame {
     const mobileRendering =
       settings.gameplay.controlScheme === 'touch' ||
       window.matchMedia?.('(pointer: coarse)').matches === true ||
-      window.innerWidth <= 760;
+      window.innerWidth <= 760 ||
+      this.performanceDebug.mobileBudgetEmulation;
     const visualBudget = this.distanceDetailBudget.update(
       this.scene,
       this.renderer,
@@ -14722,8 +14735,15 @@ export class ThreeGame {
 
     this.controls.update();
     this.enforceGameplayCameraBounds();
+    const renderStartCpuMs = performance.now();
+    this.performanceDebug.beginGpuFrame();
     this.renderer.render(this.scene, this.camera);
-    this.performanceDebug.update(frameDeltaMs);
+    this.performanceDebug.endGpuFrame();
+    this.performanceDebug.update(
+      frameDeltaMs,
+      renderStartCpuMs - frameStartCpuMs,
+      performance.now() - renderStartCpuMs,
+    );
 
     requestAnimationFrame((nextTime) => this.animate(nextTime));
   }
