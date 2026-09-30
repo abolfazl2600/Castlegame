@@ -54,3 +54,33 @@ test('mobile map stays available with touch-sized build controls', async ({ page
   const box = await close.boundingBox();
   expect(box?.height).toBeGreaterThanOrEqual(44);
 });
+
+for (const viewport of [{ width: 640, height: 360 }, { width: 390, height: 844 }]) {
+  test(`Build keeps the map visible at ${viewport.width}×${viewport.height}`, async ({ page }) => {
+    await page.setViewportSize(viewport);
+    await page.goto('/Castlegame/');
+    await expect(page.locator('#toolbar [data-build-none]')).toHaveCount(1);
+
+    const opener = page.locator('[data-mobile-proxy="toolbar-open"]');
+    await opener.click();
+    await expect(opener).toHaveAttribute('aria-expanded', 'true');
+    const panel = await page.locator('#toolbar').boundingBox();
+    expect(panel).not.toBeNull();
+    if (viewport.width > viewport.height) {
+      expect(panel!.x + panel!.width).toBeLessThan(viewport.width * 0.55);
+      expect(panel!.height).toBeLessThan(viewport.height - 90);
+    } else {
+      expect(panel!.y).toBeGreaterThan(viewport.height * 0.5);
+      expect(panel!.height).toBeLessThan(viewport.height * 0.45);
+    }
+
+    const tabs = page.locator('#toolbar .build-category-tabs');
+    const stats = page.locator('#toolbar .build-world-summary');
+    expect(await tabs.evaluate((element) => Number(getComputedStyle(element).order) || 0))
+      .toBeLessThan(await stats.evaluate((element) => Number(getComputedStyle(element).order)));
+
+    await page.locator('#toolbar [data-tool]:visible').first().click();
+    await expect(page.locator('#toolbar')).toHaveClass(/is-collapsed/);
+    await expect(opener).toHaveAttribute('aria-expanded', 'false');
+  });
+}
