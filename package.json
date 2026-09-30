@@ -64,7 +64,9 @@
     "test:ambient-fauna": "node scripts/test-ambient-fauna.mjs",
     "test:gate-state": "node scripts/test-gate-state.mjs",
     "test:castle-build-edit-ux": "node scripts/test-castle-build-edit-ux.mjs",
-    "test:android-audio-lifecycle": "node scripts/test-android-audio-lifecycle.mjs"
+    "test:android-audio-lifecycle": "node scripts/test-android-audio-lifecycle.mjs",
+    "test:carcassonne-browser": "playwright test tests/carcassonne.spec.ts",
+    "visual:carcassonne-qa": "node scripts/carcassonne-visual-qa.mjs"
   },
   "dependencies": {
     "three": "^0.180.0"

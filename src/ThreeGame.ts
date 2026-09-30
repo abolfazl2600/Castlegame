@@ -615,6 +615,7 @@ export class ThreeGame {
     this.renderer.toneMappingExposure = 1.0;
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     applyGraphicsSettings(this.renderer, initialSettings);
+    this.renderer.domElement.id = 'game-canvas';
     root.appendChild(this.renderer.domElement);
     if (this.visualBenchmark) {
       // Opt-in diagnostics and fixed camera for the reproducible visual baseline script.
@@ -660,6 +661,20 @@ export class ThreeGame {
         this.camera.position.set(position.x, position.y, position.z);
         this.controls.target.set(position.targetX, position.targetY, position.targetZ);
         this.controls.update();
+      };
+      (window as unknown as {
+        __castleVisualGridPoint: (x: number, y: number) => { x: number; y: number };
+      }).__castleVisualGridPoint = (x, y) => {
+        if (!Number.isInteger(x) || !Number.isInteger(y) || x < 0 || y < 0 || x >= SIZE || y >= SIZE) {
+          throw new Error(`Visual QA grid point is outside the world: ${x},${y}`);
+        }
+        const world = this.gridToWorld(x, y);
+        const projected = new THREE.Vector3(world.x, this.groundHit.position.y, world.z).project(this.camera);
+        const rect = this.renderer.domElement.getBoundingClientRect();
+        return {
+          x: (projected.x + 1) * 0.5 * rect.width,
+          y: (1 - projected.y) * 0.5 * rect.height,
+        };
       };
     }
 
