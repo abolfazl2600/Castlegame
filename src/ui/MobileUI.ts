@@ -46,7 +46,6 @@ export class MobileUI {
           <button type="button" data-mobile-action="save" class="mobile-action" aria-label="Save game">↓</button>
           <button type="button" data-mobile-action="load" class="mobile-action" aria-label="Load game">↑</button>
           <button type="button" data-mobile-proxy="settings-button" class="mobile-action" aria-label="Settings">⚙</button>
-          <button type="button" data-mobile-proxy="fullscreen-button" class="mobile-action" aria-label="Fullscreen">⛶</button>
           <button type="button" data-mobile-proxy="reset-button" class="mobile-action mobile-danger" aria-label="Reset">↻</button>
         </div>
       </header>
@@ -54,9 +53,6 @@ export class MobileUI {
       <nav class="mobile-bottom-dock" aria-label="Mobile game controls">
         <button type="button" data-mobile-proxy="toolbar-open" class="mobile-dock-button" aria-controls="toolbar" aria-expanded="false"><span aria-hidden="true">🧱</span><small>Build</small></button>
         <button type="button" data-mobile-proxy="view-3d-button" class="mobile-dock-button"><span aria-hidden="true">◇</span><small>3D</small></button>
-        <button type="button" data-mobile-proxy="view-2d-button" class="mobile-dock-button"><span aria-hidden="true">▦</span><small>Plan</small></button>
-        <button type="button" data-mobile-proxy="camera-45-button" class="mobile-dock-button"><span aria-hidden="true">◒</span><small>45°</small></button>
-        <button type="button" data-mobile-proxy="camera-top-button" class="mobile-dock-button"><span aria-hidden="true">⊙</span><small>Top</small></button>
         <button type="button" data-mobile-proxy="settings-button" class="mobile-dock-button"><span aria-hidden="true">⚙</span><small>Settings</small></button>
       </nav>
 
