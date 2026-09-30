@@ -37,6 +37,12 @@ assert.match(qa, /starter-normal-mobile-landscape/);
 assert.match(qa, /dense-normal-mobile-landscape/);
 assert.match(qa, /dense-strategic-mobile-landscape/);
 assert.match(qa, /castle-battle-normal-desktop/);
+assert.doesNotMatch(
+  qa.slice(qa.indexOf('const BATTLE_SETUP = {'), qa.indexOf('async function waitForServer')),
+  /defender(?:Swordsmen|Archers|Spearmen|Crossbowmen|ModernSoldiers)/,
+  'Final visual QA must not configure defenders through removed Battle inputs.',
+);
+assert.match(qa, /Battle panel must not expose editable defender counts/);
 assert.match(qa, /dense-strategic-desktop/);
 assert.match(qa, /knownFocusedFollowups:\s*\[\]/);
 assert.match(qa, /dense-autumn-normal-desktop/);
