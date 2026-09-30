@@ -22,7 +22,7 @@ export type TowerTop =
   | 'flat'
   | 'flag'
   | 'watch';
-export type StoneStyle = 'limestone' | 'darkStone' | 'sandstone' | 'frontier';
+export type StoneStyle = 'limestone' | 'darkStone' | 'sandstone' | 'frontier' | 'earthen';
 export type TowerBridgeKind = 'stone' | 'wood';
 export type AccessKind = 'stoneStairs' | 'woodenStairs' | 'ramp' | 'ladder';
 export type GeneratedAccessKind = AccessKind | 'stairTower';
@@ -61,6 +61,7 @@ export type TileKind =
   | 'armyCamp'
   | 'market'
   | 'basilica'
+  | 'mosque'
   | 'windmill'
   | 'mine'
   | 'mountain'

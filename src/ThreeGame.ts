@@ -100,6 +100,7 @@ const PLAYABLE_LAYOUT_TEMPLATES: Readonly<Record<string, { layoutId: MapLayoutId
   'coastal-peninsula': { layoutId: 'peninsula', seed: 5502 },
   'split-isles': { layoutId: 'twin-isles', seed: 5503 },
   'carcassonne': { layoutId: 'mainland', seed: 5601 },
+  'arg-e-bam': { layoutId: 'mainland', seed: 5701 },
 };
 const ARMY_CAMP_LEVELS = [
   { level: 1, name: 'Field Camp', description: 'A basic tent camp with a fire, supplies, and a small weapon rack.' },
@@ -187,6 +188,7 @@ const BUILDING_KINDS: TileKind[] = [
   'armyCamp',
   'market',
   'basilica',
+  'mosque',
   'windmill',
   'mine',
   'mountain',
@@ -198,7 +200,7 @@ const BUILDING_KINDS: TileKind[] = [
 const CONSTRUCTION_VISUAL_KINDS = new Set<TileKind>([
   'wall1', 'wall2', 'wall3', 'gate', 'tower', 'cottage', 'house', 'manor', 'villa',
   'hut', 'farm', 'cowBarn', 'appleOrchard', 'market', 'windmill', 'mine',
-  'armyCamp', 'harbor', 'basilica',
+  'armyCamp', 'harbor', 'basilica', 'mosque',
 ]);
 
 type ViewMode = 'plan2d' | 'world3d';
@@ -303,6 +305,7 @@ const TOOL_GROUPS: Array<{ label: string; tools: ToolDefinition[] }> = [
     tools: [
       { id: 'market', icon: '🏪', label: 'Market', detail: 'Large medieval marketplace · tents · stalls · shops', shortcut: '-' },
       { id: 'basilica', icon: '⛪', label: 'Basilica', detail: 'Large stone church landmark · nave · transept · tower', shortcut: '-' },
+      { id: 'mosque', icon: '◫', label: 'Courtyard Mosque', detail: 'Low-rise prayer hall · courtyard · domed bays', shortcut: '-' },
     ],
   },
   {
@@ -2530,6 +2533,7 @@ export class ThreeGame {
       appleOrchard: 0x9c6d3e,
       armyCamp: 0x8f6b4d,
       basilica: 0xd8d2bd,
+      mosque: 0xb98a5b,
       mine: 0x665f59,
       mountain: 0x71675f,
       tree: 0x356c43,
@@ -2608,7 +2612,7 @@ export class ThreeGame {
         cell.kind === 'road' ? 2.0 :
         cell.kind === 'tree' || cell.kind === 'rock' ? 1.25 :
         cell.kind === 'farm' || cell.kind === 'appleOrchard' || cell.kind === 'armyCamp' ? 3.5 :
-        cell.kind === 'basilica' ? 3.4 :
+        cell.kind === 'basilica' || cell.kind === 'mosque' ? 3.4 :
         cell.kind === 'moat' ? 3.65 :
         2.7;
 
@@ -3463,6 +3467,7 @@ export class ThreeGame {
       group.userData.settlementReadabilityClass = 'landmark';
       group.add(this.basilicaRenderer.render(this.stoneStyle, cell.x, cell.y));
     }
+    else if (cell.kind === 'mosque') this.makeMosque(group, cell.x, cell.y);
     else if (cell.kind === 'windmill') this.services.windmillSystem.create(group);
     else if (cell.kind === 'mine') this.makeMine(group);
     else if (cell.kind === 'mountain') this.makeMountain(group, cell.level ?? 1, cell.x, cell.y);
@@ -6525,6 +6530,52 @@ export class ThreeGame {
     return mesh;
   }
 
+  private makeMosque(group: THREE.Group, gx: number, gy: number): THREE.Group {
+    const body = this.medievalMaterials.castleStone(this.stoneStyle, 'body', gx, gy);
+    const alt = this.medievalMaterials.castleStone(this.stoneStyle, 'alt', gx + 1, gy);
+    const dark = this.medievalMaterials.castleStone(this.stoneStyle, 'dark', gx, gy + 1);
+    const foundation = this.medievalMaterials.castleStone(this.stoneStyle, 'foundation', gx, gy);
+
+    // Reusable low-rise courtyard mosque language. It deliberately avoids a
+    // generic tall minaret so earthen fortified settlements keep their skyline.
+    this.addSettlementBox(group, 3.78, 0.12, 3.78, foundation, 0, 2.22, 0);
+    this.addSettlementBox(group, 3.18, 0.08, 2.2, alt, 0, 2.31, 0.62);
+
+    // Prayer hall and thick qibla wall occupy the northern edge of the court.
+    this.addSettlementBox(group, 3.55, 1.42, 1.0, body, 0, 3.02, -1.28);
+    this.addSettlementBox(group, 3.64, 0.22, 1.08, dark, 0, 3.79, -1.28);
+    this.addSettlementBox(group, 0.76, 1.58, 0.42, body, 0, 3.1, -1.86);
+
+    // Courtyard arcades keep the centre open and readable from gameplay zoom.
+    for (const x of [-1.62, 1.62]) {
+      this.addSettlementBox(group, 0.2, 1.0, 2.22, body, x, 2.78, 0.54);
+      for (const z of [-0.18, 0.58, 1.34]) {
+        this.addSettlementBox(group, 0.34, 1.08, 0.34, dark, x, 2.82, z);
+      }
+    }
+    this.addSettlementBox(group, 3.45, 0.2, 0.3, body, 0, 3.15, 1.72);
+
+    // Three shallow domes preserve a low earthen silhouette.
+    for (const x of [-1.02, 0, 1.02]) {
+      const dome = new THREE.Mesh(
+        new THREE.SphereGeometry(0.5, 12, 7, 0, Math.PI * 2, 0, Math.PI / 2),
+        alt,
+      );
+      dome.scale.y = 0.48;
+      dome.position.set(x, 3.92, -1.28);
+      dome.castShadow = true;
+      dome.receiveShadow = true;
+      group.add(dome);
+    }
+
+    const doorway = this.addSettlementBox(group, 0.52, 0.86, 0.06, dark, 0, 2.87, -1.82);
+    doorway.userData.opening = true;
+    group.userData.settlementFamily = 'mosque';
+    group.userData.settlementReadabilityClass = 'landmark';
+    group.userData.landmark = 'courtyard-mosque';
+    return group;
+  }
+
   private makeHouse(
     group: THREE.Group,
     kind: ResidenceKind,
@@ -6538,11 +6589,32 @@ export class ThreeGame {
       group.userData.residenceVisualVariant = RESIDENCE_VISUAL_VARIANTS[kind];
     }
 
-    const pathMaterial = this.environmentMaterial('village-path', 0xa98d70, 1);
-    const pathDark = this.environmentMaterial('village-path-dark', 0x826b55, 1);
-    const fenceMaterial = this.environmentMaterial('village-fence', 0x6f4e37, 1);
-    const grassPatch = this.environmentMaterial('village-grass', 0x93b75c, 0.96);
-    const yardMaterial = this.environmentMaterial('village-yard', 0xa7b967, 0.98);
+    const earthen = this.stoneStyle === 'earthen';
+    const pathMaterial = this.environmentMaterial(
+      earthen ? 'earthen-village-path' : 'village-path',
+      earthen ? 0x9f7956 : 0xa98d70,
+      1,
+    );
+    const pathDark = this.environmentMaterial(
+      earthen ? 'earthen-village-path-dark' : 'village-path-dark',
+      earthen ? 0x79563f : 0x826b55,
+      1,
+    );
+    const fenceMaterial = this.environmentMaterial(
+      earthen ? 'earthen-village-fence' : 'village-fence',
+      earthen ? 0x75513a : 0x6f4e37,
+      1,
+    );
+    const grassPatch = this.environmentMaterial(
+      earthen ? 'earthen-village-ground' : 'village-grass',
+      earthen ? 0xb69268 : 0x93b75c,
+      0.98,
+    );
+    const yardMaterial = this.environmentMaterial(
+      earthen ? 'earthen-village-yard' : 'village-yard',
+      earthen ? 0xa37d59 : 0xa7b967,
+      0.98,
+    );
 
     // Each residential cell is a compact lived-in medieval block rather than
     // one oversized house. Narrow alleys keep silhouettes readable from the
@@ -6554,8 +6626,14 @@ export class ThreeGame {
 
     RESIDENCE_LAYOUTS[kind].forEach((part, index) => {
       const variation = settlementVariant(gx, gy, index, kind.length);
-      const wallColor = SETTLEMENT_STYLE.plaster[variation % SETTLEMENT_STYLE.plaster.length];
-      const roofColor = SETTLEMENT_STYLE.roof[(variation >>> 4) % SETTLEMENT_STYLE.roof.length];
+      const earthenWalls = [0xb98555, 0xc39261, 0xaa744d, 0xc89b6c];
+      const earthenRoofs = [0x9a6948, 0xa97850, 0x8d6044];
+      const wallColor = earthen
+        ? earthenWalls[variation % earthenWalls.length]
+        : SETTLEMENT_STYLE.plaster[variation % SETTLEMENT_STYLE.plaster.length];
+      const roofColor = earthen
+        ? earthenRoofs[(variation >>> 4) % earthenRoofs.length]
+        : SETTLEMENT_STYLE.roof[(variation >>> 4) % SETTLEMENT_STYLE.roof.length];
       this.addMiniHouse(
         group,
         part.x + ((variation >>> 8) % 3 - 1) * 0.025,
@@ -6568,6 +6646,7 @@ export class ThreeGame {
         roofColor,
         part.detailed,
         variation % 3 === 0,
+        earthen,
       );
     });
 
@@ -6627,6 +6706,7 @@ export class ThreeGame {
     roofColor: number,
     detailed: boolean,
     chimneyVisible: boolean,
+    earthen = false,
   ): void {
     const house = new THREE.Group();
     house.position.set(x, 0, z);
@@ -6638,14 +6718,18 @@ export class ThreeGame {
     const roof = this.environmentMaterial(`residence-roof-${roofColor}`, roofColor, 0.94);
     const roofDark = this.environmentMaterial('residence-roof-shadow', SETTLEMENT_STYLE.roofShadow, 0.98);
     const wood = this.environmentMaterial('house-timber', SETTLEMENT_STYLE.timber, 0.98);
-    const stone = this.environmentMaterial('house-stone', SETTLEMENT_STYLE.foundation, 1);
+    const stone = this.environmentMaterial(
+      earthen ? 'house-earthen-foundation' : 'house-stone',
+      earthen ? 0x78533b : SETTLEMENT_STYLE.foundation,
+      1,
+    );
     const glass = this.environmentMaterial('house-window', SETTLEMENT_STYLE.window, 0.88);
 
     this.addSettlementBox(house, width + 0.14, 0.18, depth + 0.14, stone, 0, 2.3, 0);
     this.addSettlementBox(house, width, height, depth, wall, 0, 2.32 + height / 2, 0);
 
-    // Slightly projecting upper timber floor on richer houses.
-    if (detailed) {
+    // Slightly projecting upper timber floor on richer non-earthen houses.
+    if (detailed && !earthen) {
       this.addSettlementBox(
         house,
         width + 0.1,
@@ -6663,28 +6747,60 @@ export class ThreeGame {
     }
 
     const roofHeight = 0.68 + height * 0.2;
-    const eave = this.addSettlementBox(
-      house,
-      width + 0.22,
-      0.1,
-      depth + 0.22,
-      roofDark,
-      0,
-      2.32 + height + 0.02,
-      0,
-    );
-    eave.castShadow = true;
+    if (earthen) {
+      const roofSlab = this.addSettlementBox(
+        house,
+        width + 0.16,
+        0.14,
+        depth + 0.16,
+        roof,
+        0,
+        2.32 + height + 0.08,
+        0,
+      );
+      roofSlab.castShadow = true;
 
-    const roofMesh = new THREE.Mesh(
-      new THREE.ConeGeometry(width * 0.68, roofHeight, 4),
-      roof,
-    );
-    roofMesh.position.y = 2.32 + height + roofHeight / 2;
-    roofMesh.rotation.y = Math.PI / 4;
-    roofMesh.scale.z = Math.max(0.72, depth / Math.max(0.1, width));
-    roofMesh.castShadow = true;
-    roofMesh.receiveShadow = true;
-    house.add(roofMesh);
+      const parapetY = 2.32 + height + 0.24;
+      this.addSettlementBox(house, width + 0.16, 0.24, 0.12, wallShade, 0, parapetY, -depth / 2 - 0.02);
+      this.addSettlementBox(house, width + 0.16, 0.24, 0.12, wallShade, 0, parapetY, depth / 2 + 0.02);
+      this.addSettlementBox(house, 0.12, 0.24, depth, wallShade, -width / 2 - 0.02, parapetY, 0);
+      this.addSettlementBox(house, 0.12, 0.24, depth, wallShade, width / 2 + 0.02, parapetY, 0);
+
+      if (detailed) {
+        const dome = new THREE.Mesh(
+          new THREE.SphereGeometry(Math.min(width, depth) * 0.24, 10, 6, 0, Math.PI * 2, 0, Math.PI / 2),
+          roof,
+        );
+        dome.scale.y = 0.42;
+        dome.position.set(width * 0.18, 2.32 + height + 0.18, depth * 0.12);
+        dome.castShadow = true;
+        dome.receiveShadow = true;
+        house.add(dome);
+      }
+    } else {
+      const eave = this.addSettlementBox(
+        house,
+        width + 0.22,
+        0.1,
+        depth + 0.22,
+        roofDark,
+        0,
+        2.32 + height + 0.02,
+        0,
+      );
+      eave.castShadow = true;
+
+      const roofMesh = new THREE.Mesh(
+        new THREE.ConeGeometry(width * 0.68, roofHeight, 4),
+        roof,
+      );
+      roofMesh.position.y = 2.32 + height + roofHeight / 2;
+      roofMesh.rotation.y = Math.PI / 4;
+      roofMesh.scale.z = Math.max(0.72, depth / Math.max(0.1, width));
+      roofMesh.castShadow = true;
+      roofMesh.receiveShadow = true;
+      house.add(roofMesh);
+    }
 
     this.addSettlementBox(
       house,
@@ -6725,7 +6841,7 @@ export class ThreeGame {
       0.1,
     );
 
-    if (chimneyVisible) {
+    if (chimneyVisible && !earthen) {
       const chimneyX = width * 0.28;
       const chimneyZ = depth * 0.12;
       this.addSettlementBox(
@@ -6762,7 +6878,7 @@ export class ThreeGame {
       }
     }
 
-    if (detailed) {
+    if (detailed && !earthen) {
       const awning = this.addSettlementBox(
         house,
         width * 0.72,
@@ -13369,6 +13485,136 @@ export class ThreeGame {
         if (!this.services.state.getCell(point.x, point.y) && this.terrainAt(point.x, point.y) !== 'river') {
           place(point.x, point.y, 'tree', 2);
         }
+      }
+    } else if (template === 'arg-e-bam') {
+      // Pre-earthquake Arg-e Bam, immediately before 26 December 2003.
+      // The authored plan preserves the southern entrance, bazaar axis,
+      // dense lower town, dry moat and raised governor's citadel to the north.
+      for (let y = 0; y < SIZE; y += 1) {
+        for (let x = 0; x < SIZE; x += 1) {
+          this.services.state.removeCell(x, y);
+          this.terrainOverrides.set(this.key(x, y), 'plains');
+          const broadRise = Math.max(
+            0,
+            0.34 - Math.hypot((x - center) / 13, (y - center) / 14) * 0.22,
+          );
+          const citadelRise =
+            x >= 7 && x <= 15 && y >= 4 && y <= 10
+              ? 0.58 + Math.max(0, 10 - y) * 0.09
+              : 0;
+          this.setAbsoluteElevation(x, y, 0.05 + broadRise + citadelRise);
+        }
+      }
+
+      const bamOuterRampart: GridPoint[] = [
+        { x: 6, y: 5 }, { x: 15, y: 5 }, { x: 18, y: 8 },
+        { x: 18, y: 16 }, { x: 15, y: 19 }, { x: 7, y: 19 },
+        { x: 4, y: 17 }, { x: 4, y: 8 },
+      ];
+      placeWallPath(bamOuterRampart, 'wall1', 2, {
+        battlement: true,
+        walkway: true,
+        thickness: 'thick',
+      }, true);
+
+      // Compressed tower rhythm represents the documented 38-tower enclosure.
+      const bamOuterTowers: GridPoint[] = [
+        { x: 6, y: 5 }, { x: 10, y: 5 }, { x: 15, y: 5 },
+        { x: 18, y: 8 }, { x: 18, y: 12 }, { x: 18, y: 16 },
+        { x: 15, y: 19 }, { x: 13, y: 19 }, { x: 9, y: 19 },
+        { x: 7, y: 19 }, { x: 4, y: 17 }, { x: 4, y: 13 },
+        { x: 4, y: 8 }, { x: 5, y: 6 },
+      ];
+      for (const [index, point] of bamOuterTowers.entries()) {
+        place(point.x, point.y, 'tower', index % 5 === 0 ? 3 : 2, {
+          towerShape: index % 4 === 0 ? 'round' : 'square',
+          towerTop: 'openBattlement',
+        });
+      }
+
+      // Main southern gate, aligned with the principal north-south route.
+      place(11, 19, 'gate', 3, { rotation: 0 });
+      place(10, 18, 'tower', 3, { towerShape: 'round', towerTop: 'openBattlement' });
+      place(12, 18, 'tower', 3, { towerShape: 'round', towerTop: 'openBattlement' });
+
+      // Higher governor's citadel / hakim-neshin in the north.
+      const bamCitadelRampart: GridPoint[] = [
+        { x: 8, y: 6 }, { x: 14, y: 6 }, { x: 15, y: 8 },
+        { x: 14, y: 10 }, { x: 8, y: 10 }, { x: 7, y: 8 },
+      ];
+      placeWallPath(bamCitadelRampart, 'wall1', 3, {
+        battlement: true,
+        walkway: true,
+        thickness: 'thick',
+      }, true);
+      for (const point of bamCitadelRampart) {
+        place(point.x, point.y, 'tower', 3, {
+          towerShape: 'square',
+          towerTop: 'openBattlement',
+        });
+      }
+      place(11, 10, 'gate', 3, { rotation: 0 });
+      placeKeepTemplate(11, 7, 3, 3, 4, 'flatBattlement', true, 0, true);
+
+      // Bazaar axis and principal circulation.
+      for (let y = 11; y <= 18; y += 1) {
+        if (!this.services.state.getCell(11, y) && !this.services.keepSystem.findAtCell(11, y)) {
+          place(11, y, 'dirtRoad');
+        }
+      }
+      place(11, 15, 'market', 1);
+      place(11, 14, 'market', 1);
+
+      for (const route of [
+        [{ x: 6, y: 13 }, { x: 16, y: 13 }],
+        [{ x: 6, y: 16 }, { x: 16, y: 16 }],
+      ] as GridPoint[][]) {
+        for (const point of rasterizeWallPath(route)) {
+          if (!this.services.state.getCell(point.x, point.y) && !this.services.keepSystem.findAtCell(point.x, point.y)) {
+            place(point.x, point.y, 'dirtRoad');
+          }
+        }
+      }
+
+      // Dedicated landmark instead of substituting a basilica or generic house.
+      place(8, 13, 'mosque', 2, { rotation: 0 });
+
+      // Dense earthen lower-town fabric.
+      const bamResidential: Array<[number, number, TileKind, number, number]> = [
+        [6, 11, 'cottage', 1, 0], [8, 11, 'house', 1, 1], [14, 11, 'house', 1, 3], [16, 11, 'cottage', 1, 0],
+        [6, 14, 'house', 1, 1], [14, 14, 'manor', 1, 2], [16, 14, 'cottage', 1, 3],
+        [6, 15, 'cottage', 1, 0], [8, 15, 'house', 1, 1], [14, 15, 'house', 1, 3], [16, 15, 'house', 1, 2],
+        [6, 17, 'house', 1, 1], [8, 17, 'cottage', 1, 2], [14, 17, 'manor', 1, 3], [16, 17, 'cottage', 1, 0],
+      ];
+      for (const [x, y, kind, level, rotation] of bamResidential) {
+        if (!this.services.state.getCell(x, y) && !this.services.keepSystem.findAtCell(x, y)) {
+          place(x, y, kind, level, { rotation });
+        }
+      }
+
+      // Service compounds stand in for barracks/stables using normal editable
+      // settlement cells rather than a visually unrelated bespoke placeholder.
+      for (const [x, y, kind, rotation] of [
+        [15, 12, 'hut', 0],
+        [16, 12, 'hut', 1],
+        [7, 12, 'house', 0],
+        [15, 9, 'hut', 0],
+      ] as Array<[number, number, TileKind, number]>) {
+        if (!this.services.state.getCell(x, y) && !this.services.keepSystem.findAtCell(x, y)) {
+          place(x, y, kind, 1, { rotation });
+        }
+      }
+
+      // Dry moat around the enclosure; keep the southern gate approach open.
+      const bamMoat: GridPoint[] = [];
+      for (let x = 6; x <= 15; x += 1) bamMoat.push({ x, y: 4 });
+      for (let x = 7; x <= 15; x += 1) {
+        if (x < 10 || x > 12) bamMoat.push({ x, y: 20 });
+      }
+      for (let y = 8; y <= 17; y += 1) bamMoat.push({ x: 3, y });
+      for (let y = 8; y <= 16; y += 1) bamMoat.push({ x: 19, y });
+      for (const point of bamMoat) {
+        if (!this.services.state.getCell(point.x, point.y)) place(point.x, point.y, 'moat');
       }
     } else if (template === 'island-monastery') {
       prepareArea(center-8,center-8,center+8,center+8,0.32);

@@ -37,6 +37,8 @@ export class MedievalMaterials {
   constructor() {
     const stoneMap = this.createStoneTexture(false);
     const stoneBump = this.createStoneTexture(true);
+    const earthenMap = this.createEarthenTexture(false);
+    const earthenBump = this.createEarthenTexture(true);
     const roofMap = this.createRoofTexture();
 
     this.limestone = this.register(
@@ -129,6 +131,7 @@ export class MedievalMaterials {
 
     this.stylePalettes.set('darkStone', this.createStylePalette('darkStone', stoneMap, stoneBump));
     this.stylePalettes.set('sandstone', this.createStylePalette('sandstone', stoneMap, stoneBump));
+    this.stylePalettes.set('earthen', this.createStylePalette('earthen', earthenMap, earthenBump));
     this.stylePalettes.set('frontier', this.createStylePalette('frontier', stoneMap, stoneBump));
   }
 
@@ -283,6 +286,56 @@ export class MedievalMaterials {
     texture.wrapS = THREE.RepeatWrapping;
     texture.wrapT = THREE.RepeatWrapping;
     texture.repeat.set(2.6, 2.2);
+    texture.anisotropy = 4;
+    return texture;
+  }
+
+  private createEarthenTexture(bumpOnly: boolean): THREE.CanvasTexture {
+    const size = 384;
+    const canvas = document.createElement('canvas');
+    canvas.width = size;
+    canvas.height = size;
+    const context = canvas.getContext('2d');
+
+    if (context) {
+      context.fillStyle = bumpOnly ? '#808080' : '#b58a62';
+      context.fillRect(0, 0, size, size);
+
+      for (let i = 0; i < 560; i += 1) {
+        const hash = Math.abs(
+          Math.imul(i + 31, 73856093) ^
+          Math.imul(i + 71, 19349663),
+        );
+        const x = hash % size;
+        const y = (hash >>> 8) % size;
+        const radius = 1 + ((hash >>> 16) % 4);
+        const tone = (hash >>> 20) % 5;
+        context.globalAlpha = bumpOnly ? 0.12 : 0.08 + tone * 0.012;
+        context.fillStyle = bumpOnly
+          ? (tone % 2 === 0 ? '#9a9a9a' : '#6e6e6e')
+          : ['#7b593f', '#d0a476', '#9b6d4b', '#e0b78a', '#6f503a'][tone];
+        context.beginPath();
+        context.arc(x, y, radius, 0, Math.PI * 2);
+        context.fill();
+      }
+
+      context.globalAlpha = bumpOnly ? 0.16 : 0.12;
+      context.strokeStyle = bumpOnly ? '#6a6a6a' : '#8d6548';
+      context.lineWidth = 1.2;
+      for (let y = 54; y < size; y += 72) {
+        context.beginPath();
+        context.moveTo(0, y);
+        context.bezierCurveTo(size * 0.28, y - 3, size * 0.72, y + 4, size, y);
+        context.stroke();
+      }
+      context.globalAlpha = 1;
+    }
+
+    const texture = new THREE.CanvasTexture(canvas);
+    texture.colorSpace = THREE.SRGBColorSpace;
+    texture.wrapS = THREE.RepeatWrapping;
+    texture.wrapT = THREE.RepeatWrapping;
+    texture.repeat.set(2.15, 2.15);
     texture.anisotropy = 4;
     return texture;
   }
