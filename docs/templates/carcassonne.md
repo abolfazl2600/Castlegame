@@ -56,6 +56,17 @@ Use the source pack above and capture the game in both **Top / Plan** and **norm
 | West / Aude approach | CMN silhouette/site photographs | raised fortified hill above the river approach and western castle mass |
 | Normal gameplay | CMN aerial/oblique views | pale masonry, repeated conical tower roofs, double-wall depth and recognisable internal landmarks |
 
+## Automated browser and matched-view QA
+
+Issue #56 now has a dedicated WebGL QA path in addition to the static template contract:
+
+- `npm run test:carcassonne-browser` loads the template through the real template UI, verifies the authored landmark/gate state, rotates Saint-Nazaire through the normal selection controls, confirms Auto Save + reload persistence, and toggles Porte Narbonnaise through the normal gate UI.
+- `npm run visual:carcassonne-qa` captures deterministic plan, normal oblique, east/Narbonnaise, and west/Aude views from the live renderer.
+- `.github/workflows/carcassonne-template-qa.yml` runs the static contract, castle navigation regression, production build, browser QA, and matched-view capture, then uploads `visual-baselines/issue-56/` as a review artifact.
+- The capture artifact includes `summary.md` with the authoritative comparison links and `metrics.json` with the serialized landmark/tower/river checks and renderer resource snapshot.
+
+The automation deliberately does not mark historical visual fidelity as approved by itself. A reviewer still needs to compare the four generated views against the authoritative UNESCO/CMN sources before the final visual-review boxes below are checked.
+
 ### Final visual review status
 
 - [ ] Top-view screenshot compared with the official plan.
