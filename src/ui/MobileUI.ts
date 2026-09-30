@@ -53,7 +53,6 @@ export class MobileUI {
       <nav class="mobile-bottom-dock" aria-label="Mobile game controls">
         <button type="button" data-mobile-proxy="toolbar-open" class="mobile-dock-button" aria-controls="toolbar" aria-expanded="false"><span aria-hidden="true">🧱</span><small>Build</small></button>
         <button type="button" data-mobile-proxy="view-3d-button" class="mobile-dock-button"><span aria-hidden="true">◇</span><small>3D</small></button>
-        <button type="button" data-mobile-proxy="settings-button" class="mobile-dock-button"><span aria-hidden="true">⚙</span><small>Settings</small></button>
       </nav>
 
       <div class="mobile-status" aria-live="polite">
