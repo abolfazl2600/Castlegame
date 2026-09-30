@@ -3536,6 +3536,8 @@ html.mobile-ui-active .mobile-dock-button {
   touch-action: manipulation;
   user-select: none;
 }
+html.mobile-ui-active .mobile-action[hidden],
+html.mobile-ui-active .mobile-dock-button[hidden] { display: none; }
 
 html.mobile-ui-active .mobile-action {
   flex: 0 0 auto;
@@ -3634,7 +3636,7 @@ html.mobile-ui-active .toolbar {
   z-index: 40;
   width: auto;
   max-width: none;
-  max-height: min(64dvh,640px);
+  max-height: min(64dvh, calc(100dvh - var(--mobile-header-height) - var(--mobile-dock-height) - var(--mobile-safe-top) - var(--mobile-safe-bottom) - 16px));
   padding: 8px 8px 14px;
   border-radius: 17px;
   transform: translateY(0);
@@ -3674,31 +3676,47 @@ html.mobile-ui-active .god-mode-panel {
   bottom: calc(var(--mobile-dock-height) + var(--mobile-safe-bottom) + 7px);
   width: auto;
   max-width: none;
-  max-height: min(70dvh,680px);
+  max-height: min(70dvh, calc(100dvh - var(--mobile-header-height) - var(--mobile-dock-height) - var(--mobile-safe-top) - var(--mobile-safe-bottom) - 16px));
   padding: 12px;
+  overscroll-behavior: contain;
 }
+html.mobile-ui-active .battle-panel[hidden],
+html.mobile-ui-active .god-mode-panel[hidden] { display: none; }
 html.mobile-ui-active .battle-close,
 html.mobile-ui-active .battle-stepper button,
-html.mobile-ui-active .battle-actions button { min-width: 44px; min-height: 44px; }
+html.mobile-ui-active .battle-actions button,
+html.mobile-ui-active .god-mode-actions-footer button,
+html.mobile-ui-active .god-mode-action { min-width: 44px; min-height: 44px; }
 
 html.mobile-ui-active .help-modal,
 html.mobile-ui-active .template-modal,
 html.mobile-ui-active .mode-modal {
   max-height: calc(100dvh - var(--mobile-safe-top) - var(--mobile-safe-bottom) - 16px);
-  margin-top: var(--mobile-safe-top);
-  margin-bottom: var(--mobile-safe-bottom);
+  max-width: 100%;
+  margin: 0;
+  overscroll-behavior: contain;
 }
 html.mobile-ui-active .modal-backdrop {
   padding: max(8px,var(--mobile-safe-top)) max(8px,var(--mobile-safe-right)) max(8px,var(--mobile-safe-bottom)) max(8px,var(--mobile-safe-left));
 }
+html.mobile-ui-active .modal-backdrop[hidden] { display: none; }
+html.mobile-ui-active #game-shell > .modal-backdrop:not([hidden]) { z-index: 50; }
+html.mobile-ui-active .mode-grid,
+html.mobile-ui-active .map-layout-grid,
+html.mobile-ui-active .template-grid { grid-template-columns: repeat(auto-fit, minmax(min(240px, 100%), 1fr)); }
+html.mobile-ui-active .mode-card,
+html.mobile-ui-active .map-layout-card,
+html.mobile-ui-active .template-card { min-height: 88px; }
+html.mobile-ui-active .help-modal-header { position: sticky; top: -12px; z-index: 1; background: #0a2030; }
+html.mobile-ui-active .help-modal-header .icon-button { min-width: 44px; min-height: 44px; }
 html.mobile-ui-active button,
 html.mobile-ui-active select,
 html.mobile-ui-active input[type=checkbox],
 html.mobile-ui-active input[type=range] { touch-action: manipulation; }
 
 html.mobile-ui-active .settings-modal {
-  width: calc(100vw - 16px);
-  height: calc(100dvh - 16px);
+  width: min(100%, calc(100vw - 16px));
+  height: min(100%, calc(100dvh - 16px));
   max-height: calc(100dvh - 16px);
 }
 html.mobile-ui-active .settings-card { border-radius: 16px; }
@@ -3748,7 +3766,10 @@ html.mobile-ui-active .minimap-hint { display: none; }
   html.mobile-ui-active .mobile-action { min-width: 42px; min-height: 42px; }
   html.mobile-ui-active .mobile-dock-button { min-height: 44px; }
   html.mobile-ui-active .toolbar,
-  html.mobile-ui-active .battle-panel { max-height: 78dvh; }
+  html.mobile-ui-active .battle-panel,
+  html.mobile-ui-active .god-mode-panel {
+    max-height: calc(100dvh - var(--mobile-header-height) - var(--mobile-dock-height) - var(--mobile-safe-top) - var(--mobile-safe-bottom) - 16px);
+  }
 }
 
 
