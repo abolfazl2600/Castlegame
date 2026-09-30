@@ -119,6 +119,7 @@ export class SettingsUI {
                 ${this.actionButton('load', '↓', 'Load Game', 'Choose autosave, quick save or a slot')}
                 ${this.actionButton('save', '↑', 'Save Game', 'Quick save or choose a manual slot')}
                 ${this.actionButton('templates', '▦', 'Templates', 'Choose a starting world')}
+                <button type="button" data-action="reset-world"><span class="settings-action-icon" aria-hidden="true">↻</span><span class="settings-action-copy"><strong>Reset World</strong><small>Start a new world and choose a game mode</small></span><span aria-hidden="true">›</span></button>
               </div>
               <div class="settings-info-strip" data-settings-action-status>
                 <span class="settings-info-dot"></span>
@@ -270,6 +271,17 @@ export class SettingsUI {
   }
 
   private bindCoreControls(): void {
+    // Reuse the desktop reset control so confirmation and world-mode selection stay authoritative.
+    this.panel.querySelector('[data-action="reset-world"]')?.addEventListener('click', () => {
+      const resetButton = document.getElementById('reset-button');
+      if (!(resetButton instanceof HTMLButtonElement) || !resetButton.onclick) {
+        const status = this.panel.querySelector<HTMLElement>('[data-settings-action-status] span:last-child');
+        if (status) status.textContent = 'Game runtime is still initializing. Try again after the world appears.';
+        return;
+      }
+      this.close();
+      resetButton.click();
+    });
     this.panel.querySelector('[data-action="reset-save"]')?.addEventListener('click', () => {
       if (window.confirm('Delete all local game saves? Your settings will be kept. This cannot be undone.')) this.onResetSave();
     });
