@@ -1,23 +1,8 @@
 import fs from 'node:fs';
-import vm from 'node:vm';
 import assert from 'node:assert/strict';
-import ts from 'typescript';
 import * as THREE from 'three';
-
-const source = fs.readFileSync(new URL('../src/rendering/StaticCastleBoxInstancing.ts', import.meta.url), 'utf8');
-const transpiled = ts.transpileModule(source, {
-  compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
-}).outputText;
-const exports = {};
-vm.runInNewContext(transpiled, {
-  exports,
-  require: (id) => {
-    assert.equal(id, 'three');
-    return THREE;
-  },
-});
-const { instanceStaticCastleBoxes } = exports;
-assert.equal(typeof instanceStaticCastleBoxes, 'function');
+// Node 22 strips type-only syntax from .ts modules for direct runtime tests.
+import { instanceStaticCastleBoxes } from '../src/rendering/StaticCastleBoxInstancing.ts';
 
 const root = new THREE.Group();
 const wall = new THREE.Group();
