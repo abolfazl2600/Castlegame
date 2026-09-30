@@ -10,6 +10,7 @@ const templates = [
   ['mainland-frontier', 'mainland', '5501', 'Mainland Coast layout'],
   ['coastal-peninsula', 'peninsula', '5502', 'Peninsula layout'],
   ['split-isles', 'twin-isles', '5503', 'Twin Isles layout'],
+  ['arg-e-bam', 'mainland', '5701', 'Pre-2003 earthen citadel'],
 ];
 
 for (const [id, layoutId, seed, description] of templates) {
