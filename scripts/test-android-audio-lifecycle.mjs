@@ -23,6 +23,8 @@ assert.match(manager, /lifecycleBlocks = new Set<string>/);
 assert.match(manager, /clearSfxVoices\(\)/);
 assert.match(manager, /stopProceduralNodes\(\)/);
 assert.match(manager, /resumePromise/);
+assert.match(manager, /canResumeAudioContext\(\)/);
+assert.match(manager, /if \(!this\.canResumeAudioContext\(\)\) return/);
 assert.match(manager, /!this\.settings\.sfxEnabled/);
 assert.match(manager, /this\.settings\.musicEnabled/);
 assert.match(manager, /this\.lifecycleBridge\.dispose\(\)/);

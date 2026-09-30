@@ -485,12 +485,18 @@ export class AudioManager {
     }
   }
 
-  private canPlayMusicNow(): boolean {
+  private canResumeAudioContext(): boolean {
     return (
       this.initialized
       && !this.disposed
       && this.lifecycleBlocks.size === 0
       && !document.hidden
+    );
+  }
+
+  private canPlayMusicNow(): boolean {
+    return (
+      this.canResumeAudioContext()
       && !this.settings.muted
       && this.settings.musicEnabled
       && this.settings.masterVolume > 0
@@ -499,7 +505,7 @@ export class AudioManager {
   }
 
   private async resumePlaybackIfAllowed(): Promise<void> {
-    if (!this.canPlayMusicNow()) return;
+    if (!this.canResumeAudioContext()) return;
     if (this.resumePromise) return this.resumePromise;
 
     this.resumePromise = (async () => {
@@ -507,13 +513,15 @@ export class AudioManager {
         await this.audioContext.resume().catch(() => undefined);
       }
 
-      if (!this.canPlayMusicNow()) return;
+      if (!this.canResumeAudioContext()) return;
 
-      if (this.currentMusic?.element.paused) {
-        await this.currentMusic.element.play().catch(() => undefined);
+      if (this.canPlayMusicNow()) {
+        if (this.currentMusic?.element.paused) {
+          await this.currentMusic.element.play().catch(() => undefined);
+        }
+        this.startProceduralAmbience();
       }
 
-      this.startProceduralAmbience();
       document.documentElement.dataset.audioLifecycle = 'active';
     })();
 
