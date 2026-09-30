@@ -17,7 +17,7 @@
         <div class="status-group">
           <span id="save-status" class="status-pill">3D Ready</span>
           <button id="battle-button" class="secondary-button battle-button" type="button">Battle</button>
-          <button id="military-button" class="secondary-button battle-button" type="button">Military</button>
+          <button id="military-button" class="secondary-button battle-button" type="button" hidden>Military</button>
           <button id="god-mode-button" class="secondary-button god-mode-button" type="button" hidden>God Mode</button>
           <button id="game-mode-button" class="secondary-button mode-button" type="button" aria-label="Current game mode: Medieval Castle">Mode: <span id="game-mode-label">Medieval Castle</span></button>
           <button id="templates-button" class="secondary-button system-action-bridge" type="button" hidden>Templates</button>
@@ -69,6 +69,9 @@
             <span>Attackers alive <b id="battle-attacker-alive">0</b></span>
           </div>
 
+          <details class="battle-advanced" open>
+            <summary>Military &amp; advanced options</summary>
+            <div class="battle-advanced-content">
           <section class="military-progress" aria-label="Military progression">
             <div class="military-progress-heading">
               <span class="eyebrow">MILITARY DEVELOPMENT</span>
@@ -107,6 +110,9 @@
             <button id="military-missile-launch" class="battle-primary" type="button" disabled>Launch Missile</button>
             <small id="military-missile-hint">Modern missiles unlock at Military Tier 4.</small>
           </section>
+          <p class="battle-hint">Attack and Defense are shared combat stats for each unit type. Attack drives outgoing unit damage; Defense reduces incoming unit damage. Values are read from the BattleSystem definitions.</p>
+            </div>
+          </details>
 
           <div class="battle-armies">
             <section class="battle-faction battle-attackers">
@@ -185,7 +191,6 @@
           </div>
 
           <div id="battle-result" class="battle-result" hidden></div>
-          <p class="battle-hint">Attack and Defense are shared combat stats for each unit type. Attack drives outgoing unit damage; Defense reduces incoming unit damage. Values are read from the BattleSystem definitions.</p>
         </aside>
 
         <aside id="god-mode-panel" class="god-mode-panel" aria-label="God Mode" hidden>
