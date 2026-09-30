@@ -2367,7 +2367,7 @@ kbd {
   .mobile-action { flex:0 0 auto; min-width:44px; min-height:44px; padding:7px 9px; border:1px solid rgba(255,255,255,.13); border-radius:12px; color:#f1fbff; background:rgba(7,25,39,.84); backdrop-filter:blur(14px); box-shadow:0 8px 24px rgba(0,0,0,.22); font-size:16px; font-weight:800; cursor:pointer; }
   .mobile-mode-action { max-width:148px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:10px; }
   .mobile-danger { color:#ffd7d2; border-color:rgba(255,140,130,.22); }
-  .mobile-bottom-dock { position:absolute; left:0; right:0; bottom:0; min-height:calc(var(--mobile-dock-height) + var(--mobile-safe-bottom)); padding:5px max(8px,var(--mobile-safe-right)) calc(5px + var(--mobile-safe-bottom)) max(8px,var(--mobile-safe-left)); display:grid; grid-template-columns:repeat(3,minmax(44px,160px)); justify-content:center; gap:5px; pointer-events:auto; background:linear-gradient(0deg,rgba(4,16,27,.97),rgba(4,16,27,.88) 72%,rgba(4,16,27,0)); backdrop-filter:blur(12px); }
+  .mobile-bottom-dock { position:absolute; left:0; right:0; bottom:0; min-height:calc(var(--mobile-dock-height) + var(--mobile-safe-bottom)); padding:5px max(8px,var(--mobile-safe-right)) calc(5px + var(--mobile-safe-bottom)) max(8px,var(--mobile-safe-left)); display:grid; grid-template-columns:repeat(2,minmax(44px,160px)); justify-content:center; gap:5px; pointer-events:auto; background:linear-gradient(0deg,rgba(4,16,27,.97),rgba(4,16,27,.88) 72%,rgba(4,16,27,0)); backdrop-filter:blur(12px); }
   .mobile-dock-button { min-width:44px; min-height:48px; display:grid; place-items:center; align-content:center; gap:2px; border:1px solid rgba(255,255,255,.1); border-radius:11px; color:#e8f8fc; background:rgba(255,255,255,.055); cursor:pointer; }
   .mobile-dock-button span { font-size:16px; line-height:1; }
   .mobile-dock-button small { font-size:8px; font-weight:850; letter-spacing:.04em; }
@@ -3523,7 +3523,7 @@ html.mobile-ui-active .mobile-bottom-dock {
   min-height: calc(var(--mobile-dock-height) + var(--mobile-safe-bottom));
   padding: 5px max(8px,var(--mobile-safe-right)) calc(5px + var(--mobile-safe-bottom)) max(8px,var(--mobile-safe-left));
   display: grid;
-  grid-template-columns: repeat(3, minmax(44px, 160px));
+  grid-template-columns: repeat(2, minmax(44px, 160px));
   justify-content: center;
   gap: 5px;
   pointer-events: auto;
