@@ -3636,7 +3636,7 @@ html.mobile-ui-active .toolbar {
   z-index: 40;
   width: auto;
   max-width: none;
-  max-height: min(64dvh, calc(100dvh - var(--mobile-header-height) - var(--mobile-dock-height) - var(--mobile-safe-top) - var(--mobile-safe-bottom) - 16px));
+  max-height: min(40dvh, 370px, calc(100dvh - var(--mobile-header-height) - var(--mobile-dock-height) - var(--mobile-safe-top) - var(--mobile-safe-bottom) - 16px));
   padding: 8px 8px 14px;
   border-radius: 17px;
   transform: translateY(0);
@@ -3647,6 +3647,11 @@ html.mobile-ui-active .toolbar {
 html.mobile-ui-active .toolbar.is-collapsed { transform: translateY(calc(100% + 32px)); }
 html.mobile-ui-active .toolbar-open { display: none !important; }
 html.mobile-ui-active .toolbar-title { position: sticky; top: -8px; min-height: 42px; }
+/* Keep tool choice ahead of the secondary world statistics on a small screen. */
+html.mobile-ui-active .toolbar .builder-settings { order: 1; }
+html.mobile-ui-active .toolbar .build-world-summary,
+html.mobile-ui-active .toolbar .build-population-breakdown,
+html.mobile-ui-active .toolbar .build-economy-summary { order: 2; }
 html.mobile-ui-active .toolbar-close,
 html.mobile-ui-active .tool-category-header,
 html.mobile-ui-active .settings-actions button,
@@ -3765,7 +3770,16 @@ html.mobile-ui-active .minimap-hint { display: none; }
   html.mobile-ui-active .mobile-eyebrow { display: none; }
   html.mobile-ui-active .mobile-action { min-width: 42px; min-height: 42px; }
   html.mobile-ui-active .mobile-dock-button { min-height: 44px; }
-  html.mobile-ui-active .toolbar,
+  html.mobile-ui-active .toolbar {
+    top: calc(var(--mobile-header-height) + var(--mobile-safe-top) + 7px);
+    right: auto;
+    bottom: auto;
+    width: min(320px, 44vw);
+    max-height: calc(100dvh - var(--mobile-header-height) - var(--mobile-dock-height) - var(--mobile-safe-top) - var(--mobile-safe-bottom) - 14px);
+  }
+  html.mobile-ui-active .toolbar.is-collapsed { transform: translateX(calc(-100% - 32px)); }
+  html.mobile-ui-active .toolbar .tool-category-items { grid-template-columns: 1fr; }
+  html.mobile-ui-active .toolbar .tool-button { min-height: 44px; }
   html.mobile-ui-active .battle-panel,
   html.mobile-ui-active .god-mode-panel {
     max-height: calc(100dvh - var(--mobile-header-height) - var(--mobile-dock-height) - var(--mobile-safe-top) - var(--mobile-safe-bottom) - 16px);

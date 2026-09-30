@@ -2905,6 +2905,9 @@ export class ThreeGame {
       opener.classList.toggle('is-visible', !open);
       opener.setAttribute('aria-expanded', String(open));
     }
+    const mobileOpener = document.querySelector<HTMLButtonElement>('[data-mobile-proxy="toolbar-open"]');
+    mobileOpener?.setAttribute('aria-expanded', String(open));
+    if (open && document.documentElement.classList.contains('mobile-ui-active')) toolbar?.scrollTo(0, 0);
   }
 
   private renderTerrain(): void {
@@ -11109,6 +11112,7 @@ export class ThreeGame {
         this.activeBuildCategory = category;
         if (buildSearch) buildSearch.value = '';
         this.filterBuildTools();
+        if (document.documentElement.classList.contains('mobile-ui-active')) toolbar.scrollTo(0, 0);
         return true;
       }
 
@@ -11116,7 +11120,7 @@ export class ThreeGame {
       if (tool) {
         event?.preventDefault();
         this.selectTool(tool);
-        if (this.selectedTool === tool && window.matchMedia('(max-width: 760px)').matches) {
+        if (this.selectedTool === tool && document.documentElement.classList.contains('mobile-ui-active')) {
           this.setToolbarOpen(false);
         }
         return true;
@@ -11517,10 +11521,13 @@ export class ThreeGame {
       else await document.documentElement.requestFullscreen();
     };
 
+    let wasNarrow = window.innerWidth <= 760;
     window.addEventListener('resize', () => {
-      if (window.innerWidth <= 760 && this.toolbarOpen) {
+      const narrow = window.innerWidth <= 760;
+      if (narrow && !wasNarrow && this.toolbarOpen) {
         this.setToolbarOpen(false);
       }
+      wasNarrow = narrow;
     });
 
     window.addEventListener('keydown', (event) => {

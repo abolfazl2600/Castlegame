@@ -52,7 +52,7 @@ export class MobileUI {
       </header>
 
       <nav class="mobile-bottom-dock" aria-label="Mobile game controls">
-        <button type="button" data-mobile-proxy="toolbar-open" class="mobile-dock-button"><span aria-hidden="true">🧱</span><small>Build</small></button>
+        <button type="button" data-mobile-proxy="toolbar-open" class="mobile-dock-button" aria-controls="toolbar" aria-expanded="false"><span aria-hidden="true">🧱</span><small>Build</small></button>
         <button type="button" data-mobile-proxy="view-3d-button" class="mobile-dock-button"><span aria-hidden="true">◇</span><small>3D</small></button>
         <button type="button" data-mobile-proxy="view-2d-button" class="mobile-dock-button"><span aria-hidden="true">▦</span><small>Plan</small></button>
         <button type="button" data-mobile-proxy="camera-45-button" class="mobile-dock-button"><span aria-hidden="true">◒</span><small>45°</small></button>
