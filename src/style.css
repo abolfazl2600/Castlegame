@@ -4167,3 +4167,89 @@ html.mobile-ui-active .battle-actions button { min-width: 0; padding: 5px 3px; f
     max-height: calc(100dvh - var(--mobile-header-height) - var(--mobile-dock-height) - var(--mobile-safe-top) - var(--mobile-safe-bottom) - 16px);
   }
 }
+
+/* Persian user interface (RTL) — never mirror world geometry or camera controls. */
+html[dir="rtl"] {
+  font-family: Tahoma, 'Noto Sans Arabic', 'Segoe UI', system-ui, sans-serif;
+}
+html[dir="rtl"] .topbar,
+html[dir="rtl"] .toolbar,
+html[dir="rtl"] .settings-modal,
+html[dir="rtl"] .help-modal,
+html[dir="rtl"] .battle-panel,
+html[dir="rtl"] .mobile-header,
+html[dir="rtl"] .mobile-bottom-dock,
+html[dir="rtl"] .modal-backdrop {
+  direction: rtl;
+  text-align: right;
+}
+html[dir="rtl"] kbd,
+html[dir="rtl"] code,
+html[dir="rtl"] input[type="number"],
+html[dir="rtl"] input[type="range"],
+html[dir="rtl"] .debug-panel,
+html[dir="rtl"] .render-debug-panel {
+  direction: ltr;
+}
+
+
+/* RTL hardening for touch controls, compact settings, and readable Persian copy.
+   Only HTML overlays change direction; WebGL and camera gestures remain unchanged. */
+html[dir="rtl"] .settings-nav {
+  border-right: 0;
+  border-left: 1px solid rgba(255,255,255,.07);
+}
+html[dir="rtl"] .settings-nav-button,
+html[dir="rtl"] .settings-system-actions button {
+  text-align: right;
+}
+html[dir="rtl"] .settings-action-copy,
+html[dir="rtl"] .tool-copy,
+html[dir="rtl"] .mobile-brand,
+html[dir="rtl"] .privacy-document {
+  min-width: 0;
+  overflow-wrap: break-word;
+}
+html[dir="rtl"] .settings-scroll h3,
+html[dir="rtl"] .settings-section-eyebrow,
+html[dir="rtl"] .settings-eyebrow,
+html[dir="rtl"] .mobile-eyebrow {
+  letter-spacing: normal;
+  text-transform: none;
+}
+html[dir="rtl"] .settings-scroll input[type="number"],
+html[dir="rtl"] .battle-stepper input,
+html[dir="rtl"] .battle-speed-actions,
+html[dir="rtl"] .settings-scroll output {
+  direction: ltr;
+  unicode-bidi: isolate;
+}
+html[dir="rtl"].mobile-ui-active .mobile-brand {
+  padding-left: 0;
+  padding-right: 3px;
+}
+html[dir="rtl"].mobile-ui-active .mobile-status {
+  left: auto;
+  right: max(8px, var(--mobile-safe-right));
+}
+html[dir="rtl"].mobile-ui-active .minimap {
+  right: auto;
+  left: max(8px, var(--mobile-safe-left));
+}
+@media (max-width: 700px), (pointer: coarse) and (max-height: 700px) {
+  html[dir="rtl"] .settings-nav {
+    border-left: 0;
+  }
+  html[dir="rtl"] .settings-nav-button strong {
+    font-size: 11px;
+  }
+}
+@media (orientation: landscape) {
+  html[dir="rtl"].mobile-ui-active .toolbar {
+    left: auto;
+    right: max(8px, var(--mobile-safe-right));
+  }
+  html[dir="rtl"].mobile-ui-active .toolbar.is-collapsed {
+    transform: translateX(calc(100% + 32px));
+  }
+}

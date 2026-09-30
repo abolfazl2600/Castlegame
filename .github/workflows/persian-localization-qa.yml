@@ -1,0 +1,73 @@
+name: Persian Localization and RTL QA
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - .github/workflows/persian-localization-qa.yml
+      - package.json
+      - playwright.config.ts
+      - index.html
+      - src/i18n/**
+      - src/settings/**
+      - src/core/PrivacyLegalUI.ts
+      - src/core/SaveSystem.ts
+      - src/ui/MobileUI.ts
+      - src/style.css
+      - src/ThreeGame.ts
+      - tests/persian-localization.spec.ts
+      - scripts/test-persian-localization.mjs
+      - scripts/test-persian-runtime-localization.mjs
+
+permissions:
+  contents: read
+
+concurrency:
+  group: persian-rtl-qa-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  persian-ui:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      NODE_OPTIONS: --max-old-space-size=2048
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+
+      - name: Setup Node
+        uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Validate Persian catalogs, runtime cases and TypeScript
+        run: |
+          npm run test:persian-localization
+          npm run test:persian-runtime-localization
+          npx tsc --noEmit
+
+      - name: Build game
+        run: npx vite build
+
+      - name: Install Chromium for browser QA
+        run: npx playwright install --with-deps chromium
+
+      - name: Verify Persian and English with responsive screenshot evidence
+        run: npx playwright test tests/persian-localization.spec.ts --reporter=line
+
+      - name: Upload Persian RTL test results and screenshot evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: persian-rtl-qa-${{ github.sha }}
+          path: |
+            test-results/
+            playwright-report/
+          if-no-files-found: warn
+          retention-days: 30

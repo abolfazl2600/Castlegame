@@ -1,5 +1,6 @@
 import { APPLICATION_METADATA } from '../app/applicationMetadata';
 import { SAVE_VERSION } from './constants';
+import { t } from '../i18n/localization';
 
 const SAVE_STORAGE_KEY = 'castle-role-save-v1';
 const SETTINGS_STORAGE_KEY = 'castle-role.settings.v2';
@@ -175,17 +176,17 @@ export class PrivacyLegalUI {
     });
 
     this.section.querySelector<HTMLButtonElement>('[data-local-action="reset-settings"]')?.addEventListener('click', () => {
-      if (!window.confirm('Reset all Castle Role settings to their defaults? Your game save will not be deleted.')) return;
+      if (!window.confirm(t('Reset all Castle Role settings to their defaults? Your game save will not be deleted.'))) return;
       this.actions.resetSettings();
     });
 
     this.section.querySelector<HTMLButtonElement>('[data-local-action="delete-save"]')?.addEventListener('click', () => {
-      if (!window.confirm('Delete the Castle Role game save? Your settings will be kept. This cannot be undone.')) return;
+      if (!window.confirm(t('Delete the Castle Role game save? Your settings will be kept. This cannot be undone.'))) return;
       this.actions.deleteSaveData();
     });
 
     this.section.querySelector<HTMLButtonElement>('[data-local-action="clear-all"]')?.addEventListener('click', () => {
-      if (!window.confirm('Clear all Castle Role local game data? This deletes the save, settings, and legacy Castle Role privacy data. This cannot be undone.')) return;
+      if (!window.confirm(t('Clear all Castle Role local game data? This deletes the save, settings, and legacy Castle Role privacy data. This cannot be undone.'))) return;
       this.actions.clearAllLocalData();
     });
   }
