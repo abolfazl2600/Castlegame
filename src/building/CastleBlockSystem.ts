@@ -74,7 +74,7 @@ export interface CastleBlockSnapshot {
 
 const CASTLE_KINDS = new Set<string>(['wall1', 'wall2', 'wall3', 'gate', 'tower']);
 /** Walls may be upgraded once beyond their base level; towers keep their existing multi-level progression. */
-export const MAX_WALL_LEVEL = 2;
+export const MAX_WALL_LEVEL = 3;
 const DIRECTIONS: WallDirection[] = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'];
 const BODY_BASE = 2.58;
 const WALL_RISE = 2.15;
