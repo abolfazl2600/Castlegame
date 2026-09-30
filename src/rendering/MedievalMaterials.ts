@@ -18,6 +18,7 @@ export class MedievalMaterials {
   readonly timberDark: THREE.MeshStandardMaterial;
   readonly iron: THREE.MeshStandardMaterial;
   readonly roofTile: THREE.MeshStandardMaterial;
+  readonly japaneseRoofTile: THREE.MeshStandardMaterial;
   readonly roofDark: THREE.MeshStandardMaterial;
   readonly arrowVoid: THREE.MeshStandardMaterial;
   readonly moss: THREE.MeshStandardMaterial;
@@ -98,6 +99,16 @@ export class MedievalMaterials {
         metalness: 0,
       }),
     );
+    this.japaneseRoofTile = this.register(
+      new THREE.MeshStandardMaterial({
+        color: 0x4a5156,
+        map: roofMap,
+        bumpMap: roofMap,
+        bumpScale: 0.065,
+        roughness: 0.93,
+        metalness: 0,
+      }),
+    );
     this.roofDark = this.register(
       new THREE.MeshStandardMaterial({
         color: CASTLE_ARCHITECTURE_STYLE.palette.roofShadow,
@@ -130,6 +141,7 @@ export class MedievalMaterials {
     this.stylePalettes.set('darkStone', this.createStylePalette('darkStone', stoneMap, stoneBump));
     this.stylePalettes.set('sandstone', this.createStylePalette('sandstone', stoneMap, stoneBump));
     this.stylePalettes.set('frontier', this.createStylePalette('frontier', stoneMap, stoneBump));
+    this.stylePalettes.set('whitePlaster', this.createStylePalette('whitePlaster', stoneMap, stoneBump));
   }
 
   private createStylePalette(
@@ -144,12 +156,13 @@ export class MedievalMaterials {
     walkway: THREE.MeshStandardMaterial;
   } {
     const palette = CASTLE_STONE_PALETTES[style];
+    const plaster = style === 'whitePlaster';
     return {
-      body: this.register(this.stoneMaterial(palette.body, stoneMap, stoneBump, 0.96, 0.11)),
-      alt: this.register(this.stoneMaterial(palette.alt, stoneMap, stoneBump, 0.95, 0.1)),
-      dark: this.register(this.stoneMaterial(palette.dark, stoneMap, stoneBump, 1, 0.12)),
+      body: this.register(this.stoneMaterial(palette.body, stoneMap, stoneBump, plaster ? 0.9 : 0.96, plaster ? 0.035 : 0.11)),
+      alt: this.register(this.stoneMaterial(palette.alt, stoneMap, stoneBump, plaster ? 0.9 : 0.95, plaster ? 0.03 : 0.1)),
+      dark: this.register(this.stoneMaterial(palette.dark, stoneMap, stoneBump, 1, plaster ? 0.055 : 0.12)),
       foundation: this.register(this.stoneMaterial(palette.foundation, stoneMap, stoneBump, 1, 0.14)),
-      walkway: this.register(this.stoneMaterial(palette.walkway, stoneMap, stoneBump, 0.98, 0.08)),
+      walkway: this.register(this.stoneMaterial(palette.walkway, stoneMap, stoneBump, 0.98, plaster ? 0.035 : 0.08)),
     };
   }
 

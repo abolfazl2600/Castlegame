@@ -38,6 +38,13 @@ export const CASTLE_STONE_PALETTES: Record<
     foundation: 0x57524b,
     walkway: 0x7d776f,
   },
+  whitePlaster: {
+    body: 0xf0eee4,
+    alt: 0xf8f6ed,
+    dark: 0xc5c1b5,
+    foundation: 0x8d8b83,
+    walkway: 0xd7d3c8,
+  },
 };
 
 export const CASTLE_ARCHITECTURE_STYLE = {
