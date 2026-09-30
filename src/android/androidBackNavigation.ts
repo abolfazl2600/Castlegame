@@ -48,7 +48,8 @@ export function installAndroidBackNavigation(): void {
     }
 
     // Do not minimize an app while any other dialog is active.
-    if (document.querySelector('dialog[open], [role="dialog"]:not([hidden])')) return;
+    if (Array.from(document.querySelectorAll<HTMLElement>('dialog[open], [role="dialog"]'))
+      .some((dialog) => dialog.getClientRects().length > 0)) return;
 
     const toolbar = document.getElementById('toolbar');
     if (toolbar && !toolbar.classList.contains('is-collapsed')) {
