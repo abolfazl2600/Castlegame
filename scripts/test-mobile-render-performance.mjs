@@ -92,5 +92,10 @@ assert.match(overlay, /CPU game update/);
 assert.match(overlay, /GPU frame time/);
 assert.match(overlay, /Scene hot spots/);
 assert.match(overlay, /does not emulate phone hardware/);
+const lod = fs.readFileSync(new URL('../src/rendering/DistanceDetailBudget.ts', import.meta.url), 'utf8');
+assert.match(lod, /object instanceof THREE.InstancedMesh\) \{/,
+  'LOD must protect entire instanced batches from suppression');
+assert.match(lod, /mesh\.boundingSphere\?\.radius/,
+  'LOD bounds must account for all instances, not only a unit cube');
 
 console.log('mobile render diagnostics and castle box instancing: ok');
