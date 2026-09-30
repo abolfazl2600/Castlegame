@@ -749,7 +749,6 @@ export class BattleSystem {
     }
 
     this.clearSiegeState();
-    this.objectiveSystem.reset();
 
     this.mode = 'idle';
     this.battleSpeed = DEFAULT_BATTLE_SPEED;
