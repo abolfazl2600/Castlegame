@@ -501,6 +501,7 @@ export class ThreeGame {
 
   private wallDragStart: GridPoint | null = null;
   private wallDragEnd: GridPoint | null = null;
+  private wallPreviewStatus = '';
   private roadDragStart: GridPoint | null = null;
   private roadDragEnd: GridPoint | null = null;
   private mountainRangeStart: GridPoint | null = null;
@@ -511,6 +512,8 @@ export class ThreeGame {
   private longPressStartedAt = 0;
   private longPressTriggered = false;
   private longPressStartScreen: { x: number; y: number } | null = null;
+  private readonly activeTouchPointers = new Set<number>();
+  private readonly suppressedTouchPointers = new Set<number>();
 
   private saveTimer: number | null = null;
   private economySaveAccumulatorMs = 0;
@@ -841,6 +844,16 @@ export class ThreeGame {
     if (!this.economyConstructionEnabled()) return true;
     const cost = this.services.economySystem.constructionCost(tool, quantity);
     return this.services.economySystem.canAfford(cost);
+  }
+
+  private constructionCostPreviewLabel(tool: ToolKind, quantity = 1): string {
+    if (quantity <= 0) return 'no new cost';
+    if (!this.economyConstructionEnabled()) return 'free build';
+    const cost = this.services.economySystem.constructionCost(tool, quantity);
+    const parts: string[] = [];
+    if ((cost.wood ?? 0) > 0.001) parts.push(`${Math.ceil(cost.wood ?? 0)} wood`);
+    if ((cost.stone ?? 0) > 0.001) parts.push(`${Math.ceil(cost.stone ?? 0)} stone`);
+    return parts.length > 0 ? parts.join(' + ') : 'no material cost';
   }
 
   private ensureConstructionAffordable(tool: ToolKind, quantity = 1): boolean {
@@ -7909,6 +7922,39 @@ export class ThreeGame {
     this.setStatus('Rotated selected structure');
   }
 
+  private cancelActiveTouchBuildGesture(canvas: HTMLCanvasElement): void {
+    const terrainSnapshot =
+      this.terrainStrokeActive && this.terrainStrokeChanged
+        ? this.terrainStrokeSnapshot
+        : null;
+
+    this.cancelLongPress();
+    this.longPressTriggered = false;
+    this.wallDragStart = null;
+    this.wallDragEnd = null;
+    this.roadDragStart = null;
+    this.roadDragEnd = null;
+    this.mountainRangeStart = null;
+    this.mountainRangeEnd = null;
+    this.terrainStrokeActive = false;
+    this.terrainStrokeChanged = false;
+    this.terrainStrokeSnapshot = null;
+    this.lastTerrainBrushKey = '';
+    this.pointerStart = null;
+    this.buildPreviewKey = '';
+    this.clearGroup(this.wallPreviewLayer);
+    this.controls.enabled = true;
+
+    for (const pointerId of this.activeTouchPointers) {
+      if (canvas.hasPointerCapture(pointerId)) canvas.releasePointerCapture(pointerId);
+    }
+
+    if (terrainSnapshot) {
+      this.restoreSnapshot(terrainSnapshot);
+      this.setStatus('Touch gesture changed · cancelled unfinished terrain edit');
+    }
+  }
+
   private bindPointerInput(): void {
     const canvas = this.renderer.domElement;
 
@@ -7918,9 +7964,21 @@ export class ThreeGame {
         if (event.button !== 0) return;
         if (this.battleSystem.isActive()) return;
 
+        if (event.pointerType === 'touch') {
+          this.activeTouchPointers.add(event.pointerId);
+          if (this.activeTouchPointers.size > 1) {
+            for (const pointerId of this.activeTouchPointers) {
+              this.suppressedTouchPointers.add(pointerId);
+            }
+            this.cancelActiveTouchBuildGesture(canvas);
+            this.setStatus('Multi-touch camera gesture · castle build action cancelled');
+            return;
+          }
+        }
+
         const cell = this.pickGridCell(event);
         if (cell && event.pointerType !== 'mouse') {
-          this.renderBuildPlacementPreview(cell, true);
+          this.renderBuildPlacementPreview(cell, true, event.shiftKey);
         }
         if (this.isGodModeTargeting()) {
           this.fireGodModeAt(cell);
@@ -7936,8 +7994,8 @@ export class ThreeGame {
           this.wallDragEnd = cell;
           this.controls.enabled = false;
           canvas.setPointerCapture(event.pointerId);
-          this.renderWallPreview([cell]);
-          this.setStatus('Wall drag: choose end point · snaps to 45°');
+          this.renderWallPreview([cell], event.shiftKey);
+          this.setStatus(this.wallPreviewStatus);
           event.preventDefault();
           event.stopPropagation();
           return;
@@ -8020,7 +8078,7 @@ export class ThreeGame {
           !this.terrainStrokeActive &&
           !(this.selectedTool === 'towerBridge' && this.towerBridgeStart)
         ) {
-          this.renderBuildPlacementPreview(this.pickGridCell(event));
+          this.renderBuildPlacementPreview(this.pickGridCell(event), false, event.shiftKey);
         }
 
         if (this.wallDragStart) {
@@ -8028,8 +8086,8 @@ export class ThreeGame {
           if (cell) {
             this.wallDragEnd = cell;
             const path = this.wallPath(this.wallDragStart, cell);
-            this.renderWallPreview(path);
-            this.setStatus(`Wall drag: ${path.length} segments · preview is final path`);
+            this.renderWallPreview(path, event.shiftKey);
+            this.setStatus(this.wallPreviewStatus);
           }
           event.preventDefault();
           event.stopPropagation();
@@ -8098,6 +8156,21 @@ export class ThreeGame {
       'pointerup',
       (event) => {
         if (event.button !== 0) return;
+
+        if (event.pointerType === 'touch') {
+          const suppressed = this.suppressedTouchPointers.has(event.pointerId);
+          this.activeTouchPointers.delete(event.pointerId);
+          this.suppressedTouchPointers.delete(event.pointerId);
+          if (suppressed) {
+            this.cancelLongPress();
+            this.longPressTriggered = false;
+            if (canvas.hasPointerCapture(event.pointerId)) canvas.releasePointerCapture(event.pointerId);
+            if (this.activeTouchPointers.size === 0) this.suppressedTouchPointers.clear();
+            event.preventDefault();
+            event.stopPropagation();
+            return;
+          }
+        }
 
         if (this.isGodModeTargeting()) {
           event.preventDefault();
@@ -8204,7 +8277,7 @@ export class ThreeGame {
         if (movement <= 6) {
           const previewCell = this.pickGridCell(event);
           this.handleBuildClick(event);
-          if (event.pointerType === 'mouse') this.renderBuildPlacementPreview(previewCell, true);
+          if (event.pointerType === 'mouse') this.renderBuildPlacementPreview(previewCell, true, event.shiftKey);
           else this.clearBuildPlacementPreview();
         }
       },
@@ -8225,7 +8298,12 @@ export class ThreeGame {
 
     canvas.addEventListener(
       'pointercancel',
-      () => {
+      (event) => {
+        if (event.pointerType === 'touch') {
+          this.activeTouchPointers.delete(event.pointerId);
+          this.suppressedTouchPointers.delete(event.pointerId);
+          if (this.activeTouchPointers.size === 0) this.suppressedTouchPointers.clear();
+        }
         this.cancelLongPress();
         this.longPressTriggered = false;
         this.wallDragStart = null;
@@ -8243,6 +8321,17 @@ export class ThreeGame {
       },
       true,
     );
+
+    const cancelInterruptedTouchGesture = (): void => {
+      if (this.activeTouchPointers.size === 0) return;
+      this.cancelActiveTouchBuildGesture(canvas);
+      this.activeTouchPointers.clear();
+      this.suppressedTouchPointers.clear();
+    };
+    window.addEventListener('blur', cancelInterruptedTouchGesture);
+    document.addEventListener('visibilitychange', () => {
+      if (document.hidden) cancelInterruptedTouchGesture();
+    });
   }
 
   private beginLongPress(event: PointerEvent, cell: GridPoint): void {
@@ -8747,7 +8836,7 @@ export class ThreeGame {
     return WallSystem.createSnappedPath(start, end, SIZE);
   }
 
-  private renderWallPreview(path: GridPoint[]): void {
+  private renderWallPreview(path: GridPoint[], decrease = false): void {
     this.clearGroup(this.wallPreviewLayer);
     if (path.length === 0) return;
 
@@ -8793,8 +8882,31 @@ export class ThreeGame {
       if (!validity[index]) return;
       const key = this.key(point.x, point.y);
       const existing = draftCells.get(key);
-      if (!existing) draftCells.set(key, { x: point.x, y: point.y, kind: wallKind, level: 1 });
-      else if (WALL_KINDS.includes(existing.kind as WallKind)) existing.kind = wallKind;
+      if (!existing) {
+        draftCells.set(key, {
+          x: point.x,
+          y: point.y,
+          kind: wallKind,
+          level: 1,
+          thickness: this.wallThickness,
+          battlement: this.wallBattlement,
+          walkway: this.wallWalkway,
+        });
+      } else if (single && existing.kind === wallKind) {
+        const currentLevel = Math.max(1, Math.floor(existing.level ?? 1));
+        existing.level = decrease
+          ? Math.max(1, currentLevel - 1)
+          : Math.min(MAX_WALL_LEVEL, currentLevel + 1);
+        existing.damage = 0;
+        existing.thickness = this.wallThickness;
+        existing.battlement = this.wallBattlement;
+        existing.walkway = this.wallWalkway;
+      } else if (WALL_KINDS.includes(existing.kind as WallKind)) {
+        existing.kind = wallKind;
+        existing.thickness = this.wallThickness;
+        existing.battlement = this.wallBattlement;
+        existing.walkway = this.wallWalkway;
+      }
     });
     for (let i = 1; i < path.length; i += 1) {
       if (!validity[i - 1] || !validity[i]) continue;
@@ -8806,8 +8918,23 @@ export class ThreeGame {
         b.wallLinks = WallSystem.addLink(b, WallSystem.opposite(direction));
       }
     }
-    const draftBlocks = new Map(this.castleBlockSystem.build([...draftCells.values()], this.stoneStyle)
-      .blocks.map((block) => [this.key(block.x, block.y), block]));
+    const draftBlocks = new Map(this.castleBlockSystem.build(
+      [...draftCells.values()],
+      this.stoneStyle,
+      (x, y) => this.terrainElevation(x, y),
+    ).blocks.map((block) => [this.key(block.x, block.y), block]));
+    const invalidSegments = validity.filter((valid) => !valid).length;
+    const heightTarget = single && path[0]
+      ? draftBlocks.get(this.key(path[0].x, path[0].y))?.level
+      : undefined;
+    const heightSuffix = heightTarget !== undefined &&
+      this.services.state.getCell(path[0].x, path[0].y)?.kind === wallKind
+      ? ` · target height L${heightTarget}`
+      : '';
+    this.wallPreviewStatus =
+      `Wall preview · ${path.length} segment${path.length === 1 ? '' : 's'} · ` +
+      `${costedSegments} new/replace · cost ${this.constructionCostPreviewLabel(wallKind, costedSegments)}` +
+      `${invalidSegments > 0 ? ` · ${invalidSegments} invalid` : ''}${heightSuffix}`;
 
     for (let i = 0; i < path.length; i += 1) {
       const point = path[i];
@@ -8823,11 +8950,31 @@ export class ThreeGame {
       marker.position.set(position.x, y, position.z);
       marker.renderOrder = 90;
       marker.castShadow = false;
-      marker.userData.previewTopology = draftBlocks.get(this.key(point.x, point.y))?.topology;
+      const draftBlock = draftBlocks.get(this.key(point.x, point.y));
+      marker.userData.previewTopology = draftBlock?.topology;
+      marker.userData.previewLevel = draftBlock?.level;
       this.wallPreviewLayer.add(marker);
 
+      if (validity[i] && draftBlock && this.viewMode === 'world3d') {
+        const bodyHeight = Math.max(0.42, draftBlock.topLocal - 2.58);
+        const body = new THREE.Mesh(
+          new THREE.BoxGeometry(TILE * 0.34, bodyHeight, TILE * 0.34),
+          validMaterial,
+        );
+        body.position.set(
+          position.x,
+          2.58 + this.terrainElevation(point.x, point.y) + bodyHeight / 2,
+          position.z,
+        );
+        body.renderOrder = 88;
+        body.castShadow = false;
+        body.userData.previewTopology = draftBlock.topology;
+        body.userData.previewLevel = draftBlock.level;
+        this.wallPreviewLayer.add(body);
+      }
+
       if (validity[i]) {
-        const links = draftBlocks.get(this.key(point.x, point.y))?.links ?? [];
+        const links = draftBlock?.links ?? [];
         for (const direction of links) {
           const vector = WallSystem.vector(direction);
           const arm = new THREE.Mesh(
@@ -9226,12 +9373,69 @@ export class ThreeGame {
     };
   }
 
+  private previewCastlePlacementBlock(point: GridPoint, decrease = false): CastleBlockState | null {
+    const tool = this.selectedTool;
+    if (tool !== 'gate' && tool !== 'tower') return null;
+
+    const cells = this.services.state.entries().map((cell) => ({
+      ...cell,
+      wallLinks: cell.wallLinks ? [...cell.wallLinks] : undefined,
+    }));
+    const byKey = new Map(cells.map((cell) => [this.key(cell.x, cell.y), cell]));
+    const key = this.key(point.x, point.y);
+    const existing = byKey.get(key);
+
+    if (tool === 'tower') {
+      const currentLevel = Math.max(1, Math.floor(existing?.level ?? 1));
+      const level = existing?.kind === 'tower'
+        ? (decrease
+          ? Math.max(1, currentLevel - 1)
+          : Math.min(FORTIFICATION_MAX_LEVEL, currentLevel + 1))
+        : Math.min(FORTIFICATION_MAX_LEVEL, currentLevel);
+      const compatibleTop = this.compatibleTowerTop(this.towerShape, this.towerTop);
+      byKey.set(key, {
+        ...(existing ?? { x: point.x, y: point.y, kind: 'tower' as const }),
+        x: point.x,
+        y: point.y,
+        kind: 'tower',
+        level,
+        towerShape: this.towerShape,
+        towerTop: compatibleTop,
+        wallLinks: existing?.wallLinks,
+      });
+    } else {
+      const level = Math.max(
+        1,
+        Math.min(FORTIFICATION_MAX_LEVEL, Math.floor(existing?.level ?? 1)),
+      );
+      byKey.set(key, {
+        ...(existing ?? { x: point.x, y: point.y, kind: 'gate' as const }),
+        x: point.x,
+        y: point.y,
+        kind: 'gate',
+        level,
+        wallLinks: existing?.wallLinks,
+        rotationMode: 'auto',
+      });
+    }
+
+    return this.castleBlockSystem.build(
+      [...byKey.values()],
+      this.stoneStyle,
+      (x, y) => this.terrainElevation(x, y),
+    ).blocks.find((block) => block.x === point.x && block.y === point.y) ?? null;
+  }
+
   private clearBuildPlacementPreview(): void {
     this.buildPreviewKey = '';
     this.clearGroup(this.wallPreviewLayer);
   }
 
-  private renderBuildPlacementPreview(point: GridPoint | null, force = false): void {
+  private renderBuildPlacementPreview(
+    point: GridPoint | null,
+    force = false,
+    decrease = false,
+  ): void {
     if (!point) {
       this.clearBuildPlacementPreview();
       return;
@@ -9250,9 +9454,11 @@ export class ThreeGame {
       return;
     }
 
+    const castlePreview = preview.valid ? this.previewCastlePlacementBlock(point, decrease) : null;
     const key =
       `${this.selectedTool}:${point.x},${point.y}:${preview.valid}:${preview.cells.map((cell) => `${cell.x},${cell.y}`).join(';')}:` +
-      `${this.keepWidth}x${this.keepDepth}x${this.keepFloors}:${this.keepRotation}:${this.viewMode}`;
+      `${this.keepWidth}x${this.keepDepth}x${this.keepFloors}:${this.keepRotation}:${this.viewMode}:${decrease}:` +
+      `${castlePreview?.topology ?? ''}:${castlePreview?.level ?? ''}:${castlePreview?.orientation ?? ''}`;
     if (!force && key === this.buildPreviewKey) return;
     this.buildPreviewKey = key;
     this.clearGroup(this.wallPreviewLayer);
@@ -9281,6 +9487,16 @@ export class ThreeGame {
       side: THREE.DoubleSide,
     });
 
+    if (!preview.valid && preview.reason) {
+      this.setStatus(`Invalid placement · ${preview.reason}`);
+    } else if (castlePreview) {
+      const label = castlePreview.kind === 'gate' ? 'Gate' : 'Tower';
+      const attachment = castlePreview.attachment ? ` · ${castlePreview.attachment}` : '';
+      this.setStatus(
+        `${label} preview · ${castlePreview.topology}${attachment} · height L${castlePreview.level} · tap/release to confirm`,
+      );
+    }
+
     for (const footprintCell of preview.cells) {
       if (
         footprintCell.x < 0 || footprintCell.y < 0 ||
@@ -9303,6 +9519,53 @@ export class ThreeGame {
       outline.position.copy(tile.position);
       outline.renderOrder = 91;
       this.wallPreviewLayer.add(outline);
+    }
+
+    if (castlePreview && this.viewMode === 'world3d') {
+      const world = this.gridToWorld(point.x, point.y);
+      const terrainY = this.terrainElevation(point.x, point.y);
+      const bodyHeight = Math.max(0.5, castlePreview.topLocal - 2.58);
+      const isGate = castlePreview.kind === 'gate';
+      const horizontalLinks =
+        Number(castlePreview.links.includes('E')) + Number(castlePreview.links.includes('W'));
+      const verticalLinks =
+        Number(castlePreview.links.includes('N')) + Number(castlePreview.links.includes('S'));
+      const body = new THREE.Mesh(
+        new THREE.BoxGeometry(
+          TILE * (isGate ? 0.76 : 0.62),
+          bodyHeight,
+          TILE * (isGate ? 0.38 : 0.62),
+        ),
+        fillMaterial,
+      );
+      body.position.set(world.x, 2.58 + terrainY + bodyHeight / 2, world.z);
+      body.rotation.y = isGate
+        ? (verticalLinks > horizontalLinks ? Math.PI / 2 : 0)
+        : THREE.MathUtils.degToRad(castlePreview.orientation);
+      body.renderOrder = 89;
+      body.castShadow = false;
+      body.userData.previewTopology = castlePreview.topology;
+      body.userData.previewLevel = castlePreview.level;
+      body.userData.previewAttachment = castlePreview.attachment;
+      this.wallPreviewLayer.add(body);
+
+      const connectionY = 2.86 + terrainY;
+      for (const direction of castlePreview.links) {
+        const vector = WallSystem.vector(direction);
+        const arm = new THREE.Mesh(
+          new THREE.BoxGeometry(0.42, 0.16, TILE * 0.54),
+          fillMaterial,
+        );
+        arm.position.set(
+          world.x + vector.x * TILE * 0.27,
+          connectionY,
+          world.z + vector.y * TILE * 0.27,
+        );
+        arm.rotation.y = WallSystem.worldAngle(direction);
+        arm.renderOrder = 90;
+        arm.castShadow = false;
+        this.wallPreviewLayer.add(arm);
+      }
     }
 
     const anchorWorld = this.gridToWorld(point.x, point.y);
