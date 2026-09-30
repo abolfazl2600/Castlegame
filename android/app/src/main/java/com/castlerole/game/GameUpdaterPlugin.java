@@ -28,7 +28,7 @@ import java.util.zip.ZipInputStream;
 @CapacitorPlugin(name = "GameUpdater")
 public class GameUpdaterPlugin extends Plugin {
     private static final String ARTIFACTS_URL =
-        "https://api.github.com/repos/abolfazl2600/Castlegame/actions/artifacts?name=castlegame-web-update&per_page=20";
+        "https://api.github.com/repos/abolfazl2600/Castlegame/actions/artifacts?name=castlegame-web-update&per_page=20&direction=desc";
     private static final String USER_AGENT = "Castlegame-Android-Updater";
     private static final long MAX_ARTIFACT_BYTES = 100L * 1024L * 1024L;
     private static final long MAX_EXTRACTED_BYTES = 250L * 1024L * 1024L;
