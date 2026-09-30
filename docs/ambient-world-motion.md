@@ -17,7 +17,6 @@ Real farmer and citizen movement remains owned by the settlement simulation. The
 - restrained tree and orchard-canopy sway
 - chimney smoke drift
 - docked harbor ship bobbing
-- slow cloud drift
 - small decorative idle motion such as Army Camp fire sway
 
 Windmill rotation consumes the same returned motion scale so it respects the same accessibility, quality, and camera-distance rules.
@@ -43,7 +42,7 @@ Motion scale combines:
 - performance mode
 - camera distance
 
-Reduced Motion or disabled effects returns a zero decorative-motion scale. Scene-bound transforms are restored to their baseline pose, water texture flow stops, clouds stop drifting, and windmill rotation receives no ambient delta.
+Reduced Motion or disabled effects returns a zero decorative-motion scale. Scene-bound transforms are restored to their baseline pose, water texture flow stops, and windmill rotation receives no ambient delta.
 
 Low-detail/performance modes also lower animation cadence so dense settlements do not pay the same per-frame transform cost as high-quality mode.
 
@@ -59,7 +58,7 @@ This prevents stale references when:
 - an upgrade rebuilds a structure
 - the scene redraws after terrain/build edits
 
-Persistent channels such as clouds and shared water textures survive build redraws.
+Shared water texture-flow channels survive build redraws.
 
 ## Operational state
 

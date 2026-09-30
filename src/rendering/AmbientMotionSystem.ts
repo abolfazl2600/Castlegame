@@ -28,19 +28,11 @@ interface TextureFlow {
   yPerMs: number;
 }
 
-interface CloudDrift {
-  object: THREE.Object3D;
-  speedPerMs: number;
-  wrapMinX: number;
-  wrapMaxX: number;
-}
-
 export interface AmbientMotionStats {
   flags: number;
   sways: number;
   bobs: number;
   smokes: number;
-  clouds: number;
   waterFlows: number;
 }
 
@@ -57,7 +49,6 @@ export class AmbientMotionSystem {
   private readonly sways: MotionEntry[] = [];
   private readonly bobs: MotionEntry[] = [];
   private readonly smokes: MotionEntry[] = [];
-  private readonly clouds: CloudDrift[] = [];
   private frame = 0;
 
   registerTextureFlow(texture: THREE.Texture, xPerMs: number, yPerMs: number): void {
@@ -79,10 +70,6 @@ export class AmbientMotionSystem {
 
   registerSmoke(object: THREE.Object3D, phase: number, rise = 0.34, speed = 0.00022): void {
     this.smokes.push(this.entry(object, phase, rise, speed));
-  }
-
-  registerCloud(object: THREE.Object3D, speedPerMs: number, wrapMinX: number, wrapMaxX: number): void {
-    this.clouds.push({ object, speedPerMs, wrapMinX, wrapMaxX });
   }
 
   clearSceneBound(): void {
@@ -123,12 +110,6 @@ export class AmbientMotionSystem {
     for (const flow of this.textureFlows) {
       flow.texture.offset.x += flow.xPerMs * clampedDelta * intensity;
       flow.texture.offset.y += flow.yPerMs * clampedDelta * intensity;
-    }
-
-    for (const cloud of this.clouds) {
-      cloud.object.position.x += cloud.speedPerMs * clampedDelta * intensity;
-      if (cloud.object.position.x > cloud.wrapMaxX) cloud.object.position.x = cloud.wrapMinX;
-      else if (cloud.object.position.x < cloud.wrapMinX) cloud.object.position.x = cloud.wrapMaxX;
     }
 
     this.frame += 1;
@@ -209,7 +190,6 @@ export class AmbientMotionSystem {
       sways: this.sways.length,
       bobs: this.bobs.length,
       smokes: this.smokes.length,
-      clouds: this.clouds.length,
       waterFlows: this.textureFlows.length,
     };
   }
