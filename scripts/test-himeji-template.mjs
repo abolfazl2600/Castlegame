@@ -12,7 +12,7 @@ const docs = await readFile(new URL('../docs/templates/himeji.md', import.meta.u
 
 assert.equal(html.split('data-template="himeji-castle"').length - 1, 1, 'Himeji must appear exactly once in the template picker.');
 assert.match(html, /Himeji Castle · Japan/);
-assert.match(html, /Choose from 32 complete starting worlds/);
+assert.match(html, /Choose from 34 complete starting worlds/);
 
 assert.match(threeGame, /'himeji-castle': { layoutId: 'mainland', seed: 5801 }/);
 assert.match(threeGame, /template === 'himeji-castle'/);

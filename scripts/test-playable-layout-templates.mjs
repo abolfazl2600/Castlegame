@@ -51,6 +51,6 @@ assert.match(types, /worldSeed\?: number;/, 'Saved worlds must carry a determini
 assert.match(saveSystem, /worldSeed: this\.host\.getWorldSeed\(\)/, 'Save data must persist the world seed.');
 assert.match(saveSystem, /this\.host\.setWorldSeed\(normalizeWorldSeed\(data\.worldSeed\)\)/, 'Loading must restore the world seed.');
 assert.match(saveSystem, /return Number\.isFinite\(numeric\) \? Math\.trunc\(numeric\) : 0;/, 'Legacy saves must default to the original zero seed.');
-assert.match(html, /Choose from 32 complete starting worlds/, 'Template count must include the current complete starting worlds.');
+assert.match(html, /Choose from 34 complete starting worlds/, 'Template count must include the current complete starting worlds.');
 
 console.log('Playable layout template regression checks passed.');
