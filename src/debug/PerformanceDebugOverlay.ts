@@ -43,6 +43,7 @@ export class PerformanceDebugOverlay {
   private worstFrameMs = 0;
   private accumulatedUpdateCpuMs = 0;
   private accumulatedRenderCpuMs = 0;
+  private readonly recentFrameMs: number[] = [];
   public mobileBudgetEmulation = false;
   private gpuFrameMs: number | null = null;
   private readonly gpuTimer: {
@@ -165,6 +166,8 @@ export class PerformanceDebugOverlay {
     this.accumulatedMs += safeDelta;
     this.frameCount += 1;
     this.worstFrameMs = Math.max(this.worstFrameMs, safeDelta);
+    this.recentFrameMs.push(safeDelta);
+    if (this.recentFrameMs.length > 300) this.recentFrameMs.shift();
     this.accumulatedUpdateCpuMs += Math.max(0, updateCpuMs);
     this.accumulatedRenderCpuMs += Math.max(0, renderCpuMs);
 
@@ -172,10 +175,13 @@ export class PerformanceDebugOverlay {
 
     const fps = this.frameCount * 1000 / this.accumulatedMs;
     const averageFrameMs = this.accumulatedMs / this.frameCount;
+    const orderedFrames = [...this.recentFrameMs].sort((a, b) => a - b);
+    const p95FrameMs = orderedFrames[Math.max(0, Math.ceil(orderedFrames.length * 0.95) - 1)] ?? 0;
     this.render(
       fps, averageFrameMs, this.worstFrameMs,
       this.accumulatedUpdateCpuMs / this.frameCount,
       this.accumulatedRenderCpuMs / this.frameCount,
+      p95FrameMs,
     );
 
     this.accumulatedMs = 0;
@@ -199,11 +205,15 @@ export class PerformanceDebugOverlay {
     this.worstFrameMs = 0;
     this.accumulatedUpdateCpuMs = 0;
     this.accumulatedRenderCpuMs = 0;
+    this.recentFrameMs.length = 0;
 
     if (enabled) this.render(0, 0, 0, 0, 0);
   }
 
-  private render(fps: number, averageFrameMs: number, worstFrameMs: number, updateCpuMs: number, renderCpuMs: number): void {
+  private render(
+    fps: number, averageFrameMs: number, worstFrameMs: number,
+    updateCpuMs: number, renderCpuMs: number, p95FrameMs = 0,
+  ): void {
     const { renderer, scene } = this.options;
     const renderInfo = renderer.info.render;
     const memoryInfo = renderer.info.memory;
@@ -239,9 +249,10 @@ export class PerformanceDebugOverlay {
 
     this.content.innerHTML = [
       this.section('Performance', [
-        this.row('FPS', fps > 0 ? fps.toFixed(1) : 'Sampling…'),
+        this.row('FPS', fps > 0 ? fps.toFixed(1) : 'Sampling…', fps > 0 && fps < 30),
         this.row('Frame avg', averageFrameMs > 0 ? `${averageFrameMs.toFixed(2)} ms` : 'Sampling…'),
         this.row('Frame max', worstFrameMs > 0 ? `${worstFrameMs.toFixed(2)} ms` : 'Sampling…'),
+        this.row('Frame p95 (last 300)', p95FrameMs > 0 ? `${p95FrameMs.toFixed(2)} ms` : 'Sampling…'),
         this.row('CPU game update', updateCpuMs > 0 ? `${updateCpuMs.toFixed(2)} ms` : 'Sampling…'),
         this.row('CPU render submit', renderCpuMs > 0 ? `${renderCpuMs.toFixed(2)} ms` : 'Sampling…'),
         this.row('GPU frame time', this.gpuFrameMs === null ? 'Unavailable' : `${this.gpuFrameMs.toFixed(2)} ms (async)`),
@@ -301,21 +312,23 @@ export class PerformanceDebugOverlay {
       lights: 0,
     };
 
-    scene.traverse((object) => {
+    const walk = (object: THREE.Object3D, ancestorsVisible: boolean): void => {
       counts.objects += 1;
       if (object instanceof THREE.Light) counts.lights += 1;
+      const effectiveVisible = ancestorsVisible && object.visible;
       if (object instanceof THREE.Mesh) {
         counts.meshes += 1;
-        if (object.visible) counts.visibleMeshes += 1;
+        if (effectiveVisible) counts.visibleMeshes += 1;
         if (object instanceof THREE.InstancedMesh) counts.instancedMeshes += 1;
-        const instances = Number(object.userData.castleBoxBatch?.instances ?? 0);
+        const instances = effectiveVisible ? Number(object.userData.castleBoxBatch?.instances ?? 0) : 0;
         if (instances > 0) {
           counts.batchedBoxInstances += instances;
           counts.batchedBoxDrawCallsSaved += instances - 1;
         }
       }
-    });
-
+      for (const child of object.children) walk(child, effectiveVisible);
+    };
+    walk(scene, true);
     return counts;
   }
 
