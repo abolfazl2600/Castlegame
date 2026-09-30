@@ -1776,8 +1776,17 @@ export class ThreeGame {
       }
     }
 
-    const soilMaterial = this.environmentMaterial('layout-soil', WORLD_STYLE.palette.soil, 1);
-    const grassMaterial = this.environmentMaterial('layout-grass', WORLD_STYLE.palette.grassSunlit, 0.94);
+    const aridWorld = this.stoneStyle === 'earthen';
+    const soilMaterial = this.environmentMaterial(
+      aridWorld ? 'layout-arid-soil' : 'layout-soil',
+      aridWorld ? 0x8d6848 : WORLD_STYLE.palette.soil,
+      1,
+    );
+    const grassMaterial = this.environmentMaterial(
+      aridWorld ? 'layout-arid-ground' : 'layout-grass',
+      aridWorld ? 0xb88d61 : WORLD_STYLE.palette.grassSunlit,
+      aridWorld ? 0.99 : 0.94,
+    );
     const shoreMaterial = this.environmentMaterial('layout-shore', 0xb8a878, 0.98);
     const matrix = new THREE.Matrix4();
 
@@ -2477,7 +2486,7 @@ export class ThreeGame {
     const terrainColors: Record<TerrainKind, number> = {
       water: WORLD_STYLE.palette.deepWater,
       shore: WORLD_STYLE.palette.shoreSand,
-      plains: WORLD_STYLE.palette.grassSunlit,
+      plains: this.stoneStyle === 'earthen' ? 0xb88d61 : WORLD_STYLE.palette.grassSunlit,
       river: WORLD_STYLE.palette.riverWater,
       mountain: WORLD_STYLE.palette.terrainRock,
       forest: WORLD_STYLE.palette.grassForest,
@@ -2944,13 +2953,15 @@ export class ThreeGame {
     const hash = Math.abs((gx * 109 + gy * 173 + gx * gy * 13) % 97);
     if (hash % 4 !== 0) return;
 
-    const color =
-      terrain === 'forest'
+    const arid = terrain === 'plains' && this.stoneStyle === 'earthen';
+    const color = arid
+      ? (hash % 3 === 0 ? 0xc49a6c : 0xa97954)
+      : terrain === 'forest'
         ? hash % 2 === 0 ? WORLD_STYLE.palette.grassForest : WORLD_STYLE.palette.foliageMid
         : hash % 3 === 0 ? WORLD_STYLE.palette.grassSunlit : WORLD_STYLE.palette.grassShaded;
     const patch = new THREE.Mesh(
       new THREE.CircleGeometry(0.55 + (hash % 4) * 0.17, 10),
-      this.environmentMaterial(`grass-${terrain}-${hash % 3}`, color, 1),
+      this.environmentMaterial(arid ? `ground-arid-${hash % 3}` : `grass-${terrain}-${hash % 3}`, color, 1),
     );
     patch.rotation.x = -Math.PI / 2;
     patch.position.set(
@@ -3116,6 +3127,36 @@ export class ThreeGame {
   ): void {
     const hash = Math.abs((gx * 313 + gy * 197 + gx * gy * 43) % 997);
 
+    if (terrain === 'plains' && this.stoneStyle === 'earthen') {
+      if (hash % 23 === 0) {
+        const stone = new THREE.Mesh(
+          new THREE.DodecahedronGeometry(0.16 + (hash % 4) * 0.035, 0),
+          this.environmentMaterial('arid-ground-stone', 0x81664f, 1),
+        );
+        stone.position.set(-0.7 + (hash % 5) * 0.3, 2.33, 0.55 - (hash % 3) * 0.36);
+        stone.scale.y = 0.58;
+        stone.castShadow = true;
+        group.add(stone);
+      }
+      if (hash % 31 === 0) {
+        const scrub = this.environmentMaterial('arid-scrub', 0x87784a, 1);
+        for (let i = 0; i < 3; i += 1) {
+          const stem = this.addBox(
+            group,
+            0.045,
+            0.26 + i * 0.055,
+            0.045,
+            scrub,
+            -0.22 + i * 0.16,
+            2.34,
+            0.42,
+          );
+          stem.rotation.z = (i - 1) * 0.22;
+        }
+      }
+      return;
+    }
+
     if ((terrain === 'plains' || terrain === 'forest') && hash % 19 === 0) {
       const bush = new THREE.Mesh(
         new THREE.DodecahedronGeometry(0.28 + (hash % 4) * 0.04, 0),
@@ -3267,9 +3308,18 @@ export class ThreeGame {
   }
 
   private renderElevationPatch(group: THREE.Group, elevation: number): void {
-    const grass = this.environmentMaterial('terrain-elev-grass', 0x91aa57, 0.98);
-    const dirt = this.environmentMaterial('terrain-elev-dirt', 0x76624d, 1);
-    const rock = this.environmentMaterial('terrain-elev-rock', 0x746c63, 1);
+    const arid = this.stoneStyle === 'earthen';
+    const grass = this.environmentMaterial(
+      arid ? 'terrain-elev-arid' : 'terrain-elev-grass',
+      arid ? 0xa97d55 : 0x91aa57,
+      arid ? 1 : 0.98,
+    );
+    const dirt = this.environmentMaterial(
+      arid ? 'terrain-elev-arid-dark' : 'terrain-elev-dirt',
+      arid ? 0x805d44 : 0x76624d,
+      1,
+    );
+    const rock = this.environmentMaterial('terrain-elev-rock', arid ? 0x796653 : 0x746c63, 1);
 
     if (elevation > 0.03) {
       const material = elevation > 3.4 ? rock : elevation > 1.8 ? dirt : grass;
