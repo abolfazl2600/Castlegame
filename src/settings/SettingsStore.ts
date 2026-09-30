@@ -219,7 +219,7 @@ function validateSettings(input: SettingsData): SettingsData {
           ? input.graphics.shadowsEnabled
           : defaults.graphics.shadowsEnabled,
       performanceMode:
-        performanceMode === 'balanced' || performanceMode === 'performance' || performanceMode === 'quality'
+        performanceMode === 'auto' || performanceMode === 'balanced' || performanceMode === 'performance' || performanceMode === 'quality'
           ? performanceMode
           : defaults.graphics.performanceMode,
       environmentDetail:
