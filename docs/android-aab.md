@@ -25,7 +25,7 @@ The workflow checks that the native project exists, that Vite assets use relativ
 
 ## Signing limitation
 
-**The resulting release AAB is unsigned and cannot yet be submitted to Google Play.** Issue [#183](https://github.com/abolfazl2600/Castlegame/issues/183) will add secure signing and GitHub Secrets. The current workflow reads no signing secrets and must not be mistaken for a production publishing pipeline.
+**This workflow intentionally creates an unsigned AAB and cannot be used for Google Play submission.** For a signed upload bundle, use the separate [protected manual workflow and owner-operated key setup](./android-release-signing.md) (Issue [#183](https://github.com/abolfazl2600/Castlegame/issues/183)). The unsigned job remains secret-free.
 
 Existing GitHub Pages deployment is unchanged. Nothing is uploaded to Google Play automatically.
 
