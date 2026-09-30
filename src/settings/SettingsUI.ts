@@ -6,6 +6,7 @@ import {
 } from '../app/applicationActions';
 import type { SettingsStore } from './SettingsStore';
 import type { SettingsData } from './SettingsModel';
+import { resolveLocale, translate } from '../i18n/localization';
 
 type SettingsPane = 'overview' | 'general' | 'graphics' | 'audio' | 'gameplay' | 'accessibility' | 'controls' | 'data';
 
@@ -131,7 +132,7 @@ export class SettingsUI {
               ${this.paneHeading('GENERAL', 'Interface & Preferences', 'Tune the interface without changing your world.')}
               <div class="settings-control-card">
                 ${this.rangeRow('UI scale', 'Scale menus and HUD elements.', 'uiScale', 0.75, 1.5, 0.05)}
-                ${this.selectRow('Language', 'Choose the interface language source.', 'language', '<option value="system">System language</option><option value="en">English</option>')}
+                ${this.selectRow('Language', 'Choose the interface language source.', 'language', '<option value="system">System language</option><option value="en">English</option><option value="fa">فارسی</option>')}
                 ${this.toggleRow('Confirm destructive actions', 'Ask before reset and other destructive actions.', 'confirmDestructiveActions')}
                 ${this.toggleRow('Show help', 'Allow the in-game help dialog to open.', 'showHelp')}
               </div>
@@ -283,11 +284,11 @@ export class SettingsUI {
       resetButton.click();
     });
     this.panel.querySelector('[data-action="reset-save"]')?.addEventListener('click', () => {
-      if (window.confirm('Delete all local game saves? Your settings will be kept. This cannot be undone.')) this.onResetSave();
+      if (window.confirm(translate('Delete all local game saves? Your settings will be kept. This cannot be undone.', resolveLocale(this.store.get().interface.language)))) this.onResetSave();
     });
     this.panel.querySelector('[data-action="defaults"]')?.addEventListener('click', () => this.store.restoreDefaults());
     this.panel.querySelector('[data-action="reset-settings"]')?.addEventListener('click', () => {
-      if (window.confirm('Reset all game settings to their initial defaults? Your game saves will not be deleted.')) this.store.resetSettings();
+      if (window.confirm(translate('Reset all game settings to their initial defaults? Your game saves will not be deleted.', resolveLocale(this.store.get().interface.language)))) this.store.resetSettings();
     });
 
     this.panel.querySelectorAll<HTMLButtonElement>('[data-system-action]').forEach((button) => {
@@ -412,7 +413,7 @@ export class SettingsUI {
         this.store.setInterface({ uiScale: Number(value) });
         break;
       case 'language':
-        this.store.setInterface({ language: value === 'en' ? 'en' : 'system' });
+        this.store.setInterface({ language: value === 'fa' ? 'fa' : value === 'en' ? 'en' : 'system' });
         break;
       case 'reducedMotion':
         this.store.setInterface({ reducedMotion: Boolean(value) });
