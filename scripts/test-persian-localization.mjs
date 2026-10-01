@@ -4,7 +4,7 @@ import { resolve } from 'node:path';
 
 const root = resolve(import.meta.dirname, '..');
 const read = path => readFileSync(resolve(root, path), 'utf8');
-const dictionaryFiles = ['fa.ts', 'faGame.ts', 'faHelp.ts', 'faTemplates.ts', 'faRuntime.ts', 'faSave.ts', 'faPrivacy.ts', 'faBattle.ts', 'faUpgrades.ts'];
+const dictionaryFiles = ['fa.ts', 'faGame.ts', 'faHelp.ts', 'faTemplates.ts', 'faRuntime.ts', 'faSave.ts', 'faPrivacy.ts', 'faBattle.ts', 'faUpgrades.ts', 'faMissions.ts'];
 const dictionary = Object.create(null);
 
 for (const name of dictionaryFiles) {
@@ -65,6 +65,23 @@ assert.deepEqual([...new Set(literalStatuses)].filter(text => !Object.hasOwn(dic
   'Every literal game status must have a Persian translation');
 console.log('Gameplay status coverage: ' + literalStatuses.length + ' statuses; ' +
   upgradeAndActionDescriptions.length + ' upgrade/action descriptions.');
+
+const missionUISource = read('src/missions/MissionUI.ts');
+const missionSystemSource = read('src/missions/MissionSystem.ts');
+const missionUiLiterals = [...missionUISource.matchAll(/\bt\('([^']+)'\)/g)].map(match => match[1]);
+const missionDefinitionLiterals = [...missionSystemSource.matchAll(/(?:title|description|progressLabel): '([^']+)'/g)]
+  .map(match => match[1]);
+const missingMissionTranslations = [...new Set([...missionUiLiterals, ...missionDefinitionLiterals])]
+  .filter(text => !Object.hasOwn(dictionary, text));
+assert.deepEqual(missingMissionTranslations, [],
+  'Mission Journal or mission definitions contain untranslated English text');
+assert.match(missionUISource, /getCurrentLocale\(\)/,
+  'Mission Journal progress values must format digits for the active locale');
+assert.match(read('src/missions/missions.css'), /html\[dir="rtl"\] \.mission-journal/,
+  'Mission Journal must define explicit RTL layout rules');
+console.log('Mission Journal localization coverage: ' + missionUiLiterals.length + ' UI strings; ' +
+  missionDefinitionLiterals.length + ' mission-definition strings.');
+
 const mobileSource = read('src/ui/MobileUI.ts');
 const mobileMarkup = mobileSource.match(/layer\.innerHTML = `([\s\S]*?)`;/)?.[1];
 assert.ok(mobileMarkup, 'Mobile presentation markup must be available');
