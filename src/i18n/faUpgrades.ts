@@ -1,5 +1,8 @@
 /** Four-stage agricultural, harbor, fortification and army upgrade descriptions. */
 export const UPGRADE_TRANSLATIONS: Readonly<Record<string, string>> = {
+  "A small open carpenter yard that processes Logs into construction-ready Wood.": "محوطه‌ای کوچک و باز برای نجاری که الوار را به چوب آماده ساخت تبدیل می‌کند.",
+  "A larger covered workshop with a dedicated cutting bay, better tools, and higher throughput.": "کارگاه سرپوشیده و بزرگ‌تر با بخش برش اختصاصی، ابزار بهتر و ظرفیت تولید بیشتر.",
+  "A mature timber workshop with a loft, heavy saw frame, hoist, storage, and maximum conversion efficiency.": "کارگاه نجاری کامل با انبارک بالایی، قاب اره سنگین، بالابر، فضای ذخیره و بیشترین بازده تبدیل.",
   "A basic tent camp with a fire, supplies, and a small weapon rack.": "اردوگاهی اولیه با چند چادر، آتش، تدارکات و جایگاه کوچک نگهداری سلاح.",
   "Larger tents, siege stores, reinforced equipment racks, and stronger field organization.": "چادرهای بزرگ‌تر، انبار تجهیزات محاصره، جایگاه‌های مستحکم سلاح و سازمان‌دهی بهتر نیروهای صحرایی.",
   "A dedicated command pavilion with map tables, twin standards, and expanded armory support.": "سراپرده فرماندهی اختصاصی با میزهای نقشه، دو بیرق و انبار سلاح گسترده‌تر.",
