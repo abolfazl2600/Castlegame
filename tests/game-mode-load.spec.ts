@@ -184,3 +184,18 @@ test('mobile build toolbar remains usable after a cross-mode runtime load', asyn
   await expect(page.locator('#toolbar-open')).toHaveAttribute('aria-expanded', 'true');
   await expect(page.locator('#toolbar')).not.toHaveClass(/is-collapsed/);
 });
+
+
+test('Templates modal closes when its backdrop is clicked', async ({ page }) => {
+  await seedAutosaveBeforeNavigation(page, 'medieval');
+  await loadApplication(page);
+
+  await page.locator('#templates-button').evaluate((element) => {
+    (element as HTMLButtonElement).click();
+  });
+
+  const modal = page.locator('#templates-modal');
+  await expect(modal).toBeVisible();
+  await modal.click({ position: { x: 4, y: 4 } });
+  await expect(modal).toBeHidden();
+});

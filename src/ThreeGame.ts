@@ -11542,6 +11542,12 @@ export class ThreeGame {
       templates.hidden = true;
     };
 
+    templates.addEventListener('click', (event) => {
+      if (event.target === templates) {
+        templates.hidden = true;
+      }
+    });
+
     document.querySelectorAll<HTMLButtonElement>('[data-template]').forEach((button) => {
       button.onclick = () => {
         const template = button.dataset.template;
