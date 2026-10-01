@@ -8,8 +8,8 @@ const styles = await readFile(new URL('../src/style.css', import.meta.url), 'utf
 
 assert.match(
   threeGame,
-  /type FortificationUpgradeKind = 'tower' \| 'gate' \| 'towerBridge'/,
-  'Tower, Gate, and Tower Bridge must share the fortification upgrade contract.',
+  /type FortificationUpgradeKind = 'tower' \| 'gate' \| 'towerBridge' \| 'keep'/,
+  'Tower, Gate, Tower Bridge, and Keep must share the fortification upgrade contract.',
 );
 assert.match(
   threeGame,
@@ -17,7 +17,7 @@ assert.match(
   'Fortification progression must stop at Level 4.',
 );
 
-for (const label of ['Watch Tower', 'Royal Bastion', 'Castle Gate', 'Royal Gatehouse', 'Tower Walk', 'Royal Tower Bridge']) {
+for (const label of ['Watch Tower', 'Royal Bastion', 'Castle Gate', 'Royal Gatehouse', 'Tower Walk', 'Royal Tower Bridge', 'Stone Keep', 'Royal Keep']) {
   assert.ok(threeGame.includes(label), `Missing fortification progression label: ${label}`);
 }
 
@@ -91,9 +91,24 @@ assert.match(
   'Build Settings must provide a shared fortification upgrade action.',
 );
 assert.match(
+  threeGame,
+  /const KEEP_UPGRADE_PRESETS = \[[\s\S]*?width: 5[\s\S]*?floors: 5/,
+  'Keep upgrades must automatically grow footprint and height through Level 4.',
+);
+assert.match(
+  threeGame,
+  /private towerStyleForLevel\([\s\S]*?requestedTop/,
+  'Tower appearance must be selected automatically from level and castle style.',
+);
+assert.match(
+  threeGame,
+  /Tower selected · Level \$\{currentLevel\} · use Upgrade below/,
+  'Selecting an existing Tower must expose Upgrade instead of upgrading by repeated placement.',
+);
+assert.match(
   styles,
   /\.fortification-upgrade-card[\s\S]*?\.fortification-level-track/,
   'Fortification progression UI must follow the existing upgrade-card design language.',
 );
 
-console.log('Four-level Modular Tower, Gate, and Tower Bridge upgrade checks passed.');
+console.log('Four-level Tower, Gate, Tower Bridge, and Keep upgrade checks passed.');
