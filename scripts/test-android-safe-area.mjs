@@ -25,7 +25,7 @@ const checks = [
   ['native plugin is registered', activity.includes('registerPlugin(SafeAreaPlugin.class)')],
   ['native system bars are included', plugin.includes('WindowInsetsCompat.Type.systemBars()')],
   ['native display cutouts are included', plugin.includes('WindowInsetsCompat.Type.displayCutout()')],
-  ['native gesture zones are included', plugin.includes('WindowInsetsCompat.Type.mandatorySystemGestures()')],
+  ['native gesture zones are included', plugin.includes('WindowInsetsCompat.Type.systemGestures()') && plugin.includes('WindowInsetsCompat.Type.mandatorySystemGestures()')],
   ['Android content draws edge-to-edge', activity.includes('WindowCompat.setDecorFitsSystemWindows(getWindow(), false)')],
   ['display cutouts are allowed on short edges', theme.includes('windowLayoutInDisplayCutoutMode')],
 ];
