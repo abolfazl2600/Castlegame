@@ -239,5 +239,9 @@ export const PERSIAN_TRANSLATIONS: Readonly<Record<string, string>> = {
   "Delete all local game saves? Your settings will be kept. This cannot be undone.": "همه ذخیره‌های بازی حذف شوند؟ تنظیمات باقی می‌مانند و این کار برگشت‌پذیر نیست.",
   "Reset all game settings to their initial defaults? Your game saves will not be deleted.": "همه تنظیمات به حالت پیش‌فرض بازگردند؟ ذخیره‌های بازی حذف نخواهند شد.",
   "Game runtime is still initializing. Try again after the world appears.": "بازی هنوز در حال راه‌اندازی است. پس از نمایان شدن جهان دوباره تلاش کنید.",
+  "Copy touch QA report": "کپی گزارش آزمون لمس",
+  "Developer evidence for Android multi-touch acceptance.": "اطلاعات فنی برای تأیید آزمون چندلمسی اندروید.",
+  "Touch QA report copied. Paste it into issue #112 and complete physical results.": "گزارش آزمون لمس کپی شد. آن را در ایشیو #۱۱۲ قرار دهید و نتایج دستگاه واقعی را تکمیل کنید.",
+  "Unable to copy touch QA report. Try again after the game has loaded.": "کپی گزارش آزمون لمس ممکن نشد. پس از بارگذاری کامل بازی دوباره تلاش کنید.",
   "Data & Privacy is unavailable": "بخش داده‌ها و حریم خصوصی در دسترس نیست"
 };
