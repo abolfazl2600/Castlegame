@@ -8,6 +8,7 @@ import { SAVE_TRANSLATIONS } from './faSave';
 import { PRIVACY_TRANSLATIONS } from './faPrivacy';
 import { BATTLE_TRANSLATIONS } from './faBattle';
 import { UPGRADE_TRANSLATIONS } from './faUpgrades';
+import { MISSION_TRANSLATIONS } from './faMissions';
 
 /**
  * Central localization layer for the existing DOM-driven game UI.
@@ -24,6 +25,7 @@ const dictionary: Readonly<Record<string, string>> = {
   ...PRIVACY_TRANSLATIONS,
   ...BATTLE_TRANSLATIONS,
   ...UPGRADE_TRANSLATIONS,
+  ...MISSION_TRANSLATIONS,
 };
 export type Locale = 'en' | 'fa';
 let currentLocale: Locale = 'en';
