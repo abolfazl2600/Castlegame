@@ -67,6 +67,8 @@ restored.setState(saved);
 assert.deepEqual(restored.getState(), saved);
 assert.equal(restored.getView(snapshot({ population: 25 })).completed.some((entry) => entry.definition.id === 'defense-three-victories'), true);
 
+assert.equal(restored.setPinnedMission(undefined), true);
+assert.equal(restored.getState().pinnedMissionId, undefined);
 assert.equal(restored.setPinnedMission('growth-population-100'), true);
 assert.equal(restored.getState().pinnedMissionId, 'growth-population-100');
 assert.equal(restored.setPinnedMission('not-a-real-mission'), false);
