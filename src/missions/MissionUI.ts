@@ -55,7 +55,7 @@ export class MissionUI {
       });
     };
 
-    trigger.addEventListener('click', () => setOpen(modal.hidden));
+    trigger.addEventListener('click', () => setOpen(modal.hidden !== false));
 
     const handleClick = (event: Event): void => {
       const target = event.target as HTMLElement | null;
