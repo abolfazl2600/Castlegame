@@ -29,6 +29,10 @@ const COMMON_WORLD_TOOLS: readonly ToolKind[] = [
   'tree','rock','mountain','mountainRange','river','land','raise','lower','flatten','smooth','hill','cliff','erase',
 ];
 
+const GAMEPLAY_WORLD_TOOLS: readonly ToolKind[] = [
+  'tree','rock','mountain','raise','lower','flatten',
+];
+
 const SANDBOX_BUILDINGS: readonly TileKind[] = [
   ...MEDIEVAL_BUILDINGS,
 ];
@@ -50,10 +54,10 @@ export const GAME_MODE_CONFIG: Record<GameMode, GameModeDefinition> = {
       { label: 'Castle & Defense', toolIds: ['wall1','wall2','wall3','gate','tower','towerBridge','keep','moat'] },
       { label: 'Buildings', toolIds: ['cottage','house','manor','villa','market','basilica','mosque','carpenter','farm','cowBarn','appleOrchard','windmill','mine','hut'] },
       { label: 'Military', toolIds: ['armyCamp'] },
-      { label: 'Environment', toolIds: COMMON_WORLD_TOOLS },
+      { label: 'Environment', toolIds: GAMEPLAY_WORLD_TOOLS },
       { label: 'Roads & Harbor', toolIds: ['road','dirtRoad','stoneRoad','harbor'] },
     ],
-    availableTools: [...MEDIEVAL_BUILDINGS, 'keep','towerBridge','mountainRange',...COMMON_WORLD_TOOLS],
+    availableTools: [...MEDIEVAL_BUILDINGS, 'keep','towerBridge',...GAMEPLAY_WORLD_TOOLS],
     availableBuildingKinds: [...MEDIEVAL_BUILDINGS, 'tree','rock','mountain'],
     availableUnits: ['swordsman','spearman','archer','crossbowman'],
     availableWeapons: ['sword','spear','bow','crossbow'],
@@ -66,10 +70,10 @@ export const GAME_MODE_CONFIG: Record<GameMode, GameModeDefinition> = {
       { label: 'Castle & Defense', toolIds: ['wall1','wall2','wall3','gate','tower','towerBridge','keep','moat'] },
       { label: 'Buildings', toolIds: ['cottage','house','manor','villa','market','basilica','mosque','carpenter','farm','cowBarn','appleOrchard','windmill','mine','hut'] },
       { label: 'Military', toolIds: ['armyCamp'] },
-      { label: 'Environment', toolIds: COMMON_WORLD_TOOLS },
+      { label: 'Environment', toolIds: GAMEPLAY_WORLD_TOOLS },
       { label: 'Roads & Harbor', toolIds: ['road','dirtRoad','stoneRoad','harbor'] },
     ],
-    availableTools: [...MEDIEVAL_BUILDINGS, 'keep','towerBridge','mountainRange',...COMMON_WORLD_TOOLS],
+    availableTools: [...MEDIEVAL_BUILDINGS, 'keep','towerBridge',...GAMEPLAY_WORLD_TOOLS],
     availableBuildingKinds: [...MEDIEVAL_BUILDINGS, 'tree','rock','mountain'],
     availableUnits: ['swordsman','spearman','archer','crossbowman'],
     availableWeapons: ['sword','spear','bow','crossbow'],
