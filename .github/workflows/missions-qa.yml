@@ -1,0 +1,56 @@
+name: Missions QA
+
+on:
+  pull_request:
+    paths:
+      - .github/workflows/missions-qa.yml
+      - package.json
+      - scripts/test-mission-system.mjs
+      - src/missions/**
+      - src/ThreeGame.ts
+      - src/core/SaveSystem.ts
+      - src/core/types.ts
+  push:
+    branches:
+      - main
+    paths:
+      - .github/workflows/missions-qa.yml
+      - package.json
+      - scripts/test-mission-system.mjs
+      - src/missions/**
+      - src/ThreeGame.ts
+      - src/core/SaveSystem.ts
+      - src/core/types.ts
+
+permissions:
+  contents: read
+
+concurrency:
+  group: missions-qa-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  missions:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+
+      - name: Setup Node
+        uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Validate mission progression
+        run: npm run test:missions
+
+      - name: Typecheck
+        run: npx tsc --noEmit
+
+      - name: Build web bundle
+        run: npx vite build
