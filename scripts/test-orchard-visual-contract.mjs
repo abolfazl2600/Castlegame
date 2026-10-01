@@ -7,13 +7,17 @@ const [orchard, game] = await Promise.all([
 ]);
 
 assert.match(orchard, /import \{ WORLD_STYLE \} from '\.\.\/rendering\/WorldStyle'/);
-assert.match(orchard, /orchardVisualVersion = 3/);
+assert.match(orchard, /orchardVisualVersion = 4/);
 assert.match(orchard, /fieldScale: 3\.34, columns: 3, rows: 3/);
 assert.match(orchard, /fieldScale: 3\.58, columns: 4, rows: 3/);
 assert.match(orchard, /fieldScale: 3\.82, columns: 4, rows: 4/);
 assert.match(orchard, /fieldScale: 4\.02, columns: 5, rows: 4/);
 assert.match(orchard, /MathUtils\.clamp\(Math\.floor\(size\), 1, 4\)/);
 assert.match(orchard, /upgradeVisualProfile\(orchardSize\)/);
+assert.match(orchard, /activeOrchard = true/);
+assert.match(orchard, /const readabilityAnchor =/);
+assert.match(orchard, /trunkMesh\.userData\.distanceDetailPriority = 'silhouette'/);
+assert.match(orchard, /mainCanopy\.userData\.distanceDetailPriority = 'silhouette'/);
 assert.match(orchard, /private addEntranceTrellis/);
 assert.match(orchard, /private addPackingShed/);
 assert.match(orchard, /orchardLandmark = 'packing-shed'/);
