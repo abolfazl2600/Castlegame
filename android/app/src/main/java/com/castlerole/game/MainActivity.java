@@ -25,7 +25,7 @@ public class MainActivity extends BridgeActivity {
     }
 
     @Override
-    protected void onResume() {
+    public void onResume() {
         super.onResume();
         scheduleImmersiveMode(IMMERSIVE_REAPPLY_DELAY_MS);
     }
@@ -45,7 +45,7 @@ public class MainActivity extends BridgeActivity {
     }
 
     @Override
-    protected void onDestroy() {
+    public void onDestroy() {
         getWindow().getDecorView().removeCallbacks(immersiveRunnable);
         super.onDestroy();
     }
