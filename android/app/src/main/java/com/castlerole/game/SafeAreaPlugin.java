@@ -44,10 +44,11 @@ public class SafeAreaPlugin extends Plugin {
         int insetTypes =
             WindowInsetsCompat.Type.systemBars()
             | WindowInsetsCompat.Type.displayCutout()
+            | WindowInsetsCompat.Type.systemGestures()
             | WindowInsetsCompat.Type.mandatorySystemGestures();
 
         Insets insets = windowInsets.getInsets(insetTypes);
-        float density = getContext().getResources().getDisplayMetrics().density;
+        float density = getActivity().getResources().getDisplayMetrics().density;
         if (density <= 0f) density = 1f;
 
         JSObject payload = new JSObject();
