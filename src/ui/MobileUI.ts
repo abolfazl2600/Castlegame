@@ -42,11 +42,6 @@ export class MobileUI {
           <button type="button" data-mobile-proxy="settings-button" class="mobile-action" aria-label="Settings">⚙</button>
         </div>
       </header>
-
-      <div class="mobile-status" aria-live="polite">
-        <span class="mobile-status-dot" aria-hidden="true"></span>
-        <span data-mobile-status>Ready</span>
-      </div>
     `;
 
     this.shell.appendChild(layer);
@@ -75,7 +70,6 @@ export class MobileUI {
 
     this.syncModeLabel();
     this.observeText('game-mode-label', () => this.syncModeLabel());
-    this.observeText('save-status', () => this.syncStatus());
     const godModeButton = document.getElementById('god-mode-button');
     if (godModeButton) {
       const observer = new MutationObserver(() => this.syncProxyVisibility());
@@ -83,7 +77,6 @@ export class MobileUI {
       this.observers.push(observer);
     }
     this.syncProxyVisibility();
-    this.syncStatus();
   }
 
   private bindResponsiveState(): void {
@@ -131,12 +124,5 @@ export class MobileUI {
       const target = document.getElementById(targetId);
       proxy.hidden = !(target instanceof HTMLButtonElement) || target.hidden;
     });
-  }
-
-  private syncStatus(): void {
-    const source = document.getElementById('save-status');
-    const target = document.querySelector<HTMLElement>('[data-mobile-status]');
-    if (!source || !target) return;
-    target.textContent = source.textContent?.trim() || 'Ready';
   }
 }
