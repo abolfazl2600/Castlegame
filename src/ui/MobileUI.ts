@@ -39,6 +39,7 @@ export class MobileUI {
           <button type="button" data-mobile-proxy="battle-button" class="mobile-action" aria-label="Battle and military">⚔️</button>
           <button type="button" data-mobile-proxy="god-mode-button" class="mobile-action" aria-label="God Mode">⚡</button>
           <button type="button" data-mobile-action="templates" class="mobile-action" aria-label="Templates">▧</button>
+          <button type="button" data-mobile-proxy="missions-button" class="mobile-action" aria-label="Mission Journal" aria-controls="mission-journal" aria-expanded="false"><span aria-hidden="true">📜</span></button>
           <button type="button" data-mobile-proxy="settings-button" class="mobile-action" aria-label="Settings">⚙</button>
         </div>
       </header>
@@ -57,7 +58,10 @@ export class MobileUI {
         }
 
         const target = document.getElementById(targetId);
-        if (target instanceof HTMLButtonElement) target.click();
+        if (target instanceof HTMLButtonElement) {
+          target.click();
+          this.syncProxyVisibility();
+        }
       });
     });
 
@@ -125,6 +129,10 @@ export class MobileUI {
       if (!targetId || targetId === 'game-mode-button') return;
       const target = document.getElementById(targetId);
       proxy.hidden = !(target instanceof HTMLButtonElement) || target.hidden;
+      if (target instanceof HTMLButtonElement) {
+        const expanded = target.getAttribute('aria-expanded');
+        if (expanded !== null) proxy.setAttribute('aria-expanded', expanded);
+      }
     });
   }
 }

@@ -5,6 +5,7 @@ import { SettingsStore } from './settings/SettingsStore';
 import { SettingsUI } from './settings/SettingsUI';
 import { AndroidUpdateUI } from './settings/AndroidUpdateUI';
 import { installAndroidBackNavigation } from './android/androidBackNavigation';
+import { installAndroidImmersiveViewportBridge } from './android/androidImmersiveMode';
 import './style.css';
 
 const settingsStore = new SettingsStore(localStorage);
@@ -24,6 +25,7 @@ try {
   console.error('Mobile UI initialization failed', error);
 }
 
+installAndroidImmersiveViewportBridge();
 installAndroidBackNavigation();
 void startGameRuntime();
 
