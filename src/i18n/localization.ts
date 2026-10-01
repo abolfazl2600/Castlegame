@@ -65,12 +65,12 @@ export function translate(message: string, locale: Locale = 'fa'): string {
   if (tier) return 'رده ' + formatDigits(tier[1]);
   const upgrade = message.match(/^Upgrade to Level\s+(\d+)$/);
   if (upgrade) return 'ارتقا به سطح ' + formatDigits(upgrade[1]);
-  const countWithLabel = message.match(/^(Population|Army|Available|Farmers|Builders|Production\/Service|Militia|Professional|Wood|Stone|Grain|Apples|Flour|Food|Storage|Missiles)\s*(:)?\s*(\d[\d,./\s]*)$/);
+  const countWithLabel = message.match(/^(Population|Army|Available|Farmers|Builders|Production\/Service|Militia|Professional|Logs|Wood|Stone|Grain|Apples|Flour|Food|Storage|Missiles)\s*(:)?\s*(\d[\d,./\s]*)$/);
   if (countWithLabel) {
     const title = dictionary[countWithLabel[1]] || ({
       Population: 'جمعیت', Army: 'ارتش', Available: 'آزاد', Farmers: 'کشاورزان',
       Builders: 'سازندگان', 'Production/Service': 'تولید/خدمات',
-      Militia: 'شبه‌نظامیان', Professional: 'حرفه‌ای‌ها', Wood: 'چوب', Stone: 'سنگ',
+      Militia: 'شبه‌نظامیان', Professional: 'حرفه‌ای‌ها', Logs: 'الوار', Wood: 'چوب', Stone: 'سنگ',
       Grain: 'غله', Apples: 'سیب', Flour: 'آرد', Food: 'خوراک', Storage: 'انبار',
       Missiles: 'موشک‌ها',
     } as Record<string, string>)[countWithLabel[1]];
