@@ -30,11 +30,6 @@ assert.equal(
   definitionSet.size,
   'TOOL_GROUPS must not contain duplicate tool definitions.',
 );
-const sandbox = between(
-  gameMode,
-  '  sandbox: {',
-  '\n};',
-);
 const shortcutMap = between(
   threeGame,
   'const shortcutMap: Record<string, ToolKind> = {',
@@ -53,7 +48,7 @@ const selection = between(
 assert.match(
   selection,
   /tool !== null && !this\.isToolAvailable\(tool\)/,
-  'Tool selection must remain gated by the active game mode.',
+  'Tool selection must remain gated by the unified ruleset.',
 );
 
 const placement = between(
@@ -73,7 +68,7 @@ assert.match(
 );
 // Preserve the current UI surface while preventing future config/registry drift.
 // These pre-existing gaps are intentionally allowlisted until they receive their own ToolDefinitions.
-const LEGACY_REGISTRY_GAPS = new Set(['mine', 'hut', 'rock']);
+const LEGACY_REGISTRY_GAPS = new Set();
 
 const constBodies = new Map();
 for (const match of gameMode.matchAll(/const\s+([A-Z_]+)[^=]*=\s*\[([\s\S]*?)\];/g)) {

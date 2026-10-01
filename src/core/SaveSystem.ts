@@ -62,9 +62,9 @@ export interface SaveLoadHost {
   setLoadedSaveVersion(value: number): void;
   setStoneStyle(value: StoneStyle): void;
   migrateKind(kind: string, level: number, saveVersion: number): { kind: string; level: number } | null;
-  isBuildingAvailableForMode(mode: GameMode, kind: string): boolean;
+  isBuildingAvailable(kind: string): boolean;
   key(x: number, y: number): string;
-  syncModeDependentUI(): void;
+  syncLoadedWorldUI(): void;
   setStatus(message: string): void;
   prepareForLoad?(): void;
   afterLoad?(): void;
@@ -508,7 +508,7 @@ export class SaveSystem {
     for (const cell of data.cells ?? []) {
       if (!validGrid(cell.x, cell.y)) continue;
       const migration = this.host.migrateKind(cell.kind, cell.level ?? 1, Math.max(0, Math.floor(data.version ?? 0)));
-      if (!migration || !this.host.isBuildingAvailableForMode(loadedMode, migration.kind)) continue;
+      if (!migration || !this.host.isBuildingAvailable(migration.kind)) continue;
       cells.push({
         x: cell.x,
         y: cell.y,
@@ -574,7 +574,7 @@ export class SaveSystem {
     this.host.setPopulationState?.(data.population);
     this.host.setEnvironmentState?.(data.environment);
     this.host.setMissionState?.(data.missions);
-    this.host.syncModeDependentUI();
+    this.host.syncLoadedWorldUI();
   }
 
   private validateRecord(record: SaveRecord): { ok: true } | { ok: false; message: string } {

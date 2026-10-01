@@ -1,4 +1,3 @@
-import type { GameMode } from '../core/GameMode';
 import type { MissileInventoryState } from '../core/types';
 import type { MilitaryTier } from './MilitaryProgression';
 
@@ -59,26 +58,18 @@ export function normalizeMissileState(value?: Partial<MissileInventoryState> | n
   };
 }
 
-export function missileModeAvailable(_mode: GameMode): boolean {
-  return true;
-}
-
-export function missilesUnlocked(_mode: GameMode, _tier: MilitaryTier): boolean {
-  return true;
+export function missilesUnlocked(tier: MilitaryTier): boolean {
+  return tier >= MISSILE_CONFIG.unlockTier;
 }
 
 export function beginMissileProduction(
   state: MissileInventoryState,
-  mode: GameMode,
   tier: MilitaryTier,
   battleActive: boolean,
 ): MissileProductionResult {
   const current = normalizeMissileState(state);
 
-  if (!missileModeAvailable(mode)) {
-    return { ok: false, state: current, message: 'Missile production is available in the unified game' };
-  }
-  if (!missilesUnlocked(mode, tier)) {
+  if (!missilesUnlocked(tier)) {
     return { ok: false, state: current, message: `Missiles unlock at Military Tier ${MISSILE_CONFIG.unlockTier}` };
   }
   if (battleActive) {

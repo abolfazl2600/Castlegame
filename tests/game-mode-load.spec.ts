@@ -107,3 +107,38 @@ test('Templates modal closes when its backdrop is clicked', async ({ page }) => 
   await modal.click({ position: { x: 4, y: 4 } });
   await expect(modal).toBeHidden();
 });
+
+
+test('Free Build is an accessible capability that survives closing God Mode', async ({ page }) => {
+  await seedAutosaveBeforeNavigation(page, 'medieval');
+  await page.goto('/Castlegame/', { waitUntil: 'domcontentloaded' });
+  await expect(page.locator('#toolbar [data-build-none]')).toHaveCount(1, { timeout: 20_000 });
+  await page.locator('#god-mode-button').click();
+  const toggle = page.locator('#god-mode-free-build');
+  await expect(toggle).toHaveAttribute('aria-pressed', 'false');
+  await toggle.click();
+  await expect(toggle).toHaveAttribute('aria-pressed', 'true');
+  await page.locator('#god-mode-close').click();
+  await page.locator('#god-mode-button').click();
+  await expect(toggle).toHaveAttribute('aria-pressed', 'true');
+  await toggle.click();
+  await expect(toggle).toHaveAttribute('aria-pressed', 'false');
+});
+
+test('Endless Defense starts, pauses, and resumes through Battle controls', async ({ page }) => {
+  await seedAutosaveBeforeNavigation(page, 'survival');
+  await page.goto('/Castlegame/', { waitUntil: 'domcontentloaded' });
+  await expect(page.locator('#toolbar [data-build-none]')).toHaveCount(1, { timeout: 20_000 });
+  await page.locator('#battle-button').click();
+  await page.locator('#battle-endless').click();
+  const panel = page.locator('#battle-panel');
+  await expect(panel).toHaveAttribute('data-battle-phase', 'running');
+  await page.locator('#battle-stop').click();
+  await expect(panel).toHaveAttribute('data-battle-phase', 'paused');
+  await page.locator('#battle-start').click();
+  await expect(panel).toHaveAttribute('data-battle-phase', 'running');
+  await expect(page.locator('#battle-endless')).toBeDisabled();
+  await page.locator('#battle-reset').click();
+  await expect(panel).toHaveAttribute('data-battle-phase', 'idle');
+  await expect(page.locator('#battle-endless')).toBeEnabled();
+});

@@ -26,7 +26,6 @@ export const BATTLE_TRANSLATIONS: Readonly<Record<string, string>> = {
   "Missiles can only launch while a battle is running": "موشک فقط هنگام نبرد فعال قابل شلیک است",
   "Selected hostile target is outside missile range": "هدف دشمن خارج از برد موشک است",
   "Missile payload is unavailable": "محموله موشکی در دسترس نیست",
-  "Missile production is available in Sandbox mode only": "تولید موشک فقط در محیط آزاد در دسترس است",
   "Missile production is unavailable during an active battle": "هنگام نبرد فعال نمی‌توان موشک تولید کرد",
   "Reset the current battle before starting Endless Defense": "پیش از شروع دفاع بی‌پایان، نبرد فعلی را بازنشانی کنید",
   "Missiles are unavailable": "موشک‌ها در دسترس نیستند",
@@ -44,8 +43,6 @@ export const BATTLE_TRANSLATIONS: Readonly<Record<string, string>> = {
   "Stone fortifications, medieval buildings, soldiers, and siege systems.": "استحکامات سنگی، ساختمان‌های قرون‌وسطایی، سربازان و سامانه‌های محاصره.",
   "Endless wave defense using the existing castle, enemy, combat, and navigation systems.": "دفاع در برابر موج‌های بی‌پایان با استفاده از سامانه‌های موجود قلعه، دشمن، نبرد و مسیریابی.",
   "Free-form construction and experimentation using all building and world tools supported by the existing game.": "ساخت‌وساز آزاد و آزمایش با همه ابزارهای ساختمانی و جهانی که بازی پشتیبانی می‌کند.",
-  "Survival": "بقا",
-  "Sandbox": "محیط آزاد",
   "Buildings": "ساختمان‌ها",
   "Roads & Harbor": "راه‌ها و بندر",
   "Classic Island": "جزیره کلاسیک",
@@ -74,9 +71,6 @@ export const BATTLE_TRANSLATIONS: Readonly<Record<string, string>> = {
   "A long connected landform reaching the north edge, surrounded by water on both sides and opening into a wide central plateau.": "شبه‌جزیره‌ای کشیده و پیوسته تا لبه شمالی با آب در دو سوی آن و فلاتی وسیع در مرکز.",
   "Two separated buildable islands with distinct shores and open water between them for bridges, ports, and split settlements.": "دو جزیره جداگانه قابل ساخت با ساحل‌های مستقل و آب باز میان آن‌ها، مناسب پل‌ها، بندرها و سکونتگاه‌های چندجزیره‌ای.",
   "Free-form construction and experimentation using the existing world and building systems.": "ساخت‌وساز و آزمایش آزاد با سامانه‌های موجود جهان و ساختمان‌ها.",
-  "Sandbox ready · free-form construction enabled": "محیط آزاد آماده است · ساخت‌وساز آزاد فعال شد",
-  "Sandbox restarted · world reset and ready for construction": "محیط آزاد دوباره آغاز شد · جهان بازنشانی و برای ساخت‌وساز آماده است",
-  "Survival configuration contains an empty wave": "در تنظیمات حالت بقا یک موج بدون دشمن وجود دارد",
   "Game Mode": "حالت بازی",
   "Missile Strike": "حمله موشکی",
   "Flood": "سیل",
@@ -136,5 +130,10 @@ export const BATTLE_TRANSLATIONS: Readonly<Record<string, string>> = {
   "Tool": "ابزار",
   "Missile": "موشک",
   "Target one building and call down a direct missile impact.": "یک ساختمان را هدف بگیرید و موشک را مستقیماً به آن شلیک کنید.",
-  "Modern missiles unlock at Military Tier 4. Sandbox bypasses the tier requirement.": "موشک‌های نوین در رده نظامی ۴ آزاد می‌شوند؛ محیط آزاد به این شرط نیاز ندارد."
+  "Resume Endless Defense": "ادامه دفاع بی‌پایان",
+  "Endless Defense paused": "دفاع بی‌پایان متوقف شد",
+  "Endless Defense resumed": "دفاع بی‌پایان ادامه یافت",
+  "God Mode action is unavailable": "این فرمان حالت خدایی در دسترس نیست",
+  "This building is unavailable": "این ساختمان در دسترس نیست",
+  "Tool unavailable": "ابزار در دسترس نیست"
 };

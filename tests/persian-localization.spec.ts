@@ -2,7 +2,7 @@ import { expect, test, type Page, type TestInfo } from '@playwright/test';
 import { SAVE_AUTOSAVE_KEY, SAVE_KEY, SAVE_VERSION } from '../src/core/constants';
 import { translate } from '../src/i18n/localization';
 
-// Stable small sandbox world: UI/RTL checks should not depend on heavyweight rendering.
+// Stable small unified world: UI/RTL checks should not depend on heavyweight rendering.
 async function openLocalizedGame(page: Page, width: number, height: number): Promise<void> {
   await page.setViewportSize({ width, height });
   await page.addInitScript(({ markerKey, autosaveKey, version }) => {
@@ -10,9 +10,9 @@ async function openLocalizedGame(page: Page, width: number, height: number): Pro
     localStorage.setItem(markerKey, '1');
     localStorage.setItem(autosaveKey, JSON.stringify({
       metadata: { id: 'fa-rtl-e2e', slot: 'autosave', name: 'Persian QA',
-        createdAt: now, updatedAt: now, schemaVersion: version, gameMode: 'sandbox',
+        createdAt: now, updatedAt: now, schemaVersion: version, gameMode: 'unified',
         summary: { buildings: 0, keeps: 0, terrainChanges: 0, elevations: 0 } },
-      data: { version, gameMode: 'sandbox', updatedAt: now, worldSeeded: true,
+      data: { version, gameMode: 'unified', updatedAt: now, worldSeeded: true,
         cells: [], keeps: [], towerBridges: [], terrain: [], elevations: [], stoneStyle: 'limestone' },
     }));
     if (!localStorage.getItem('castle-role.settings.v2')) localStorage.setItem('castle-role.settings.v2', JSON.stringify({
@@ -109,7 +109,7 @@ test('Settings overview, gameplay, graphics and data are fully Persian and right
   const overview = page.locator('[data-settings-pane="overview"]');
   const resetWorld = overview.locator('[data-action="reset-world"]');
   await expect(resetWorld.locator('strong')).toHaveText('بازنشانی جهان');
-  await expect(resetWorld.locator('small')).toHaveText('یک جهان تازه آغاز کنید و حالت بازی را انتخاب کنید');
+  await expect(resetWorld.locator('small')).toHaveText('یک جهان تازه آغاز کنید و چیدمان نقشه را انتخاب کنید');
   expect(await resetWorld.evaluate(element => getComputedStyle(element).textAlign)).toBe('right');
 
   await page.locator('[data-settings-nav="gameplay"]').click();
@@ -129,8 +129,8 @@ test('Settings overview, gameplay, graphics and data are fully Persian and right
   await expect(page.locator('[data-setting="performanceMode"] option[value="auto"]')).toHaveText('خودکار (تطبیقی)');
 
   await page.locator('[data-settings-nav="data"]').click();
-  const dataAction = page.locator('.settings-data-actions button').first();
-  await expect(dataAction.locator('span')).toHaveText('حریم خصوصی و قوانین');
+  const dataAction = page.locator('.settings-data-actions [data-action="open-privacy"]');
+  await expect(dataAction.locator('span')).toHaveText('داده‌ها و حریم خصوصی');
   expect(await dataAction.evaluate(element => getComputedStyle(element).textAlign)).toBe('right');
 });
 
@@ -140,7 +140,13 @@ test('Privacy panel and native Save prompt are localized; values remain separate
   await page.locator('[data-settings-nav="data"]').click();
   await expect(page.locator('#settings-privacy-legal')).toBeAttached({ timeout: 20_000 });
   await expect(page.locator('#privacy-policy h4')).toHaveText('سیاست حریم خصوصی');
-  await expect(page.locator('#privacy-policy code').first()).toContainText('castle-role');
+  await expect(page.locator('#privacy-policy')).toContainText(
+    translate('This information is stored locally on your device. It is not sent to a Castle Role server.', 'fa'),
+  );
+  await expect(page.locator('#data-storage .privacy-data-card').first().locator('strong'))
+    .toHaveText(translate('Game saves', 'fa'));
+  await expect(page.locator('#data-storage .privacy-data-card').first().locator('span'))
+    .toHaveText(translate('Stored only on this device', 'fa'));
 
   await page.locator('[data-settings-nav="overview"]').click();
   await page.locator('[data-system-action="save"]').click();
