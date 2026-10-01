@@ -10808,7 +10808,6 @@ export class ThreeGame {
   private bindUI(): void {
     const get = <T extends HTMLElement>(id: string): T => document.getElementById(id) as T;
     const toolbar = get<HTMLElement>('toolbar');
-    this.renderGameModeSelection();
 
     const noneHtml =
       '<button class="build-inspect-button is-selected" data-build-none="true" type="button" aria-pressed="true">' +
