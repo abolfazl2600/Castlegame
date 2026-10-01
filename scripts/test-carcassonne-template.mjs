@@ -59,9 +59,11 @@ assert.ok(
 
 assert.ok(types.includes("| 'basilica'"));
 assert.ok(
-  gameMode.split("'basilica'").length - 1 >= 4,
-  'Basilica should be available in medieval-capable building groups.',
+  gameMode.split("'basilica'").length - 1 >= 2,
+  'Basilica should remain available in the unified building ruleset.',
 );
+assert.match(gameMode, /export type GameMode = 'unified'/);
+assert.doesNotMatch(gameMode, /GAME_MODE_CONFIG|survival:\s*\{|sandbox:\s*\{/);
 assert.ok(threeGame.includes('new BasilicaRenderer(this.medievalMaterials)'));
 assert.ok(basilica.includes("landmark = 'basilica'"));
 assert.ok(basilica.includes('RingGeometry'));
