@@ -26,7 +26,7 @@ export const PERSIAN_TRANSLATIONS: Readonly<Record<string, string>> = {
   "3D View": "نمای سه‌بعدی",
   "45° View": "نمای ۴۵ درجه",
   "Top View": "نمای بالا",
-  "WORLD MAP": "نقشه جهان",
+  "MAP": "نقشه",
   "Tap to move camera": "برای جابه‌جایی دوربین لمس کنید",
   "REMOVE": "حذف",
   "CASTLE BATTLE": "نبرد قلعه",
