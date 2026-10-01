@@ -194,7 +194,7 @@ export class SettingsUI {
             <section class="settings-pane" data-settings-pane="data">
               ${this.paneHeading('LOCAL DATA', 'Data & Privacy', 'Saves and settings are stored locally in this browser.')}
               <div class="settings-data-actions">
-                <button type="button" data-action="open-privacy" disabled aria-busy="true"><span>Privacy & Legal</span><small>Review local data and privacy information</small></button>
+                <button type="button" data-action="open-privacy" disabled aria-busy="true"><span>Data & Privacy</span><small>Review what the game stores and how to delete it</small></button>
                 <button type="button" data-action="defaults"><span>Restore defaults</span><small>Restore default settings without deleting saves</small></button>
                 <button type="button" data-action="reset-settings"><span>Reset settings</span><small>Clear saved preferences and return to defaults</small></button>
                 <button class="is-danger" type="button" data-action="reset-save"><span>Delete local saves</span><small>Remove all local save slots and autosaves</small></button>
@@ -329,11 +329,11 @@ export class SettingsUI {
         });
       }
     } catch (error) {
-      console.error('Optional Privacy & Legal Settings section failed to initialize', error);
+      console.error('Optional Data & Privacy Settings section failed to initialize', error);
       if (privacyButton) {
         privacyButton.disabled = true;
         privacyButton.removeAttribute('aria-busy');
-        privacyButton.title = 'Privacy & Legal is unavailable';
+        privacyButton.title = 'Data & Privacy is unavailable';
       }
     }
   }
