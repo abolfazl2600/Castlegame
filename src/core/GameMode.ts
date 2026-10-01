@@ -29,8 +29,11 @@ const COMMON_WORLD_TOOLS: readonly ToolKind[] = [
   'tree','rock','mountain','mountainRange','river','land','raise','lower','flatten','smooth','hill','cliff','erase',
 ];
 
+const GAMEPLAY_ENVIRONMENT_TOOLS: readonly ToolKind[] = ['tree','rock','mountain'];
+const GAMEPLAY_TERRAIN_TOOLS: readonly ToolKind[] = ['raise','lower','flatten'];
 const GAMEPLAY_WORLD_TOOLS: readonly ToolKind[] = [
-  'tree','rock','mountain','raise','lower','flatten',
+  ...GAMEPLAY_ENVIRONMENT_TOOLS,
+  ...GAMEPLAY_TERRAIN_TOOLS,
 ];
 
 const SANDBOX_BUILDINGS: readonly TileKind[] = [
@@ -54,7 +57,8 @@ export const GAME_MODE_CONFIG: Record<GameMode, GameModeDefinition> = {
       { label: 'Castle & Defense', toolIds: ['wall1','wall2','wall3','gate','tower','towerBridge','keep','moat'] },
       { label: 'Buildings', toolIds: ['cottage','house','manor','villa','market','basilica','mosque','carpenter','farm','cowBarn','appleOrchard','windmill','mine','hut'] },
       { label: 'Military', toolIds: ['armyCamp'] },
-      { label: 'Environment', toolIds: GAMEPLAY_WORLD_TOOLS },
+      { label: 'Environment', toolIds: GAMEPLAY_ENVIRONMENT_TOOLS },
+      { label: 'Terrain', toolIds: GAMEPLAY_TERRAIN_TOOLS },
       { label: 'Roads & Harbor', toolIds: ['road','dirtRoad','stoneRoad','harbor'] },
     ],
     availableTools: [...MEDIEVAL_BUILDINGS, 'keep','towerBridge',...GAMEPLAY_WORLD_TOOLS],
@@ -70,7 +74,8 @@ export const GAME_MODE_CONFIG: Record<GameMode, GameModeDefinition> = {
       { label: 'Castle & Defense', toolIds: ['wall1','wall2','wall3','gate','tower','towerBridge','keep','moat'] },
       { label: 'Buildings', toolIds: ['cottage','house','manor','villa','market','basilica','mosque','carpenter','farm','cowBarn','appleOrchard','windmill','mine','hut'] },
       { label: 'Military', toolIds: ['armyCamp'] },
-      { label: 'Environment', toolIds: GAMEPLAY_WORLD_TOOLS },
+      { label: 'Environment', toolIds: GAMEPLAY_ENVIRONMENT_TOOLS },
+      { label: 'Terrain', toolIds: GAMEPLAY_TERRAIN_TOOLS },
       { label: 'Roads & Harbor', toolIds: ['road','dirtRoad','stoneRoad','harbor'] },
     ],
     availableTools: [...MEDIEVAL_BUILDINGS, 'keep','towerBridge',...GAMEPLAY_WORLD_TOOLS],
