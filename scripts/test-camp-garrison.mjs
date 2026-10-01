@@ -3,11 +3,11 @@ import { readFile } from 'node:fs/promises';
 import { PopulationSystem } from '../src/systems/PopulationSystem.ts';
 
 const html = await readFile(new URL('../index.html', import.meta.url), 'utf8');
-const survival = await readFile(new URL('../src/SurvivalGameMode.ts', import.meta.url), 'utf8');
+const endlessDefense = await readFile(new URL('../src/battle/EndlessDefense.ts', import.meta.url), 'utf8');
 const game = await readFile(new URL('../src/ThreeGame.ts', import.meta.url), 'utf8');
 assert.doesNotMatch(html, /battle-faction battle-defenders|data-battle-field="defender/);
 assert.match(html, /battle-faction battle-attackers/);
-assert.doesNotMatch(survival, /survival-hud|ensureHud|renderHud/);
+assert.doesNotMatch(endlessDefense, /survival-hud|ensureHud|renderHud/);
 assert.match(game, /professionalArmyCapacity\(cells\)/);
 assert.match(game, /professionalArmyComposition\(\)/);
 assert.match(game, /if \(String\(field\)\.startsWith\('defender'\)\) return;/);
