@@ -2365,7 +2365,7 @@ kbd {
   .mobile-header-actions::-webkit-scrollbar { display:none; }
   .mobile-action,.mobile-dock-button { -webkit-tap-highlight-color:transparent; touch-action:manipulation; user-select:none; }
   .mobile-action { flex:0 0 auto; min-width:44px; min-height:44px; padding:7px 9px; border:1px solid rgba(255,255,255,.13); border-radius:12px; color:#f1fbff; background:rgba(7,25,39,.84); backdrop-filter:blur(14px); box-shadow:0 8px 24px rgba(0,0,0,.22); font-size:16px; font-weight:800; cursor:pointer; }
-  .mobile-mode-action { max-width:148px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:10px; }
+  .mobile-mode-action { width:44px; max-width:44px; padding:7px; overflow:visible; font-size:18px; line-height:1; }
   .mobile-danger { color:#ffd7d2; border-color:rgba(255,140,130,.22); }
   .mobile-bottom-dock { position:absolute; left:0; right:0; bottom:0; min-height:calc(var(--mobile-dock-height) + var(--mobile-safe-bottom)); padding:5px max(8px,var(--mobile-safe-right)) calc(5px + var(--mobile-safe-bottom)) max(8px,var(--mobile-safe-left)); display:grid; grid-template-columns:repeat(2,minmax(44px,160px)); justify-content:center; gap:5px; pointer-events:auto; background:linear-gradient(0deg,rgba(4,16,27,.97),rgba(4,16,27,.88) 72%,rgba(4,16,27,0)); backdrop-filter:blur(12px); }
   .mobile-dock-button { min-width:44px; min-height:48px; display:grid; place-items:center; align-content:center; gap:2px; border:1px solid rgba(255,255,255,.1); border-radius:11px; color:#e8f8fc; background:rgba(255,255,255,.055); cursor:pointer; }
@@ -3505,11 +3505,12 @@ html.mobile-ui-active .mobile-action {
 }
 
 html.mobile-ui-active .mobile-mode-action {
-  max-width: 148px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-size: 10px;
+  width: 44px;
+  max-width: 44px;
+  padding: 7px;
+  overflow: visible;
+  font-size: 18px;
+  line-height: 1;
 }
 
 /* Build lives alongside the primary actions; the bottom dock is no longer rendered. */
@@ -3517,9 +3518,13 @@ html.mobile-ui-active .mobile-build-action {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 5px;
+  width: 44px;
+  max-width: 44px;
+  padding: 7px;
+  gap: 0;
   white-space: nowrap;
-  font-size: 12px;
+  font-size: 18px;
+  line-height: 1;
 }
 html.mobile-ui-active .mobile-build-action[aria-expanded="true"] {
   background: rgba(61,160,209,.25);

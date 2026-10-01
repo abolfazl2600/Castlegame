@@ -34,8 +34,8 @@ export class MobileUI {
     layer.innerHTML = `
       <header class="mobile-header" aria-label="Mobile game actions">
         <div class="mobile-header-actions" role="toolbar" aria-label="Game actions">
-          <button type="button" data-mobile-proxy="game-mode-button" class="mobile-action mobile-mode-action"></button>
-          <button type="button" data-mobile-proxy="toolbar-open" class="mobile-action mobile-build-action" aria-label="Build tools" aria-controls="toolbar" aria-expanded="false"><span aria-hidden="true">🧱</span><span>Build</span></button>
+          <button type="button" data-mobile-proxy="game-mode-button" class="mobile-action mobile-mode-action" aria-label="Game mode"><span aria-hidden="true">🎮</span></button>
+          <button type="button" data-mobile-proxy="toolbar-open" class="mobile-action mobile-build-action" aria-label="Build tools" aria-controls="toolbar" aria-expanded="false"><span aria-hidden="true">🧱</span></button>
           <button type="button" data-mobile-proxy="battle-button" class="mobile-action" aria-label="Battle and military">⚔️</button>
           <button type="button" data-mobile-proxy="god-mode-button" class="mobile-action" aria-label="God Mode">⚡</button>
           <button type="button" data-mobile-action="templates" class="mobile-action" aria-label="Templates">▧</button>
@@ -111,7 +111,9 @@ export class MobileUI {
     const target = document.getElementById('game-mode-label');
     const button = document.querySelector<HTMLButtonElement>('[data-mobile-proxy="game-mode-button"]');
     if (target && button) {
-      button.textContent = target.textContent?.trim() || 'Mode';
+      const label = target.textContent?.trim() || 'Mode';
+      button.setAttribute('aria-label', `Game mode: ${label}`);
+      button.title = label;
     }
 
     this.syncProxyVisibility();
