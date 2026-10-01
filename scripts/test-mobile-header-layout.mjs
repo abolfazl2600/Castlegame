@@ -26,6 +26,10 @@ assert.match(settings, /this\.close\(\);\s*resetButton\.click\(\);/,
 assert.match(game, /get<HTMLButtonElement>\('reset-button'\)\.onclick/,
   'The existing reset button must retain its confirmation and game mode behavior.');
 assert.doesNotMatch(mobileUi, /mobile-bottom-dock/, 'Mobile footer must no longer occupy screen space.');
+assert.doesNotMatch(mobileUi, /mobile-status|data-mobile-status|save-status/,
+  'Mobile UI must not render or mirror desktop status notifications.');
+assert.doesNotMatch(css, /\.mobile-status(?:-dot)?\b/,
+  'Mobile status notification styles must remain absent.');
 assert.doesNotMatch(mobileUi, /data-mobile-proxy="view-3d-button"/, 'Redundant mobile 3D action must be removed.');
 assert.match(mobileUi, /target instanceof HTMLButtonElement\) target\.click\(\)/,
   'Build must continue to proxy to the existing gameplay control.');
