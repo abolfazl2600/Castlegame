@@ -181,8 +181,11 @@ export class SettingsUI {
             </section>
 
             <section class="settings-pane" data-settings-pane="controls">
-              ${this.paneHeading('REFERENCE', 'Controls', 'A compact reference for desktop controls.')}
+              ${this.paneHeading('REFERENCE', 'Controls', 'A compact reference for touch and desktop controls.')}
               <div class="settings-control-reference">
+                <span><strong>Touch gestures</strong><small>Tap to select or place. With Wall, Road or Terrain selected, drag one finger to edit.</small></span>
+                <span><strong>Touch camera</strong><small>Use two fingers to pan and pinch to zoom, even while a build tool is selected. Adding a second finger cancels the unfinished edit.</small></span>
+                <span><strong>Single-finger navigation</strong><small>In Inspect, drag to rotate in 3D or pan in 2D. Battle uses camera navigation; in God Mode, tap to choose a target.</small></span>
                 <span><kbd>Esc</kbd><strong>Clear / Close</strong><small>Clear the active build tool or close help.</small></span>
                 <span><kbd>Ctrl/Cmd + Z</kbd><strong>Undo</strong><small>Undo the latest architectural change.</small></span>
                 <span><kbd>Ctrl/Cmd + Y</kbd><strong>Redo</strong><small>Restore the last undone change.</small></span>

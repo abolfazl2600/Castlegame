@@ -1,5 +1,9 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { App } from '@capacitor/app';
+import { Capacitor } from '@capacitor/core';
+import { TouchGestureSession } from './input/TouchGestureSession';
+import { applyTouchCameraDelta } from './input/TouchCamera';
 import { createGameDomainServices } from './core/GameDomainServices';
 import { SaveSystem, type SaveStorage } from './core/SaveSystem';
 import type { GameExtension } from './core/GameExtension';
@@ -542,6 +546,7 @@ export class ThreeGame {
   private terrainStrokeActive = false;
   private terrainStrokeChanged = false;
   private terrainStrokeSnapshot: HistorySnapshot | null = null;
+  private cancelWorldTouchInput: (() => void) | null = null;
   private lastTerrainBrushKey = '';
 
   private wallDragStart: GridPoint | null = null;
@@ -557,8 +562,6 @@ export class ThreeGame {
   private longPressStartedAt = 0;
   private longPressTriggered = false;
   private longPressStartScreen: { x: number; y: number } | null = null;
-  private readonly activeTouchPointers = new Set<number>();
-  private readonly suppressedTouchPointers = new Set<number>();
 
   private saveTimer: number | null = null;
   private economySaveAccumulatorMs = 0;
@@ -577,6 +580,8 @@ export class ThreeGame {
       keepSystem: this.services.keepSystem,
       terrainOverrides: this.terrainOverrides,
       elevationOverrides: this.elevationOverrides,
+      getCommittedElevationOverrides: () => this.terrainStrokeActive && this.terrainStrokeSnapshot
+        ? new Map(this.terrainStrokeSnapshot.elevations) : this.elevationOverrides,
       towerBridges: this.towerBridges,
       getGameMode: () => this.gameMode,
       getMapLayoutId: () => this.mapLayoutId,
@@ -605,6 +610,7 @@ export class ThreeGame {
       key: (x, y) => this.key(x, y),
       syncLoadedWorldUI: () => this.syncLoadedWorldUI(),
       prepareForLoad: () => {
+        this.cancelWorldTouchInput?.();
         this.endlessDefenseActive = false;
         this.endlessDefensePaused = false;
         this.endlessDefenseWave = 0;
@@ -7890,7 +7896,7 @@ export class ThreeGame {
     this.setStatus('Rotated selected structure');
   }
 
-  private cancelActiveTouchBuildGesture(canvas: HTMLCanvasElement): void {
+  private cancelActiveTouchBuildGesture(): void {
     const terrainSnapshot =
       this.terrainStrokeActive && this.terrainStrokeChanged
         ? this.terrainStrokeSnapshot
@@ -7911,39 +7917,66 @@ export class ThreeGame {
     this.lastTerrainBrushKey = '';
     this.pointerStart = null;
     this.buildPreviewKey = '';
-    this.clearGroup(this.wallPreviewLayer);
+    this.clearBuildPlacementPreview();
+    this.towerBridgeStart = null;
+    this.towerBridgeHover = null;
     this.controls.enabled = true;
 
-    for (const pointerId of this.activeTouchPointers) {
-      if (canvas.hasPointerCapture(pointerId)) canvas.releasePointerCapture(pointerId);
-    }
-
     if (terrainSnapshot) {
-      this.restoreSnapshot(terrainSnapshot);
-      this.setStatus('Touch gesture changed · cancelled unfinished terrain edit');
+      // A stroke changes elevation only. Do not rewind economy/population that
+      // continued simulating while the player held a finger down.
+      this.elevationOverrides.clear();
+      for (const [key, value] of terrainSnapshot.elevations) this.elevationOverrides.set(key, value);
+      this.normalizeRiverElevations();
+      this.redraw();
     }
   }
 
   private bindPointerInput(): void {
     const canvas = this.renderer.domElement;
+    const touches = new TouchGestureSession(
+      () => this.cancelActiveTouchBuildGesture(),
+      (delta) => {
+        applyTouchCameraDelta(this.camera, this.controls, delta, canvas.clientHeight);
+        this.enforceGameplayCameraBounds();
+      },
+    );
+    if (new URLSearchParams(window.location.search).has('touchQA')) {
+      // Read-only, opt-in diagnostics for CDP touch tests; normal release bounds
+      // remain enabled (unlike visualBaseline's fixed-camera benchmark mode).
+      (window as unknown as { __castleTouchQA: () => object }).__castleTouchQA = () => ({
+        camera: this.camera.position.toArray(), target: this.controls.target.toArray(),
+        distance: this.camera.position.distanceTo(this.controls.target),
+        minDistance: this.controls.minDistance, maxDistance: this.controls.maxDistance,
+        cells: this.services.state.entries(), elevations: [...this.elevationOverrides.entries()],
+        undoCount: this.undoStack.length, pointers: touches.pointerIds,
+        dragging: Boolean(this.wallDragStart || this.roadDragStart || this.terrainStrokeActive),
+        preview: this.wallPreviewLayer.children.length,
+      });
+    }
+    // Canvas touches belong to one owner. OrbitControls retains desktop mouse,
+    // wheel and keyboard events; it never receives half of a touch sequence.
+    const consumeTouch = (event: PointerEvent): void => {
+      event.preventDefault();
+      event.stopPropagation();
+    };
 
     canvas.addEventListener(
       'pointerdown',
       (event) => {
         if (event.button !== 0) return;
-        if (this.battleSystem.isActive()) return;
-
         if (event.pointerType === 'touch') {
-          this.activeTouchPointers.add(event.pointerId);
-          if (this.activeTouchPointers.size > 1) {
-            for (const pointerId of this.activeTouchPointers) {
-              this.suppressedTouchPointers.add(pointerId);
-            }
-            this.cancelActiveTouchBuildGesture(canvas);
-            this.setStatus('Multi-touch camera gesture · castle build action cancelled');
-            return;
-          }
+          consumeTouch(event);
+          void this.audioManager.initializeFromUserGesture();
+          canvas.setPointerCapture(event.pointerId);
+          const stroke = !this.isGodModeTargeting() && this.selectedTool !== null &&
+            (this.isWallTool(this.selectedTool) || this.isRoadTool(this.selectedTool) ||
+              this.isTerrainTool(this.selectedTool) || this.selectedTool === 'mountainRange');
+          const intent = !this.controls.enabled && !touches.pointerIds.length ? 'blocked' :
+            this.battleSystem.isActive() ? 'camera' : stroke ? 'stroke' : 'tap';
+          if (!touches.down(event, intent)) return;
         }
+        if (this.battleSystem.isActive()) return;
 
         const cell = this.pickGridCell(event);
         if (cell && event.pointerType !== 'mouse') {
@@ -8027,6 +8060,10 @@ export class ThreeGame {
     canvas.addEventListener(
       'pointermove',
       (event) => {
+        if (event.pointerType === 'touch') {
+          consumeTouch(event);
+          if (!touches.move(event)) return;
+        }
         if (this.isGodModeTargeting() && event.pointerType === 'mouse' && !this.wallDragStart && !this.roadDragStart && !this.terrainStrokeActive) {
           const cell = this.pickGridCell(event);
           if (cell && (cell.x !== this.godModeHover?.x || cell.y !== this.godModeHover?.y)) {
@@ -8134,18 +8171,10 @@ export class ThreeGame {
         if (event.button !== 0) return;
 
         if (event.pointerType === 'touch') {
-          const suppressed = this.suppressedTouchPointers.has(event.pointerId);
-          this.activeTouchPointers.delete(event.pointerId);
-          this.suppressedTouchPointers.delete(event.pointerId);
-          if (suppressed) {
-            this.cancelLongPress();
-            this.longPressTriggered = false;
-            if (canvas.hasPointerCapture(event.pointerId)) canvas.releasePointerCapture(event.pointerId);
-            if (this.activeTouchPointers.size === 0) this.suppressedTouchPointers.clear();
-            event.preventDefault();
-            event.stopPropagation();
-            return;
-          }
+          consumeTouch(event);
+          const action = touches.up(event);
+          if (canvas.hasPointerCapture(event.pointerId)) canvas.releasePointerCapture(event.pointerId);
+          if (!action) return;
         }
 
         if (this.isGodModeTargeting()) {
@@ -8281,43 +8310,44 @@ export class ThreeGame {
       }
     });
 
-    canvas.addEventListener(
-      'pointercancel',
-      (event) => {
-        this.godModeTouchStart = null;
-        if (event.pointerType === 'touch') {
-          this.activeTouchPointers.delete(event.pointerId);
-          this.suppressedTouchPointers.delete(event.pointerId);
-          if (this.activeTouchPointers.size === 0) this.suppressedTouchPointers.clear();
-        }
-        this.cancelLongPress();
-        this.longPressTriggered = false;
-        this.wallDragStart = null;
-        this.wallDragEnd = null;
-        this.roadDragStart = null;
-        this.roadDragEnd = null;
-        this.mountainRangeStart = null;
-        this.mountainRangeEnd = null;
-        this.terrainStrokeActive = false;
-        this.terrainStrokeSnapshot = null;
-        this.pointerStart = null;
-        this.buildPreviewKey = '';
-        this.clearGroup(this.wallPreviewLayer);
-        this.controls.enabled = true;
-      },
-      true,
-    );
+    canvas.addEventListener('pointercancel', (event) => {
+      if (event.pointerType === 'touch') {
+        consumeTouch(event);
+        touches.cancel(event.pointerId);
+      } else {
+        this.cancelActiveTouchBuildGesture();
+      }
+    }, true);
+    canvas.addEventListener('lostpointercapture', (event) => {
+      // Normal pointer-up removes the pointer first; unexpected capture loss
+      // cancels and rolls back the active stroke instead of committing it.
+      if (event.pointerType === 'touch') touches.cancel(event.pointerId);
+    });
 
     const cancelInterruptedTouchGesture = (): void => {
-      if (this.activeTouchPointers.size === 0) return;
-      this.cancelActiveTouchBuildGesture(canvas);
-      this.activeTouchPointers.clear();
-      this.suppressedTouchPointers.clear();
+      const captured = touches.pointerIds;
+      touches.interrupt();
+      for (const pointerId of captured) {
+        if (canvas.hasPointerCapture(pointerId)) canvas.releasePointerCapture(pointerId);
+      }
     };
+    this.cancelWorldTouchInput = cancelInterruptedTouchGesture;
     window.addEventListener('blur', cancelInterruptedTouchGesture);
+    window.addEventListener('pagehide', cancelInterruptedTouchGesture);
+    document.addEventListener('pause', cancelInterruptedTouchGesture);
     document.addEventListener('visibilitychange', () => {
       if (document.hidden) cancelInterruptedTouchGesture();
     });
+    // UI owns touches that start outside the canvas. Cancel any unfinished world
+    // gesture before a panel/tool/load action changes the game underneath it.
+    document.addEventListener('pointerdown', (event) => {
+      if (event.target !== canvas) cancelInterruptedTouchGesture();
+    }, true);
+    if (Capacitor.isNativePlatform()) {
+      void App.addListener('appStateChange', ({ isActive }) => {
+        if (!isActive) cancelInterruptedTouchGesture();
+      });
+    }
   }
 
   private beginLongPress(event: PointerEvent, cell: GridPoint): void {

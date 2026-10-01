@@ -1,5 +1,13 @@
 /** Source-language text to Persian gameplay translations. Keep IDs and data attributes in English. */
 export const PERSIAN_TRANSLATIONS: Readonly<Record<string, string>> = {
+  "A compact reference for touch and desktop controls.": "راهنمای کوتاه کنترل‌های لمسی و رایانه.",
+  "Touch gestures": "حرکت‌های لمسی",
+  "Tap to select or place. With Wall, Road or Terrain selected, drag one finger to edit.": "برای انتخاب یا ساخت ضربه بزنید. هنگام انتخاب ابزار دیوار، جاده یا زمین، یک انگشت را برای ویرایش بکشید.",
+  "Touch camera": "دوربین لمسی",
+  "Use two fingers to pan and pinch to zoom, even while a build tool is selected. Adding a second finger cancels the unfinished edit.": "با دو انگشت دوربین را جابه‌جا کنید و با باز و بسته کردن انگشت‌ها بزرگ‌نمایی را تغییر دهید، حتی هنگام انتخاب ابزار ساخت. گذاشتن انگشت دوم، ویرایش ناتمام را لغو می‌کند.",
+  "Single-finger navigation": "حرکت دوربین با یک انگشت",
+  "In Inspect, drag to rotate in 3D or pan in 2D. Battle uses camera navigation; in God Mode, tap to choose a target.": "در حالت بررسی، با کشیدن یک انگشت در نمای سه‌بعدی بچرخید یا در نمای دوبعدی جابه‌جا شوید. در نبرد، لمس دوربین را کنترل می‌کند؛ در حالت خدا، برای انتخاب هدف ضربه بزنید.",
+
   "Castle Role — 3D Stronghold": "نقش قلعه — دژ سه‌بعدی",
   "CASTLE ROLE · 3D": "نقش قلعه · سه‌بعدی",
   "CASTLE ROLE": "نقش قلعه",
