@@ -522,10 +522,17 @@ export class DistanceDetailBudgetSystem {
         const bPriority = b.mesh.userData.distanceDetailPriority === 'silhouette' ? 1 : 0;
         return bPriority - aPriority || b.radius - a.radius || a.order - b.order;
       });
-      for (let index = 0; index < group.length; index += 1) {
-        const entry = group[index];
-        if (index < perRootCore) protectedDrawCalls += entry.drawCost;
-        else candidates.push(entry);
+
+      let retainedCoreMeshes = 0;
+      for (const entry of group) {
+        const preservesSilhouette =
+          entry.mesh.userData.distanceDetailPriority === 'silhouette';
+        if (preservesSilhouette || retainedCoreMeshes < perRootCore) {
+          protectedDrawCalls += entry.drawCost;
+          if (!preservesSilhouette) retainedCoreMeshes += 1;
+        } else {
+          candidates.push(entry);
+        }
       }
     }
 
