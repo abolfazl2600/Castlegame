@@ -60,6 +60,8 @@ import { MAP_LAYOUTS, normalizeMapLayoutId, terrainForMapLayout } from './world/
 import { AudioManager } from './audio/AudioManager';
 import { audioEvents } from './audio/AudioEventBus';
 import { registerSystemAction } from './app/applicationActions';
+import { MissionSystem, type MissionSnapshot } from './missions/MissionSystem';
+import { MissionUI } from './missions/MissionUI';
 import {
   GodModeActionRegistry,
   createFutureGodModeAction,
@@ -390,6 +392,11 @@ export class ThreeGame {
   private readonly performanceDebug: PerformanceDebugOverlay;
   /** Domain state and gameplay services are composed here, away from rendering/UI concerns. */
   private readonly services = createGameDomainServices();
+  private readonly missionSystem = new MissionSystem();
+  private readonly missionUI = new MissionUI({
+    onPinMission: (id) => this.setPinnedMission(id),
+  });
+  private missionRefreshAccumulatorMs = 0;
   private readonly castleBlockSystem = new CastleBlockSystem();
   private readonly constructionAnimation = new ConstructionAnimationSystem();
   private readonly ambientFauna = new AmbientFaunaSystem();
@@ -559,6 +566,8 @@ export class ThreeGame {
       setPopulationState: (value) => { this.services.populationSystem.setState(value); },
       getEnvironmentState: () => this.environmentSystem.getState(),
       setEnvironmentState: (value) => { this.environmentSystem.setState(value); },
+      getMissionState: () => this.missionSystem.getState(),
+      setMissionState: (value) => { this.missionSystem.setState(value); },
       setWorldSeeded: (value) => { this.worldSeeded = value; },
       setLoadedSaveVersion: (value) => { this.loadedSaveVersion = value; },
       setStoneStyle: (value) => { this.stoneStyle = value; },
@@ -814,6 +823,7 @@ export class ThreeGame {
     this.redraw();
     this.applyEnvironmentVisuals(true);
     this.bindUI();
+    this.updateMissions(0, true);
     // Keep the construction tool initialized during world creation/redraw, then enter the neutral mode only after UI binding.
     this.selectTool(null);
     this.setToolbarOpen(this.toolbarOpen);
@@ -1574,6 +1584,8 @@ export class ThreeGame {
     this.services.state.setMissileState();
     this.services.economySystem.reset();
     this.services.populationSystem.setState();
+    this.missionSystem.reset();
+    this.missionRefreshAccumulatorMs = 0;
     this.populationBattleCommitted = false;
     this.populationBattleStart = null;
     this.economySaveAccumulatorMs = 0;
@@ -10759,6 +10771,39 @@ export class ThreeGame {
     setText('population-professional', `Professional ${snapshot.professionalArmy}`);
   }
 
+  private missionSnapshot(status: BattleStatus = this.battleSystem.status()): MissionSnapshot {
+    const cells = this.services.state.entries();
+    this.services.populationSystem.reconcile(cells);
+    const population = this.services.populationSystem.snapshot();
+    return {
+      population: {
+        totalPopulation: population.totalPopulation,
+        deadCivilians: population.deadCivilians,
+      },
+      cells,
+      keeps: this.services.keepSystem.entries(),
+      battle: status,
+    };
+  }
+
+  private updateMissions(deltaMs: number, force = false, status?: BattleStatus): void {
+    this.missionRefreshAccumulatorMs += deltaMs;
+    if (!force && this.missionRefreshAccumulatorMs < 300) return;
+    this.missionRefreshAccumulatorMs = 0;
+
+    const snapshot = this.missionSnapshot(status);
+    const result = this.missionSystem.update(snapshot);
+    this.missionUI.render(this.missionSystem.getView(snapshot), result.completedIds);
+    if (result.stateChanged) this.save(false);
+  }
+
+  private setPinnedMission(id?: string): void {
+    if (!this.missionSystem.setPinnedMission(id)) return;
+    const snapshot = this.missionSnapshot();
+    this.missionUI.render(this.missionSystem.getView(snapshot));
+    this.save(false);
+  }
+
   private updateWorkers(deltaMs: number): void {
     for (const worker of this.workers) {
       if (!worker.taskKey) {
@@ -12358,6 +12403,8 @@ export class ThreeGame {
     this.moatTasks.clear();
     this.services.economySystem.reset();
     this.services.populationSystem.setState();
+    this.missionSystem.reset();
+    this.missionRefreshAccumulatorMs = 0;
     this.populationBattleCommitted = false;
     this.populationBattleStart = null;
     this.economySaveAccumulatorMs = 0;
@@ -13976,6 +14023,8 @@ export class ThreeGame {
     this.moatTasks.clear();
     this.services.economySystem.reset();
     this.services.populationSystem.setState();
+    this.missionSystem.reset();
+    this.missionRefreshAccumulatorMs = 0;
     this.populationBattleCommitted = false;
     this.populationBattleStart = null;
     this.economySaveAccumulatorMs = 0;
@@ -14508,6 +14557,9 @@ export class ThreeGame {
     if (defenderAlive) defenderAlive.textContent = String(status.defendersAlive);
     if (status.mode === 'finished') this.commitPopulationBattleOutcome(status);
     this.updatePopulationUI();
+    const missionPopulation = this.services.populationSystem.snapshot();
+    const missionBattleChanged = this.missionSystem.observeBattle(status, missionPopulation.deadCivilians);
+    if (missionBattleChanged || status.mode === 'finished') this.updateMissions(0, true, status);
     this.syncMilitaryMissileUI();
 
     if (captureLabel) {
@@ -14663,6 +14715,7 @@ export class ThreeGame {
     this.updateEnvironment(deltaMs);
     this.updateMissileCapability(deltaMs);
     this.services.session.update(deltaMs, time);
+    this.updateMissions(deltaMs);
     this.updateLongPress(time);
     this.updateGodModeEffects(deltaMs);
     this.ambientFauna.update(deltaMs, time, {
