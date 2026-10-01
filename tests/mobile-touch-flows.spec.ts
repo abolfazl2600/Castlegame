@@ -51,7 +51,7 @@ test('phone header exposes Build while omitting redundant 3D and desktop-only ac
   await expect(page.locator('.mobile-bottom-dock')).toHaveCount(0);
   await expect(page.locator('.mobile-header [data-mobile-proxy="toolbar-open"]')).toBeVisible();
   await expect(page.locator('[data-mobile-proxy="view-3d-button"]')).toHaveCount(0);
-  await expect(dock.locator('[data-mobile-proxy="settings-button"]')).toHaveCount(0);
+  await expect(page.locator('.mobile-bottom-dock [data-mobile-proxy="settings-button"]')).toHaveCount(0);
   await expect(page.locator('.mobile-header [data-mobile-proxy="settings-button"]')).toBeVisible();
 
   await page.locator('.mobile-header [data-mobile-proxy="settings-button"]').click();
@@ -87,5 +87,28 @@ test.describe('Android landscape', () => {
       await expect(page.locator(`#${id}`)).toBeHidden();
       await expect(page.locator(`[data-mobile-proxy="${id}"]`)).toHaveCount(0);
     }
+  });
+
+  test('active battle panel stays dismissible and compact in landscape', async ({ page }) => {
+    await page.setViewportSize({ width: 915, height: 412 });
+
+    const panel = page.locator('#battle-panel');
+    await page.locator('.mobile-header [data-mobile-proxy="battle-button"]').click();
+    await expect(panel).toBeVisible();
+
+    const panelBox = await panel.boundingBox();
+    expect(panelBox).not.toBeNull();
+    expect(panelBox!.width).toBeLessThan(420);
+
+    await page.locator('#battle-start').click();
+    await expect(panel).toHaveAttribute('data-battle-phase', /running|paused|finished/);
+    await expect(panel.locator('.battle-armies')).toBeHidden();
+
+    await page.locator('#battle-close').click();
+    await expect(panel).toBeHidden();
+
+    // Battle status callbacks continue while combat is active; they must not reopen the panel.
+    await page.waitForTimeout(250);
+    await expect(panel).toBeHidden();
   });
 });

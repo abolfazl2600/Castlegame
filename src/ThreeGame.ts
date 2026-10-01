@@ -14509,7 +14509,8 @@ export class ThreeGame {
     if (battleSpeedUp) battleSpeedUp.disabled = !speedControlsEnabled;
     if (battleSpeedReset) battleSpeedReset.disabled = !speedControlsEnabled || status.battleSpeed === 1;
 
-    if (panel && status.mode !== 'idle') panel.removeAttribute('hidden');
+    // Battle status updates must never force the panel back open after the player dismisses it.
+    // The panel is opened explicitly from the Battle/Military controls instead.
 
     if (!result) return;
 
