@@ -249,4 +249,11 @@ export const GAME_TRANSLATIONS: Readonly<Record<string, string>> = {
   "Forest Highlands": "ارتفاعات جنگلی",
   "Marsh Island": "جزیره باتلاقی",
   "Terraced Hills": "تپه‌های پلکانی"
+,
+  "Mine": "معدن",
+  "Produces stone for construction": "برای ساخت‌وساز سنگ تولید می‌کند",
+  "Woodcutter Hut": "کلبه هیزم‌شکن",
+  "Produces logs from nearby trees": "از درختان نزدیک الوار تولید می‌کند",
+  "Rock": "سنگ",
+  "Place natural rock formations": "صخره‌های طبیعی قرار دهید"
 };

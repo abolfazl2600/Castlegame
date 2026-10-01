@@ -2,7 +2,7 @@ import { expect, test, type Page, type TestInfo } from '@playwright/test';
 import { SAVE_AUTOSAVE_KEY, SAVE_KEY, SAVE_VERSION } from '../src/core/constants';
 import { translate } from '../src/i18n/localization';
 
-// Stable small sandbox world: UI/RTL checks should not depend on heavyweight rendering.
+// Stable small unified world: UI/RTL checks should not depend on heavyweight rendering.
 async function openLocalizedGame(page: Page, width: number, height: number): Promise<void> {
   await page.setViewportSize({ width, height });
   await page.addInitScript(({ markerKey, autosaveKey, version }) => {
@@ -10,9 +10,9 @@ async function openLocalizedGame(page: Page, width: number, height: number): Pro
     localStorage.setItem(markerKey, '1');
     localStorage.setItem(autosaveKey, JSON.stringify({
       metadata: { id: 'fa-rtl-e2e', slot: 'autosave', name: 'Persian QA',
-        createdAt: now, updatedAt: now, schemaVersion: version, gameMode: 'sandbox',
+        createdAt: now, updatedAt: now, schemaVersion: version, gameMode: 'unified',
         summary: { buildings: 0, keeps: 0, terrainChanges: 0, elevations: 0 } },
-      data: { version, gameMode: 'sandbox', updatedAt: now, worldSeeded: true,
+      data: { version, gameMode: 'unified', updatedAt: now, worldSeeded: true,
         cells: [], keeps: [], towerBridges: [], terrain: [], elevations: [], stoneStyle: 'limestone' },
     }));
     if (!localStorage.getItem('castle-role.settings.v2')) localStorage.setItem('castle-role.settings.v2', JSON.stringify({

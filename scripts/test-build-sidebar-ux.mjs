@@ -5,9 +5,9 @@ const game = await readFile(new URL('../src/ThreeGame.ts', import.meta.url), 'ut
 const css = await readFile(new URL('../src/style.css', import.meta.url), 'utf8');
 const html = await readFile(new URL('../index.html', import.meta.url), 'utf8');
 
-const refreshStart = game.indexOf('private refreshBuildPanelForMode(): void {');
+const refreshStart = game.indexOf('private refreshBuildPanel(): void {');
 const filterStart = game.indexOf('private filterBuildTools(): void {', refreshStart);
-const registerStart = game.indexOf('private registerBuiltInGameModes(): void {', filterStart);
+const registerStart = game.indexOf('private openMapLayoutSelector(): void {', filterStart);
 assert.notEqual(refreshStart, -1);
 assert.notEqual(filterStart, -1);
 assert.notEqual(registerStart, -1);
@@ -79,7 +79,7 @@ assert.match(game, /if \(tool !== null\) \{[\s\S]*?this\.activeBuildCategory = c
 
 // Build controls are rendered dynamically, so selection must be delegated from
 // the stable toolbar rather than depending on per-button handlers that can be
-// discarded by refreshBuildPanelForMode().
+// discarded by refreshBuildPanel().
 assert.match(game, /toolbar\.addEventListener\('click', \(event\) => \{/);
 assert.match(game, /const buildControlSelector = '\[data-build-category\], \[data-tool\], \[data-build-none\]'/);
 assert.match(game, /private selectTool\(tool: ToolKind \| null\): void/);

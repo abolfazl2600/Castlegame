@@ -1,4 +1,3 @@
-import type { GameMode } from '../core/GameMode';
 import { audioEvents } from './AudioEventBus';
 import { createAudioAssetRegistry } from './AudioAssets';
 import { AndroidAudioLifecycleBridge } from './AndroidAudioLifecycle';
@@ -38,7 +37,6 @@ export class AudioManager {
   private readonly settingsStorageKey: string;
   private readonly sfxVoices = new Map<string, HTMLAudioElement[]>();
   private currentMusic: { assetId: string; element: HTMLAudioElement } | null = null;
-  private currentMode: GameMode;
   private settings: AudioSettings;
   private initialized = false;
   private initializationRequested = false;
@@ -58,8 +56,7 @@ export class AudioManager {
     void this.initializeFromUserGesture();
   };
 
-  constructor(options: { initialMode?: GameMode; settingsStorageKey?: string } = {}) {
-    this.currentMode = options.initialMode ?? 'unified';
+  constructor(options: { settingsStorageKey?: string } = {}) {
     this.settingsStorageKey = options.settingsStorageKey ?? 'castle-role-audio-settings';
     this.settings = this.loadSettings();
 
@@ -76,17 +73,6 @@ export class AudioManager {
 
   isInitialized(): boolean {
     return this.initialized;
-  }
-
-  getMode(): GameMode {
-    return this.currentMode;
-  }
-
-  setMode(mode: GameMode): void {
-    if (this.currentMode === mode) return;
-    this.currentMode = mode;
-    this.stopMusic();
-    if (this.initialized && !document.hidden) this.startProceduralAmbience();
   }
 
   setMasterVolume(value: number): void {
@@ -181,7 +167,6 @@ export class AudioManager {
   }
 
   registerAsset(asset: AudioAsset): void {
-    if (asset.mode !== this.currentMode) return;
     this.registry.set(asset.id, { ...asset });
   }
 
@@ -310,10 +295,6 @@ export class AudioManager {
   }
 
   private handleEvent(event: AudioEventDetail): void {
-    if (event.action === 'set_mode' && event.mode) {
-      this.setMode(event.mode);
-      return;
-    }
     if (event.action === 'play_music' && event.assetId) {
       this.playMusic(event.assetId);
       return;
@@ -447,8 +428,7 @@ export class AudioManager {
   }
 
   private resolveAsset(assetId: string): AudioAsset | undefined {
-    const asset = this.registry.get(assetId);
-    return asset?.mode === this.currentMode ? asset : undefined;
+    return this.registry.get(assetId);
   }
 
   private createElement(asset: AudioAsset): HTMLAudioElement {
