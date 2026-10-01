@@ -83,8 +83,22 @@ export function translate(message: string, locale: Locale = 'fa'): string {
   if (tiles) return formatDigits(tiles[1]) + ' خانه';
   const floors = message.match(/^(\d+) floors?$/);
   if (floors) return formatDigits(floors[1]) + ' طبقه';
+  // Upgrade cards compose a translated level description with dynamic progression text.
+  // Translate both parts so Persian UI never falls back to an English composite sentence.
+  let match = message.match(/^(.+\.) Next: (.+)\.$/);
+  if (match) return translate(match[1], locale) + ' مرحله بعد: ' + translate(match[2], locale) + '.';
+  match = message.match(/^(.+\.) Maximum (harbor|building|fortification) level reached\.$/);
+  if (match) {
+    const maximumLabel = match[2] === 'harbor'
+      ? 'بندر به بالاترین سطح رسیده است.'
+      : match[2] === 'fortification'
+        ? 'استحکامات به بالاترین سطح رسیده‌اند.'
+        : 'ساختمان به بالاترین سطح رسیده است.';
+    return translate(match[1], locale) + ' ' + maximumLabel;
+  }
+
   // Common status patterns with variable levels, costs and coordinates.
-  let match = message.match(/^LOCKED · TIER (\d+)$/);
+  match = message.match(/^LOCKED · TIER (\d+)$/);
   if (match) return 'قفل است · رده ' + formatDigits(match[1]);
   match = message.match(/^(.+?) (?:upgraded to|changed to) Level (\d+) · (.+)$/);
   if (match) return translate(match[1], locale) + ' به سطح ' + formatDigits(match[2]) + ' ارتقا یافت · ' + translate(match[3], locale);
