@@ -192,7 +192,6 @@ export const GAME_TRANSLATIONS: Readonly<Record<string, string>> = {
   "Expanded Stockyard": "دامداری توسعه‌یافته",
   "Royal Stockyard": "دامداری سلطنتی",
   "Timber Yard": "محوطه الوار",
-  "Carpenter Workshop": "کارگاه نجاری",
   "Master Carpenter Guild": "کارگاه استاد نجار",
   "Landing Dock": "اسکله فرود",
   "Fishing Wharf": "اسکله ماهیگیری",
