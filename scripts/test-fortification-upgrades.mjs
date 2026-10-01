@@ -8,8 +8,8 @@ const styles = await readFile(new URL('../src/style.css', import.meta.url), 'utf
 
 assert.match(
   threeGame,
-  /type FortificationUpgradeKind = 'tower' \| 'gate' \| 'towerBridge'/,
-  'Tower, Gate, and Tower Bridge must share the fortification upgrade contract.',
+  /type FortificationUpgradeKind = 'tower' \| 'gate' \| 'towerBridge' \| 'keep'/,
+  'Tower, Gate, Tower Bridge, and Keep must share the fortification upgrade contract.',
 );
 assert.match(
   threeGame,
@@ -17,7 +17,7 @@ assert.match(
   'Fortification progression must stop at Level 4.',
 );
 
-for (const label of ['Watch Tower', 'Royal Bastion', 'Castle Gate', 'Royal Gatehouse', 'Tower Walk', 'Royal Tower Bridge']) {
+for (const label of ['Watch Tower', 'Royal Bastion', 'Castle Gate', 'Royal Gatehouse', 'Tower Walk', 'Royal Tower Bridge', 'Stone Keep', 'Royal Keep']) {
   assert.ok(threeGame.includes(label), `Missing fortification progression label: ${label}`);
 }
 
@@ -89,6 +89,16 @@ assert.match(
   threeGame,
   /private upgradeSelectedFortification\(\): void/,
   'Build Settings must provide a shared fortification upgrade action.',
+);
+assert.match(
+  threeGame,
+  /const KEEP_UPGRADE_PRESETS = \[[\s\S]*?width: 5[\s\S]*?floors: 5/,
+  'Keep upgrades must automatically grow footprint and height through Level 4.',
+);
+assert.match(
+  threeGame,
+  /private towerStyleForLevel\([\s\S]*?this\.gameMode === 'sandbox'[\s\S]*?requestedTop/,
+  'Normal gameplay Tower upgrades must choose appearance automatically while Sandbox keeps manual control.',
 );
 assert.match(
   styles,
