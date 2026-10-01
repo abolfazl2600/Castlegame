@@ -12,6 +12,7 @@ import { AmbientFaunaSystem } from './rendering/AmbientFaunaSystem';
 import { rasterizeWallPath } from './building/WallPath';
 import { KeepRenderer } from './rendering/KeepRenderer';
 import { BasilicaRenderer } from './rendering/BasilicaRenderer';
+import { CarpenterWorkshopRenderer } from './rendering/CarpenterWorkshopRenderer';
 import { MedievalMaterials } from './rendering/MedievalMaterials';
 import { CASTLE_ARCHITECTURE_STYLE } from './rendering/CastleArchitectureStyle';
 import { WORLD_STYLE, styleTone } from './rendering/WorldStyle';
@@ -139,6 +140,13 @@ const AGRICULTURE_UPGRADE_LEVELS: Record<AgricultureUpgradeKind, readonly Agricu
 };
 const AGRICULTURE_MAX_LEVEL = 4;
 
+const CARPENTER_LEVELS = [
+  { level: 1, name: 'Timber Yard', description: 'A small open carpenter yard that processes Logs into construction-ready Wood.', workers: 2, inputPerSecond: 0.30, yieldRatio: 0.80 },
+  { level: 2, name: 'Carpenter Workshop', description: 'A larger covered workshop with a dedicated cutting bay, better tools, and higher throughput.', workers: 4, inputPerSecond: 0.58, yieldRatio: 0.90 },
+  { level: 3, name: 'Master Carpenter Guild', description: 'A mature timber workshop with a loft, heavy saw frame, hoist, storage, and maximum conversion efficiency.', workers: 6, inputPerSecond: 0.90, yieldRatio: 1.00 },
+] as const;
+const CARPENTER_MAX_LEVEL = CARPENTER_LEVELS.length;
+
 const HARBOR_LEVELS = [
   { level: 1, name: 'Landing Dock', description: 'A compact timber landing with simple mooring posts, basic cargo, and a fishing boat.' },
   { level: 2, name: 'Fishing Wharf', description: 'A broader working wharf with side platforms, railings, fishing gear, storage, and more supports.' },
@@ -198,6 +206,7 @@ const BUILDING_KINDS: TileKind[] = [
   'mosque',
   'windmill',
   'mine',
+  'carpenter',
   'mountain',
   'tree',
   'rock',
@@ -206,7 +215,7 @@ const BUILDING_KINDS: TileKind[] = [
 ];
 const CONSTRUCTION_VISUAL_KINDS = new Set<TileKind>([
   'wall1', 'wall2', 'wall3', 'gate', 'tower', 'cottage', 'house', 'manor', 'villa',
-  'hut', 'farm', 'cowBarn', 'appleOrchard', 'market', 'windmill', 'mine',
+  'hut', 'farm', 'cowBarn', 'appleOrchard', 'market', 'windmill', 'mine', 'carpenter',
   'armyCamp', 'harbor', 'basilica', 'mosque',
 ]);
 
@@ -313,6 +322,7 @@ const TOOL_GROUPS: Array<{ label: string; tools: ToolDefinition[] }> = [
       { id: 'market', icon: '🏪', label: 'Market', detail: 'Large medieval marketplace · tents · stalls · shops', shortcut: '-' },
       { id: 'basilica', icon: '⛪', label: 'Basilica', detail: 'Large stone church landmark · nave · transept · tower', shortcut: '-' },
       { id: 'mosque', icon: '◫', label: 'Courtyard Mosque', detail: 'Low-rise prayer hall · courtyard · domed bays', shortcut: '-' },
+      { id: 'carpenter', icon: '🪚', label: 'Carpenter Workshop', detail: '3 levels · converts Logs into Wood', shortcut: '-' },
     ],
   },
   {
@@ -409,6 +419,7 @@ export class ThreeGame {
     private readonly medievalMaterials = new MedievalMaterials();
   private readonly keepRenderer = new KeepRenderer(this.services.detailGenerator, this.medievalMaterials);
   private readonly basilicaRenderer = new BasilicaRenderer(this.medievalMaterials);
+  private readonly carpenterRenderer = new CarpenterWorkshopRenderer();
   private saveSystem!: SaveSystem;
   private readonly terrainOverrides = new Map<string, TerrainOverrideKind>();
   private readonly elevationOverrides = new Map<string, number>();
@@ -3509,6 +3520,12 @@ export class ThreeGame {
     else if (cell.kind === 'mosque') this.makeMosque(group, cell.x, cell.y);
     else if (cell.kind === 'windmill') this.services.windmillSystem.create(group);
     else if (cell.kind === 'mine') this.makeMine(group);
+    else if (cell.kind === 'carpenter') group.add(
+      this.carpenterRenderer.render(
+        Math.max(1, Math.min(CARPENTER_MAX_LEVEL, cell.level ?? 1)),
+        cell.x * 97 + cell.y * 53,
+      ),
+    );
     else if (cell.kind === 'mountain') this.makeMountain(group, cell.level ?? 1, cell.x, cell.y);
     else if (cell.kind === 'tree') this.makeTree(group, cell.level ?? 1);
     else if (cell.kind === 'rock') this.makeRock(group, cell.level ?? 1);
@@ -10706,12 +10723,14 @@ export class ThreeGame {
       return `${rounded >= 0 ? '+' : ''}${rounded.toFixed(2)}/s`;
     };
 
+    setText('economy-logs', `Logs ${formatAmount(resources.logs)}`);
     setText('economy-wood', `Wood ${formatAmount(resources.wood)}`);
     setText('economy-stone', `Stone ${formatAmount(resources.stone)}`);
     setText('economy-grain', `Grain ${formatAmount(resources.grain)}`);
     setText('economy-apples', `Apples ${formatAmount(resources.apples)}`);
     setText('economy-flour', `Flour ${formatAmount(resources.flour)}`);
     setText('economy-food', `Food ${formatAmount(resources.food)}`);
+    setText('economy-logs-rate', formatRate(rates.logsPerSecond));
     setText('economy-wood-rate', formatRate(rates.woodPerSecond));
     setText('economy-stone-rate', formatRate(rates.stonePerSecond));
     setText('economy-grain-rate', formatRate(rates.grainPerSecond));
@@ -11009,6 +11028,7 @@ export class ThreeGame {
       '<span id="population-professional">Professional 0</span>' +
       '</div>' +
       '<div class="build-economy-summary" role="group" aria-label="Settlement resources">' +
+      '<span class="build-resource-stat"><b id="economy-logs">Logs 0</b><small id="economy-logs-rate">+0/s</small></span>' +
       '<span class="build-resource-stat"><b id="economy-wood">Wood 0</b><small id="economy-wood-rate">+0/s</small></span>' +
       '<span class="build-resource-stat"><b id="economy-stone">Stone 0</b><small id="economy-stone-rate">+0/s</small></span>' +
       '<span class="build-resource-stat"><b id="economy-grain">Grain 0</b><small id="economy-grain-rate">+0/s</small></span>' +
@@ -11039,6 +11059,12 @@ export class ThreeGame {
       '<div class="agriculture-level-track" aria-hidden="true"><span data-agriculture-level="1"></span><span data-agriculture-level="2"></span><span data-agriculture-level="3"></span><span data-agriculture-level="4"></span></div>' +
       '<small id="agriculture-upgrade-description">Select a Farm or Cow Barn to inspect its level.</small>' +
       '<button id="agriculture-upgrade-button" class="agriculture-upgrade-button" type="button">Upgrade to Level 2</button>' +
+      '</section>' +
+      '<section id="carpenter-upgrade-card" class="carpenter-upgrade-card" aria-label="Selected Carpenter Workshop upgrade" hidden>' +
+      '<div class="carpenter-upgrade-heading"><div><span class="eyebrow">SELECTED CARPENTER</span><strong id="carpenter-upgrade-name">Timber Yard · Level 1</strong></div><span id="carpenter-upgrade-badge">1 / 3</span></div>' +
+      '<div class="carpenter-level-track" aria-hidden="true"><span data-carpenter-level="1"></span><span data-carpenter-level="2"></span><span data-carpenter-level="3"></span></div>' +
+      '<small id="carpenter-upgrade-description">Converts Logs into construction-ready Wood.</small>' +
+      '<button id="carpenter-upgrade-button" class="carpenter-upgrade-button" type="button">Upgrade to Level 2</button>' +
       '</section>' +
       '<section id="harbor-upgrade-card" class="harbor-upgrade-card" aria-label="Selected Harbor upgrade" hidden>' +
       '<div class="harbor-upgrade-heading"><div><span class="eyebrow">SELECTED HARBOR</span><strong id="harbor-upgrade-name">Landing Dock · Level 1</strong></div><span id="harbor-upgrade-badge">1 / 4</span></div>' +
@@ -11403,6 +11429,7 @@ export class ThreeGame {
     get<HTMLButtonElement>('fortification-remove-bridge-button').onclick = () => this.removeSelectedTowerBridge();
     get<HTMLButtonElement>('army-camp-upgrade-button').onclick = () => this.upgradeSelectedArmyCamp();
     get<HTMLButtonElement>('agriculture-upgrade-button').onclick = () => this.upgradeSelectedAgricultureBuilding();
+    get<HTMLButtonElement>('carpenter-upgrade-button').onclick = () => this.upgradeSelectedCarpenter();
     get<HTMLButtonElement>('harbor-upgrade-button').onclick = () => this.upgradeSelectedHarbor();
     get<HTMLButtonElement>('undo-button').onclick = () => this.undo();
     get<HTMLButtonElement>('redo-button').onclick = () => this.redo();
@@ -12079,6 +12106,86 @@ export class ThreeGame {
     this.setStatus('Tower Bridge removed · Undo available');
   }
 
+  private carpenterLevelDefinition(level: number): (typeof CARPENTER_LEVELS)[number] {
+    const normalized = Math.max(1, Math.min(CARPENTER_MAX_LEVEL, Math.floor(level)));
+    return CARPENTER_LEVELS[normalized - 1];
+  }
+
+  private syncCarpenterUpgradeUI(): void {
+    const card = document.getElementById('carpenter-upgrade-card');
+    if (!card) return;
+
+    const cell = this.selectedCell
+      ? this.services.state.getCell(this.selectedCell.x, this.selectedCell.y)
+      : undefined;
+    const selected = cell?.kind === 'carpenter' ? cell : undefined;
+    card.hidden = !selected;
+    if (!selected) return;
+
+    const level = Math.max(1, Math.min(CARPENTER_MAX_LEVEL, selected.level ?? 1));
+    const definition = this.carpenterLevelDefinition(level);
+    const next = level < CARPENTER_MAX_LEVEL ? this.carpenterLevelDefinition(level + 1) : undefined;
+    const name = document.getElementById('carpenter-upgrade-name');
+    const badge = document.getElementById('carpenter-upgrade-badge');
+    const description = document.getElementById('carpenter-upgrade-description');
+    const button = document.getElementById('carpenter-upgrade-button') as HTMLButtonElement | null;
+
+    if (name) name.textContent = `${definition.name} · Level ${level}`;
+    if (badge) badge.textContent = `${level} / ${CARPENTER_MAX_LEVEL}`;
+    if (description) {
+      const outputRate = (definition.inputPerSecond * definition.yieldRatio).toFixed(2);
+      description.textContent = next
+        ? `${definition.description} ${definition.workers} workers · up to ${outputRate} Wood/s. Next: ${next.name}.`
+        : `${definition.description} ${definition.workers} workers · up to ${outputRate} Wood/s. Maximum building level reached.`;
+    }
+
+    card.querySelectorAll<HTMLElement>('[data-carpenter-level]').forEach((step) => {
+      const stepLevel = Number(step.dataset.carpenterLevel ?? 0);
+      step.classList.toggle('is-complete', stepLevel <= level);
+      step.classList.toggle('is-current', stepLevel === level);
+    });
+
+    if (button) {
+      button.disabled = !next || this.battleSystem.isActive();
+      button.textContent = next ? `Upgrade to Level ${next.level} · ${next.name}` : 'Maximum Level';
+    }
+  }
+
+  private upgradeSelectedCarpenter(): void {
+    if (this.battleSystem.isActive()) {
+      this.setStatus('Finish or reset the battle before upgrading the Carpenter Workshop');
+      return;
+    }
+    if (!this.selectedCell) {
+      this.setStatus('Select a Carpenter Workshop first');
+      return;
+    }
+
+    const cell = this.services.state.getCell(this.selectedCell.x, this.selectedCell.y);
+    if (!cell || cell.kind !== 'carpenter') {
+      this.setStatus('Select a Carpenter Workshop first');
+      this.syncCarpenterUpgradeUI();
+      return;
+    }
+
+    const currentLevel = Math.max(1, Math.min(CARPENTER_MAX_LEVEL, cell.level ?? 1));
+    if (currentLevel >= CARPENTER_MAX_LEVEL) {
+      this.setStatus('Carpenter Workshop is already at Level 3 · Master Carpenter Guild');
+      this.syncCarpenterUpgradeUI();
+      return;
+    }
+
+    const nextLevel = currentLevel + 1;
+    this.recordHistory();
+    this.services.state.setLevel(this.selectedCell.x, this.selectedCell.y, nextLevel);
+    this.services.populationSystem.reconcile(this.services.state.entries());
+    this.redraw();
+    this.syncEconomyUI();
+    this.updatePopulationUI();
+    this.scheduleSave();
+    this.setStatus(`Carpenter Workshop upgraded to Level ${nextLevel} · ${this.carpenterLevelDefinition(nextLevel).name}`);
+  }
+
   private harborLevelDefinition(level: number): (typeof HARBOR_LEVELS)[number] {
     const normalized = Math.max(1, Math.min(HARBOR_MAX_LEVEL, Math.floor(level)));
     return HARBOR_LEVELS[normalized - 1];
@@ -12257,6 +12364,7 @@ export class ThreeGame {
   private syncArmyCampUpgradeUI(): void {
     this.syncFortificationUpgradeUI();
     this.syncAgricultureUpgradeUI();
+    this.syncCarpenterUpgradeUI();
     this.syncHarborUpgradeUI();
     const card = document.getElementById('army-camp-upgrade-card');
     if (!card) return;
@@ -12350,7 +12458,9 @@ export class ThreeGame {
             ? 'Use the agriculture Upgrade button in Build Settings'
             : cell?.kind === 'harbor'
               ? 'Use the Harbor Upgrade button in Build Settings'
-              : 'Selected tile is not a wall or tower',
+              : cell?.kind === 'carpenter'
+                ? 'Use the Carpenter Upgrade button in Build Settings'
+                : 'Selected tile is not a wall or tower',
       );
       return;
     }

@@ -1239,6 +1239,78 @@ h1 { margin: 3px 0 0; font-size: 22px; line-height: 1; letter-spacing: -.035em; 
   transform: none;
 }
 
+.carpenter-upgrade-card {
+  display: grid;
+  gap: 9px;
+  margin: 8px 0 10px;
+  padding: 11px;
+  border: 1px solid rgba(207, 164, 104, .24);
+  border-radius: 12px;
+  background: linear-gradient(145deg, rgba(55, 39, 27, .96), rgba(31, 23, 18, .96));
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,.035);
+}
+.carpenter-upgrade-card[hidden] { display: none; }
+.carpenter-upgrade-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+}
+.carpenter-upgrade-heading > div { display: grid; gap: 3px; }
+.carpenter-upgrade-heading strong { color: #fff2dc; font-size: 12px; }
+#carpenter-upgrade-badge {
+  flex: 0 0 auto;
+  padding: 4px 7px;
+  border: 1px solid rgba(220, 179, 118, .28);
+  border-radius: 999px;
+  color: #ffefd5;
+  background: rgba(135, 89, 49, .28);
+  font-size: 9px;
+  font-weight: 900;
+}
+.carpenter-level-track {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 5px;
+}
+.carpenter-level-track span {
+  height: 6px;
+  border: 1px solid rgba(255,255,255,.06);
+  border-radius: 99px;
+  background: rgba(255,255,255,.09);
+}
+.carpenter-level-track span.is-complete {
+  border-color: rgba(225, 186, 129, .34);
+  background: rgba(155, 105, 61, .76);
+}
+.carpenter-level-track span.is-current {
+  box-shadow: 0 0 0 2px rgba(229, 190, 132, .18);
+}
+#carpenter-upgrade-description {
+  color: rgba(247, 232, 210, .74);
+  font-size: 9px;
+  line-height: 1.45;
+}
+.carpenter-upgrade-button {
+  min-height: 34px;
+  border: 1px solid rgba(223, 181, 121, .32);
+  border-radius: 9px;
+  color: #fff8eb;
+  background: linear-gradient(135deg, rgba(138, 88, 47, .62), rgba(94, 69, 43, .52));
+  cursor: pointer;
+  font-size: 10px;
+  font-weight: 900;
+}
+.carpenter-upgrade-button:hover:not(:disabled) {
+  border-color: rgba(235, 199, 146, .66);
+  transform: translateY(-1px);
+}
+.carpenter-upgrade-button:disabled {
+  opacity: .52;
+  cursor: not-allowed;
+  transform: none;
+}
+
 .harbor-upgrade-card {
   display: grid;
   gap: 9px;
