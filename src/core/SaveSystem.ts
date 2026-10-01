@@ -9,7 +9,7 @@ import {
   WORLD_COLS,
 } from './constants';
 import type { GameMode } from './GameMode';
-import { isGameMode } from './GameMode';
+import { normalizeGameMode } from './GameMode';
 import type { GameState } from '../state/GameState';
 import type { KeepSystem } from '../building/KeepSystem';
 import { APPLICATION_METADATA } from '../app/applicationMetadata';
@@ -338,7 +338,6 @@ export class SaveSystem {
     const displayName = /^(?:Save Slot \d+|Quick Save|Auto Save)$/.test(meta.name) ? t(meta.name) : meta.name;
     return '<small>' +
       '<bdi dir="auto">' + escapeHtml(displayName) + '</bdi> · <bdi dir="auto">' + escapeHtml(date) + '</bdi><br>' +
-      escapeHtml(t(meta.gameMode || 'Unknown mode')) + ' · ' +
       escapeHtml(t(`${meta.summary.buildings} buildings · ${meta.summary.keeps} keeps`)) +
       '</small>';
   }
@@ -501,7 +500,7 @@ export class SaveSystem {
   }
 
   private applyData(data: SavedGame): void {
-    const loadedMode: GameMode = isGameMode(data.gameMode) ? data.gameMode : 'medieval';
+    const loadedMode: GameMode = normalizeGameMode(data.gameMode);
     this.host.setMapLayoutId(validMapLayoutId(data.mapLayoutId) ? data.mapLayoutId : 'island');
     this.host.setWorldSeed(normalizeWorldSeed(data.worldSeed));
     const cells: Array<ReturnType<GameState['entries']>[number]> = [];
@@ -623,7 +622,7 @@ export class SaveSystem {
       const parsed = JSON.parse(raw) as RawSave;
       const legacyData: SavedGame = {
         version: Number(parsed.version ?? 0),
-        gameMode: isGameMode(parsed.gameMode) ? parsed.gameMode : undefined,
+        gameMode: normalizeGameMode(parsed.gameMode),
         mapLayoutId: validMapLayoutId(parsed.mapLayoutId) ? parsed.mapLayoutId : 'island',
         worldSeed: normalizeWorldSeed(parsed.worldSeed),
         updatedAt: Number(parsed.updatedAt ?? Date.now()),
@@ -672,7 +671,7 @@ function slotKey(slot: number): string {
 function normalizeRecord(raw: RawSave, target: SaveTarget): SaveRecord | null {
   const data = raw.data ?? (Array.isArray(raw.cells) ? {
     version: Number(raw.version ?? 0),
-    gameMode: isGameMode(raw.gameMode) ? raw.gameMode : undefined,
+    gameMode: normalizeGameMode(raw.gameMode),
     mapLayoutId: validMapLayoutId(raw.mapLayoutId) ? raw.mapLayoutId : 'island',
     worldSeed: normalizeWorldSeed(raw.worldSeed),
     updatedAt: Number(raw.updatedAt ?? Date.now()),
@@ -702,7 +701,7 @@ function normalizeRecord(raw: RawSave, target: SaveTarget): SaveRecord | null {
     updatedAt: Number(raw.metadata?.updatedAt) || now,
     schemaVersion: Number(raw.metadata?.schemaVersion ?? data.version ?? 0),
     gameVersion: typeof raw.metadata?.gameVersion === 'string' ? raw.metadata.gameVersion : undefined,
-    gameMode: isGameMode(raw.metadata?.gameMode) ? raw.metadata.gameMode : data.gameMode,
+    gameMode: normalizeGameMode(raw.metadata?.gameMode ?? data.gameMode),
     summary: raw.metadata?.summary ?? {
       buildings: data.cells.length,
       keeps: data.keeps?.length ?? 0,
