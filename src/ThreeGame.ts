@@ -11460,7 +11460,7 @@ export class ThreeGame {
 
     const rotate = document.getElementById('rotate-selected') as HTMLButtonElement | null;
     const remove = document.getElementById('remove-selected') as HTMLButtonElement | null;
-    const rotatable = Boolean(keep || cell?.kind === 'gate' || cell?.kind === 'harbor');
+    const rotatable = Boolean(keep || cell?.kind === 'gate' || cell?.kind === 'harbor' || cell?.kind === 'basilica');
     if (rotate) {
       rotate.hidden = !rotatable;
       rotate.disabled = !rotatable || this.battleSystem.isActive();
