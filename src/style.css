@@ -4106,6 +4106,7 @@ html.mobile-ui-active .battle-panel {
   overflow-y: auto;
   overscroll-behavior: contain;
 }
+html.mobile-ui-active .battle-panel[hidden] { display: none !important; }
 html.mobile-ui-active .battle-panel-header { order: 0; flex: 0 0 auto; }
 html.mobile-ui-active .battle-live { order: 1; flex: 0 0 auto; grid-template-columns: 1fr; }
 html.mobile-ui-active .battle-armies { order: 2; flex: 0 0 auto; grid-template-columns: 1fr; }
@@ -4131,6 +4132,18 @@ html.mobile-ui-active .battle-advanced[open] > summary { margin-bottom: 8px; }
 html.mobile-ui-active .battle-advanced-content { display: grid; gap: 8px; }
 html.mobile-ui-active .battle-panel[data-battle-phase="idle"] .battle-live,
 html.mobile-ui-active .battle-panel[data-battle-phase="idle"] .battle-capture { display: none; }
+html.mobile-ui-active .battle-panel[data-battle-phase="running"] .battle-armies,
+html.mobile-ui-active .battle-panel[data-battle-phase="paused"] .battle-armies,
+html.mobile-ui-active .battle-panel[data-battle-phase="finished"] .battle-armies {
+  display: none;
+}
+html.mobile-ui-active .battle-panel[data-battle-phase="running"] {
+  max-height: min(46dvh, 320px);
+}
+html.mobile-ui-active .battle-panel[data-battle-phase="paused"],
+html.mobile-ui-active .battle-panel[data-battle-phase="finished"] {
+  max-height: min(52dvh, 360px);
+}
 html.mobile-ui-active .battle-panel-header .eyebrow { display: none; }
 html.mobile-ui-active .battle-panel-header strong { font-size: 12px; }
 html.mobile-ui-active .battle-faction { padding: 7px 9px; gap: 3px; }
@@ -4164,7 +4177,21 @@ html.mobile-ui-active .battle-actions .battle-primary { grid-column: auto; }
 html.mobile-ui-active .battle-actions button { min-width: 0; padding: 5px 3px; font-size: 10px; }
 @media (orientation: landscape) {
   html.mobile-ui-active .battle-panel {
-    max-height: calc(100dvh - var(--mobile-header-height) - var(--mobile-dock-height) - var(--mobile-safe-top) - var(--mobile-safe-bottom) - 16px);
+    left: auto;
+    right: max(8px, var(--mobile-safe-right));
+    bottom: max(8px, var(--mobile-safe-bottom));
+    width: min(360px, 42vw);
+    max-width: calc(100vw - var(--mobile-safe-left) - var(--mobile-safe-right) - 16px);
+    max-height: calc(100dvh - var(--mobile-header-height) - var(--mobile-safe-top) - var(--mobile-safe-bottom) - 16px);
+  }
+
+  html.mobile-ui-active .battle-panel[data-battle-phase="running"] {
+    max-height: min(78dvh, 300px);
+  }
+
+  html.mobile-ui-active .battle-panel[data-battle-phase="paused"],
+  html.mobile-ui-active .battle-panel[data-battle-phase="finished"] {
+    max-height: min(84dvh, 340px);
   }
 }
 
