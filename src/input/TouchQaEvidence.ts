@@ -96,7 +96,9 @@ export function formatTouchQaIssueComment(evidence: TouchQaEvidence): string {
     '- [ ] Desktop mouse/wheel behavior was sanity-checked before release.',
     '',
     '### Raw user agent',
-    `\```text\n${evidence.userAgent}\n\````,
+    '```text',
+    evidence.userAgent,
+    '```',
   ];
   return lines.join('\n');
 }
