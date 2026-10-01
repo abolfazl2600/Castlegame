@@ -13,6 +13,9 @@ on:
       - src/ui/MobileUI.ts
       - src/settings/**
       - src/ThreeGame.ts
+      - src/input/**
+      - scripts/test-touch-gestures.mjs
+      - tests/touch-gestures.spec.ts
       - tests/android-landscape.spec.ts
   push:
     branches:
@@ -27,6 +30,9 @@ on:
       - src/ui/MobileUI.ts
       - src/settings/**
       - src/ThreeGame.ts
+      - src/input/**
+      - scripts/test-touch-gestures.mjs
+      - tests/touch-gestures.spec.ts
       - tests/android-landscape.spec.ts
 
 permissions:
@@ -61,6 +67,9 @@ jobs:
           grep -q 'android:screenOrientation="landscape"' android/app/src/main/AndroidManifest.xml
           npx tsc --noEmit
 
+      - name: Validate executable world touch gestures
+        run: npm run test:touch-gestures
+
       - name: Build web game
         run: npx vite build
 
@@ -68,7 +77,7 @@ jobs:
         run: npx playwright install --with-deps chromium
 
       - name: Run Android landscape viewport matrix
-        run: npx playwright test tests/android-landscape.spec.ts --reporter=line
+        run: npx playwright test tests/android-landscape.spec.ts tests/touch-gestures.spec.ts --reporter=line
 
       - name: Upload landscape screenshots and traces
         if: always()
