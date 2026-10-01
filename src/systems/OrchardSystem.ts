@@ -59,7 +59,8 @@ export class OrchardSystem {
 
     group.userData.orchardSize = orchardSize;
     group.userData.orchardSeed = seed;
-    group.userData.orchardVisualVersion = 3;
+    group.userData.orchardVisualVersion = 4;
+    group.userData.activeOrchard = true;
     group.userData.upgradeVisualProfile = upgradeVisualProfile(orchardSize);
     group.userData.orchardVisualVariant = [
       'young-grove',
@@ -91,6 +92,9 @@ export class OrchardSystem {
 
         const x = -innerSpan / 2 + xStep * col;
         const localSeed = orchardSize * 1000 + row * 101 + col * 37;
+        const readabilityAnchor =
+          row === Math.floor((layout.rows - 1) / 2) &&
+          col === Math.floor((layout.columns - 1) / 2);
         this.addTree(
           group,
           x + (hash(localSeed + 50) - 0.5) * 0.08,
@@ -98,6 +102,7 @@ export class OrchardSystem {
           layout.treeScale,
           localSeed,
           hash,
+          readabilityAnchor,
         );
       }
     }
@@ -181,6 +186,7 @@ export class OrchardSystem {
     baseScale: number,
     localSeed: number,
     hash: (value: number) => number,
+    readabilityAnchor = false,
   ): void {
     const tree = new THREE.Group();
     const scale = baseScale * (0.9 + hash(localSeed + 1) * 0.18);
@@ -190,6 +196,7 @@ export class OrchardSystem {
     trunkMesh.scale.setScalar(scale);
     trunkMesh.position.y = 0.18 + 0.46 * scale;
     trunkMesh.castShadow = true;
+    if (readabilityAnchor) trunkMesh.userData.distanceDetailPriority = 'silhouette';
     tree.add(trunkMesh);
 
     const branchAngles = [0.35, 2.3, 4.35];
@@ -214,6 +221,7 @@ export class OrchardSystem {
     mainCanopy.position.set(0, 1.23 * scale, 0);
     mainCanopy.scale.set(1.08 * scale, 0.88 * scale, 1.02 * scale);
     mainCanopy.castShadow = true;
+    if (readabilityAnchor) mainCanopy.userData.distanceDetailPriority = 'silhouette';
     tree.add(mainCanopy);
 
     const sideCanopyA = new THREE.Mesh(
