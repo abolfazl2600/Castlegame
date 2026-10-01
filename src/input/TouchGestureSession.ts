@@ -42,7 +42,10 @@ export class TouchGestureSession {
       this.intent = intent;
       this.navigating = intent === 'camera' || intent === 'blocked';
     }
-    this.points.set(point.pointerId, { ...point, startX: point.clientX, startY: point.clientY, travelled: false });
+    // PointerEvent coordinates are prototype getters, not enumerable fields.
+    // Copy explicitly: spreading a native event creates an invalid baseline.
+    this.points.set(point.pointerId, { pointerId: point.pointerId, clientX: point.clientX, clientY: point.clientY,
+      startX: point.clientX, startY: point.clientY, travelled: false });
     if (this.points.size > 1) {
       this.navigating = true;
       if (this.intent !== 'blocked') this.cancelAction();

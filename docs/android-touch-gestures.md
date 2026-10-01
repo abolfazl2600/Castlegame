@@ -28,7 +28,8 @@ an ordinary committed edit with Undo; later navigation does not undo it.
 
 Pointer cancellation/unexpected capture loss, blur, hidden page, pagehide,
 wrapper pause and native Capacitor background events cancel provisional edits.
-Late releases after interruption cannot commit. Normal pointer-up releases capture
+Autosaves made by other live systems read committed elevation, excluding the
+provisional stroke. Late releases after interruption cannot commit. Normal pointer-up releases capture
 without rolling back the committed stroke. A new touch sequence works immediately.
 
 ## Automated validation
@@ -37,7 +38,8 @@ without rolling back the committed stroke. A new touch sequence works immediatel
   extracted production ThreeGame event handlers using real Three.js/OrbitControls
   and substituted renderer/world services. Covers finger-count transitions,
   stroke cancellation/commit, capture loss, background/resume, UI ownership,
-  God targeting, Battle, zoom limits, and desktop mouse/wheel behavior.
+  God targeting, Battle, zoom limits, and desktop mouse/wheel behavior. `test:unified-gameplay` also executes real
+  SaveSystem serialization to verify provisional elevations cannot leak to saves.
 - `npm run test:touch-gestures-ui`: Playwright + Chromium CDP native touch events
   exercise the packaged browser game in a 915×412 Android-style landscape viewport.
   Tests drag→pinch, cancellation/rollback, return-to-origin suppression, zoom bounds

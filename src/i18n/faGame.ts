@@ -248,12 +248,16 @@ export const GAME_TRANSLATIONS: Readonly<Record<string, string>> = {
   "Coastal Cliffs": "پرتگاه‌های ساحلی",
   "Forest Highlands": "ارتفاعات جنگلی",
   "Marsh Island": "جزیره باتلاقی",
-  "Terraced Hills": "تپه‌های پلکانی"
-,
+  "Terraced Hills": "تپه‌های پلکانی",
   "Mine": "معدن",
   "Produces stone for construction": "برای ساخت‌وساز سنگ تولید می‌کند",
   "Woodcutter Hut": "کلبه هیزم‌شکن",
   "Produces logs from nearby trees": "از درختان نزدیک الوار تولید می‌کند",
   "Rock": "سنگ",
-  "Place natural rock formations": "صخره‌های طبیعی قرار دهید"
+  "Place natural rock formations": "صخره‌های طبیعی قرار دهید",
+  "Advanced Editor": "ویرایشگر پیشرفته",
+  "Advanced World": "جهان پیشرفته",
+  "Manual architecture & terrain tuning": "تنظیم دستی معماری و زمین",
+  "Place a tower · appearance evolves automatically": "برج قرار دهید · ظاهر آن خودکار تغییر می‌کند",
+  "Place a keep · size and detail grow with upgrades": "ارگ قرار دهید · اندازه و جزئیات آن با ارتقا افزایش می‌یابد"
 };

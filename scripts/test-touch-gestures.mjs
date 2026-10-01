@@ -21,6 +21,19 @@ const point = (pointerId, clientX, clientY = 200) => ({ pointerId, clientX, clie
 let passed = 0;
 const check = (name, fn) => { fn(); passed++; console.log('ok: ' + name); };
 
+check('native PointerEvent prototype getters produce finite pinch baselines', () => {
+  const nativePoint = (id, x) => Object.create({ get pointerId() { return id; },
+    get clientX() { return x; }, get clientY() { return 200; } });
+  const deltas = [];
+  const session = new TouchGestureSession(() => {}, d => deltas.push(d));
+  session.down(nativePoint(1, 100), 'stroke'); session.down(nativePoint(2, 200), 'stroke');
+  session.move(nativePoint(1, 90)); session.move(nativePoint(2, 210));
+  assert.ok(deltas.every(d => Number.isFinite(d.dx) && Number.isFinite(d.dy) && Number.isFinite(d.scale)));
+  assert.equal(deltas[0].scale, 1.1);
+  assert.equal(session.up(nativePoint(1, 90)), false);
+  assert.equal(session.up(nativePoint(2, 210)), false);
+});
+
 check('whole-sequence suppression and stable 1→2→3→2→1 transitions', () => {
   const deltas = []; let cancellations = 0;
   const session = new TouchGestureSession(() => cancellations++, d => deltas.push(d));

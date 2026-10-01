@@ -100,6 +100,16 @@ for (const mode of ['medieval', 'survival', 'sandbox']) {
     const saved = JSON.parse(memory.get(SAVE_AUTOSAVE_KEY));
     assert.equal(saved.metadata.gameMode, 'unified');
     assert.equal(saved.data.gameMode, 'unified');
+    // Saves made by other live systems during a terrain gesture must exclude
+    // provisional elevation. Committing the stroke makes it persist normally.
+    const committedElevations = new Map(host.elevationOverrides);
+    host.getCommittedElevationOverrides = () => committedElevations;
+    host.elevationOverrides.set('3,3', 5);
+    assert.equal(saves.autoSave(false), true);
+    assert.equal(JSON.parse(memory.get(SAVE_AUTOSAVE_KEY)).data.elevations.find(e => e.x === 3 && e.y === 3).value, 2.5);
+    delete host.getCommittedElevationOverrides;
+    assert.equal(saves.autoSave(false), true);
+    assert.equal(JSON.parse(memory.get(SAVE_AUTOSAVE_KEY)).data.elevations.find(e => e.x === 3 && e.y === 3).value, 5);
   }
 }
 

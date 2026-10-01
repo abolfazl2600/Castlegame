@@ -38,6 +38,7 @@ export interface SaveLoadHost {
   readonly keepSystem: KeepSystem;
   readonly terrainOverrides: Map<string, TerrainOverrideKind>;
   readonly elevationOverrides: Map<string, number>;
+  getCommittedElevationOverrides?(): ReadonlyMap<string, number>;
   readonly towerBridges: Map<number, TowerBridgeState>;
   getGameMode(): GameMode;
   getMapLayoutId(): MapLayoutId;
@@ -443,7 +444,9 @@ export class SaveSystem {
       const [x, y] = key.split(',').map(Number);
       return { x, y, kind };
     });
-    const elevations = Array.from(this.host.elevationOverrides.entries()).map(([key, value]) => {
+    // Rendering may expose a provisional terrain stroke. Background autosaves
+    // must persist the last committed elevation state until that stroke ends.
+    const elevations = Array.from((this.host.getCommittedElevationOverrides?.() ?? this.host.elevationOverrides).entries()).map(([key, value]) => {
       const [x, y] = key.split(',').map(Number);
       return { x, y, value };
     });
