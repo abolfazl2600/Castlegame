@@ -11093,15 +11093,14 @@ export class ThreeGame {
       '<option value="2">2 tiles</option><option value="3" selected>3 tiles</option><option value="4">4 tiles</option><option value="5">5 tiles</option><option value="6">6 tiles</option>' +
       '</select></label>' +
       '<label class="settings-row"><span>Floors</span><select id="keep-floors">' +
-      '<option value="1">1 floor</option><option value="2">2 floors</option><option value="3" selected>3 floors</option><option value="4">4 floors</option><option value="5">5 floors</option><option value="6">6 floors</option><option value="7">7 floors</option><option value="8">8 floors</option><option value="9">9 floors</option>' +
+      '<option value="1">1 floor</option><option value="2" selected>2 floors</option><option value="3">3 floors</option><option value="4">4 floors</option><option value="5">5 floors</option><option value="6">6 floors</option><option value="7">7 floors</option><option value="8">8 floors</option><option value="9">9 floors</option>' +
       '</select></label>' +
       '<label class="settings-row"><span>Roof</span><select id="keep-roof">' +
       '<option value="flatBattlement">Flat Battlement</option><option value="sloped">Medieval Sloped</option><option value="defensivePlatform">Defensive Platform</option><option value="towered">Towered Roof</option><option value="japaneseTiered">Japanese Tiered</option>' +
       '</select></label>' +
-      '<label class="settings-check"><input id="keep-corner-towers" type="checkbox" checked /><span>Corner Towers</span></label>' +
+      '<label class="settings-check"><input id="keep-corner-towers" type="checkbox" /><span>Corner Towers</span></label>' +
       '<label class="settings-check"><input id="keep-battlements" type="checkbox" checked /><span>Keep Battlements</span></label>' +
-      '<div class="settings-actions"><button id="keep-floor-down" type="button">− Keep Floor</button><button id="keep-floor-up" type="button">+ Keep Floor</button></div>' +
-      '<div class="settings-actions"><button id="keep-rotate" type="button">↻ Keep 90°</button><button id="keep-remove" type="button">Remove Keep</button></div>' +
+
       '<div class="settings-title">Terrain Brush</div>' +
       '<label class="settings-row"><span>Brush Size</span><select id="brush-size">' +
       '<option value="1">1 tile</option><option value="2" selected>2 tiles</option><option value="3">3 tiles</option><option value="4">4 tiles</option>' +
@@ -11373,11 +11372,6 @@ export class ThreeGame {
     keepRoof.onchange = updateKeepDraft;
     keepCornerTowers.onchange = updateKeepDraft;
     keepBattlements.onchange = updateKeepDraft;
-
-    get<HTMLButtonElement>('keep-floor-down').onclick = () => this.adjustSelectedKeepFloors(-1);
-    get<HTMLButtonElement>('keep-floor-up').onclick = () => this.adjustSelectedKeepFloors(1);
-    get<HTMLButtonElement>('keep-rotate').onclick = () => this.rotateSelectedKeep();
-    get<HTMLButtonElement>('keep-remove').onclick = () => this.removeSelectedKeep();
 
     get<HTMLButtonElement>('selected-down').onclick = () => this.adjustSelectedHeight(-1);
     get<HTMLButtonElement>('selected-up').onclick = () => this.adjustSelectedHeight(1);
@@ -12129,7 +12123,7 @@ export class ThreeGame {
     if (description) {
       description.textContent = next
         ? `${definition.description} Next: ${next.name}.`
-        : `${definition.description} Maximum fortification level reached.`;
+        : `${definition.description} Maximum upgrade level reached.`;
     }
 
     card.querySelectorAll<HTMLElement>('[data-fortification-level]').forEach((step) => {
@@ -12231,7 +12225,7 @@ export class ThreeGame {
     const kind = cell.kind as 'tower' | 'gate';
     const currentLevel = Math.max(1, Math.min(FORTIFICATION_MAX_LEVEL, Math.floor(cell.level ?? 1)));
     if (currentLevel >= FORTIFICATION_MAX_LEVEL) {
-      this.setStatus(`${kind === 'tower' ? 'Modular Tower' : 'Gate'} is already at Level 4 · ${this.fortificationLevelDefinition(kind, 4).name}`);
+      this.setStatus(`${kind === 'tower' ? 'Tower' : 'Gate'} is already at Level 4 · ${this.fortificationLevelDefinition(kind, 4).name}`);
       this.syncFortificationUpgradeUI();
       return;
     }
