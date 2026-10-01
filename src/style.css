@@ -3356,8 +3356,9 @@ button:disabled, button[aria-disabled="true"] { cursor: not-allowed; opacity: .5
 .tool-button.is-selected, .view-mode-button.is-active { border-color: var(--ui-focus); }
 .minimap {
   position: absolute;
-  right: 16px;
-  top: 110px;
+  left: 16px;
+  right: auto;
+  top: 16px;
   z-index: 8;
   width: 136px;
   display: grid;
@@ -3376,7 +3377,7 @@ button:disabled, button[aria-disabled="true"] { cursor: not-allowed; opacity: .5
 .minimap canvas { width: 100%; aspect-ratio: 1; image-rendering: pixelated; border: 1px solid rgba(255,255,255,.15); border-radius: 4px; }
 .minimap-hint { color: var(--ui-muted); font-size: 9px; }
 @media (max-width: 760px) {
-  .minimap { top: calc(var(--mobile-header-height) + var(--mobile-safe-top) + 48px); right: max(8px,var(--mobile-safe-right)); width: 94px; padding: 6px; }
+  .minimap { top: max(8px,var(--mobile-safe-top)); left: max(8px,var(--mobile-safe-left)); right: auto; width: 94px; padding: 6px; }
   .minimap-title { font-size: 8px; }
   .minimap-hint { display: none; }
 }
@@ -3717,8 +3718,9 @@ html.mobile-ui-active .settings-system-actions { grid-template-columns: 1fr; }
 html.mobile-ui-active .settings-control-reference { grid-template-columns: 1fr; }
 
 html.mobile-ui-active .minimap {
-  top: calc(var(--mobile-header-height) + var(--mobile-safe-top) + 48px);
-  right: max(8px,var(--mobile-safe-right));
+  top: max(8px,var(--mobile-safe-top));
+  left: max(8px,var(--mobile-safe-left));
+  right: auto;
   width: 94px;
   padding: 6px;
 }
