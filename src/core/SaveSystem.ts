@@ -20,6 +20,7 @@ import type {
   PopulationSimulationState,
   KeepState,
   MapLayoutId,
+  MissionProgressState,
   SavedBattleSetup,
   SavedGame,
   SaveMetadata,
@@ -55,6 +56,8 @@ export interface SaveLoadHost {
   setPopulationState?(value?: Partial<PopulationSimulationState> | null): void;
   getEnvironmentState?(): EnvironmentSimulationState;
   setEnvironmentState?(value?: Partial<EnvironmentSimulationState> | null): void;
+  getMissionState?(): MissionProgressState;
+  setMissionState?(value?: Partial<MissionProgressState> | null): void;
   setWorldSeeded(value: boolean): void;
   setLoadedSaveVersion(value: number): void;
   setStoneStyle(value: StoneStyle): void;
@@ -88,6 +91,7 @@ interface RawSave {
   economy?: EconomyResourceState;
   population?: PopulationSimulationState;
   environment?: EnvironmentSimulationState;
+  missions?: MissionProgressState;
 }
 
 export class SaveSystem {
@@ -464,6 +468,7 @@ export class SaveSystem {
       economy: this.host.getEconomyState?.(),
       population: this.host.getPopulationState?.(),
       environment: this.host.getEnvironmentState?.(),
+      missions: this.host.getMissionState?.(),
     };
   }
 
@@ -569,6 +574,7 @@ export class SaveSystem {
     this.host.setEconomyState?.(data.economy);
     this.host.setPopulationState?.(data.population);
     this.host.setEnvironmentState?.(data.environment);
+    this.host.setMissionState?.(data.missions);
     this.host.syncModeDependentUI();
   }
 
@@ -634,6 +640,7 @@ export class SaveSystem {
         economy: parsed.economy,
         population: parsed.population,
         environment: parsed.environment,
+        missions: parsed.missions,
       };
       const data: SavedGame = parsed.data ?? legacyData;
       if (!validMapLayoutId(data.mapLayoutId)) data.mapLayoutId = 'island';
@@ -682,6 +689,7 @@ function normalizeRecord(raw: RawSave, target: SaveTarget): SaveRecord | null {
     economy: raw.economy,
     population: raw.population,
     environment: raw.environment,
+    missions: raw.missions,
   } : undefined);
   if (!data || !Array.isArray(data.cells)) return null;
 
