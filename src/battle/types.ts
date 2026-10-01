@@ -54,7 +54,6 @@ export interface BattleResult {
   failedObjectives?: string[];
 }
 
-
 export interface DefenderTypeCounts {
   swordsman: number;
   archer: number;
@@ -73,6 +72,11 @@ export interface BattleStatus {
   defendersAlive: number;
   defenderAliveByType: DefenderTypeCounts;
   result?: BattleResult;
+  /**
+   * Deprecated compatibility field. Objective runtime types were removed;
+   * the current BattleSystem intentionally emits an empty array only.
+   */
+  objectives?: never[];
 }
 
 export interface BattleMissileTarget {
