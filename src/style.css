@@ -4486,3 +4486,50 @@ html[dir="rtl"] .mode-card:hover .mode-card-arrow {
   .mode-card small { font-size: 9px; line-height: 1.25; }
   .mode-card-action { padding-top: 5px; font-size: 8px; }
 }
+
+/* Persian RTL Settings normalization */
+html[dir="rtl"] .settings-modal {
+  direction: rtl;
+}
+html[dir="rtl"] .settings-header-copy,
+html[dir="rtl"] .settings-pane-heading,
+html[dir="rtl"] .settings-control-copy,
+html[dir="rtl"] .settings-action-copy,
+html[dir="rtl"] .settings-control-reference,
+html[dir="rtl"] .settings-data-actions button,
+html[dir="rtl"] .settings-system-actions button,
+html[dir="rtl"] .settings-nav-button {
+  text-align: right;
+}
+html[dir="rtl"] .settings-control-row,
+html[dir="rtl"] .settings-toggle-row {
+  text-align: right;
+}
+html[dir="rtl"] .settings-control-row select {
+  direction: rtl;
+  text-align: right;
+}
+html[dir="rtl"] .settings-control-reference kbd {
+  direction: ltr;
+  margin-right: 0;
+  margin-left: 4px;
+}
+html[dir="rtl"] .settings-system-actions button > span:last-child {
+  transform: rotate(180deg);
+}
+html[dir="rtl"] .settings-nav {
+  border-right: 0;
+  border-left: 1px solid rgba(255,255,255,.07);
+}
+html[dir="rtl"] .settings-nav-button.is-active {
+  background: linear-gradient(270deg, rgba(83,199,240,.12), rgba(83,199,240,.035));
+}
+@media (max-width: 700px), (pointer: coarse) and (max-height: 700px) {
+  html[dir="rtl"] .settings-nav {
+    border-left: 0;
+  }
+}
+html[dir="rtl"].mobile-ui-active .settings-nav {
+  border-left: 0;
+}
+
