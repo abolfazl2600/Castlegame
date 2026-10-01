@@ -125,7 +125,7 @@ export const PERSIAN_TRANSLATIONS: Readonly<Record<string, string>> = {
   "Open game dialogs directly. Settings closes first so no dialog can appear underneath it.": "پنجره‌های بازی را مستقیم باز کنید. تنظیمات ابتدا بسته می‌شود تا پنجره دیگری زیر آن قرار نگیرد.",
   "Runtime actions are ready when the game canvas has loaded.": "پس از بارگذاری محیط بازی، فرمان‌ها آماده خواهند شد.",
   "Reset World": "بازنشانی جهان",
-  "Start a new world and choose a game mode": "یک جهان تازه آغاز کنید و حالت بازی را انتخاب کنید",
+  "Start a new world and choose a map layout": "یک جهان تازه آغاز کنید و چیدمان نقشه را انتخاب کنید",
   "Game guide and controls": "راهنمای بازی و کنترل‌ها",
   "Load Game": "بارگذاری بازی",
   "Choose autosave, quick save or a slot": "ذخیره خودکار، ذخیره سریع یا یک جایگاه را انتخاب کنید",

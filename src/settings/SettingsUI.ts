@@ -120,7 +120,7 @@ export class SettingsUI {
                 ${this.actionButton('load', '↓', 'Load Game', 'Choose autosave, quick save or a slot')}
                 ${this.actionButton('save', '↑', 'Save Game', 'Quick save or choose a manual slot')}
                 ${this.actionButton('templates', '▦', 'Templates', 'Choose a starting world')}
-                <button type="button" data-action="reset-world"><span class="settings-action-icon" aria-hidden="true">↻</span><span class="settings-action-copy"><strong>Reset World</strong><small>Start a new world and choose a game mode</small></span><span aria-hidden="true">›</span></button>
+                <button type="button" data-action="reset-world"><span class="settings-action-icon" aria-hidden="true">↻</span><span class="settings-action-copy"><strong>Reset World</strong><small>Start a new world and choose a map layout</small></span><span aria-hidden="true">›</span></button>
               </div>
               <div class="settings-info-strip" data-settings-action-status>
                 <span class="settings-info-dot"></span>
