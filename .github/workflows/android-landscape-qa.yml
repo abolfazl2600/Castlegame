@@ -15,6 +15,7 @@ on:
       - src/ThreeGame.ts
       - src/input/**
       - scripts/test-touch-gestures.mjs
+      - scripts/test-touch-qa-evidence.mjs
       - tests/touch-gestures.spec.ts
       - tests/android-landscape.spec.ts
   push:
@@ -32,6 +33,7 @@ on:
       - src/ThreeGame.ts
       - src/input/**
       - scripts/test-touch-gestures.mjs
+      - scripts/test-touch-qa-evidence.mjs
       - tests/touch-gestures.spec.ts
       - tests/android-landscape.spec.ts
 
@@ -68,7 +70,7 @@ jobs:
           npx tsc --noEmit
 
       - name: Validate executable world touch gestures
-        run: npm run test:touch-gestures
+        run: npm run test:touch-gestures && npm run test:touch-qa-evidence
 
       - name: Build web game
         run: npx vite build
