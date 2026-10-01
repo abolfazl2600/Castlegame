@@ -110,6 +110,7 @@ export class EconomySystem {
   reset(): void {
     this.resources = cloneState(DEFAULT_RESOURCES);
     this.rates = {
+      logsPerSecond: 0,
       woodPerSecond: 0,
       stonePerSecond: 0,
       grainPerSecond: 0,
