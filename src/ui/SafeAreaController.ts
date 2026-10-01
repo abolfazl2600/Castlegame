@@ -44,7 +44,6 @@ export class SafeAreaController {
   private readonly probe: HTMLDivElement;
   private nativeInsets: SafeAreaInsets = ZERO_INSETS;
   private frame = 0;
-  private nativeListener: PluginListenerHandle | null = null;
 
   constructor(private readonly root: HTMLElement = document.documentElement) {
     this.probe = document.createElement('div');
@@ -93,7 +92,7 @@ export class SafeAreaController {
     await this.refreshNativeInsets();
 
     try {
-      this.nativeListener = await nativeSafeArea.addListener('insetsChanged', (insets) => {
+      await nativeSafeArea.addListener('insetsChanged', (insets) => {
         this.nativeInsets = this.normalizeInsets(insets);
         this.scheduleUpdate();
       });
