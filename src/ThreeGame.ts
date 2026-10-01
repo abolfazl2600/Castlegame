@@ -153,7 +153,7 @@ const HARBOR_LEVELS = [
 ] as const;
 const HARBOR_MAX_LEVEL = HARBOR_LEVELS.length;
 
-type FortificationUpgradeKind = 'tower' | 'gate' | 'towerBridge';
+type FortificationUpgradeKind = 'tower' | 'gate' | 'towerBridge' | 'keep';
 interface FortificationUpgradeLevel {
   level: 1 | 2 | 3 | 4;
   name: string;
@@ -178,8 +178,20 @@ const FORTIFICATION_UPGRADE_LEVELS: Record<FortificationUpgradeKind, readonly Fo
     { level: 3, name: 'Fortified Skyway', description: 'Guard frames, reinforced rails, and structural bracing give the bridge a mature defensive profile.' },
     { level: 4, name: 'Royal Tower Bridge', description: 'A prestigious fortified crossing with overhead guard frames, metal accents, and visible standards.' },
   ],
+  keep: [
+    { level: 1, name: 'Stone Keep', description: 'A compact defensive keep with a clear, readable base silhouette.' },
+    { level: 2, name: 'Fortified Keep', description: 'The keep grows taller and gains stronger roof and corner defenses.' },
+    { level: 3, name: 'Great Keep', description: 'A larger footprint, taller massing, and prominent towers make the keep a settlement landmark.' },
+    { level: 4, name: 'Royal Keep', description: 'The final keep form is broader, taller, and visually richer with a commanding defensive crown.' },
+  ],
 };
 const FORTIFICATION_MAX_LEVEL = 4;
+const KEEP_UPGRADE_PRESETS = [
+  { level: 1, width: 3, depth: 3, floors: 2, roof: 'flatBattlement', cornerTowers: false, battlements: true },
+  { level: 2, width: 3, depth: 3, floors: 3, roof: 'sloped', cornerTowers: true, battlements: true },
+  { level: 3, width: 4, depth: 4, floors: 4, roof: 'towered', cornerTowers: true, battlements: true },
+  { level: 4, width: 5, depth: 5, floors: 5, roof: 'defensivePlatform', cornerTowers: true, battlements: true },
+] as const;
 
 const BUILDING_KINDS: TileKind[] = [
   'wall1',
@@ -299,9 +311,9 @@ const TOOL_GROUPS: Array<{ label: string; tools: ToolDefinition[] }> = [
       { id: 'wall2', icon: '🪵', label: 'Wooden Wall', detail: 'Drag A → B · timber defense', shortcut: '2' },
       { id: 'wall3', icon: '🛡️', label: 'Reinforced Wall', detail: 'Drag A → B · heavy defense', shortcut: '3' },
       { id: 'gate', icon: '🚪', label: 'Gate', detail: 'Snaps into fortification lines', shortcut: '4' },
-      { id: 'tower', icon: '🏰', label: 'Modular Tower', detail: '5 bases · medieval roof modules', shortcut: '5' },
+      { id: 'tower', icon: '🏰', label: 'Tower', detail: 'Place a tower · appearance evolves automatically', shortcut: '5' },
       { id: 'towerBridge', icon: '🌉', label: 'Tower Bridge', detail: 'Build or select between two compatible towers', shortcut: 'D' },
-      { id: 'keep', icon: '🏯', label: 'Modular Keep', detail: 'Width · depth · floors · roof', shortcut: 'P' },
+      { id: 'keep', icon: '🏯', label: 'Keep', detail: 'Place a keep · size and detail grow with upgrades', shortcut: 'P' },
       { id: 'moat', icon: '💧', label: 'Moat', detail: 'Workers excavate queued tiles', shortcut: 'Q' },
     ],
   },
@@ -483,9 +495,9 @@ export class ThreeGame {
   private selectedTowerBridgeId: number | null = null;
   private keepWidth = 3;
   private keepDepth = 3;
-  private keepFloors = 3;
+  private keepFloors = 2;
   private keepRotation = 0;
-  private keepCornerTowers = true;
+  private keepCornerTowers = false;
   private keepRoof: KeepRoofStyle = 'flatBattlement';
   private keepBattlements = true;
   private selectedKeepId: number | null = null;
@@ -9171,17 +9183,7 @@ export class ThreeGame {
     }
 
     if (tool === 'keep') {
-      return this.services.keepSystem.footprint({
-        x: point.x,
-        y: point.y,
-        width: this.keepWidth,
-        depth: this.keepDepth,
-        floors: this.keepFloors,
-        rotation: this.keepRotation,
-        cornerTowers: this.keepCornerTowers,
-        roof: this.keepRoof,
-        battlements: this.keepBattlements,
-      });
+      return this.services.keepSystem.footprint(this.keepDraftForPlacement(point.x, point.y));
     }
 
     return [{ ...point }];
@@ -9244,17 +9246,7 @@ export class ThreeGame {
     }
 
     if (tool === 'keep') {
-      const draft = {
-        x: point.x,
-        y: point.y,
-        width: this.keepWidth,
-        depth: this.keepDepth,
-        floors: this.keepFloors,
-        rotation: this.keepRotation,
-        cornerTowers: this.keepCornerTowers,
-        roof: this.keepRoof,
-        battlements: this.keepBattlements,
-      };
+      const draft = this.keepDraftForPlacement(point.x, point.y);
       const validation = this.validateKeepDraft(draft);
       const costUnits = Math.max(1, Math.ceil((draft.width * draft.depth * draft.floors) / 6));
       const affordable = this.isConstructionAffordable('keep', costUnits);
@@ -9416,21 +9408,16 @@ export class ThreeGame {
     const existing = byKey.get(key);
 
     if (tool === 'tower') {
-      const currentLevel = Math.max(1, Math.floor(existing?.level ?? 1));
-      const level = existing?.kind === 'tower'
-        ? (decrease
-          ? Math.max(1, currentLevel - 1)
-          : Math.min(FORTIFICATION_MAX_LEVEL, currentLevel + 1))
-        : Math.min(FORTIFICATION_MAX_LEVEL, currentLevel);
-      const compatibleTop = this.compatibleTowerTop(this.towerShape, this.towerTop);
+      const level = Math.max(1, Math.min(FORTIFICATION_MAX_LEVEL, Math.floor(existing?.level ?? 1)));
+      const towerStyle = this.towerStyleForLevel(level, point.x, point.y);
       byKey.set(key, {
         ...(existing ?? { x: point.x, y: point.y, kind: 'tower' as const }),
         x: point.x,
         y: point.y,
         kind: 'tower',
         level,
-        towerShape: this.towerShape,
-        towerTop: compatibleTop,
+        towerShape: towerStyle.shape,
+        towerTop: towerStyle.top,
         wallLinks: existing?.wallLinks,
       });
     } else {
@@ -9859,25 +9846,9 @@ export class ThreeGame {
     if (this.selectedTool === 'tower') {
       if (current === 'tower') {
         const currentLevel = Math.max(1, Math.min(FORTIFICATION_MAX_LEVEL, Math.floor(cell?.level ?? 1)));
-        const nextLevel = event.shiftKey
-          ? Math.max(1, currentLevel - 1)
-          : Math.min(FORTIFICATION_MAX_LEVEL, currentLevel + 1);
-        if (nextLevel === currentLevel) {
-          this.setStatus(event.shiftKey ? 'Tower is already at Level 1' : 'Tower is already at Level 4 · Royal Bastion');
-          this.syncArmyCampUpgradeUI();
-          return;
-        }
-
-        this.recordHistory();
-        const compatibleTop = this.compatibleTowerTop(this.towerShape, this.towerTop);
-        this.towerTop = compatibleTop;
-        this.services.state.updateCell(gx, gy, {
-          level: nextLevel,
-          towerShape: this.towerShape,
-          towerTop: compatibleTop,
-        });
-        this.finishBuild();
-        this.setStatus(`Tower changed to Level ${nextLevel} · ${this.fortificationLevelDefinition('tower', nextLevel).name}`);
+        this.selectedKeepId = null;
+        this.syncArmyCampUpgradeUI();
+        this.setStatus(`Tower selected · Level ${currentLevel} · use Upgrade below`);
         return;
       }
 
@@ -9886,15 +9857,16 @@ export class ThreeGame {
 
       if (!this.ensureConstructionAffordable('tower')) return;
       this.recordHistory();
-      const compatibleTop = this.compatibleTowerTop(this.towerShape, this.towerTop);
-      this.towerTop = compatibleTop;
-      this.services.state.setCell(gx, gy, 'tower', cell?.level ?? 1, {
-        towerShape: this.towerShape,
-        towerTop: compatibleTop,
+      const level = Math.max(1, Math.min(FORTIFICATION_MAX_LEVEL, Math.floor(cell?.level ?? 1)));
+      const towerStyle = this.towerStyleForLevel(level, gx, gy);
+      this.services.state.setCell(gx, gy, 'tower', level, {
+        towerShape: towerStyle.shape,
+        towerTop: towerStyle.top,
         wallLinks: cell?.wallLinks,
       });
       this.spendConstructionCost('tower');
       this.finishBuild();
+      this.setStatus('Tower built · appearance will evolve automatically when upgraded');
       return;
     }
 
@@ -10878,10 +10850,16 @@ export class ThreeGame {
       '<div id="build-search-empty" class="build-search-empty" hidden>No tools match that search.</div>' +
       '<div class="build-tool-sections"></div>' +
       '<div class="builder-settings">' +
+      '<div class="settings-actions build-global-actions" role="group" aria-label="Build history actions"><button id="undo-button" type="button">↶ Undo</button><button id="redo-button" type="button">↷ Redo</button></div>' +
+      '<section id="selection-action-card" class="fortification-upgrade-card" aria-label="Selected building actions" hidden>' +
+      '<div class="fortification-upgrade-heading"><div><span class="eyebrow">SELECTED BUILDING</span><strong id="selection-action-name">Building</strong></div></div>' +
+      '<div class="settings-actions"><button id="rotate-selected" type="button" hidden>↻ Rotate</button><button id="remove-selected" type="button">Remove</button></div>' +
+      '<div class="settings-actions"><button id="selected-gate-toggle" type="button" hidden>Open Gate</button></div>' +
+      '</section>' +
       '<section id="fortification-upgrade-card" class="fortification-upgrade-card" aria-label="Selected fortification upgrade" hidden>' +
       '<div class="fortification-upgrade-heading"><div><span id="fortification-upgrade-type" class="eyebrow">SELECTED FORTIFICATION</span><strong id="fortification-upgrade-name">Fortification · Level 1</strong></div><span id="fortification-upgrade-badge">1 / 4</span></div>' +
       '<div class="fortification-level-track" aria-hidden="true"><span data-fortification-level="1"></span><span data-fortification-level="2"></span><span data-fortification-level="3"></span><span data-fortification-level="4"></span></div>' +
-      '<small id="fortification-upgrade-description">Select a Modular Tower or Gate. For a Tower Bridge, choose the Bridge tool and select both connected towers.</small>' +
+      '<small id="fortification-upgrade-description">Select a Tower, Gate, Keep, or Tower Bridge to inspect its upgrade path.</small>' +
       '<div class="fortification-upgrade-actions"><button id="fortification-upgrade-button" class="fortification-upgrade-button" type="button">Upgrade to Level 2</button><button id="fortification-remove-bridge-button" class="fortification-remove-bridge-button" type="button" hidden>Remove Bridge</button></div>' +
       '</section>' +
       '<section id="army-camp-upgrade-card" class="army-camp-upgrade-card" aria-label="Selected Army Camp upgrade" hidden>' +
@@ -10910,8 +10888,8 @@ export class ThreeGame {
       '</section>' +
       '<section class="settings-section build-settings-section">' +
       '<button class="settings-section-header" type="button" aria-expanded="false">' +
-      '<span class="settings-section-title">Tool Options</span>' +
-      '<span id="build-settings-summary" class="settings-section-summary">Advanced adjustments</span>' +
+      '<span class="settings-section-title">Advanced Editor</span>' +
+      '<span id="build-settings-summary" class="settings-section-summary">Manual architecture & terrain tuning</span>' +
       '<span class="settings-section-chevron" aria-hidden="true">▶</span>' +
       '</button>' +
       '<div class="settings-section-items">' +
@@ -10923,7 +10901,6 @@ export class ThreeGame {
       '<label class="settings-check"><input id="wall-walkway" type="checkbox" /><span>Top Walkway</span></label>' +
       '<div class="settings-actions"><button id="selected-down" type="button">− Height</button><button id="selected-up" type="button">+ Height</button></div>' +
       '<div class="settings-title">Castle Architecture</div>' +
-      '<div class="settings-actions"><button id="selected-gate-toggle" type="button" disabled>Select a Gate</button></div>' +
       '<label class="settings-row"><span>Stone Style</span><select id="castle-stone-style">' +
       '<option value="limestone" selected>Limestone</option><option value="darkStone">Dark Stone</option>' +
       '<option value="sandstone">Sandstone</option><option value="frontier">Rough Frontier</option><option value="whitePlaster">White Plaster</option>' +
@@ -10950,25 +10927,20 @@ export class ThreeGame {
       '<option value="2">2 tiles</option><option value="3" selected>3 tiles</option><option value="4">4 tiles</option><option value="5">5 tiles</option><option value="6">6 tiles</option>' +
       '</select></label>' +
       '<label class="settings-row"><span>Floors</span><select id="keep-floors">' +
-      '<option value="1">1 floor</option><option value="2">2 floors</option><option value="3" selected>3 floors</option><option value="4">4 floors</option><option value="5">5 floors</option><option value="6">6 floors</option><option value="7">7 floors</option><option value="8">8 floors</option><option value="9">9 floors</option>' +
+      '<option value="1">1 floor</option><option value="2" selected>2 floors</option><option value="3">3 floors</option><option value="4">4 floors</option><option value="5">5 floors</option><option value="6">6 floors</option><option value="7">7 floors</option><option value="8">8 floors</option><option value="9">9 floors</option>' +
       '</select></label>' +
       '<label class="settings-row"><span>Roof</span><select id="keep-roof">' +
       '<option value="flatBattlement">Flat Battlement</option><option value="sloped">Medieval Sloped</option><option value="defensivePlatform">Defensive Platform</option><option value="towered">Towered Roof</option><option value="japaneseTiered">Japanese Tiered</option>' +
       '</select></label>' +
-      '<label class="settings-check"><input id="keep-corner-towers" type="checkbox" checked /><span>Corner Towers</span></label>' +
+      '<label class="settings-check"><input id="keep-corner-towers" type="checkbox" /><span>Corner Towers</span></label>' +
       '<label class="settings-check"><input id="keep-battlements" type="checkbox" checked /><span>Keep Battlements</span></label>' +
-      '<div class="settings-actions"><button id="keep-floor-down" type="button">− Keep Floor</button><button id="keep-floor-up" type="button">+ Keep Floor</button></div>' +
-      '<div class="settings-actions"><button id="keep-rotate" type="button">↻ Keep 90°</button><button id="keep-remove" type="button">Remove Keep</button></div>' +
+
       '<div class="settings-title">Terrain Brush</div>' +
       '<label class="settings-row"><span>Brush Size</span><select id="brush-size">' +
       '<option value="1">1 tile</option><option value="2" selected>2 tiles</option><option value="3">3 tiles</option><option value="4">4 tiles</option>' +
       '</select></label>' +
       '<label class="settings-row"><span>Strength</span><span class="range-wrap"><input id="brush-strength" type="range" min="0.25" max="2" step="0.25" value="1" /><b id="brush-strength-value">1.00</b></span></label>' +
-      '<div class="settings-title">Selection</div>' +
-      '<div class="move-pad"><button id="move-up" type="button">↑</button><button id="move-left" type="button">←</button><button id="move-down" type="button">↓</button><button id="move-right" type="button">→</button></div>' +
-      '<div class="settings-actions"><button id="rotate-selected" type="button">↻ Rotate</button><button id="undo-button" type="button">Undo</button></div>' +
-      '<div class="settings-actions"><button id="redo-button" type="button">Redo</button><button id="select-clear" type="button">Clear Select</button></div>' +
-      '<div class="settings-hint">Walls and terrain support drag gestures. Ctrl+Z / Ctrl+Y undo and redo.</div>' +
+      '<div class="settings-hint">Advanced architecture and terrain tuning is optional. Normal building uses automatic defaults.</div>' +
       '</div></section></div>';
 
     const builderSettings = toolbar.querySelector<HTMLElement>('.builder-settings');
@@ -11235,11 +11207,6 @@ export class ThreeGame {
     keepCornerTowers.onchange = updateKeepDraft;
     keepBattlements.onchange = updateKeepDraft;
 
-    get<HTMLButtonElement>('keep-floor-down').onclick = () => this.adjustSelectedKeepFloors(-1);
-    get<HTMLButtonElement>('keep-floor-up').onclick = () => this.adjustSelectedKeepFloors(1);
-    get<HTMLButtonElement>('keep-rotate').onclick = () => this.rotateSelectedKeep();
-    get<HTMLButtonElement>('keep-remove').onclick = () => this.removeSelectedKeep();
-
     get<HTMLButtonElement>('selected-down').onclick = () => this.adjustSelectedHeight(-1);
     get<HTMLButtonElement>('selected-up').onclick = () => this.adjustSelectedHeight(1);
 
@@ -11256,11 +11223,8 @@ export class ThreeGame {
       brushStrengthValue.textContent = this.brushStrength.toFixed(2);
     };
 
-    get<HTMLButtonElement>('move-up').onclick = () => this.moveSelected(0, -1);
-    get<HTMLButtonElement>('move-left').onclick = () => this.moveSelected(-1, 0);
-    get<HTMLButtonElement>('move-down').onclick = () => this.moveSelected(0, 1);
-    get<HTMLButtonElement>('move-right').onclick = () => this.moveSelected(1, 0);
     get<HTMLButtonElement>('rotate-selected').onclick = () => this.rotateSelected();
+    get<HTMLButtonElement>('remove-selected').onclick = () => this.removeSelected();
     get<HTMLButtonElement>('fortification-upgrade-button').onclick = () => this.upgradeSelectedFortification();
     get<HTMLButtonElement>('fortification-remove-bridge-button').onclick = () => this.removeSelectedTowerBridge();
     get<HTMLButtonElement>('army-camp-upgrade-button').onclick = () => this.upgradeSelectedArmyCamp();
@@ -11269,14 +11233,6 @@ export class ThreeGame {
     get<HTMLButtonElement>('harbor-upgrade-button').onclick = () => this.upgradeSelectedHarbor();
     get<HTMLButtonElement>('undo-button').onclick = () => this.undo();
     get<HTMLButtonElement>('redo-button').onclick = () => this.redo();
-    get<HTMLButtonElement>('select-clear').onclick = () => {
-      this.selectedCell = null;
-      this.selectedKeepId = null;
-      this.selectedTowerBridgeId = null;
-      this.syncArmyCampUpgradeUI();
-      this.setStatus('Selection cleared');
-    };
-
     const help = get<HTMLElement>('help-modal');
     const templates = get<HTMLElement>('templates-modal');
     const battlePanel = get<HTMLElement>('battle-panel');
@@ -11525,8 +11481,45 @@ export class ThreeGame {
     if (!button) return;
     const point = this.selectedCell;
     const cell = point && this.services.state.getCell(point.x, point.y);
+    button.hidden = !cell || cell.kind !== 'gate';
     button.disabled = !cell || cell.kind !== 'gate' || this.battleSystem.isActive();
-    button.textContent = cell?.kind === 'gate' ? (cell.gateOpen === false ? 'Open Gate' : 'Close Gate') : 'Select a Gate';
+    button.textContent = cell?.kind === 'gate' ? (cell.gateOpen === false ? 'Open Gate' : 'Close Gate') : 'Open Gate';
+  }
+
+  private syncSelectionActionUI(): void {
+    const card = document.getElementById('selection-action-card');
+    if (!card) return;
+
+    const keep = this.selectedKeepId !== null ? this.services.keepSystem.get(this.selectedKeepId) : undefined;
+    const cell = this.selectedCell
+      ? this.services.state.getCell(this.selectedCell.x, this.selectedCell.y)
+      : undefined;
+    const bridgeSelected = this.selectedTowerBridgeId !== null && this.towerBridges.has(this.selectedTowerBridgeId);
+    const hasSelection = Boolean(keep || cell || bridgeSelected);
+    card.hidden = !hasSelection;
+
+    const name = document.getElementById('selection-action-name');
+    if (name) {
+      name.textContent = keep
+        ? `Keep · Level ${this.keepUpgradeLevel(keep)}`
+        : bridgeSelected
+          ? 'Tower Bridge'
+          : cell?.kind === 'tower'
+            ? `Tower · Level ${Math.max(1, Math.floor(cell.level ?? 1))}`
+            : cell?.kind === 'gate'
+              ? `Gate · Level ${Math.max(1, Math.floor(cell.level ?? 1))}`
+              : 'Selected Building';
+    }
+
+    const rotate = document.getElementById('rotate-selected') as HTMLButtonElement | null;
+    const remove = document.getElementById('remove-selected') as HTMLButtonElement | null;
+    const rotatable = Boolean(keep || cell?.kind === 'gate' || cell?.kind === 'harbor');
+    if (rotate) {
+      rotate.hidden = !rotatable;
+      rotate.disabled = !rotatable || this.battleSystem.isActive();
+    }
+    if (remove) remove.disabled = !hasSelection || this.battleSystem.isActive();
+    this.syncSelectedGateButton();
   }
 
   private toggleSelectedGate(): void {
@@ -11561,6 +11554,33 @@ export class ThreeGame {
     });
     this.redrawCastleNeighborhood([this.selectedCell]);
     this.scheduleSave();
+  }
+
+  private towerStyleForLevel(level: number, gx: number, gy: number): { shape: TowerShape; top: TowerTop } {
+    const normalized = Math.max(1, Math.min(FORTIFICATION_MAX_LEVEL, Math.floor(level)));
+    const styleOffset: Record<StoneStyle, number> = {
+      limestone: 0,
+      darkStone: 1,
+      sandstone: 2,
+      frontier: 3,
+      whitePlaster: 0,
+      earthen: 3,
+    };
+    const progressions: readonly (readonly TowerShape[])[] = [
+      ['round', 'round', 'octagonal', 'square'],
+      ['square', 'round', 'square', 'octagonal'],
+      ['round', 'octagonal', 'round', 'square'],
+      ['watch', 'square', 'round', 'octagonal'],
+    ];
+    const progression = progressions[(styleOffset[this.stoneStyle] + ((gx + gy) & 1)) % progressions.length];
+    const shape = progression[normalized - 1] ?? 'round';
+    const requestedTop: TowerTop = normalized <= 2
+      ? 'openBattlement'
+      : normalized === 3
+        ? (shape === 'square' || shape === 'corner' ? 'hipped' : 'conical')
+        : (shape === 'square' || shape === 'corner' ? 'pyramidal' : 'conical');
+
+    return { shape, top: this.compatibleTowerTop(shape, requestedTop) };
   }
 
   private compatibleTowerTop(shape: TowerShape, top: TowerTop): TowerTop {
@@ -11736,6 +11756,47 @@ export class ThreeGame {
     }
   }
 
+  private removeSelected(): void {
+    if (this.battleSystem.isActive()) {
+      this.setStatus('Finish or reset the battle before editing buildings');
+      return;
+    }
+
+    if (this.selectedTowerBridgeId !== null) {
+      this.removeSelectedTowerBridge();
+      this.syncArmyCampUpgradeUI();
+      return;
+    }
+
+    if (this.selectedKeepId !== null) {
+      this.removeSelectedKeep();
+      this.syncArmyCampUpgradeUI();
+      return;
+    }
+
+    if (!this.selectedCell) {
+      this.setStatus('Select a building first');
+      return;
+    }
+
+    const point = this.selectedCell;
+    const cell = this.services.state.getCell(point.x, point.y);
+    if (!cell) {
+      this.setStatus('Select a building first');
+      this.syncArmyCampUpgradeUI();
+      return;
+    }
+
+    this.recordHistory();
+    if (cell.kind === 'tower') this.removeTowerBridgesAt(point.x, point.y);
+    this.services.state.removeCell(point.x, point.y);
+    this.selectedCell = null;
+    this.redraw();
+    this.scheduleSave();
+    this.syncArmyCampUpgradeUI();
+    this.setStatus('Building removed · Undo available');
+  }
+
   private removeSelectedKeep(): void {
     if (this.selectedKeepId === null) {
       this.setStatus('Select a Keep first');
@@ -11750,6 +11811,38 @@ export class ThreeGame {
     this.setStatus('Keep removed');
   }
 
+  private keepUpgradeLevel(keep: KeepState): number {
+    if (keep.floors >= 5 || keep.width >= 5 || keep.depth >= 5) return 4;
+    if (keep.floors >= 4 || keep.width >= 4 || keep.depth >= 4) return 3;
+    if (keep.floors >= 3) return 2;
+    return 1;
+  }
+
+  private keepDraftForLevel(
+    gx: number,
+    gy: number,
+    level: number,
+    rotation = this.keepRotation,
+  ): Omit<KeepState, 'id' | 'seed'> {
+    const normalized = Math.max(1, Math.min(FORTIFICATION_MAX_LEVEL, Math.floor(level)));
+    const preset = KEEP_UPGRADE_PRESETS[normalized - 1];
+    return {
+      x: gx,
+      y: gy,
+      width: preset.width,
+      depth: preset.depth,
+      floors: preset.floors,
+      rotation,
+      cornerTowers: preset.cornerTowers,
+      roof: preset.roof,
+      battlements: preset.battlements,
+    };
+  }
+
+  private keepDraftForPlacement(gx: number, gy: number): Omit<KeepState, 'id' | 'seed'> {
+    return this.keepDraftForLevel(gx, gy, 1);
+  }
+
   private placeKeep(gx: number, gy: number): void {
     const existing = this.services.keepSystem.findAtCell(gx, gy);
     if (existing) {
@@ -11757,17 +11850,7 @@ export class ThreeGame {
       return;
     }
 
-    const draft = {
-      x: gx,
-      y: gy,
-      width: this.keepWidth,
-      depth: this.keepDepth,
-      floors: this.keepFloors,
-      rotation: this.keepRotation,
-      cornerTowers: this.keepCornerTowers,
-      roof: this.keepRoof,
-      battlements: this.keepBattlements,
-    };
+    const draft = this.keepDraftForPlacement(gx, gy);
 
     const validation = this.validateKeepDraft(draft);
     if (!validation.valid) {
@@ -11810,6 +11893,16 @@ export class ThreeGame {
       }
     }
 
+    if (!kind && this.selectedKeepId !== null) {
+      const keep = this.services.keepSystem.get(this.selectedKeepId);
+      if (keep) {
+        kind = 'keep';
+        level = this.keepUpgradeLevel(keep);
+      } else {
+        this.selectedKeepId = null;
+      }
+    }
+
     if (!kind && this.selectedCell) {
       const cell = this.services.state.getCell(this.selectedCell.x, this.selectedCell.y);
       if (cell?.kind === 'tower' || cell?.kind === 'gate') {
@@ -11826,14 +11919,16 @@ export class ThreeGame {
       ? this.fortificationLevelDefinition(kind, level + 1)
       : undefined;
     const labels: Record<FortificationUpgradeKind, string> = {
-      tower: 'Modular Tower',
+      tower: 'Tower',
       gate: 'Gate',
       towerBridge: 'Tower Bridge',
+      keep: 'Keep',
     };
     const eyebrowLabels: Record<FortificationUpgradeKind, string> = {
-      tower: 'SELECTED MODULAR TOWER',
+      tower: 'SELECTED TOWER',
       gate: 'SELECTED GATE',
       towerBridge: 'SELECTED TOWER BRIDGE',
+      keep: 'SELECTED KEEP',
     };
     const type = document.getElementById('fortification-upgrade-type');
     const name = document.getElementById('fortification-upgrade-name');
@@ -11848,7 +11943,7 @@ export class ThreeGame {
     if (description) {
       description.textContent = next
         ? `${definition.description} Next: ${next.name}.`
-        : `${definition.description} Maximum fortification level reached.`;
+        : `${definition.description} Maximum upgrade level reached.`;
     }
 
     card.querySelectorAll<HTMLElement>('[data-fortification-level]').forEach((step) => {
@@ -11900,14 +11995,49 @@ export class ThreeGame {
       return;
     }
 
+    if (this.selectedKeepId !== null) {
+      const keep = this.services.keepSystem.get(this.selectedKeepId);
+      if (!keep) {
+        this.selectedKeepId = null;
+        this.syncArmyCampUpgradeUI();
+        this.setStatus('Select a Keep first');
+        return;
+      }
+
+      const currentLevel = this.keepUpgradeLevel(keep);
+      if (currentLevel >= FORTIFICATION_MAX_LEVEL) {
+        this.setStatus('Keep is already at Level 4 · Royal Keep');
+        this.syncArmyCampUpgradeUI();
+        return;
+      }
+
+      const nextLevel = currentLevel + 1;
+      const draft = this.keepDraftForLevel(keep.x, keep.y, nextLevel, keep.rotation);
+      const validation = this.validateKeepDraft(draft, keep.id);
+      if (!validation.valid) {
+        this.setStatus(validation.reason ?? 'Clear more space around the Keep before upgrading');
+        return;
+      }
+
+      this.recordHistory();
+      const updated = this.services.keepSystem.update(keep.id, draft);
+      if (updated) {
+        this.selectKeep(updated);
+        this.redraw();
+        this.scheduleSave();
+        this.setStatus(`Keep upgraded to Level ${nextLevel} · ${this.fortificationLevelDefinition('keep', nextLevel).name}`);
+      }
+      return;
+    }
+
     if (!this.selectedCell) {
-      this.setStatus('Select a Modular Tower, Gate, or Tower Bridge first');
+      this.setStatus('Select a Tower, Gate, Keep, or Tower Bridge first');
       return;
     }
 
     const cell = this.services.state.getCell(this.selectedCell.x, this.selectedCell.y);
     if (!cell || (cell.kind !== 'tower' && cell.kind !== 'gate')) {
-      this.setStatus('Select a Modular Tower, Gate, or Tower Bridge first');
+      this.setStatus('Select a Tower, Gate, Keep, or Tower Bridge first');
       this.syncFortificationUpgradeUI();
       return;
     }
@@ -11915,18 +12045,27 @@ export class ThreeGame {
     const kind = cell.kind as 'tower' | 'gate';
     const currentLevel = Math.max(1, Math.min(FORTIFICATION_MAX_LEVEL, Math.floor(cell.level ?? 1)));
     if (currentLevel >= FORTIFICATION_MAX_LEVEL) {
-      this.setStatus(`${kind === 'tower' ? 'Modular Tower' : 'Gate'} is already at Level 4 · ${this.fortificationLevelDefinition(kind, 4).name}`);
+      this.setStatus(`${kind === 'tower' ? 'Tower' : 'Gate'} is already at Level 4 · ${this.fortificationLevelDefinition(kind, 4).name}`);
       this.syncFortificationUpgradeUI();
       return;
     }
 
     const nextLevel = currentLevel + 1;
     this.recordHistory();
-    this.services.state.setLevel(this.selectedCell.x, this.selectedCell.y, nextLevel);
+    if (kind === 'tower') {
+      const style = this.towerStyleForLevel(nextLevel, this.selectedCell.x, this.selectedCell.y);
+      this.services.state.updateCell(this.selectedCell.x, this.selectedCell.y, {
+        level: nextLevel,
+        towerShape: style.shape,
+        towerTop: style.top,
+      });
+    } else {
+      this.services.state.setLevel(this.selectedCell.x, this.selectedCell.y, nextLevel);
+    }
     this.redraw();
     this.scheduleSave();
     this.setStatus(
-      `${kind === 'tower' ? 'Modular Tower' : 'Gate'} upgraded to Level ${nextLevel} · ${this.fortificationLevelDefinition(kind, nextLevel).name}`,
+      `${kind === 'tower' ? 'Tower' : 'Gate'} upgraded to Level ${nextLevel} · ${this.fortificationLevelDefinition(kind, nextLevel).name}`,
     );
   }
 
@@ -12207,6 +12346,7 @@ export class ThreeGame {
 
   private syncArmyCampUpgradeUI(): void {
     this.syncFortificationUpgradeUI();
+    this.syncSelectionActionUI();
     this.syncAgricultureUpgradeUI();
     this.syncCarpenterUpgradeUI();
     this.syncHarborUpgradeUI();
