@@ -15,11 +15,19 @@ for (const band of ['inspection', 'gameplay', 'strategic']) {
 
 assert.match(budget, /BAND_HYSTERESIS\s*=\s*4/, 'distance bands must use hysteresis');
 assert.match(budget, /maximumStrategic/, 'strategic distance must use the shared camera contract');
-assert.match(budget, /shadowCasters:\s*84/, 'desktop strategic shadow budget changed unexpectedly');
-assert.match(budget, /shadowCasters:\s*36/, 'mobile strategic shadow budget changed unexpectedly');
+assert.match(budget, /shadowCasters:\s*40/, 'desktop strategic shadow budget changed unexpectedly');
+assert.match(budget, /shadowCasters:\s*20/, 'mobile strategic shadow budget changed unexpectedly');
+assert.match(budget, /shadowCasters:\s*72/, 'desktop gameplay shadow budget must stay aggressively capped');
+assert.match(budget, /shadowCasters:\s*36/, 'mobile gameplay shadow budget must stay aggressively capped');
 assert.match(budget, /pixelRatioScale:\s*0\.78/, 'desktop strategic raster scale changed unexpectedly');
 assert.match(budget, /pixelRatioScale:\s*0\.62/, 'mobile strategic raster scale changed unexpectedly');
 assert.match(budget, /parentHasReadabilityPriority/, 'silhouette/readability shadow priority is required');
+assert.match(budget, /ShadowImportance = 'major' \| 'medium' \| 'minor'/, 'building shadows must use explicit importance tiers');
+assert.match(budget, /classifyBuildingShadowImportance/, 'building shadow casters must be classified before budgeting');
+assert.match(budget, /shadowBudgetRoot/, 'building and castle shadow casters must be grouped by logical root');
+assert.match(budget, /MAX_BUILDING_SHADOW_CASTERS_PER_ROOT\s*=\s*2/, 'a single building must not monopolize the shadow budget');
+assert.match(budget, /importance === 'minor'/, 'minor building geometry must be excluded from dynamic shadows');
+assert.match(budget, /suppressedMinorBuildingShadowCasters/, 'debug diagnostics must report suppressed minor building shadows');
 assert.match(budget, /invalidate\(\): void/, 'scene redraws must be able to invalidate the active budget');
 assert.match(budget, /isSuppressibleMicroDetail/, 'distance governor must classify suppressible micro-detail explicitly');
 assert.match(budget, /parentHasReadabilityPriority/, 'silhouette-defining geometry must be protected from suppression');

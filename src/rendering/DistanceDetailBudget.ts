@@ -5,6 +5,7 @@ import { WORLD_STYLE } from './WorldStyle';
 
 export type DistanceDetailBand = 'inspection' | 'gameplay' | 'strategic';
 export type MemoryPressureLevel = 'normal' | 'elevated' | 'critical';
+export type ShadowImportance = 'major' | 'medium' | 'minor';
 
 export const GAME_MEMORY_BUDGET_BYTES = 2 * 1024 * 1024 * 1024;
 const MEMORY_ELEVATED_RATIO = 0.75;
@@ -27,6 +28,9 @@ export interface VisualBudgetSnapshot {
   budget: VisualPerformanceBudget;
   activeShadowCasters: number;
   baselineShadowCasters: number;
+  activeBuildingShadowCasters: number;
+  baselineBuildingShadowCasters: number;
+  suppressedMinorBuildingShadowCasters: number;
   activeHighDetailMeshes: number;
   baselineHighDetailMeshes: number;
   suppressedHighDetailMeshes: number;
@@ -44,7 +48,7 @@ const DESKTOP_BUDGETS: Record<DistanceDetailBand, VisualPerformanceBudget> = {
     drawCalls: 950,
     animatedObjects: 180,
     particles: 160,
-    shadowCasters: 220,
+    shadowCasters: 128,
     highDetailMeshes: 520,
     pixelRatioScale: 1,
     animationScale: 1,
@@ -53,7 +57,7 @@ const DESKTOP_BUDGETS: Record<DistanceDetailBand, VisualPerformanceBudget> = {
     drawCalls: 760,
     animatedObjects: 120,
     particles: 96,
-    shadowCasters: 150,
+    shadowCasters: 72,
     highDetailMeshes: 360,
     pixelRatioScale: 0.92,
     animationScale: 0.78,
@@ -62,7 +66,7 @@ const DESKTOP_BUDGETS: Record<DistanceDetailBand, VisualPerformanceBudget> = {
     drawCalls: 620,
     animatedObjects: 72,
     particles: 48,
-    shadowCasters: 84,
+    shadowCasters: 40,
     highDetailMeshes: 220,
     pixelRatioScale: 0.78,
     animationScale: 0.48,
@@ -74,7 +78,7 @@ const MOBILE_BUDGETS: Record<DistanceDetailBand, VisualPerformanceBudget> = {
     drawCalls: 620,
     animatedObjects: 96,
     particles: 72,
-    shadowCasters: 96,
+    shadowCasters: 64,
     highDetailMeshes: 280,
     pixelRatioScale: 0.82,
     animationScale: 0.72,
@@ -83,7 +87,7 @@ const MOBILE_BUDGETS: Record<DistanceDetailBand, VisualPerformanceBudget> = {
     drawCalls: 520,
     animatedObjects: 64,
     particles: 48,
-    shadowCasters: 64,
+    shadowCasters: 36,
     highDetailMeshes: 210,
     pixelRatioScale: 0.72,
     animationScale: 0.56,
@@ -92,7 +96,7 @@ const MOBILE_BUDGETS: Record<DistanceDetailBand, VisualPerformanceBudget> = {
     drawCalls: 430,
     animatedObjects: 40,
     particles: 24,
-    shadowCasters: 36,
+    shadowCasters: 20,
     highDetailMeshes: 140,
     pixelRatioScale: 0.62,
     animationScale: 0.34,
@@ -122,6 +126,9 @@ const BAND_HYSTERESIS = 4;
 const GENERIC_MICRO_DETAIL_RADIUS = 2.4;
 const PROP_HEAVY_MICRO_DETAIL_RADIUS = 3.4;
 const PRIORITY_MICRO_DETAIL_RADIUS = 2.6;
+const BUILDING_SHADOW_MAJOR_RADIUS = 2.2;
+const BUILDING_SHADOW_MEDIUM_RADIUS = 0.8;
+const MAX_BUILDING_SHADOW_CASTERS_PER_ROOT = 2;
 
 function currentHeapBytes(): number | null {
   const memory = (performance as Performance & {
@@ -262,6 +269,41 @@ function isSuppressibleMicroDetail(mesh: THREE.Mesh): boolean {
   return worldRadius(mesh) <= threshold;
 }
 
+function shadowBudgetRoot(object: THREE.Object3D): THREE.Object3D | null {
+  let current: THREE.Object3D | null = object.parent;
+  while (current && !(current instanceof THREE.Scene)) {
+    if (
+      current.userData.cellKey ||
+      current.userData.defenseSilhouette ||
+      current.userData.settlementReadabilityClass === 'landmark' ||
+      current.userData.activeFarm ||
+      current.userData.cowBarnLevel ||
+      current.userData.harborLevel ||
+      current.userData.armyCampLevel
+    ) return current;
+    current = current.parent;
+  }
+  return null;
+}
+
+function classifyBuildingShadowImportance(mesh: THREE.Mesh): ShadowImportance {
+  const explicit = mesh.userData.shadowImportance;
+  if (explicit === 'major' || explicit === 'medium' || explicit === 'minor') return explicit;
+
+  const radius = worldRadius(mesh);
+  if (
+    mesh instanceof THREE.InstancedMesh ||
+    mesh.userData.distanceDetailPriority === 'silhouette' ||
+    radius >= BUILDING_SHADOW_MAJOR_RADIUS
+  ) return 'major';
+  if (radius >= BUILDING_SHADOW_MEDIUM_RADIUS) return 'medium';
+  return 'minor';
+}
+
+function shadowImportanceRank(importance: ShadowImportance): number {
+  return importance === 'major' ? 2 : importance === 'medium' ? 1 : 0;
+}
+
 function coreMeshesPerRoot(band: DistanceDetailBand, mobile: boolean): number {
   if (band === 'inspection') return mobile ? 2 : 3;
   return 1;
@@ -310,6 +352,9 @@ export class DistanceDetailBudgetSystem {
     budget: budgetForProfile('balanced', 'gameplay'),
     activeShadowCasters: 0,
     baselineShadowCasters: 0,
+    activeBuildingShadowCasters: 0,
+    baselineBuildingShadowCasters: 0,
+    suppressedMinorBuildingShadowCasters: 0,
     activeHighDetailMeshes: 0,
     baselineHighDetailMeshes: 0,
     suppressedHighDetailMeshes: 0,
@@ -393,6 +438,9 @@ export class DistanceDetailBudgetSystem {
         mobile,
         ...budget,
         activeHighDetailMeshes: detail.activeHighDetailMeshes,
+        activeShadowCasters: shadow.activeShadowCasters,
+        activeBuildingShadowCasters: shadow.activeBuildingShadowCasters,
+        suppressedMinorBuildingShadowCasters: shadow.suppressedMinorBuildingShadowCasters,
         estimatedDrawCalls: this.lastSnapshot.estimatedDrawCalls,
         memoryBudgetBytes: GAME_MEMORY_BUDGET_BYTES,
         heapBytes,
@@ -568,23 +616,104 @@ export class DistanceDetailBudgetSystem {
     scene: THREE.Scene,
     maxShadowCasters: number,
     shadowsEnabled: boolean,
-  ): Pick<VisualBudgetSnapshot, 'activeShadowCasters' | 'baselineShadowCasters'> {
-    const candidates: THREE.Mesh[] = [];
+  ): Pick<
+    VisualBudgetSnapshot,
+    | 'activeShadowCasters'
+    | 'baselineShadowCasters'
+    | 'activeBuildingShadowCasters'
+    | 'baselineBuildingShadowCasters'
+    | 'suppressedMinorBuildingShadowCasters'
+  > {
+    type ShadowCandidate = {
+      mesh: THREE.Mesh;
+      root: THREE.Object3D | null;
+      importance: ShadowImportance;
+      radius: number;
+      order: number;
+    };
+
+    const allCandidates: ShadowCandidate[] = [];
+    const generalCandidates: ShadowCandidate[] = [];
+    const buildingCandidatesByRoot = new Map<THREE.Object3D, ShadowCandidate[]>();
+    let order = 0;
+    let baselineBuildingShadowCasters = 0;
+    let suppressedMinorBuildingShadowCasters = 0;
+
+    scene.updateMatrixWorld(true);
     scene.traverse((object) => {
       if (!(object instanceof THREE.Mesh) || !object.visible) return;
       if (!this.baseShadowCaster.has(object)) this.baseShadowCaster.set(object, object.castShadow);
-      if (this.baseShadowCaster.get(object)) candidates.push(object);
+      if (!this.baseShadowCaster.get(object)) return;
+
+      const root = shadowBudgetRoot(object);
+      const importance = root
+        ? classifyBuildingShadowImportance(object)
+        : parentHasReadabilityPriority(object) ? 'major' : 'medium';
+      const candidate: ShadowCandidate = {
+        mesh: object,
+        root,
+        importance,
+        radius: worldRadius(object),
+        order,
+      };
+      order += 1;
+      allCandidates.push(candidate);
+      object.castShadow = false;
+
+      if (!root) {
+        generalCandidates.push(candidate);
+        return;
+      }
+
+      baselineBuildingShadowCasters += 1;
+      if (importance === 'minor') {
+        suppressedMinorBuildingShadowCasters += 1;
+        return;
+      }
+      const group = buildingCandidatesByRoot.get(root) ?? [];
+      group.push(candidate);
+      buildingCandidatesByRoot.set(root, group);
     });
 
-    candidates.sort((a, b) => Number(parentHasReadabilityPriority(b)) - Number(parentHasReadabilityPriority(a)));
+    const buildingCandidates: ShadowCandidate[] = [];
+    for (const group of buildingCandidatesByRoot.values()) {
+      group.sort((a, b) =>
+        shadowImportanceRank(b.importance) - shadowImportanceRank(a.importance) ||
+        b.radius - a.radius ||
+        a.order - b.order
+      );
+      buildingCandidates.push(...group.slice(0, MAX_BUILDING_SHADOW_CASTERS_PER_ROOT));
+    }
+
+    const ranked = [...buildingCandidates, ...generalCandidates];
+    ranked.sort((a, b) => {
+      const aBuilding = a.root ? 1 : 0;
+      const bBuilding = b.root ? 1 : 0;
+      return (
+        shadowImportanceRank(b.importance) - shadowImportanceRank(a.importance) ||
+        bBuilding - aBuilding ||
+        Number(parentHasReadabilityPriority(b.mesh)) - Number(parentHasReadabilityPriority(a.mesh)) ||
+        b.radius - a.radius ||
+        a.order - b.order
+      );
+    });
+
     const allowed = shadowsEnabled ? Math.max(0, maxShadowCasters) : 0;
-    for (let i = 0; i < candidates.length; i += 1) {
-      candidates[i].castShadow = i < allowed;
+    let activeShadowCasters = 0;
+    let activeBuildingShadowCasters = 0;
+    for (const candidate of ranked) {
+      if (activeShadowCasters >= allowed) break;
+      candidate.mesh.castShadow = true;
+      activeShadowCasters += 1;
+      if (candidate.root) activeBuildingShadowCasters += 1;
     }
 
     return {
-      activeShadowCasters: Math.min(candidates.length, allowed),
-      baselineShadowCasters: candidates.length,
+      activeShadowCasters,
+      baselineShadowCasters: allCandidates.length,
+      activeBuildingShadowCasters,
+      baselineBuildingShadowCasters,
+      suppressedMinorBuildingShadowCasters,
     };
   }
 }
