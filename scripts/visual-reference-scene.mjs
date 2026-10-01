@@ -147,22 +147,22 @@ function harborDistrictCells() {
 }
 
 function sceneDefinition(kind) {
-  if (kind === 'empty') return { mode: 'medieval', layout: 'mainland', cells: [], keeps: [] };
+  if (kind === 'empty') return { mode: 'unified', layout: 'mainland', cells: [], keeps: [] };
   if (kind === 'reference') return {
-    mode: 'medieval', layout: 'mainland', cells: REFERENCE_CELLS.map((entry) => ({ ...entry })),
+    mode: 'unified', layout: 'mainland', cells: REFERENCE_CELLS.map((entry) => ({ ...entry })),
     keeps: [{ id: 1, x: 13, y: 14, width: 2, depth: 2, floors: 2, rotation: 0, cornerTowers: true, roof: 'flatBattlement', battlements: true, seed: REFERENCE_SEED }],
   };
   if (kind === 'dense') return {
-    mode: 'medieval', layout: 'mainland', cells: denseCells(),
+    mode: 'unified', layout: 'mainland', cells: denseCells(),
     keeps: [{ id: 1, x: 13, y: 14, width: 2, depth: 2, floors: 3, rotation: 0, cornerTowers: true, roof: 'towered', battlements: true, seed: REFERENCE_SEED + 1 }],
   };
-  if (kind === 'starter') return { mode: 'medieval', layout: 'mainland', cells: starterCells(), keeps: [] };
+  if (kind === 'starter') return { mode: 'unified', layout: 'mainland', cells: starterCells(), keeps: [] };
   if (kind === 'castle') return {
-    mode: 'medieval', layout: 'mainland', cells: castleCells(),
+    mode: 'unified', layout: 'mainland', cells: castleCells(),
     keeps: [{ id: 2, x: 10, y: 10, width: 3, depth: 3, floors: 4, rotation: 0, cornerTowers: true, roof: 'towered', battlements: true, seed: REFERENCE_SEED + 2 }],
   };
-  if (kind === 'farm') return { mode: 'medieval', layout: 'mainland', cells: farmDistrictCells(), keeps: [] };
-  if (kind === 'harbor') return { mode: 'medieval', layout: 'peninsula', cells: harborDistrictCells(), keeps: [] };
+  if (kind === 'farm') return { mode: 'unified', layout: 'mainland', cells: farmDistrictCells(), keeps: [] };
+  if (kind === 'harbor') return { mode: 'unified', layout: 'peninsula', cells: harborDistrictCells(), keeps: [] };
   throw new Error(`Unknown scene: ${kind}`);
 }
 

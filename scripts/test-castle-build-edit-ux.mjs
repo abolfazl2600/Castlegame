@@ -16,7 +16,7 @@ assert.match(game, /target height L\$\{heightTarget\}/);
 
 // Gate and tower replacement/upgrade previews must come from the same
 // authoritative CastleBlockSystem used by the final rendered castle.
-assert.match(game, /private previewCastlePlacementBlock\(point: GridPoint, decrease = false\): CastleBlockState \| null/);
+assert.match(game, /private previewCastlePlacementBlock\(point: GridPoint\): CastleBlockState \| null/);
 assert.match(game, /if \(tool !== 'gate' && tool !== 'tower'\) return null/);
 assert.match(game, /kind: 'tower'[\s\S]*?wallLinks: existing\?\.wallLinks/);
 assert.match(game, /kind: 'gate'[\s\S]*?rotationMode: 'auto'/);

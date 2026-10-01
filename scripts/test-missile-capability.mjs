@@ -12,8 +12,8 @@ const [missile, gameState, battleSystem, threeGame, saveSystem, html] = await Pr
 
 assert.match(missile, /unlockTier:\s*4/);
 assert.match(missile, /maxStock:\s*3/);
-assert.match(missile, /export function missileModeAvailable\(_mode: GameMode\): boolean \{\s*return true;/);
-assert.match(missile, /export function missilesUnlocked\(_mode: GameMode, _tier: MilitaryTier\): boolean \{\s*return true;/);
+assert.doesNotMatch(missile, /missileModeAvailable|GameMode/);
+assert.match(missile, /return tier >= MISSILE_CONFIG\.unlockTier/);
 assert.doesNotMatch(missile, /mode === 'sandbox'|mode === 'modern'/);
 assert.match(gameState, /getMissileState\(\): MissileInventoryState/);
 assert.match(battleSystem, /launchMissile\(/);

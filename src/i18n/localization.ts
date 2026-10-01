@@ -78,9 +78,6 @@ export function translate(message: string, locale: Locale = 'fa'): string {
     } as Record<string, string>)[countWithLabel[1]];
     return title + (countWithLabel[2] ? ':' : '') + ' ' + formatDigits(countWithLabel[3]);
   }
-  if (message.startsWith('Mode: ')) {
-    return 'حالت: ' + translate(message.slice(6), locale);
-  }
   const tiles = message.match(/^(\d+) tiles?$/);
   if (tiles) return formatDigits(tiles[1]) + ' خانه';
   const floors = message.match(/^(\d+) floors?$/);
@@ -140,8 +137,6 @@ export function translate(message: string, locale: Locale = 'fa'): string {
   if (match) return 'انتخاب‌شده: ' + translate(match[1], locale);
   match = message.match(/^Invalid placement · (.+)$/);
   if (match) return 'مکان ساخت نامعتبر است · ' + translate(match[1], locale);
-  match = message.match(/^Mode selected: (.+?) · (.+)$/);
-  if (match) return 'حالت انتخاب‌شده: ' + translate(match[1], locale) + ' · ' + translate(match[2], locale);
   match = message.match(/^Selected Keep #(\d+) · (\d+)×(\d+) · (\d+) floors$/);
   if (match) return 'ارگ شماره ' + formatDigits(match[1]) + ' انتخاب شد · ' + formatDigits(match[2] + '×' + match[3]) + ' · ' + formatDigits(match[4]) + ' طبقه';
   match = message.match(/^Keep (?:draft floors|floors): (\d+)$/);
@@ -164,8 +159,6 @@ export function translate(message: string, locale: Locale = 'fa'): string {
   if (match) return 'منابع کافی نیست · نیاز به ' + formatDigits(match[1]) + ' ' + (match[2] === 'wood' ? 'چوب' : 'سنگ');
   match = message.match(/^Not enough resources · need (.+)$/);
   if (match) return 'منابع کافی نیست · نیاز به ' + formatDigits(match[1]);
-  match = message.match(/^Current game mode: (.+)$/);
-  if (match) return 'حالت فعلی بازی: ' + translate(match[1], locale);
   match = message.match(/^Castle stone style: (.+)$/);
   if (match) return 'سبک سنگ قلعه: ' + translate(match[1], locale);
   match = message.match(/^Tower bridge material: (.+)$/);
@@ -206,8 +199,6 @@ export function translate(message: string, locale: Locale = 'fa'): string {
   if (match) return 'تولید موشک · ' + formatDigits(match[1]) + ' تدارکات';
   match = message.match(/^Range ([\d.]+)m · radius ([\d.]+)m · ([\d.]+)s cooldown\. Production is disabled during battles; supply recharges over time\.$/);
   if (match) return 'برد ' + formatDigits(match[1]) + ' متر · شعاع ' + formatDigits(match[2]) + ' متر · آماده‌سازی ' + formatDigits(match[3]) + ' ثانیه. تولید هنگام نبرد غیرفعال است و تدارکات به‌مرور بازیابی می‌شود.';
-  match = message.match(/^Modern missiles unlock at Military Tier (\d+)\. Sandbox bypasses the tier requirement\.$/);
-  if (match) return 'موشک‌های نوین در رده نظامی ' + formatDigits(match[1]) + ' آزاد می‌شوند. محیط آزاد به این پیش‌شرط نیاز ندارد.';
   match = message.match(/^([a-zA-Z]+) · ([\d.]+)\/([\d.]+) HP · ([\d.]+)m( · OUT OF RANGE)?$/);
   if (match) return translate(match[1], locale) + ' · ' + formatDigits(match[2] + '/' + match[3]) + ' سلامت · ' + formatDigits(match[4]) + ' متر' + (match[5] ? ' · خارج از برد' : '');
   match = message.match(/^(.+) ready · select a building$/);
@@ -224,11 +215,15 @@ export function translate(message: string, locale: Locale = 'fa'): string {
   if (match) return translate(match[1], locale) + '. مدافعان: سلامت +' + formatDigits(match[2]) + '٪، دفاع +' + formatDigits(match[3]) + '٪، آسیب +' + formatDigits(match[4]) + '٪، حرکت +' + formatDigits(match[5]) + '٪؛ دیوارها: سلامت +' + formatDigits(match[6]) + '٪؛ سلاح‌های دیواری: آسیب +' + formatDigits(match[7]) + '٪ و برد +' + formatDigits(match[8]) + '٪.';
   match = message.match(/^([A-Za-z]+) · (\d+)\/(\d+) HP · (\d+)m$/);
   if (match) return translate(match[1], locale) + ' · ' + formatDigits(match[2] + '/' + match[3]) + ' سلامت · ' + formatDigits(match[4]) + ' متر';
-  // Less frequent God Mode actions, Survival waves, and battle targeting details.
+  // Less frequent God Mode actions, Endless Defense waves, and battle targeting details.
+  match = message.match(/^Endless Defense · Wave (\d+)$/);
+  if (match) return 'دفاع بی‌پایان · موج ' + formatDigits(match[1]);
+  match = message.match(/^Endless Defense defeated on Wave (\d+)$/);
+  if (match) return 'دفاع بی‌پایان در موج ' + formatDigits(match[1]) + ' شکست خورد';
   match = message.match(/^Wave (\d+) cleared · next wave incoming$/);
   if (match) return 'موج ' + formatDigits(match[1]) + ' دفع شد · موج بعدی در راه است';
-  match = message.match(/^Survival · Wave (\d+) · (\d+) enemies$/);
-  if (match) return 'بقا · موج ' + formatDigits(match[1]) + ' · ' + formatDigits(match[2]) + ' دشمن';
+  match = message.match(/^Endless Defense · Wave (\d+) · (\d+) enemies$/);
+  if (match) return 'دفاع بی‌پایان · موج ' + formatDigits(match[1]) + ' · ' + formatDigits(match[2]) + ' دشمن';
   match = message.match(/^Target: ([\w]+) · anchor (\d+),(\d+) · (\d+) tile footprint$/);
   if (match) return 'هدف: ' + translate(match[1], locale) + ' · مختصات ' + formatDigits(match[2] + '، ' + match[3]) + ' · محدوده ' + formatDigits(match[4]) + ' خانه';
   match = message.match(/^Missile strike destroyed ([\w]+) · occupancy cleared$/);

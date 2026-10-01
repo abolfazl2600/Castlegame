@@ -39,10 +39,8 @@ const cost = level1.constructionCost('carpenter');
 assert.equal(cost.wood, 6);
 assert.equal(cost.stone, 2);
 
-assert.equal(isToolAvailable('medieval', 'carpenter'), true);
-assert.equal(isBuildingAvailable('medieval', 'carpenter'), true);
-assert.equal(isToolAvailable('survival', 'carpenter'), true);
-assert.equal(isToolAvailable('sandbox', 'carpenter'), true);
+assert.equal(isToolAvailable('carpenter'), true);
+assert.equal(isBuildingAvailable('carpenter'), true);
 
 const population = new PopulationSystem();
 population.reconcile([

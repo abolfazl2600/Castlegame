@@ -10,8 +10,8 @@ test.beforeEach(async ({ page }) => {
     localStorage.setItem('castle-role.settings.v2', JSON.stringify({ schemaVersion: 2, interface: { language: 'en' } }));
     localStorage.setItem(autosaveKey, JSON.stringify({
       metadata: { id: 'mobile-touch', slot: 'autosave', name: 'Mobile touch', createdAt: now, updatedAt: now,
-        schemaVersion: version, gameMode: 'sandbox', summary: { buildings: 0, keeps: 0, terrainChanges: 0, elevations: 0 } },
-      data: { version, gameMode: 'sandbox', updatedAt: now, cells: [], keeps: [], stoneStyle: 'limestone',
+        schemaVersion: version, gameMode: 'unified', summary: { buildings: 0, keeps: 0, terrainChanges: 0, elevations: 0 } },
+      data: { version, gameMode: 'unified', updatedAt: now, cells: [], keeps: [], stoneStyle: 'limestone',
         towerBridges: [], terrain: [], elevations: [], worldSeeded: true },
     }));
   }, { autosaveKey: SAVE_AUTOSAVE_KEY, markerKey: SAVE_KEY, version: SAVE_VERSION });

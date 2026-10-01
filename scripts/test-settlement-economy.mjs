@@ -74,7 +74,7 @@ assert.match(typesSource, /export interface EconomyResourceState/);
 assert.match(typesSource, /economy\?: EconomyResourceState/);
 assert.match(saveSource, /economy: this\.host\.getEconomyState\?\.\(\)/);
 assert.match(saveSource, /this\.host\.setEconomyState\?\.\(data\.economy\)/);
-assert.match(gameSource, /this\.gameMode === 'medieval' \|\| this\.gameMode === 'survival'/);
+assert.match(gameSource, /return !this\.freeBuildEnabled/);
 assert.doesNotMatch(gameSource, /this\.gameMode === 'sandbox'[^\n]*ensureConstructionAffordable/);
 assert.match(gameSource, /private updateEconomy\(deltaMs: number\): void/);
 assert.match(gameSource, /id="economy-wood"/);

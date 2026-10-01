@@ -1,6 +1,5 @@
 /** Runtime feedback, battle, construction status, aria labels and notifications. */
 export const RUNTIME_TRANSLATIONS: Readonly<Record<string, string>> = {
-  "Current game mode: Medieval Castle": "حالت فعلی بازی: قلعه قرون‌وسطایی",
   "Castle view mode": "حالت نمایش قلعه",
   "Camera view controls": "کنترل‌های نمای دوربین",
   "Set camera to 45 degree view": "تنظیم دوربین روی نمای ۴۵ درجه",
@@ -18,7 +17,6 @@ export const RUNTIME_TRANSLATIONS: Readonly<Record<string, string>> = {
   "Close God Mode": "بستن حالت خدایی",
   "God Mode actions": "فرمان‌های حالت خدایی",
   "Close help": "بستن راهنما",
-  "Back to game modes": "بازگشت به حالت‌های بازی",
   "Close templates": "بستن الگوها",
   "Close settings": "بستن تنظیمات",
   "Close build panel": "بستن پنل ساخت‌وساز",
@@ -42,13 +40,11 @@ export const RUNTIME_TRANSLATIONS: Readonly<Record<string, string>> = {
   "Settings sections": "بخش‌های تنظیمات",
   "Not enough resources": "منابع کافی نیست",
   "more materials": "مواد بیشتر",
-  "God Mode is available in Sandbox only": "حالت خدایی تنها در محیط آزاد در دسترس است",
   "God Mode ready · choose an action": "حالت خدایی آماده است · فرمانی انتخاب کنید",
   "God Mode closed": "حالت خدایی بسته شد",
   "God Mode target cleared": "هدف حالت خدایی پاک شد",
   "Click a valid building to fire": "برای شلیک ساختمانی معتبر انتخاب کنید",
   "Missile capacity exhausted": "ظرفیت موشک‌ها تمام شده است",
-  "Survival defeated · the castle was captured": "شکست در حالت بقا · قلعه تصرف شد",
   "Game mode is unavailable": "حالت بازی در دسترس نیست",
   "Selected game mode is unavailable": "حالت انتخاب‌شده در دسترس نیست",
   "Game mode could not be initialized": "راه‌اندازی حالت بازی ممکن نشد",
@@ -140,7 +136,6 @@ export const RUNTIME_TRANSLATIONS: Readonly<Record<string, string>> = {
   "No Army Camp garrison available · attackers will attempt an immediate capture": "هیچ پادگانی در اردوگاه ارتش وجود ندارد · مهاجمان برای تصرف فوری تلاش می‌کنند",
   "Battle started · Attackers are advancing on the castle": "نبرد آغاز شد · مهاجمان به سوی قلعه پیشروی می‌کنند",
   "Reset the current battle before upgrading military technology": "پیش از ارتقای فناوری نظامی، نبرد را بازنشانی کنید",
-  "Missiles are available in Modern and Sandbox modes only": "موشک‌ها فقط در حالت نوین و محیط آزاد در دسترس‌اند",
   "Start or resume the battle before launching a missile": "پیش از شلیک موشک، نبرد را شروع کنید یا ادامه دهید",
   "No missiles in stock · produce one before the battle": "موشکی در انبار نیست · پیش از نبرد یک موشک بسازید",
   "Select a valid hostile target": "یک هدف معتبر دشمن انتخاب کنید",
@@ -160,5 +155,11 @@ export const RUNTIME_TRANSLATIONS: Readonly<Record<string, string>> = {
   "Start a new game and choose a game mode? Current changes will be replaced.": "بازی جدیدی آغاز شود و حالت بازی را انتخاب کنید؟ تغییرات کنونی جایگزین خواهند شد.",
   "Reset the entire world and choose a game mode?": "تمام جهان بازنشانی شود و حالت جدید بازی را انتخاب کنید؟",
   "Military & advanced options": "گزینه‌های نظامی و پیشرفته",
-  "Battle and military": "نبرد و امور نظامی"
+  "Battle and military": "نبرد و امور نظامی",
+  "Tower built · appearance will evolve automatically when upgraded": "برج ساخته شد · ظاهر آن هنگام ارتقا به‌صورت خودکار تغییر می‌کند",
+  "Finish or reset the battle before editing buildings": "پیش از ویرایش ساختمان‌ها، نبرد را تمام یا بازنشانی کنید",
+  "Select a building first": "ابتدا یک ساختمان انتخاب کنید",
+  "Building removed · Undo available": "ساختمان حذف شد · امکان بازگردانی وجود دارد",
+  "Keep is already at Level 4 · Royal Keep": "ارگ از قبل در سطح ۴ است · ارگ سلطنتی",
+  "Select a Tower, Gate, Keep, or Tower Bridge first": "ابتدا یک برج، دروازه، ارگ یا پل برج‌ها انتخاب کنید"
 };

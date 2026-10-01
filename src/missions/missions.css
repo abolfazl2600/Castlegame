@@ -535,3 +535,8 @@ html[dir="rtl"] .mission-card__progress-copy {
 html[dir="rtl"] .mission-toast > div {
   text-align: right;
 }
+
+/* Mobile overlay stacking: gameplay panels must stay dismissible above the mission tracker. */
+html.mobile-ui-active .mission-tracker {
+  z-index: 11;
+}

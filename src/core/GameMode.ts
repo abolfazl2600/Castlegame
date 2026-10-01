@@ -33,13 +33,13 @@ const WORLD_TOOLS: readonly ToolKind[] = [
   'tree','rock','mountain','mountainRange','river','land','raise','lower','flatten','smooth','hill','cliff','erase',
 ];
 
-const ALL_TOOLS: readonly ToolKind[] = [
+const ALL_TOOLS: readonly ToolKind[] = [...new Set<ToolKind>([
   ...BUILDINGS,
   'keep',
   'towerBridge',
   'mountainRange',
   ...WORLD_TOOLS,
-];
+])];
 
 export const GAME_DEFINITION: GameDefinition = {
   id: 'unified',
@@ -60,14 +60,6 @@ export const GAME_DEFINITION: GameDefinition = {
   availableWeapons: ['sword','spear','bow','crossbow'],
 };
 
-export function getGameModeDefinition(_mode: GameMode = 'unified'): GameDefinition {
-  return GAME_DEFINITION;
-}
-
-export function isGameMode(value: unknown): value is GameMode {
-  return value === 'unified';
-}
-
 /** Backward-compatible save migration only; legacy modes no longer exist at runtime. */
 export function normalizeGameMode(value: unknown): GameMode {
   if (value === 'unified' || value === 'medieval' || value === 'survival' || value === 'sandbox') {
@@ -76,22 +68,10 @@ export function normalizeGameMode(value: unknown): GameMode {
   return 'unified';
 }
 
-export function isToolAvailable(_mode: GameMode, tool: ToolKind): boolean {
+export function isToolAvailable(tool: ToolKind): boolean {
   return GAME_DEFINITION.availableTools.includes(tool);
 }
 
-export function isBuildingAvailable(_mode: GameMode, kind: TileKind): boolean {
+export function isBuildingAvailable(kind: TileKind): boolean {
   return GAME_DEFINITION.availableBuildingKinds.includes(kind);
-}
-
-export function isMedievalMode(_mode: GameMode): boolean {
-  return true;
-}
-
-export function isUnitAvailable(_mode: GameMode, unit: string): boolean {
-  return GAME_DEFINITION.availableUnits.includes(unit);
-}
-
-export function isWeaponAvailable(_mode: GameMode, weapon: string): boolean {
-  return GAME_DEFINITION.availableWeapons.includes(weapon);
 }

@@ -153,19 +153,6 @@ h1 { margin: 3px 0 0; font-size: 22px; line-height: 1; letter-spacing: -.035em; 
   justify-content: flex-end;
   gap: 7px;
 }
-.build-mode-chip {
-  overflow: hidden;
-  max-width: 104px;
-  padding: 5px 7px;
-  border: 1px solid rgba(105, 216, 255, .14);
-  border-radius: 999px;
-  color: #a9eaff;
-  background: rgba(64, 173, 217, .08);
-  font-size: 8px;
-  font-weight: 800;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
 .toolbar-close {
   flex: 0 0 auto;
   width: 30px;
@@ -705,7 +692,6 @@ h1 { margin: 3px 0 0; font-size: 22px; line-height: 1; letter-spacing: -.035em; 
   .tool-category-items { gap: 5px; }
   .tool-button { min-height: 58px; padding: 7px 24px 7px 7px; }
   .tool-copy small { display: none; }
-  .build-mode-chip { max-width: 82px; }
   .build-category-tab { min-height: 30px; padding: 5px 7px; }
   .toolbar-open {
     left: 9px;
@@ -802,8 +788,6 @@ h1 { margin: 3px 0 0; font-size: 22px; line-height: 1; letter-spacing: -.035em; 
   background: #9be7ee;
 }
 
-
-
 .template-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -880,7 +864,6 @@ h1 { margin: 3px 0 0; font-size: 22px; line-height: 1; letter-spacing: -.035em; 
   .template-grid { grid-template-columns: 1fr; }
   .template-card { min-height: 92px; }
 }
-
 
 .builder-settings {
   display: grid;
@@ -1427,7 +1410,6 @@ h1 { margin: 3px 0 0; font-size: 22px; line-height: 1; letter-spacing: -.035em; 
   color: #fff1c4;
 }
 
-
 .battle-panel {
   position: absolute;
   right: 16px;
@@ -1906,7 +1888,6 @@ h1 { margin: 3px 0 0; font-size: 22px; line-height: 1; letter-spacing: -.035em; 
   }
 }
 
-
 .long-press-indicator {
   position: fixed;
   z-index: 100;
@@ -1970,7 +1951,6 @@ h1 { margin: 3px 0 0; font-size: 22px; line-height: 1; letter-spacing: -.035em; 
   }
 }
 
-
 .template-section-heading {
   grid-column: 1 / -1;
   display: grid;
@@ -1997,7 +1977,6 @@ h1 { margin: 3px 0 0; font-size: 22px; line-height: 1; letter-spacing: -.035em; 
 .terrain-template-card {
   border-color: rgba(116, 194, 143, .14);
 }
-
 
 /* Compact play-area optimization */
 html, body, #app {
@@ -2212,7 +2191,6 @@ kbd {
   font-size: 8px;
 }
 
-
 .battle-panel {
   right: 9px;
   bottom: 9px;
@@ -2334,16 +2312,6 @@ kbd {
   border-radius: 12px;
 }
 
-
-.mode-button { white-space: nowrap; }
-.mode-modal { max-width: 860px; }
-.mode-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:18px; margin-top:18px; }
-.mode-card { display:flex; flex-direction:column; align-items:flex-start; gap:8px; min-height:190px; padding:22px; border:1px solid rgba(151,196,204,.28); border-radius:18px; background:rgba(10,24,34,.82); color:inherit; text-align:left; cursor:pointer; }
-.mode-card:hover { border-color:rgba(126,221,232,.7); transform:translateY(-2px); }
-.mode-card-icon { display:grid; place-items:center; width:58px; height:58px; border-radius:14px; background:rgba(110,182,194,.16); font-size:30px; }
-.mode-card strong { font-size:18px; }
-.mode-card small { color:rgba(226,241,244,.72); line-height:1.5; }
-
 .map-layout-modal { max-width: 980px; }
 .map-layout-grid {
   display: grid;
@@ -2416,8 +2384,7 @@ kbd {
 }
 
 @media (max-width:720px) {
-  .mode-grid,
-  .map-layout-grid { grid-template-columns:1fr; }
+.map-layout-grid { grid-template-columns:1fr; }
   .map-layout-card { grid-template-columns: 82px minmax(0, 1fr); min-height: 112px; padding: 12px; }
   .map-layout-preview { width: 82px; height: 78px; font-size: 22px; }
 }
@@ -2468,7 +2435,8 @@ kbd {
   .view-mode-switch,.camera-view-controls { display:none; }
   .battle-panel,.god-mode-panel { left:max(8px,var(--mobile-safe-left)); right:max(8px,var(--mobile-safe-right)); bottom:calc(var(--mobile-dock-height) + var(--mobile-safe-bottom) + 7px); width:auto; max-width:none; max-height:min(70dvh,680px); padding:12px; }
   .battle-close,.battle-stepper button,.battle-actions button { min-width:44px; min-height:44px; }
-  .help-modal,.template-modal,.mode-modal { max-height:calc(100dvh - var(--mobile-safe-top) - var(--mobile-safe-bottom) - 16px); margin-top:var(--mobile-safe-top); margin-bottom:var(--mobile-safe-bottom); }
+.help-modal,
+.template-modal { max-height:calc(100dvh - var(--mobile-safe-top) - var(--mobile-safe-bottom) - 16px); margin-top:var(--mobile-safe-top); margin-bottom:var(--mobile-safe-bottom); }
   .modal-backdrop { padding:max(8px,var(--mobile-safe-top)) max(8px,var(--mobile-safe-right)) max(8px,var(--mobile-safe-bottom)) max(8px,var(--mobile-safe-left)); }
   button,select,input[type=checkbox],input[type=range] { touch-action:manipulation; }
 }
@@ -2493,7 +2461,6 @@ kbd {
   .mobile-bottom-dock { gap:3px; padding-inline:max(5px,var(--mobile-safe-right)) max(5px,var(--mobile-safe-left)); }
   .mobile-dock-button small { font-size:7px; }
 }
-
 
 .audio-settings-modal {
   width: min(420px, calc(100vw - 28px));
@@ -2663,9 +2630,6 @@ kbd {
     flex-direction: column;
   }
 }
-
-
-
 
 /* Privacy & Legal inside the central Settings system */
 .settings-privacy-section {
@@ -2922,7 +2886,6 @@ html[data-high-contrast] .settings-modal { background:rgba(0,0,0,.86); }
 html[data-high-contrast] .settings-card { border-color:rgba(255,255,255,.42); }
 @media (max-width:560px) { .settings-modal { padding:8px; } .settings-card { max-height:calc(100vh - 16px); border-radius:14px; } .settings-scroll { padding:10px; } .settings-scroll label { grid-template-columns:1fr; gap:6px; } .settings-scroll label:has(input[type="checkbox"]) { grid-template-columns:1fr auto; } }
 
-
 .settings-system-actions-section {
   border-color: rgba(126,225,255,.18) !important;
   background: linear-gradient(145deg, rgba(83,199,240,.055), rgba(255,255,255,.025)) !important;
@@ -3066,7 +3029,6 @@ html[data-high-contrast] .settings-card { border-color:rgba(255,255,255,.42); }
   display: none;
 }
 
-
 /* User-controlled battle speed */
 .battle-speed-control {
   display: grid;
@@ -3115,7 +3077,6 @@ html[data-high-contrast] .settings-card { border-color:rgba(255,255,255,.42); }
   color: #8eabb6;
   font-size: 9px;
 }
-
 
 /* Settings control center refresh */
 .settings-modal {
@@ -3461,7 +3422,6 @@ button:disabled, button[aria-disabled="true"] { cursor: not-allowed; opacity: .5
 }
 html[data-reduced-motion] .minimap, html[data-reduced-motion] button { transition: none !important; }
 
-
 /* Touch / Mobile mode can be forced from Settings at any viewport size.
    MobileUI owns the active class so narrow screens and explicit touch preference
    share one presentation path instead of relying on width alone. */
@@ -3645,7 +3605,6 @@ html.mobile-ui-active .mobile-dock-button {
 html.mobile-ui-active .mobile-dock-button span { font-size: 16px; line-height: 1; }
 html.mobile-ui-active .mobile-dock-button small { font-size: 8px; font-weight: 850; letter-spacing: .04em; }
 
-
 html.mobile-ui-active .toolbar {
   left: max(8px,var(--mobile-safe-left));
   right: max(8px,var(--mobile-safe-right));
@@ -3710,10 +3669,8 @@ html.mobile-ui-active .battle-stepper button,
 html.mobile-ui-active .battle-actions button,
 html.mobile-ui-active .god-mode-actions-footer button,
 html.mobile-ui-active .god-mode-action { min-width: 44px; min-height: 44px; }
-
 html.mobile-ui-active .help-modal,
-html.mobile-ui-active .template-modal,
-html.mobile-ui-active .mode-modal {
+html.mobile-ui-active .template-modal {
   max-height: calc(100dvh - var(--mobile-safe-top) - var(--mobile-safe-bottom) - 16px);
   max-width: 100%;
   margin: 0;
@@ -3724,10 +3681,8 @@ html.mobile-ui-active .modal-backdrop {
 }
 html.mobile-ui-active .modal-backdrop[hidden] { display: none; }
 html.mobile-ui-active #game-shell > .modal-backdrop:not([hidden]) { z-index: 50; }
-html.mobile-ui-active .mode-grid,
 html.mobile-ui-active .map-layout-grid,
 html.mobile-ui-active .template-grid { grid-template-columns: repeat(auto-fit, minmax(min(240px, 100%), 1fr)); }
-html.mobile-ui-active .mode-card,
 html.mobile-ui-active .map-layout-card,
 html.mobile-ui-active .template-card { min-height: 88px; }
 html.mobile-ui-active .help-modal-header { position: sticky; top: -12px; z-index: 1; background: #0a2030; }
@@ -3804,7 +3759,6 @@ html.mobile-ui-active .minimap-hint { display: none; }
     max-height: calc(100dvh - var(--mobile-header-height) - var(--mobile-dock-height) - var(--mobile-safe-top) - var(--mobile-safe-bottom) - 16px);
   }
 }
-
 
 /* Performance debug overlay ------------------------------------------------ */
 .debug-performance-overlay {
@@ -3962,7 +3916,6 @@ html.mobile-ui-active .debug-performance-overlay {
   }
 }
 
-
 /* Compact Android/tablet landscape: use viewport height as well as width.
    Emulators often report >760 CSS px in landscape, bypassing phone-only rules. */
 @media (orientation: landscape) and (max-height: 650px) and (pointer: coarse) {
@@ -3995,43 +3948,8 @@ html.mobile-ui-active .debug-performance-overlay {
     padding: 6px max(8px, var(--safe-area-right)) 6px max(8px, var(--safe-area-left));
     min-height: 0;
   }
-  .mode-modal {
-    box-sizing: border-box;
-    width: min(760px, 100%);
-    max-width: 100%;
-    max-height: calc(100dvh - 70px - var(--safe-area-top) - var(--safe-area-bottom));
-    overflow-y: auto;
-    overscroll-behavior: contain;
-    padding: 14px 16px;
-    border-radius: 14px;
-  }
-  .mode-modal h2 { font-size: clamp(18px, 3.8vh, 24px); line-height: 1.15; }
-  .mode-modal p { margin-block: 6px 10px; font-size: 12px; }
-  .mode-grid { gap: 10px; margin-top: 10px; }
-  .mode-card {
-    min-width: 0;
-    min-height: 108px;
-    padding: 12px;
-    gap: 5px;
-    border-radius: 12px;
-  }
-  .mode-card-icon { width: 38px; height: 38px; font-size: 21px; border-radius: 10px; }
-  .mode-card strong { font-size: 14px; }
-  .mode-card small { font-size: 11px; line-height: 1.3; }
-}
-@media (orientation: landscape) and (max-height: 400px) and (pointer: coarse) {
-  .mode-modal { max-height: calc(100dvh - 58px); padding: 10px 12px; }
-  .mode-card { min-height: 82px; padding: 9px; }
-  .mode-card-icon { width: 30px; height: 30px; font-size: 17px; }
-}
-@media (orientation: portrait) and (max-width: 760px) {
-  .mode-modal { width: 100%; max-height: calc(100dvh - 24px); overflow-y: auto; }
-  .mode-grid { grid-template-columns: 1fr; gap: 10px; }
-  .mode-card { min-height: 96px; padding: 12px; }
-  .mode-card-icon { width: 40px; height: 40px; font-size: 22px; }
-  .mode-card strong { font-size: 15px; }
-}
 
+}
 
 /* Touch-friendly Settings, including landscape Android viewports wider than 700px.
    Safe-area insets keep controls clear of Android system bars and display cutouts. */
@@ -4143,7 +4061,6 @@ html.mobile-ui-active .debug-performance-overlay {
     display: none !important;
   }
 }
-
 
 /* Mobile battle setup: progressive disclosure and compact, thumb-friendly controls. */
 #military-button[hidden] { display: none !important; }
@@ -4273,7 +4190,6 @@ html[dir="rtl"] .render-debug-panel {
   direction: ltr;
 }
 
-
 /* RTL hardening for touch controls, compact settings, and readable Persian copy.
    Only HTML overlays change direction; WebGL and camera gestures remain unchanged. */
 html[dir="rtl"] .settings-nav {
@@ -4334,237 +4250,6 @@ html[dir="rtl"].mobile-ui-active .minimap {
 /* Mobile: advanced military development is desktop-only and must not appear in the battle panel. */
 html.mobile-ui-active .battle-advanced {
   display: none !important;
-}
-
-
-/* Game mode selection UX refresh ------------------------------------------ */
-.mode-modal {
-  width: min(1040px, calc(100% - 28px));
-  max-width: 1040px;
-  padding: 26px;
-  overflow: auto;
-  border-color: rgba(126, 221, 232, .26);
-  background:
-    radial-gradient(circle at 84% 0%, rgba(77, 205, 220, .11), transparent 32%),
-    linear-gradient(180deg, rgba(12, 31, 45, .985), rgba(6, 20, 32, .99));
-  box-shadow: 0 34px 100px rgba(0, 0, 0, .54), inset 0 1px rgba(255, 255, 255, .055);
-}
-.mode-modal .help-modal-header {
-  margin-bottom: 8px;
-}
-.mode-modal .help-modal-header > div {
-  min-width: 0;
-}
-.mode-modal .eyebrow {
-  color: #78ddf6;
-  letter-spacing: .18em;
-}
-.mode-modal h2 {
-  margin-top: 7px;
-  font-size: clamp(27px, 3vw, 38px);
-  line-height: 1.12;
-  letter-spacing: -.035em;
-}
-.mode-modal .template-intro {
-  max-width: 720px;
-  margin: 0;
-  color: rgba(218, 237, 244, .67);
-  font-size: 13px;
-  line-height: 1.65;
-}
-.mode-grid {
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 12px;
-  margin-top: 22px;
-}
-.mode-card {
-  --mode-accent: 126, 221, 232;
-  position: relative;
-  isolation: isolate;
-  overflow: hidden;
-  min-width: 0;
-  min-height: 238px;
-  padding: 18px;
-  gap: 11px;
-  border: 1px solid rgba(var(--mode-accent), .20);
-  border-radius: 18px;
-  color: #f4fbff;
-  background:
-    linear-gradient(155deg, rgba(var(--mode-accent), .075), rgba(255,255,255,.018) 48%, rgba(0,0,0,.08)),
-    rgba(7, 21, 32, .86);
-  box-shadow: inset 0 1px rgba(255,255,255,.035);
-  text-align: start;
-  transition: transform .17s ease, border-color .17s ease, background .17s ease, box-shadow .17s ease;
-}
-.mode-card::before {
-  content: '';
-  position: absolute;
-  inset: 0 auto auto 0;
-  z-index: -1;
-  width: 100%;
-  height: 3px;
-  background: linear-gradient(90deg, rgba(var(--mode-accent), .92), rgba(var(--mode-accent), 0));
-  opacity: .82;
-}
-.mode-card::after {
-  content: '';
-  position: absolute;
-  z-index: -1;
-  width: 150px;
-  height: 150px;
-  top: -88px;
-  right: -72px;
-  border-radius: 50%;
-  background: rgba(var(--mode-accent), .09);
-  filter: blur(2px);
-}
-.mode-card-medieval { --mode-accent: 112, 220, 246; }
-.mode-card-survival { --mode-accent: 245, 170, 104; }
-.mode-card-sandbox { --mode-accent: 125, 224, 175; }
-.mode-card:hover {
-  transform: translateY(-3px);
-  border-color: rgba(var(--mode-accent), .58);
-  background:
-    linear-gradient(155deg, rgba(var(--mode-accent), .13), rgba(255,255,255,.028) 50%, rgba(0,0,0,.05)),
-    rgba(8, 25, 37, .94);
-  box-shadow: 0 17px 40px rgba(0,0,0,.24), inset 0 1px rgba(255,255,255,.05);
-}
-.mode-card:active {
-  transform: translateY(-1px) scale(.995);
-}
-.mode-card:focus-visible {
-  outline: 2px solid rgba(var(--mode-accent), .86);
-  outline-offset: 3px;
-}
-.mode-card-topline {
-  display: flex;
-  align-items: center;
-  gap: 9px;
-  min-width: 0;
-}
-.mode-card-icon {
-  flex: 0 0 auto;
-  width: 44px;
-  height: 44px;
-  border: 1px solid rgba(var(--mode-accent), .16);
-  border-radius: 13px;
-  color: rgb(var(--mode-accent));
-  background: rgba(var(--mode-accent), .10);
-  box-shadow: inset 0 1px rgba(255,255,255,.04);
-  font-size: 23px;
-}
-.mode-card-kicker {
-  min-width: 0;
-  color: rgba(var(--mode-accent), .92);
-  font-size: 9px;
-  font-weight: 900;
-  letter-spacing: .11em;
-  line-height: 1.25;
-}
-.mode-card strong {
-  margin-top: 2px;
-  font-size: 20px;
-  line-height: 1.2;
-  letter-spacing: -.02em;
-}
-.mode-card small {
-  flex: 1 1 auto;
-  color: rgba(222, 238, 244, .69);
-  font-size: 12px;
-  line-height: 1.65;
-}
-.mode-card-action {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 9px;
-  width: 100%;
-  margin-top: auto;
-  padding-top: 12px;
-  border-top: 1px solid rgba(var(--mode-accent), .11);
-  color: rgba(239, 250, 253, .88);
-  font-size: 10px;
-  font-weight: 850;
-}
-.mode-card-arrow {
-  color: rgb(var(--mode-accent));
-  font-size: 16px;
-  line-height: 1;
-  transition: transform .17s ease;
-}
-.mode-card:hover .mode-card-arrow {
-  transform: translateX(3px);
-}
-html[dir="rtl"] .mode-modal .eyebrow,
-html[dir="rtl"] .mode-card-kicker {
-  letter-spacing: normal;
-}
-html[dir="rtl"] .mode-card-arrow {
-  transform: scaleX(-1);
-}
-html[dir="rtl"] .mode-card:hover .mode-card-arrow {
-  transform: scaleX(-1) translateX(3px);
-}
-@media (max-width: 900px) and (min-width: 641px) {
-  .mode-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-  .mode-card:last-child:nth-child(odd) {
-    grid-column: 1 / -1;
-    min-height: 190px;
-  }
-}
-@media (max-width: 640px) {
-  .mode-modal {
-    width: 100%;
-    padding: 18px;
-    border-radius: 16px;
-  }
-  .mode-modal h2 {
-    font-size: clamp(23px, 8vw, 30px);
-  }
-  .mode-modal .template-intro {
-    font-size: 12px;
-  }
-  .mode-grid {
-    grid-template-columns: 1fr;
-    gap: 9px;
-    margin-top: 16px;
-  }
-  .mode-card {
-    min-height: 0;
-    padding: 14px;
-    gap: 8px;
-  }
-  .mode-card strong { font-size: 17px; }
-  .mode-card small { font-size: 11px; line-height: 1.5; }
-  .mode-card-action { padding-top: 9px; }
-}
-@media (orientation: landscape) and (max-height: 650px) and (pointer: coarse) {
-  .mode-modal {
-    width: min(920px, 100%);
-    padding: 12px 14px;
-  }
-  .mode-modal .help-modal-header { margin-bottom: 4px; }
-  .mode-modal h2 { font-size: clamp(18px, 4vh, 24px); }
-  .mode-modal .template-intro { font-size: 11px; line-height: 1.35; }
-  .mode-grid {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 8px;
-    margin-top: 9px;
-  }
-  .mode-card {
-    min-height: 112px;
-    padding: 10px;
-    gap: 5px;
-    border-radius: 12px;
-  }
-  .mode-card-topline { gap: 6px; }
-  .mode-card-icon { width: 34px; height: 34px; border-radius: 9px; font-size: 18px; }
-  .mode-card-kicker { font-size: 7px; }
-  .mode-card strong { font-size: 13px; }
-  .mode-card small { font-size: 9px; line-height: 1.25; }
-  .mode-card-action { padding-top: 5px; font-size: 8px; }
 }
 
 /* Persian RTL Settings normalization */

@@ -8,8 +8,8 @@ test.beforeEach(async ({ page }) => {
     localStorage.setItem(markerKey, '1');
     localStorage.setItem(autosaveKey, JSON.stringify({
       metadata: { id: 'visual-test', slot: 'autosave', name: 'Visual test', createdAt: now, updatedAt: now,
-        schemaVersion: version, gameMode: 'medieval', summary: { buildings: 0, keeps: 0, terrainChanges: 0, elevations: 0 } },
-      data: { version, gameMode: 'medieval', updatedAt: now, cells: [], keeps: [], stoneStyle: 'limestone',
+        schemaVersion: version, gameMode: 'unified', summary: { buildings: 0, keeps: 0, terrainChanges: 0, elevations: 0 } },
+      data: { version, gameMode: 'unified', updatedAt: now, cells: [], keeps: [], stoneStyle: 'limestone',
         towerBridges: [], terrain: [], elevations: [], worldSeeded: true },
     }));
   }, { autosaveKey: SAVE_AUTOSAVE_KEY, markerKey: SAVE_KEY, version: SAVE_VERSION });

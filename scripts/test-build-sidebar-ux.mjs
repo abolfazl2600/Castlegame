@@ -6,7 +6,7 @@ const css = await readFile(new URL('../src/style.css', import.meta.url), 'utf8')
 const html = await readFile(new URL('../index.html', import.meta.url), 'utf8');
 const gameMode = await readFile(new URL('../src/core/GameMode.ts', import.meta.url), 'utf8');
 
-const refreshStart = game.indexOf('private refreshBuildPanelForMode(): void {');
+const refreshStart = game.indexOf('private refreshBuildPanel(): void {');
 const filterStart = game.indexOf('private filterBuildTools(): void {', refreshStart);
 const panelEnd = game.indexOf('private openMapLayoutSelector(): void {', filterStart);
 assert.notEqual(refreshStart, -1);
@@ -23,8 +23,8 @@ assert.match(game, /private evaluateBuildPlacement\([\s\S]*?reason\?: string/);
 assert.match(game, /Market needs a clear 3×3 land area and sufficient resources/);
 assert.match(game, /private renderBuildPlacementPreview\([\s\S]*?point: GridPoint \| null,[\s\S]*?force = false/);
 assert.match(game, /const color = preview\.valid \? 0x66e5a3 : 0xff625f/);
-assert.match(game, /event\.pointerType !== 'mouse'[\s\S]*?renderBuildPlacementPreview\(cell, true\)/);
-assert.match(game, /renderBuildPlacementPreview\(this\.pickGridCell\(event\)\)/);
+assert.match(game, /event\.pointerType !== 'mouse'[\s\S]*?renderBuildPlacementPreview\(cell, true, event\.shiftKey\)/);
+assert.match(game, /renderBuildPlacementPreview\(previewCell, true, event\.shiftKey\)/);
 assert.match(game, /canvas\.addEventListener\('pointerleave'/);
 assert.match(game, /private renderWallPreview[\s\S]*?0x66e5a3[\s\S]*?0xff625f/);
 assert.match(game, /private renderRoadPreview[\s\S]*?0x66e5a3[\s\S]*?0xff625f/);
@@ -83,7 +83,7 @@ assert.match(gameMode, /\{ label: 'Advanced World', toolIds: \['mountainRange','
 
 // Build controls are rendered dynamically, so selection must be delegated from
 // the stable toolbar rather than depending on per-button handlers that can be
-// discarded by refreshBuildPanelForMode().
+// discarded by refreshBuildPanel().
 assert.match(game, /toolbar\.addEventListener\('click', \(event\) => \{/);
 assert.match(game, /const buildControlSelector = '\[data-build-category\], \[data-tool\], \[data-build-none\]'/);
 assert.match(game, /private selectTool\(tool: ToolKind \| null\): void/);
