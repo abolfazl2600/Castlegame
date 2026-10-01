@@ -37,7 +37,7 @@ assert.match(game, /id="city-population">Population: 0<\/b>/);
 assert.match(game, /id="military-population">Army: 0<\/b>/);
 assert.match(game, /id="build-search-clear"/);
 assert.match(game, /class="build-inspect-button is-selected"/);
-assert.match(game, /<span class="settings-section-title">Tool Options<\/span>/);
+assert.match(game, /<span class="settings-section-title">Sandbox Advanced<\/span>/);
 assert.match(game, /class="settings-section build-settings-section"/);
 assert.doesNotMatch(game, /class="settings-section build-settings-section is-open"/);
 assert.match(game, /aria-expanded="false"/);
@@ -58,14 +58,11 @@ for (const id of [
   'keep-battlements',
   'brush-size',
   'brush-strength',
-  'move-up',
-  'move-left',
-  'move-down',
-  'move-right',
   'rotate-selected',
+  'remove-selected',
+  'selected-gate-toggle',
   'undo-button',
   'redo-button',
-  'select-clear',
 ]) {
   assert.ok(game.includes(`id="${id}"`), `Build sidebar redesign must preserve #${id}.`);
 }
@@ -76,6 +73,13 @@ assert.match(buildMethods, /matchingCategories = new Set<string>\(\)/);
 assert.match(buildMethods, /toolbar\.classList\.toggle\('is-searching', searching\)/);
 assert.match(buildMethods, /tab\.hidden = searching && !matchingCategories\.has\(categoryName\)/);
 assert.match(game, /if \(tool !== null\) \{[\s\S]*?this\.activeBuildCategory = category\.label;/);
+assert.match(game, /advancedSettings\.hidden = this\.gameMode !== 'sandbox'/);
+assert.match(game, /private towerStyleForLevel\([\s\S]*?this\.gameMode === 'sandbox'/);
+assert.match(game, /private keepDraftForPlacement\([\s\S]*?this\.gameMode !== 'sandbox'/);
+assert.match(game, /id="selection-action-card"/);
+assert.match(game, /private removeSelected\(\): void/);
+assert.doesNotMatch(game, /id="move-up"/);
+assert.doesNotMatch(game, /id="select-clear"/);
 
 // Build controls are rendered dynamically, so selection must be delegated from
 // the stable toolbar rather than depending on per-button handlers that can be
