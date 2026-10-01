@@ -505,6 +505,7 @@ export class ThreeGame {
   private readonly undoStack: HistorySnapshot[] = [];
   private readonly redoStack: HistorySnapshot[] = [];
   private godModeOpen = false;
+  private freeBuildEnabled = false;
   private godModeActionId = 'missileStrike';
   private godModeTarget: GodModeTarget | null = null;
   private godModeHover: GridPoint | null = null;
@@ -873,7 +874,7 @@ export class ThreeGame {
   }
 
   private economyConstructionEnabled(): boolean {
-    return true;
+    return !this.freeBuildEnabled;
   }
 
   private isConstructionAffordable(tool: ToolKind, quantity = 1): boolean {
@@ -1068,6 +1069,7 @@ export class ThreeGame {
     const feedback = document.getElementById('god-mode-feedback');
     const confirm = document.getElementById('god-mode-confirm') as HTMLButtonElement | null;
     const cancel = document.getElementById('god-mode-cancel') as HTMLButtonElement | null;
+    const freeBuild = document.getElementById('god-mode-free-build') as HTMLButtonElement | null;
     const preview = this.godModeTarget;
     if (targetLabel) {
       targetLabel.textContent = preview
@@ -1083,6 +1085,7 @@ export class ThreeGame {
     if (capacity) capacity.textContent = `Missiles: ${this.godModeCapacity}/${this.godModeMaxCapacity}`;
     if (confirm) confirm.disabled = !preview || !action || !this.godModeActions.isAvailable(this.godModeActionId);
     if (cancel) cancel.disabled = !preview;
+    if (freeBuild) freeBuild.textContent = `Free Build: ${this.freeBuildEnabled ? 'ON' : 'OFF'}`;
     document.querySelectorAll<HTMLButtonElement>('[data-god-action]').forEach((button) => {
       button.classList.toggle('is-selected', button.dataset.godAction === this.godModeActionId);
     });
@@ -1435,6 +1438,7 @@ export class ThreeGame {
     this.clearSettlementAgents();
     this.battleSystem.reset(false);
     this.endlessDefenseActive = false;
+    this.freeBuildEnabled = false;
     this.endlessDefenseWave = 0;
     this.endlessDefenseIntermissionMs = 0;
     this.endlessDefenseAwaitingNextWave = false;
@@ -11275,6 +11279,12 @@ export class ThreeGame {
     get<HTMLButtonElement>('god-mode-close').onclick = () => this.closeGodMode();
     get<HTMLButtonElement>('god-mode-confirm').onclick = () => this.confirmGodModeAction();
     get<HTMLButtonElement>('god-mode-cancel').onclick = () => this.cancelGodModeTarget();
+    get<HTMLButtonElement>('god-mode-free-build').onclick = () => {
+      this.freeBuildEnabled = !this.freeBuildEnabled;
+      this.updateGodModeUI();
+      this.syncEconomyUI();
+      this.setStatus(this.freeBuildEnabled ? 'Free Build enabled' : 'Free Build disabled · economy costs restored');
+    };
     document.querySelectorAll<HTMLButtonElement>('[data-god-action]').forEach((button) => {
       button.onclick = () => {
         const actionId = button.dataset.godAction;
