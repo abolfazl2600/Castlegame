@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { createUrbanCityTemplate } from './world/UrbanCityTemplate';
+import { createTwinFortressesTemplate } from './world/TwinFortressesTemplate';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { App } from '@capacitor/app';
 import { Capacitor } from '@capacitor/core';
@@ -105,6 +106,7 @@ const ROAD_KINDS: RoadKind[] = ['road', 'dirtRoad', 'stoneRoad'];
 const HARBOR_KINDS: HarborKind[] = ['harbor'];
 const PLAYABLE_LAYOUT_TEMPLATES: Readonly<Record<string, { layoutId: MapLayoutId; seed: number }>> = {
   'urban-city-60x80': { layoutId: 'urban-60x80', seed: 6001 },
+  'twin-fortresses-90x95': { layoutId: 'twin-fortresses-90x95', seed: 9095 },
   'mainland-frontier': { layoutId: 'mainland', seed: 5501 },
   'coastal-peninsula': { layoutId: 'peninsula', seed: 5502 },
   'split-isles': { layoutId: 'twin-isles', seed: 5503 },
@@ -12655,6 +12657,27 @@ export class ThreeGame {
     } else if (template === 'urban-city-60x80') {
       for (const { x, y, kind, level, ...options } of createUrbanCityTemplate(SIZE)) {
         place(x, y, kind, level, options);
+      }
+    } else if (template === 'twin-fortresses-90x95') {
+      // Two complete, editable fortresses with gates, keeps, roads, camps, and
+      // dedicated food, wood, stone, and orchard resources.
+      for (let y = 0; y < SIZE; y += 1) {
+        for (let x = 0; x < SIZE; x += 1) {
+          this.services.state.removeCell(x, y);
+          this.terrainOverrides.set(this.key(x, y), 'plains');
+          this.elevationOverrides.delete(this.key(x, y));
+        }
+      }
+
+      const twin = createTwinFortressesTemplate();
+      for (const { x, y, kind, level, ...options } of twin.cells) {
+        place(x, y, kind, level, options);
+      }
+      for (const keep of twin.keeps) {
+        for (const footprintCell of this.services.keepSystem.footprint(keep)) {
+          this.services.state.removeCell(footprintCell.x, footprintCell.y);
+        }
+        this.services.keepSystem.add(keep);
       }
     } else if (template === 'mainland-frontier') {
       prepareBuildableArea(4, 6, 15, 17, 0.08);

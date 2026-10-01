@@ -12,6 +12,10 @@ export interface MapLayoutDefinition {
 export const URBAN_LAND_WIDTH = 60;
 export const URBAN_LAND_DEPTH = 80;
 
+/** Authored dimensions of the two-fortress battlefield. The renderer keeps the existing tile grid. */
+export const TWIN_FORTRESSES_LAND_WIDTH = 90;
+export const TWIN_FORTRESSES_LAND_DEPTH = 95;
+
 export function urbanLandBounds(size: number) {
   const cols = URBAN_LAND_WIDTH / TILE_SIZE;
   const rows = URBAN_LAND_DEPTH / TILE_SIZE;
@@ -51,6 +55,12 @@ export const MAP_LAYOUTS: readonly MapLayoutDefinition[] = [
     description: 'A flat rectangular plot, 60×80 world units (15×20 building tiles), with ocean outside its boundaries.',
     preview: '▦',
   },
+  {
+    id: 'twin-fortresses-90x95',
+    label: 'Twin Fortresses 90×95',
+    description: 'A two-castle battlefield with twin gates, keeps, military camps, roads, and distributed resources.',
+    preview: '♜⚔♜',
+  },
 ] as const;
 
 export function isMapLayoutId(value: unknown): value is MapLayoutId {
@@ -58,7 +68,8 @@ export function isMapLayoutId(value: unknown): value is MapLayoutId {
     value === 'mainland' ||
     value === 'peninsula' ||
     value === 'twin-isles' ||
-    value === 'urban-60x80';
+    value === 'urban-60x80' ||
+    value === 'twin-fortresses-90x95';
 }
 
 export function normalizeMapLayoutId(value: unknown): MapLayoutId {
@@ -227,6 +238,14 @@ export function terrainForMapLayout(
   size: number,
 ): TerrainKind {
   if (x < 0 || y < 0 || x >= size || y >= size) return 'water';
+
+  if (layout === 'twin-fortresses-90x95') {
+    const edgeMountain = (x <= 2 && y <= 4) || (x >= size - 3 && y >= size - 5);
+    if (edgeMountain) return 'mountain';
+    const forestPocket = (x >= 9 && x <= 11 && y <= 4) || (x >= 10 && x <= 12 && y >= size - 5);
+    if (forestPocket) return 'forest';
+    return 'plains';
+  }
 
   if (layout === 'urban-60x80') {
     const bounds = urbanLandBounds(size);
