@@ -79,7 +79,8 @@
     "test:adaptive-render-profile": "node --experimental-strip-types scripts/test-adaptive-render-profile.mjs",
     "test:persian-localization": "node scripts/test-persian-localization.mjs",
     "test:persian-runtime-localization": "node scripts/test-persian-runtime-localization.mjs",
-    "test:missions": "node --experimental-strip-types scripts/test-mission-system.mjs"
+    "test:missions": "node --experimental-strip-types scripts/test-mission-system.mjs",
+    "test:carpenter-workshop": "node --experimental-strip-types scripts/test-carpenter-workshop.mjs"
   },
   "dependencies": {
     "@capacitor/android": "^8.5.2",

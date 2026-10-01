@@ -337,7 +337,7 @@
   display: grid;
   width: 26px;
   height: 26px;
-  margin-left: auto;
+  margin-inline-start: auto;
   place-items: center;
   border-radius: 999px;
   background: rgba(135, 185, 131, 0.14);
@@ -492,4 +492,46 @@
   .mission-toast-host {
     top: 76px;
   }
+}
+
+
+/* Persian / RTL Mission Journal */
+html[dir="rtl"] .mission-tracker,
+html[dir="rtl"] .mission-journal,
+html[dir="rtl"] .mission-toast {
+  direction: rtl;
+}
+
+html[dir="rtl"] .mission-tracker__header,
+html[dir="rtl"] .mission-tracker__heading,
+html[dir="rtl"] .mission-compact__top,
+html[dir="rtl"] .mission-card,
+html[dir="rtl"] .mission-card__header,
+html[dir="rtl"] .mission-journal__hero,
+html[dir="rtl"] .mission-journal__intro,
+html[dir="rtl"] .mission-journal__summary,
+html[dir="rtl"] .mission-journal__summary-copy,
+html[dir="rtl"] .mission-journal__section-heading,
+html[dir="rtl"] .mission-toast {
+  text-align: right;
+}
+
+html[dir="rtl"] .mission-tracker__header {
+  background: linear-gradient(270deg, rgba(196, 151, 65, 0.14), transparent);
+}
+
+html[dir="rtl"] .mission-compact.is-pinned {
+  background: linear-gradient(270deg, rgba(213, 170, 75, 0.1), rgba(255,255,255,0.025));
+}
+
+html[dir="rtl"] .mission-tracker__footer {
+  text-align: right;
+}
+
+html[dir="rtl"] .mission-card__progress-copy {
+  direction: rtl;
+}
+
+html[dir="rtl"] .mission-toast > div {
+  text-align: right;
 }

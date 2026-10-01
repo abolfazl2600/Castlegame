@@ -91,6 +91,7 @@ export const SETTLEMENT_SILHOUETTE_CONTRACT = {
   farm: { massing: 'open-field-rows', dominantHeight: 4.5, landmark: 'field-grid-and-granary' },
   cowBarn: { massing: 'barn-and-stockyard', dominantHeight: 5.0, landmark: 'barn-roof-and-herd-yard' },
   market: { massing: 'open-canopy-square', dominantHeight: 4.72, landmark: 'market-hall-and-canopies' },
+  carpenter: { massing: 'timber-workshop-yard', dominantHeight: 5.78, landmark: 'workshop-roof-saw-frame-and-hoist' },
   windmill: { massing: 'single-vertical-mill', dominantHeight: 6.0, landmark: 'four-sail-rotor' },
   armyCamp: { massing: 'tent-command-compound', dominantHeight: 5.2, landmark: 'command-tent-and-standards' },
   harbor: { massing: 'shore-to-water-axis', dominantHeight: 5.1, landmark: 'long-pier-and-cranes' },

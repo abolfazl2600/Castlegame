@@ -1,8 +1,8 @@
 import type { TileKind, ToolKind } from './types';
 
 /**
- * The game now has one canonical ruleset. Legacy mode names are accepted only
- * while reading older saves and are normalized to this value.
+ * Castle Role has one canonical gameplay ruleset. The legacy mode names are
+ * accepted only while reading older saves and normalize into this single mode.
  */
 export type GameMode = 'unified';
 
@@ -26,7 +26,7 @@ const BUILDINGS: readonly TileKind[] = [
   'wall1','wall2','wall3','gate','tower',
   'road','dirtRoad','stoneRoad','harbor',
   'cottage','house','manor','villa','farm','cowBarn','appleOrchard','armyCamp',
-  'market','basilica','mosque','windmill','mine','mountain','tree','rock','hut','moat',
+  'market','basilica','mosque','windmill','mine','carpenter','mountain','tree','rock','hut','moat',
 ];
 
 const WORLD_TOOLS: readonly ToolKind[] = [
@@ -44,10 +44,10 @@ const ALL_TOOLS: readonly ToolKind[] = [
 export const GAME_DEFINITION: GameDefinition = {
   id: 'unified',
   label: 'Castle Role',
-  description: 'The complete castle-building, economy, battle, world-editing, and God Mode experience.',
+  description: 'The complete castle-building, economy, battle, endless-defense, world-editing, and God Mode experience.',
   toolGroups: [
     { label: 'Castle & Defense', toolIds: ['wall1','wall2','wall3','gate','tower','towerBridge','keep','moat'] },
-    { label: 'Buildings', toolIds: ['cottage','house','manor','villa','market','basilica','mosque','farm','cowBarn','appleOrchard','windmill','mine','hut'] },
+    { label: 'Buildings', toolIds: ['cottage','house','manor','villa','market','basilica','mosque','carpenter','farm','cowBarn','appleOrchard','windmill','mine','hut'] },
     { label: 'Roads & Harbor', toolIds: ['road','dirtRoad','stoneRoad','harbor'] },
     { label: 'Military', toolIds: ['armyCamp'] },
     { label: 'Environment', toolIds: ['tree','rock','mountain'] },

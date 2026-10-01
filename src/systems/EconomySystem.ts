@@ -5,6 +5,7 @@ import type { CellEntry } from '../state/GameState';
 export type EconomyResourceKey = keyof EconomyResourceState;
 
 export interface EconomyRates {
+  logsPerSecond: number;
   woodPerSecond: number;
   stonePerSecond: number;
   grainPerSecond: number;
@@ -36,6 +37,7 @@ export interface ResourceCost {
 const TICK_MS = 1000;
 
 const DEFAULT_RESOURCES: EconomyResourceState = {
+  logs: 24,
   wood: 120,
   stone: 120,
   grain: 35,
@@ -64,6 +66,7 @@ const CONSTRUCTION_COSTS: Partial<Record<ToolKind, ResourceCost>> = {
   appleOrchard: { wood: 3 },
   windmill: { wood: 7, stone: 5 },
   mine: { wood: 4, stone: 2 },
+  carpenter: { wood: 6, stone: 2 },
   market: { wood: 6, stone: 4 },
   basilica: { wood: 8, stone: 14 },
   armyCamp: { wood: 8, stone: 2 },
@@ -92,6 +95,7 @@ function cloneState(state: EconomyResourceState): EconomyResourceState {
 export class EconomySystem {
   private resources: EconomyResourceState = cloneState(DEFAULT_RESOURCES);
   private rates: EconomyRates = {
+    logsPerSecond: 0,
     woodPerSecond: 0,
     stonePerSecond: 0,
     grainPerSecond: 0,
@@ -106,6 +110,7 @@ export class EconomySystem {
   reset(): void {
     this.resources = cloneState(DEFAULT_RESOURCES);
     this.rates = {
+      logsPerSecond: 0,
       woodPerSecond: 0,
       stonePerSecond: 0,
       grainPerSecond: 0,
@@ -125,6 +130,7 @@ export class EconomySystem {
   setState(value?: Partial<EconomyResourceState> | null): void {
     const source = value ?? DEFAULT_RESOURCES;
     this.resources = {
+      logs: finiteNonNegative(source.logs, DEFAULT_RESOURCES.logs),
       wood: finiteNonNegative(source.wood, DEFAULT_RESOURCES.wood),
       stone: finiteNonNegative(source.stone, DEFAULT_RESOURCES.stone),
       grain: finiteNonNegative(source.grain, DEFAULT_RESOURCES.grain),
@@ -143,6 +149,7 @@ export class EconomySystem {
       else if (cell.kind === 'manor') capacity += 45;
       else if (cell.kind === 'farm') capacity += 15 * scaledLevel(cell);
       else if (cell.kind === 'cowBarn') capacity += 12 * scaledLevel(cell);
+      else if (cell.kind === 'carpenter') capacity += 18 * scaledLevel(cell, 3);
     }
     return Math.max(220, Math.round(capacity));
   }
@@ -213,6 +220,7 @@ export class EconomySystem {
   }
 
   private step(cells: CellEntry[], civilianPopulation: number, keepCount: number): void {
+    let logRate = 0;
     let woodRate = 0;
     let stoneRate = 0;
     let grainRate = 0;
@@ -229,13 +237,28 @@ export class EconomySystem {
       else if (cell.kind === 'windmill') windmillCapacity += 0.48 * level;
       else if (cell.kind === 'market') bakeryCapacity += 0.32;
       else if (cell.kind === 'mine') stoneRate += 0.24 * level;
-      else if (cell.kind === 'hut') woodRate += 0.18 * level;
-      else if (cell.kind === 'tree') woodRate += 0.025 * level;
+      else if (cell.kind === 'hut') logRate += 0.18 * level;
+      else if (cell.kind === 'tree') logRate += 0.025 * level;
     }
 
     const capacity = this.storageCapacity(cells, keepCount);
 
-    this.resources.wood = Math.min(capacity, this.resources.wood + woodRate);
+    this.resources.logs = Math.min(capacity, this.resources.logs + logRate);
+
+    let logsProcessed = 0;
+    let woodProduced = 0;
+    for (const cell of cells) {
+      if (cell.kind !== 'carpenter') continue;
+      const level = scaledLevel(cell, 3);
+      const inputCapacity = [0, 0.30, 0.58, 0.90][level];
+      const yieldRatio = [0, 0.80, 0.90, 1.00][level];
+      const input = Math.min(this.resources.logs, inputCapacity);
+      this.resources.logs -= input;
+      logsProcessed += input;
+      woodProduced += input * yieldRatio;
+    }
+    woodRate += woodProduced;
+    this.resources.wood = Math.min(capacity, this.resources.wood + woodProduced);
     this.resources.stone = Math.min(capacity, this.resources.stone + stoneRate);
     this.resources.grain = Math.min(capacity, this.resources.grain + grainRate);
     this.resources.apples = Math.min(capacity, this.resources.apples + appleRate);
@@ -266,6 +289,7 @@ export class EconomySystem {
 
     this.shortage = remainingDemand > 0.0001;
     this.rates = {
+      logsPerSecond: logRate - logsProcessed,
       woodPerSecond: woodRate,
       stonePerSecond: stoneRate,
       grainPerSecond: grainRate - grainToMill,

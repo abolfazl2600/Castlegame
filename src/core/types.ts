@@ -64,6 +64,7 @@ export type TileKind =
   | 'mosque'
   | 'windmill'
   | 'mine'
+  | 'carpenter'
   | 'mountain'
   | 'tree'
   | 'rock'
@@ -136,6 +137,7 @@ export interface MissileInventoryState {
 }
 
 export interface EconomyResourceState {
+  logs: number;
   wood: number;
   stone: number;
   grain: number;

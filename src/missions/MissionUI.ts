@@ -1,4 +1,4 @@
-import { t } from '../i18n/localization';
+import { getCurrentLocale, t } from '../i18n/localization';
 import type { MissionView, MissionViewEntry } from './MissionSystem';
 import './missions.css';
 
@@ -28,7 +28,7 @@ export class MissionUI {
         '<span class="mission-tracker__count" data-mission-count>0 / 0</span>' +
       '</button>' +
       '<div class="mission-tracker__body" data-mission-active></div>' +
-      '<button class="mission-tracker__footer" type="button" data-mission-action="open">' + escapeHtml(t('View all objectives')) + ' →</button>';
+      '<button class="mission-tracker__footer" type="button" data-mission-action="open">' + escapeHtml(t('View all objectives →')) + '</button>';
 
     const modal = document.createElement('div');
     modal.id = 'mission-journal';
@@ -107,7 +107,7 @@ export class MissionUI {
     if (!this.tracker) return;
     const count = this.tracker.querySelector<HTMLElement>('[data-mission-count]');
     const active = this.tracker.querySelector<HTMLElement>('[data-mission-active]');
-    if (count) count.textContent = view.totalCompleted + ' / ' + view.totalMissions;
+    if (count) count.textContent = formatMissionNumber(view.totalCompleted) + ' / ' + formatMissionNumber(view.totalMissions);
     if (!active) return;
 
     const visible = view.active.slice(0, 3);
@@ -126,9 +126,9 @@ export class MissionUI {
     if (summary) {
       const percent = view.totalMissions === 0 ? 0 : Math.round((view.totalCompleted / view.totalMissions) * 100);
       summary.innerHTML =
-        '<div class="mission-journal__summary-copy"><strong>' + view.totalCompleted + ' / ' + view.totalMissions + '</strong><span>' + escapeHtml(t('Milestones completed')) + '</span></div>' +
+        '<div class="mission-journal__summary-copy"><strong>' + formatMissionNumber(view.totalCompleted) + ' / ' + formatMissionNumber(view.totalMissions) + '</strong><span>' + escapeHtml(t('Milestones completed')) + '</span></div>' +
         '<div class="mission-journal__summary-progress"><span style="width:' + percent + '%"></span></div>' +
-        '<b>' + percent + '%</b>';
+        '<b>' + formatMissionPercent(percent) + '</b>'; 
     }
 
     if (available) {
@@ -154,7 +154,7 @@ export class MissionUI {
     const ratio = progressPercent(entry);
     return '<article class="mission-compact ' + (entry.pinned ? 'is-pinned' : '') + '">' +
       '<div class="mission-compact__top"><span class="mission-compact__icon">' + escapeHtml(entry.definition.icon) + '</span><div><strong>' + escapeHtml(t(entry.definition.title)) + '</strong><small>' + escapeHtml(t(entry.definition.progressLabel)) + ' · ' + formatProgress(entry) + '</small></div></div>' +
-      '<div class="mission-progress" aria-label="' + ratio + '%"><span style="width:' + ratio + '%"></span></div>' +
+      '<div class="mission-progress" aria-label="' + formatMissionPercent(ratio) + '"><span style="width:' + ratio + '%"></span></div>' +
     '</article>';
   }
 
@@ -196,7 +196,18 @@ function progressPercent(entry: MissionViewEntry): number {
 }
 
 function formatProgress(entry: MissionViewEntry): string {
-  return Math.round(entry.progress.current) + ' / ' + Math.round(entry.progress.target);
+  return formatMissionNumber(Math.round(entry.progress.current)) + ' / ' + formatMissionNumber(Math.round(entry.progress.target));
+}
+
+function formatMissionNumber(value: number): string {
+  const source = String(value);
+  if (getCurrentLocale() !== 'fa') return source;
+  const digits = '۰۱۲۳۴۵۶۷۸۹';
+  return source.replace(/[0-9]/g, (digit) => digits[Number(digit)]);
+}
+
+function formatMissionPercent(value: number): string {
+  return formatMissionNumber(value) + (getCurrentLocale() === 'fa' ? '٪' : '%');
 }
 
 function escapeHtml(value: string): string {

@@ -75,6 +75,7 @@ for (const legacyMode of ['medieval', 'survival', 'sandbox'] as const) {
     await expect(page.locator('#toolbar [data-tool="wall1"]')).toHaveCount(1);
     await expect(page.locator('#toolbar [data-tool="river"]')).toHaveCount(1);
     await expect(page.locator('#toolbar [data-tool="cowBarn"]')).toHaveCount(1);
+    await expect(page.locator('#toolbar [data-tool="carpenter"]')).toHaveCount(1);
   });
 }
 
@@ -89,4 +90,20 @@ test('mobile unified build toolbar remains usable after loading a legacy save', 
   await expect(page.locator('#toolbar-open')).toHaveAttribute('aria-expanded', 'true');
   await expect(page.locator('#toolbar')).not.toHaveClass(/is-collapsed/);
   await expect(page.locator('[data-mobile-proxy="god-mode-button"]')).toBeVisible();
+});
+
+
+test('Templates modal closes when its backdrop is clicked', async ({ page }) => {
+  await seedAutosaveBeforeNavigation(page, 'medieval');
+  await page.goto('/Castlegame/', { waitUntil: 'domcontentloaded' });
+  await expect(page.locator('#toolbar [data-build-none]')).toHaveCount(1, { timeout: 20_000 });
+
+  await page.locator('#templates-button').evaluate((element) => {
+    (element as HTMLButtonElement).click();
+  });
+
+  const modal = page.locator('#templates-modal');
+  await expect(modal).toBeVisible();
+  await modal.click({ position: { x: 4, y: 4 } });
+  await expect(modal).toBeHidden();
 });

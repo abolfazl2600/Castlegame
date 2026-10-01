@@ -102,6 +102,38 @@ test('Persian is selected, switch to English and back persists across reload', a
   await expect(page.locator('html')).toHaveAttribute('dir', 'rtl');
 });
 
+test('Settings overview, gameplay, graphics and data are fully Persian and right-aligned', async ({ page }) => {
+  await openLocalizedGame(page, 1280, 800);
+  await openSettings(page);
+
+  const overview = page.locator('[data-settings-pane="overview"]');
+  const resetWorld = overview.locator('[data-action="reset-world"]');
+  await expect(resetWorld.locator('strong')).toHaveText('بازنشانی جهان');
+  await expect(resetWorld.locator('small')).toHaveText('یک جهان تازه آغاز کنید و حالت بازی را انتخاب کنید');
+  expect(await resetWorld.evaluate(element => getComputedStyle(element).textAlign)).toBe('right');
+
+  await page.locator('[data-settings-nav="gameplay"]').click();
+  const gameplay = page.locator('[data-settings-pane="gameplay"]');
+  const controlRow = gameplay.locator('[data-setting="controlScheme"]').locator('xpath=..');
+  await expect(controlRow.locator('.settings-control-copy small')).toHaveText(
+    'فقط کنترل‌ها و چیدمان را تغییر می‌دهد؛ کیفیت گرافیک جداگانه تنظیم می‌شود.',
+  );
+  expect(await controlRow.locator('.settings-control-copy').evaluate(element => getComputedStyle(element).textAlign)).toBe('right');
+
+  await page.locator('[data-settings-nav="graphics"]').click();
+  const renderProfile = page.locator('[data-setting="performanceMode"]').locator('xpath=..');
+  await expect(renderProfile.locator('.settings-control-copy strong')).toHaveText('پروفایل رندر');
+  await expect(renderProfile.locator('.settings-control-copy small')).toHaveText(
+    'حالت خودکار بر اساس نرخ فریم پایدار تنظیم می‌شود؛ حالت‌های دستی به کنترل لمسی وابسته نیستند.',
+  );
+  await expect(page.locator('[data-setting="performanceMode"] option[value="auto"]')).toHaveText('خودکار (تطبیقی)');
+
+  await page.locator('[data-settings-nav="data"]').click();
+  const dataAction = page.locator('.settings-data-actions button').first();
+  await expect(dataAction.locator('span')).toHaveText('حریم خصوصی و قوانین');
+  expect(await dataAction.evaluate(element => getComputedStyle(element).textAlign)).toBe('right');
+});
+
 test('Privacy panel and native Save prompt are localized; values remain separate', async ({ page }) => {
   await openLocalizedGame(page, 1280, 800);
   await openSettings(page);
