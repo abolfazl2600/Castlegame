@@ -24,7 +24,7 @@ assert.match(budget, /invalidate\(\): void/, 'scene redraws must be able to inva
 assert.match(budget, /isSuppressibleMicroDetail/, 'distance governor must classify suppressible micro-detail explicitly');
 assert.match(budget, /parentHasReadabilityPriority/, 'silhouette-defining geometry must be protected from suppression');
 assert.match(budget, /const preservesSilhouette =/, 'rooted silhouette meshes must be identified explicitly');
-assert.match(budget, /preservesSilhouette \\|\\| retainedCoreMeshes < perRootCore/, 'explicit silhouette meshes must survive per-structure LOD caps');
+assert.match(budget, /if \\(preservesSilhouette\\) \\{[\\s\\S]*?retainedCoreMeshes \\+= 1;[\\s\\S]*?\\} else if \\(retainedCoreMeshes < perRootCore\\)/, 'silhouette meshes must survive while consuming the normal per-root core allowance');
 assert.match(budget, /candidate\.mesh\.visible = false/, 'micro-detail budget must actively suppress excess detail');
 assert.match(budget, /activeHighDetailMeshes/, 'active high-detail mesh diagnostics are required');
 assert.match(budget, /estimatedDrawCalls/, 'estimated draw-call diagnostics are required');

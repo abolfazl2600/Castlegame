@@ -527,9 +527,12 @@ export class DistanceDetailBudgetSystem {
       for (const entry of group) {
         const preservesSilhouette =
           entry.mesh.userData.distanceDetailPriority === 'silhouette';
-        if (preservesSilhouette || retainedCoreMeshes < perRootCore) {
+        if (preservesSilhouette) {
           protectedDrawCalls += entry.drawCost;
-          if (!preservesSilhouette) retainedCoreMeshes += 1;
+          retainedCoreMeshes += 1;
+        } else if (retainedCoreMeshes < perRootCore) {
+          protectedDrawCalls += entry.drawCost;
+          retainedCoreMeshes += 1;
         } else {
           candidates.push(entry);
         }

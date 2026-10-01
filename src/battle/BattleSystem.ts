@@ -1718,9 +1718,12 @@ export class BattleSystem {
     }
 
     if (
-      (runtime.surface === 'ground' || runtime.surface === 'wall') &&
-      runtime.moving
+      runtime.surface === 'ground' ||
+      (runtime.surface === 'wall' && runtime.moving)
     ) {
+      // Ground units keep personal space even while idling or attacking.
+      // Without this, units that converge on the same melee/pathing point can
+      // remain perfectly overlapped and visually orbit as their facing updates.
       this.applySeparation(runtime, delta, buckets);
     }
 
@@ -4046,7 +4049,26 @@ export class BattleSystem {
           const dx = runtime.position.x - other.position.x;
           const dz = runtime.position.z - other.position.z;
           const distanceSq = dx * dx + dz * dz;
-          if (distanceSq <= 0.0001 || distanceSq > personalSpace * personalSpace) continue;
+          if (distanceSq > personalSpace * personalSpace) continue;
+
+          if (distanceSq <= 0.0001) {
+            // Two units can occasionally land on exactly the same coordinates.
+            // A normalized delta cannot be derived in that case, so use a stable
+            // pair-based direction and opposite signs for the two participants.
+            // This makes perfect overlaps self-resolving without frame-to-frame
+            // random jitter.
+            const firstId =
+              runtime.data.id < other.data.id ? runtime.data.id : other.data.id;
+            const secondId =
+              runtime.data.id < other.data.id ? other.data.id : runtime.data.id;
+            const pairHash = Math.abs(this.hashString(`${firstId}|${secondId}`));
+            const angle = (pairHash % 6283) / 1000;
+            const sign = runtime.data.id === firstId ? 1 : -1;
+            push.x += Math.cos(angle) * sign;
+            push.z += Math.sin(angle) * sign;
+            neighbors += 1;
+            continue;
+          }
 
           const distance = Math.sqrt(distanceSq);
           const pressure = (personalSpace - distance) / personalSpace;
@@ -4059,9 +4081,44 @@ export class BattleSystem {
 
     if (push.lengthSq() > 0.0001) {
       const recoveryScale = runtime.recoveryTime > 0 ? 0.32 : 1;
-      const strength = Math.min(0.92, 0.32 + neighbors * 0.08) * recoveryScale;
-      push.normalize().multiplyScalar(delta * strength);
-      runtime.position.add(push);
+      const stationaryScale = runtime.moving ? 1 : 0.72;
+      const strength =
+        Math.min(1.05, 0.36 + neighbors * 0.1) *
+        recoveryScale *
+        stationaryScale;
+      const displacement = push.normalize().multiplyScalar(delta * strength);
+
+      if (runtime.surface === 'ground') {
+        // Separation must never shove a unit through a wall, gate, building, or
+        // other non-walkable cell. Prefer the full displacement, then axis-only
+        // fallbacks so units can still slide apart along tight corridors.
+        const candidates = [
+          runtime.position.clone().add(displacement),
+          runtime.position.clone().add(new THREE.Vector3(displacement.x, 0, 0)),
+          runtime.position.clone().add(new THREE.Vector3(0, 0, displacement.z)),
+        ];
+
+        for (const candidate of candidates) {
+          const candidateGrid = this.worldToGrid(candidate);
+          if (
+            this.navigation.isGroundWalkable(candidateGrid.x, candidateGrid.y) &&
+            this.canTraverseGroundTransition(
+              runtime.gridX,
+              runtime.gridY,
+              candidateGrid,
+            )
+          ) {
+            runtime.position.copy(candidate);
+            runtime.gridX = candidateGrid.x;
+            runtime.gridY = candidateGrid.y;
+            runtime.position.y =
+              2.22 + this.world.elevationAt(candidateGrid.x, candidateGrid.y);
+            break;
+          }
+        }
+      } else {
+        runtime.position.add(displacement);
+      }
     }
   }
 
