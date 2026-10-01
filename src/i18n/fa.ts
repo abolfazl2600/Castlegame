@@ -218,8 +218,7 @@ export const PERSIAN_TRANSLATIONS: Readonly<Record<string, string>> = {
   "LOCAL DATA": "داده‌های محلی",
   "Data & Privacy": "داده‌ها و حریم خصوصی",
   "Saves and settings are stored locally in this browser.": "ذخیره‌ها و تنظیمات به‌صورت محلی در این مرورگر نگهداری می‌شوند.",
-  "Privacy & Legal": "حریم خصوصی و قوانین",
-  "Review local data and privacy information": "بررسی داده‌های محلی و اطلاعات حریم خصوصی",
+  "Review what the game stores and how to delete it": "ببینید بازی چه داده‌هایی را ذخیره می‌کند و چگونه می‌توانید آن‌ها را حذف کنید",
   "Restore defaults": "بازگردانی پیش‌فرض‌ها",
   "Restore default settings without deleting saves": "بازگردانی تنظیمات پیش‌فرض بدون حذف ذخیره‌ها",
   "Reset settings": "بازنشانی تنظیمات",
@@ -230,5 +229,5 @@ export const PERSIAN_TRANSLATIONS: Readonly<Record<string, string>> = {
   "Delete all local game saves? Your settings will be kept. This cannot be undone.": "همه ذخیره‌های بازی حذف شوند؟ تنظیمات باقی می‌مانند و این کار برگشت‌پذیر نیست.",
   "Reset all game settings to their initial defaults? Your game saves will not be deleted.": "همه تنظیمات به حالت پیش‌فرض بازگردند؟ ذخیره‌های بازی حذف نخواهند شد.",
   "Game runtime is still initializing. Try again after the world appears.": "بازی هنوز در حال راه‌اندازی است. پس از نمایان شدن جهان دوباره تلاش کنید.",
-  "Privacy & Legal is unavailable": "بخش حریم خصوصی و قوانین در دسترس نیست"
+  "Data & Privacy is unavailable": "بخش داده‌ها و حریم خصوصی در دسترس نیست"
 };
