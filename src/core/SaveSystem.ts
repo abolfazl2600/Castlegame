@@ -739,7 +739,8 @@ function validMapLayoutId(value: unknown): value is MapLayoutId {
   return value === 'island' ||
     value === 'mainland' ||
     value === 'peninsula' ||
-    value === 'twin-isles';
+    value === 'twin-isles' ||
+    value === 'urban-60x80';
 }
 
 function validStoneStyle(value: unknown): value is StoneStyle {

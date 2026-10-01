@@ -32,11 +32,11 @@ function between(source, startMarker, endMarker) {
 
 assert.match(
   types,
-  /export type MapLayoutId = 'island' \| 'mainland' \| 'peninsula' \| 'twin-isles';/,
+  /export type MapLayoutId = 'island' \| 'mainland' \| 'peninsula' \| 'twin-isles' \| 'urban-60x80';/,
   'Map layouts must have a persisted finite ID type.',
 );
 
-for (const id of ['island', 'mainland', 'peninsula', 'twin-isles']) {
+for (const id of ['island', 'mainland', 'peninsula', 'twin-isles', 'urban-60x80']) {
   assert.match(
     mapLayouts,
     new RegExp(`id: '${id}'`),

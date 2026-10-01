@@ -2370,6 +2370,11 @@ kbd {
     radial-gradient(ellipse at 70% 54%, #79a95d 0 19%, #c9b779 20% 24%, transparent 25%),
     #3d90a4;
 }
+.map-layout-preview-urban-60x80 {
+  background:
+    linear-gradient(#79a95d, #79a95d) center / 60% 80% no-repeat,
+    #3d90a4;
+}
 .map-layout-card strong { align-self: end; font-size: 16px; }
 .map-layout-card small { align-self: start; color: rgba(226,241,244,.72); line-height: 1.45; }
 .template-card:disabled {

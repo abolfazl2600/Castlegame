@@ -1,3 +1,4 @@
+import { TILE_SIZE } from '../core/constants';
 import type { MapLayoutId, TerrainKind } from '../core/types';
 
 export interface MapLayoutDefinition {
@@ -5,6 +6,18 @@ export interface MapLayoutDefinition {
   label: string;
   description: string;
   preview: string;
+}
+
+/** Exact land dimensions in world units, independent of the surrounding ocean. */
+export const URBAN_LAND_WIDTH = 60;
+export const URBAN_LAND_DEPTH = 80;
+
+export function urbanLandBounds(size: number) {
+  const cols = URBAN_LAND_WIDTH / TILE_SIZE;
+  const rows = URBAN_LAND_DEPTH / TILE_SIZE;
+  const minX = Math.floor((size - cols) / 2);
+  const minY = Math.floor((size - rows) / 2);
+  return { minX, minY, cols, rows, maxX: minX + cols - 1, maxY: minY + rows - 1 };
 }
 
 export const MAP_LAYOUTS: readonly MapLayoutDefinition[] = [
@@ -32,13 +45,20 @@ export const MAP_LAYOUTS: readonly MapLayoutDefinition[] = [
     description: 'Two separated buildable islands with distinct shores and open water between them for bridges, ports, and split settlements.',
     preview: '◯ ◯',
   },
+  {
+    id: 'urban-60x80',
+    label: 'Urban Land 60×80',
+    description: 'A flat rectangular plot, 60×80 world units (15×20 building tiles), with ocean outside its boundaries.',
+    preview: '▦',
+  },
 ] as const;
 
 export function isMapLayoutId(value: unknown): value is MapLayoutId {
   return value === 'island' ||
     value === 'mainland' ||
     value === 'peninsula' ||
-    value === 'twin-isles';
+    value === 'twin-isles' ||
+    value === 'urban-60x80';
 }
 
 export function normalizeMapLayoutId(value: unknown): MapLayoutId {
@@ -207,6 +227,12 @@ export function terrainForMapLayout(
   size: number,
 ): TerrainKind {
   if (x < 0 || y < 0 || x >= size || y >= size) return 'water';
+
+  if (layout === 'urban-60x80') {
+    const bounds = urbanLandBounds(size);
+    return x >= bounds.minX && x <= bounds.maxX && y >= bounds.minY && y <= bounds.maxY
+      ? 'plains' : 'water';
+  }
 
   const score = landScore(layout, x, y, size);
   if (score < -0.035) return 'water';

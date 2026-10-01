@@ -82,7 +82,7 @@ export type ToolKind =
   | TerrainToolKind
   | 'erase';
 
-export type MapLayoutId = 'island' | 'mainland' | 'peninsula' | 'twin-isles';
+export type MapLayoutId = 'island' | 'mainland' | 'peninsula' | 'twin-isles' | 'urban-60x80';
 export type TerrainKind = 'water' | 'shore' | 'plains' | 'river' | 'mountain' | 'forest';
 export type TerrainOverrideKind = 'plains' | 'river';
 
