@@ -155,5 +155,11 @@ export const RUNTIME_TRANSLATIONS: Readonly<Record<string, string>> = {
   "Start a new game and choose a game mode? Current changes will be replaced.": "بازی جدیدی آغاز شود و حالت بازی را انتخاب کنید؟ تغییرات کنونی جایگزین خواهند شد.",
   "Reset the entire world and choose a game mode?": "تمام جهان بازنشانی شود و حالت جدید بازی را انتخاب کنید؟",
   "Military & advanced options": "گزینه‌های نظامی و پیشرفته",
-  "Battle and military": "نبرد و امور نظامی"
+  "Battle and military": "نبرد و امور نظامی",
+  "Tower built · appearance will evolve automatically when upgraded": "برج ساخته شد · ظاهر آن هنگام ارتقا به‌صورت خودکار تغییر می‌کند",
+  "Finish or reset the battle before editing buildings": "پیش از ویرایش ساختمان‌ها، نبرد را تمام یا بازنشانی کنید",
+  "Select a building first": "ابتدا یک ساختمان انتخاب کنید",
+  "Building removed · Undo available": "ساختمان حذف شد · امکان بازگردانی وجود دارد",
+  "Keep is already at Level 4 · Royal Keep": "ارگ از قبل در سطح ۴ است · ارگ سلطنتی",
+  "Select a Tower, Gate, Keep, or Tower Bridge first": "ابتدا یک برج، دروازه، ارگ یا پل برج‌ها انتخاب کنید"
 };

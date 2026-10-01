@@ -30,5 +30,13 @@ export const UPGRADE_TRANSLATIONS: Readonly<Record<string, string>> = {
   "A simple elevated crossing between two compatible towers.": "گذرگاهی ساده و مرتفع میان دو برج سازگار.",
   "A broader deck with denser supports and stronger side protection improves the crossing.": "عرشه پهن‌تر با پایه‌های متراکم‌تر و حفاظت جانبی محکم‌تر، گذرگاه را بهبود می‌دهد.",
   "Guard frames, reinforced rails, and structural bracing give the bridge a mature defensive profile.": "چارچوب‌های نگهبانی، نرده‌های تقویت‌شده و مهاربندی سازه‌ای، به پل ظاهری دفاعی و تکامل‌یافته می‌دهند.",
-  "A prestigious fortified crossing with overhead guard frames, metal accents, and visible standards.": "گذرگاهی مستحکم و باشکوه با چارچوب‌های نگهبانی بالاسری، جزئیات فلزی و بیرق‌های نمایان."
+  "A prestigious fortified crossing with overhead guard frames, metal accents, and visible standards.": "گذرگاهی مستحکم و باشکوه با چارچوب‌های نگهبانی بالاسری، جزئیات فلزی و بیرق‌های نمایان.",
+  "A compact defensive keep with a clear, readable base silhouette.": "ارگی دفاعی و جمع‌وجور با فرم پایهٔ مشخص و خوانا.",
+  "The keep grows taller and gains stronger roof and corner defenses.": "ارگ بلندتر می‌شود و دفاع سقف و گوشه‌های آن تقویت می‌شود.",
+  "A larger footprint, taller massing, and prominent towers make the keep a settlement landmark.": "سطح اشغال بیشتر، حجم بلندتر و برج‌های برجسته، ارگ را به نماد سکونتگاه تبدیل می‌کنند.",
+  "The final keep form is broader, taller, and visually richer with a commanding defensive crown.": "شکل نهایی ارگ پهن‌تر، بلندتر و پرجزئیات‌تر است و تاج دفاعی باشکوهی دارد.",
+  "Stone Keep": "ارگ سنگی",
+  "Fortified Keep": "ارگ مستحکم",
+  "Great Keep": "ارگ بزرگ",
+  "Royal Keep": "ارگ سلطنتی"
 };

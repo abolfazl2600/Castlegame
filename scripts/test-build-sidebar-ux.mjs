@@ -4,28 +4,27 @@ import { readFile } from 'node:fs/promises';
 const game = await readFile(new URL('../src/ThreeGame.ts', import.meta.url), 'utf8');
 const css = await readFile(new URL('../src/style.css', import.meta.url), 'utf8');
 const html = await readFile(new URL('../index.html', import.meta.url), 'utf8');
+const gameMode = await readFile(new URL('../src/core/GameMode.ts', import.meta.url), 'utf8');
 
 const refreshStart = game.indexOf('private refreshBuildPanel(): void {');
 const filterStart = game.indexOf('private filterBuildTools(): void {', refreshStart);
-const registerStart = game.indexOf('private openMapLayoutSelector(): void {', filterStart);
+const panelEnd = game.indexOf('private openMapLayoutSelector(): void {', filterStart);
 assert.notEqual(refreshStart, -1);
 assert.notEqual(filterStart, -1);
-assert.notEqual(registerStart, -1);
-const buildMethods = game.slice(refreshStart, registerStart);
+assert.notEqual(panelEnd, -1);
+const buildMethods = game.slice(refreshStart, panelEnd);
 
 assert.match(game, /private activeBuildCategory: string \| null = null;/);
 assert.match(game, /private buildPreviewKey = '';/);
 assert.match(game, /private isStructureFootprintReserved\(x: number, y: number\): boolean/);
 assert.match(game, /private buildPlacementFootprint\(tool: ToolKind, point: GridPoint\): GridPoint\[\]/);
 assert.match(game, /if \(tool === 'market'\) \{[\s\S]*?point\.x - 1[\s\S]*?point\.x \+ 1/);
-assert.match(game, /if \(tool === 'futuristicCastle'\) \{[\s\S]*?getStructureFootprint\('futuristicCastle'/);
 assert.match(game, /private evaluateBuildPlacement\([\s\S]*?reason\?: string/);
-assert.match(game, /Modern Fortress requires a clear 9×9 buildable footprint/);
 assert.match(game, /Market needs a clear 3×3 land area and sufficient resources/);
-assert.match(game, /private renderBuildPlacementPreview\(point: GridPoint \| null, force = false\): void/);
+assert.match(game, /private renderBuildPlacementPreview\([\s\S]*?point: GridPoint \| null,[\s\S]*?force = false/);
 assert.match(game, /const color = preview\.valid \? 0x66e5a3 : 0xff625f/);
-assert.match(game, /event\.pointerType !== 'mouse'[\s\S]*?renderBuildPlacementPreview\(cell, true\)/);
-assert.match(game, /renderBuildPlacementPreview\(this\.pickGridCell\(event\)\)/);
+assert.match(game, /event\.pointerType !== 'mouse'[\s\S]*?renderBuildPlacementPreview\(cell, true, event\.shiftKey\)/);
+assert.match(game, /renderBuildPlacementPreview\(previewCell, true, event\.shiftKey\)/);
 assert.match(game, /canvas\.addEventListener\('pointerleave'/);
 assert.match(game, /private renderWallPreview[\s\S]*?0x66e5a3[\s\S]*?0xff625f/);
 assert.match(game, /private renderRoadPreview[\s\S]*?0x66e5a3[\s\S]*?0xff625f/);
@@ -37,7 +36,7 @@ assert.match(game, /id="city-population">Population: 0<\/b>/);
 assert.match(game, /id="military-population">Army: 0<\/b>/);
 assert.match(game, /id="build-search-clear"/);
 assert.match(game, /class="build-inspect-button is-selected"/);
-assert.match(game, /<span class="settings-section-title">Tool Options<\/span>/);
+assert.match(game, /<span class="settings-section-title">Advanced Editor<\/span>/);
 assert.match(game, /class="settings-section build-settings-section"/);
 assert.doesNotMatch(game, /class="settings-section build-settings-section is-open"/);
 assert.match(game, /aria-expanded="false"/);
@@ -58,14 +57,11 @@ for (const id of [
   'keep-battlements',
   'brush-size',
   'brush-strength',
-  'move-up',
-  'move-left',
-  'move-down',
-  'move-right',
   'rotate-selected',
+  'remove-selected',
+  'selected-gate-toggle',
   'undo-button',
   'redo-button',
-  'select-clear',
 ]) {
   assert.ok(game.includes(`id="${id}"`), `Build sidebar redesign must preserve #${id}.`);
 }
@@ -76,6 +72,14 @@ assert.match(buildMethods, /matchingCategories = new Set<string>\(\)/);
 assert.match(buildMethods, /toolbar\.classList\.toggle\('is-searching', searching\)/);
 assert.match(buildMethods, /tab\.hidden = searching && !matchingCategories\.has\(categoryName\)/);
 assert.match(game, /if \(tool !== null\) \{[\s\S]*?this\.activeBuildCategory = category\.label;/);
+assert.match(game, /id="selection-action-card"/);
+assert.match(game, /private removeSelected\(\): void/);
+assert.match(game, /private towerStyleForLevel\([\s\S]*?requestedTop/);
+assert.match(game, /private keepDraftForPlacement\([\s\S]*?return this\.keepDraftForLevel\(gx, gy, 1\)/);
+assert.doesNotMatch(game, /id="move-up"/);
+assert.doesNotMatch(game, /id="select-clear"/);
+assert.match(gameMode, /\{ label: 'Terrain', toolIds: \['raise','lower','flatten'\] \}/);
+assert.match(gameMode, /\{ label: 'Advanced World', toolIds: \['mountainRange','river','land','smooth','hill','cliff','erase'\] \}/);
 
 // Build controls are rendered dynamically, so selection must be delegated from
 // the stable toolbar rather than depending on per-button handlers that can be
