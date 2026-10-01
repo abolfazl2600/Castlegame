@@ -59,7 +59,7 @@ export class AudioManager {
   };
 
   constructor(options: { initialMode?: GameMode; settingsStorageKey?: string } = {}) {
-    this.currentMode = options.initialMode ?? 'medieval';
+    this.currentMode = options.initialMode ?? 'unified';
     this.settingsStorageKey = options.settingsStorageKey ?? 'castle-role-audio-settings';
     this.settings = this.loadSettings();
 
