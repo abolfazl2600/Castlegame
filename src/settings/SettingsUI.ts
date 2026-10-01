@@ -198,6 +198,7 @@ export class SettingsUI {
               ${this.paneHeading('LOCAL DATA', 'Data & Privacy', 'Saves and settings are stored locally in this browser.')}
               <div class="settings-data-actions">
                 <button type="button" data-action="open-privacy" disabled aria-busy="true"><span>Data & Privacy</span><small>Review what the game stores and how to delete it</small></button>
+                <button type="button" data-action="copy-touch-qa" hidden><span>Copy touch QA report</span><small>Developer evidence for Android multi-touch acceptance.</small></button>
                 <button type="button" data-action="defaults"><span>Restore defaults</span><small>Restore default settings without deleting saves</small></button>
                 <button type="button" data-action="reset-settings"><span>Reset settings</span><small>Clear saved preferences and return to defaults</small></button>
                 <button class="is-danger" type="button" data-action="reset-save"><span>Delete local saves</span><small>Remove all local save slots and autosaves</small></button>
@@ -289,6 +290,9 @@ export class SettingsUI {
     this.panel.querySelector('[data-action="reset-save"]')?.addEventListener('click', () => {
       if (window.confirm(translate('Delete all local game saves? Your settings will be kept. This cannot be undone.', resolveLocale(this.store.get().interface.language)))) this.onResetSave();
     });
+    this.panel.querySelector<HTMLButtonElement>('[data-action="copy-touch-qa"]')?.addEventListener('click', (event) => {
+      void this.copyTouchQaReport(event.currentTarget as HTMLButtonElement);
+    });
     this.panel.querySelector('[data-action="defaults"]')?.addEventListener('click', () => this.store.restoreDefaults());
     this.panel.querySelector('[data-action="reset-settings"]')?.addEventListener('click', () => {
       if (window.confirm(translate('Reset all game settings to their initial defaults? Your game saves will not be deleted.', resolveLocale(this.store.get().interface.language)))) this.store.resetSettings();
@@ -338,6 +342,60 @@ export class SettingsUI {
         privacyButton.removeAttribute('aria-busy');
         privacyButton.title = 'Data & Privacy is unavailable';
       }
+    }
+  }
+
+  private async copyTouchQaReport(button: HTMLButtonElement): Promise<void> {
+    const description = button.querySelector<HTMLElement>('small');
+    const idleText = 'Developer evidence for Android multi-touch acceptance.';
+    button.disabled = true;
+
+    try {
+      const { collectTouchQaEvidence, formatTouchQaIssueComment } = await import('../input/TouchQaEvidence');
+      const report = formatTouchQaIssueComment(collectTouchQaEvidence());
+      let copied = false;
+
+      try {
+        if (navigator.clipboard?.writeText) {
+          await navigator.clipboard.writeText(report);
+          copied = true;
+        }
+      } catch {
+        // Android WebView and non-secure browser contexts may block Clipboard API.
+      }
+
+      if (!copied) copied = this.copyTextFallback(report);
+      if (!copied) throw new Error('Clipboard API and fallback copy both failed');
+
+      if (description) description.textContent = 'Touch QA report copied. Paste it into issue #112 and complete physical results.';
+    } catch (error) {
+      console.error('Touch QA evidence copy failed', error);
+      if (description) description.textContent = 'Unable to copy touch QA report. Try again after the game has loaded.';
+    } finally {
+      button.disabled = false;
+      window.setTimeout(() => {
+        if (description) description.textContent = idleText;
+      }, 3500);
+    }
+  }
+
+  private copyTextFallback(text: string): boolean {
+    const field = document.createElement('textarea');
+    field.value = text;
+    field.readOnly = true;
+    field.style.position = 'fixed';
+    field.style.opacity = '0';
+    field.style.pointerEvents = 'none';
+    document.body.appendChild(field);
+    field.focus();
+    field.select();
+
+    try {
+      return document.execCommand('copy');
+    } catch {
+      return false;
+    } finally {
+      field.remove();
     }
   }
 
@@ -465,6 +523,9 @@ export class SettingsUI {
     set('highContrast', settings.interface.highContrast);
     set('confirmDestructiveActions', settings.interface.confirmDestructiveActions);
     set('showHelp', settings.interface.showHelp);
+
+    const touchQaButton = this.panel.querySelector<HTMLButtonElement>('[data-action="copy-touch-qa"]');
+    if (touchQaButton) touchQaButton.hidden = !settings.graphics.debugMode;
   }
 
   private formatOutput(key: string, value: number): string {
