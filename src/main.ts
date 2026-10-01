@@ -1,4 +1,5 @@
 import { MobileUI } from './ui/MobileUI';
+import { SafeAreaController } from './ui/SafeAreaController';
 import { installLocalization } from './i18n/localization';
 import { SettingsStore } from './settings/SettingsStore';
 import { SettingsUI } from './settings/SettingsUI';
@@ -9,6 +10,7 @@ import './style.css';
 
 const settingsStore = new SettingsStore(localStorage);
 installLocalization(settingsStore);
+new SafeAreaController();
 
 new SettingsUI(settingsStore, () => {
   settingsStore.resetLocalSave();
