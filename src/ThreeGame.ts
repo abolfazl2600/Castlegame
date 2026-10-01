@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { createUrbanCityTemplate } from './world/UrbanCityTemplate';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { App } from '@capacitor/app';
 import { Capacitor } from '@capacitor/core';
@@ -103,6 +104,7 @@ const WALL_KINDS: WallKind[] = ['wall1', 'wall2', 'wall3'];
 const ROAD_KINDS: RoadKind[] = ['road', 'dirtRoad', 'stoneRoad'];
 const HARBOR_KINDS: HarborKind[] = ['harbor'];
 const PLAYABLE_LAYOUT_TEMPLATES: Readonly<Record<string, { layoutId: MapLayoutId; seed: number }>> = {
+  'urban-city-60x80': { layoutId: 'urban-60x80', seed: 6001 },
   'mainland-frontier': { layoutId: 'mainland', seed: 5501 },
   'coastal-peninsula': { layoutId: 'peninsula', seed: 5502 },
   'split-isles': { layoutId: 'twin-isles', seed: 5503 },
@@ -12640,7 +12642,7 @@ export class ThreeGame {
       return choice.point;
     };
 
-    if (template !== 'empty-land') this.seedNaturalProps();
+    if (template !== 'empty-land' && template !== 'urban-city-60x80') this.seedNaturalProps();
 
     if (template === 'empty-land') {
       for (let y = 0; y < SIZE; y += 1) {
@@ -12649,6 +12651,10 @@ export class ThreeGame {
             this.terrainOverrides.set(this.key(x, y), 'plains');
           }
         }
+      }
+    } else if (template === 'urban-city-60x80') {
+      for (const { x, y, kind, level, ...options } of createUrbanCityTemplate(SIZE)) {
+        place(x, y, kind, level, options);
       }
     } else if (template === 'mainland-frontier') {
       prepareBuildableArea(4, 6, 15, 17, 0.08);
