@@ -59,12 +59,12 @@ export function normalizeMissileState(value?: Partial<MissileInventoryState> | n
   };
 }
 
-export function missileModeAvailable(mode: GameMode): boolean {
-  return mode === 'sandbox';
+export function missileModeAvailable(_mode: GameMode): boolean {
+  return true;
 }
 
-export function missilesUnlocked(mode: GameMode, _tier: MilitaryTier): boolean {
-  return mode === 'sandbox';
+export function missilesUnlocked(_mode: GameMode, _tier: MilitaryTier): boolean {
+  return true;
 }
 
 export function beginMissileProduction(
@@ -76,7 +76,7 @@ export function beginMissileProduction(
   const current = normalizeMissileState(state);
 
   if (!missileModeAvailable(mode)) {
-    return { ok: false, state: current, message: 'Missile production is available in Sandbox mode only' };
+    return { ok: false, state: current, message: 'Missile production is available in the unified game' };
   }
   if (!missilesUnlocked(mode, tier)) {
     return { ok: false, state: current, message: `Missiles unlock at Military Tier ${MISSILE_CONFIG.unlockTier}` };

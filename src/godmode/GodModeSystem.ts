@@ -1,4 +1,3 @@
-import type { GameMode } from '../core/GameMode';
 import type { GridCell, TileKind } from '../core/types';
 
 export interface GodModePoint {
@@ -23,7 +22,6 @@ export interface GodModeExecutionResult {
 }
 
 export interface GodModeActionContext {
-  readonly mode: GameMode;
   getCell(point: GodModePoint): GridCell | undefined;
   isDestructible(kind: TileKind): boolean;
   executeMissileStrike(target: GodModeTarget): GodModeExecutionResult;
@@ -33,7 +31,6 @@ export interface GodModeActionDefinition {
   readonly id: string;
   readonly label: string;
   readonly description: string;
-  readonly availableModes: readonly GameMode[];
   readonly enabled: boolean;
   validateTarget(target: GodModeTarget | null, context: GodModeActionContext): string | null;
   execute(target: GodModeTarget, context: GodModeActionContext): GodModeExecutionResult;
@@ -53,15 +50,13 @@ export class GodModeActionRegistry {
     return this.actions.get(id);
   }
 
-  list(mode?: GameMode): GodModeActionDefinition[] {
-    return Array.from(this.actions.values()).filter((action) =>
-      mode === undefined || action.availableModes.includes(mode),
-    );
+  list(): GodModeActionDefinition[] {
+    return Array.from(this.actions.values());
   }
 
-  isAvailable(id: string, mode: GameMode): boolean {
+  isAvailable(id: string): boolean {
     const action = this.actions.get(id);
-    return Boolean(action?.enabled && action.availableModes.includes(mode));
+    return Boolean(action?.enabled);
   }
 }
 
@@ -74,7 +69,6 @@ export function createFutureGodModeAction(
     id,
     label,
     description,
-    availableModes: [],
     enabled: false,
     validateTarget: () => 'This God Mode action is reserved for a future update.',
     execute: () => ({ ok: false, message: 'This God Mode action is not implemented yet.' }),

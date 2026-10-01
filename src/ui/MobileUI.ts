@@ -34,7 +34,6 @@ export class MobileUI {
     layer.innerHTML = `
       <header class="mobile-header" aria-label="Mobile game actions">
         <div class="mobile-header-actions" role="toolbar" aria-label="Game actions">
-          <button type="button" data-mobile-proxy="game-mode-button" class="mobile-action mobile-mode-action" aria-label="Mode:"><span aria-hidden="true">🎮</span></button>
           <button type="button" data-mobile-proxy="toolbar-open" class="mobile-action mobile-build-action" aria-label="Build tools" aria-controls="toolbar" aria-expanded="false"><span aria-hidden="true">🧱</span></button>
           <button type="button" data-mobile-proxy="battle-button" class="mobile-action" aria-label="Battle and military">⚔️</button>
           <button type="button" data-mobile-proxy="god-mode-button" class="mobile-action" aria-label="God Mode">⚡</button>
@@ -72,8 +71,6 @@ export class MobileUI {
       });
     });
 
-    this.syncModeLabel();
-    this.observeText('game-mode-label', () => this.syncModeLabel());
     const godModeButton = document.getElementById('god-mode-button');
     if (godModeButton) {
       const observer = new MutationObserver(() => this.syncProxyVisibility());
@@ -103,30 +100,10 @@ export class MobileUI {
     this.mediaQuery.addEventListener('change', apply);
   }
 
-  private observeText(id: string, callback: () => void): void {
-    const target = document.getElementById(id);
-    if (!target) return;
-    const observer = new MutationObserver(callback);
-    observer.observe(target, { childList: true, characterData: true, subtree: true });
-    this.observers.push(observer);
-  }
-
-  private syncModeLabel(): void {
-    const target = document.getElementById('game-mode-label');
-    const button = document.querySelector<HTMLButtonElement>('[data-mobile-proxy="game-mode-button"]');
-    if (target && button) {
-      const label = target.textContent?.trim() || 'Mode';
-      button.setAttribute('aria-label', `Mode: ${label}`);
-      button.title = label;
-    }
-
-    this.syncProxyVisibility();
-  }
-
   private syncProxyVisibility(): void {
     document.querySelectorAll<HTMLButtonElement>('[data-mobile-proxy]').forEach((proxy) => {
       const targetId = proxy.dataset.mobileProxy;
-      if (!targetId || targetId === 'game-mode-button') return;
+      if (!targetId) return;
       const target = document.getElementById(targetId);
       proxy.hidden = !(target instanceof HTMLButtonElement) || target.hidden;
       if (target instanceof HTMLButtonElement) {

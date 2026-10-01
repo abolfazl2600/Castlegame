@@ -1,10 +1,10 @@
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 
-const [battleSystem, threeGame, survivalMode] = await Promise.all([
+const [battleSystem, threeGame, endlessDefense] = await Promise.all([
   readFile(new URL('../src/battle/BattleSystem.ts', import.meta.url), 'utf8'),
   readFile(new URL('../src/ThreeGame.ts', import.meta.url), 'utf8'),
-  readFile(new URL('../src/SurvivalGameMode.ts', import.meta.url), 'utf8'),
+  readFile(new URL('../src/battle/EndlessDefense.ts', import.meta.url), 'utf8'),
 ]);
 
 function between(source, startMarker, endMarker) {
@@ -91,7 +91,7 @@ assert.match(
 const battleIntegration = between(
   threeGame,
   'this.battleSystem = new BattleSystem(',
-  'this.registerBuiltInGameModes();',
+  'this.registerGodModeActions();',
 );
 assert.match(battleIntegration, /onWallDamage:[\s\S]*?state\.updateCell\(x, y, \{ damage \}\)/,
   'World state must own persistent castle damage.');
@@ -113,14 +113,19 @@ assert.doesNotMatch(
 );
 
 assert.match(
-  survivalMode,
+  threeGame,
   /preserveSessionWallDamage:\s*true/,
-  'Survival must explicitly preserve runtime wall damage between waves.',
+  'Unified Endless Defense must explicitly preserve runtime wall damage between waves.',
 );
 assert.match(
-  survivalMode,
-  /battleSystem\.reset\(false\)/,
-  'Survival lifecycle must explicitly clear session wall damage.',
+  endlessDefense,
+  /getEndlessDefenseWave/,
+  'Endless Defense wave progression must remain available without a separate Survival mode.',
+);
+assert.match(
+  threeGame,
+  /this\.battleSystem\.reset\(false\)/,
+  'Unified new-game lifecycle must explicitly clear battle session wall damage.',
 );
 
 console.log('Battle state-boundary regression checks passed.');

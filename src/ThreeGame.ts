@@ -47,12 +47,10 @@ import {
   tickMissileState,
 } from './battle/MissileCapability';
 import type { BattleSetup, BattleStatus } from './battle/types';
+import { endlessDefenseEnemyCount, getEndlessDefenseWave } from './battle/EndlessDefense';
 import { MaritimeSystem } from './systems/MaritimeSystem';
 import type { GameMode } from './core/GameMode';
-import { GAME_MODE_CONFIG, getGameModeDefinition, isBuildingAvailable, isGameMode, isToolAvailable } from './core/GameMode';
-import { GAME_MODE_REGISTRY } from './core/GameModeFoundation';
-import { createSurvivalDefinition } from './SurvivalGameMode';
-import { createSandboxDefinition } from './SandboxGameMode';
+import { getGameModeDefinition, isBuildingAvailable, isToolAvailable } from './core/GameMode';
 import type { SettingsStore } from './settings/SettingsStore';
 import { resolveLocale, t } from './i18n/localization';
 import { applyGraphicsSettings, applyInputSettings, applySceneGraphicsSettings } from './settings/SettingsSubsystems';
@@ -508,12 +506,17 @@ export class ThreeGame {
   private militaryTier: MilitaryTier = 1;
   private populationBattleCommitted = false;
   private populationBattleStart: BattleSetup | null = null;
+  private endlessDefenseActive = false;
+  private endlessDefenseWave = 0;
+  private endlessDefenseIntermissionMs = 0;
+  private endlessDefenseAwaitingNextWave = false;
   private missileUiRefreshMs = 0;
   private environmentRefreshMs = 0;
 
   private readonly undoStack: HistorySnapshot[] = [];
   private readonly redoStack: HistorySnapshot[] = [];
   private godModeOpen = false;
+  private freeBuildEnabled = false;
   private godModeActionId = 'missileStrike';
   private godModeTarget: GodModeTarget | null = null;
   private godModeHover: GridPoint | null = null;
@@ -809,7 +812,6 @@ export class ThreeGame {
       (status) => this.updateBattleUI(status),
     );
 
-    this.registerBuiltInGameModes();
     this.registerGodModeActions();
 
     this.groundHit.rotation.x = -Math.PI / 2;
@@ -817,12 +819,6 @@ export class ThreeGame {
     this.scene.add(this.groundHit);
 
     this.load();
-    const loadedMode = this.gameMode;
-    const loadedSelection = this.services.session.selectMode(loadedMode);
-    if (loadedSelection.ok) {
-      const loadedInitialization = this.services.session.initialize();
-      if (loadedInitialization.ok) this.services.session.start();
-    }
     if (!this.worldSeeded || this.loadedSaveVersion < SAVE_VERSION) {
       this.seedNaturalProps();
       this.worldSeeded = true;
@@ -830,7 +826,7 @@ export class ThreeGame {
       this.save(false);
     }
 
-    if (this.gameMode === 'medieval') this.createWorkers();
+    this.createWorkers();
     this.redraw();
     this.applyEnvironmentVisuals(true);
     this.bindUI();
@@ -842,11 +838,7 @@ export class ThreeGame {
     this.updateGameModeUI();
     this.syncTemplateAvailability();
     audioEvents.emit({ action: 'set_mode', mode: this.gameMode });
-    if (!hadSave) {
-      this.renderGameModeSelection();
-      const modeModal = document.getElementById('game-mode-modal');
-      if (modeModal) modeModal.hidden = false;
-    }
+    if (!hadSave) this.openMapLayoutSelector();
     this.bindPointerInput();
     this.resize();
 
@@ -893,7 +885,7 @@ export class ThreeGame {
   }
 
   private economyConstructionEnabled(): boolean {
-    return this.gameMode === 'medieval' || this.gameMode === 'survival';
+    return !this.freeBuildEnabled;
   }
 
   private isConstructionAffordable(tool: ToolKind, quantity = 1): boolean {
@@ -937,7 +929,6 @@ export class ThreeGame {
       id: 'missileStrike',
       label: 'Missile Strike',
       description: 'Target one building and call down a direct missile impact.',
-      availableModes: ['sandbox'],
       enabled: true,
       validateTarget: (target, context) => {
         if (!target) return 'Select a building in the world.';
@@ -963,7 +954,6 @@ export class ThreeGame {
 
   private godModeContext(): GodModeActionContext {
     return {
-      mode: this.gameMode,
       getCell: (point) => this.services.state.getCell(point.x, point.y),
       isDestructible: (kind) => this.services.destructibleBuildingSystem.isDestructible(kind),
       executeMissileStrike: (target) => this.executeMissileStrike(target),
@@ -971,7 +961,7 @@ export class ThreeGame {
   }
 
   private isGodModeTargeting(): boolean {
-    return this.godModeOpen && this.gameMode === 'sandbox' && this.godModeActionId === 'missileStrike';
+    return this.godModeOpen && this.godModeActionId === 'missileStrike';
   }
 
   private resolveGodModeTarget(point: GridPoint): GodModeTarget | null {
@@ -1009,7 +999,7 @@ export class ThreeGame {
 
   private selectGodModeAction(actionId: string): void {
     const action = this.godModeActions.get(actionId);
-    if (!action || !this.godModeActions.isAvailable(actionId, this.gameMode)) {
+    if (!action || !this.godModeActions.isAvailable(actionId)) {
       this.setStatus('God Mode action is unavailable in ' + getGameModeDefinition(this.gameMode).label);
       return;
     }
@@ -1019,10 +1009,6 @@ export class ThreeGame {
   }
 
   private openGodMode(): void {
-    if (this.gameMode !== 'sandbox') {
-      this.setStatus('God Mode is available in Sandbox only');
-      return;
-    }
     this.godModeOpen = true;
     this.setToolbarOpen(false);
     const battlePanel = document.getElementById('battle-panel');
@@ -1094,6 +1080,7 @@ export class ThreeGame {
     const feedback = document.getElementById('god-mode-feedback');
     const confirm = document.getElementById('god-mode-confirm') as HTMLButtonElement | null;
     const cancel = document.getElementById('god-mode-cancel') as HTMLButtonElement | null;
+    const freeBuild = document.getElementById('god-mode-free-build') as HTMLButtonElement | null;
     const preview = this.godModeTarget;
     if (targetLabel) {
       targetLabel.textContent = preview
@@ -1107,8 +1094,9 @@ export class ThreeGame {
     }
     const capacity = document.getElementById('god-mode-capacity');
     if (capacity) capacity.textContent = `Missiles: ${this.godModeCapacity}/${this.godModeMaxCapacity}`;
-    if (confirm) confirm.disabled = !preview || !action || !this.godModeActions.isAvailable(this.godModeActionId, this.gameMode);
+    if (confirm) confirm.disabled = !preview || !action || !this.godModeActions.isAvailable(this.godModeActionId);
     if (cancel) cancel.disabled = !preview;
+    if (freeBuild) freeBuild.textContent = `Free Build: ${this.freeBuildEnabled ? 'ON' : 'OFF'}`;
     document.querySelectorAll<HTMLButtonElement>('[data-god-action]').forEach((button) => {
       button.classList.toggle('is-selected', button.dataset.godAction === this.godModeActionId);
     });
@@ -1227,21 +1215,10 @@ export class ThreeGame {
   }
 
   private updateGameModeUI(): void {
-    const label = document.getElementById('game-mode-label');
-    const button = document.getElementById('game-mode-button');
-    const config = getGameModeDefinition(this.gameMode);
-    if (label) label.textContent = config.label;
-    if (button) button.setAttribute('aria-label', 'Current game mode: ' + config.label);
     const battleButton = document.getElementById('battle-button');
     if (battleButton) battleButton.hidden = false;
     const godModeButton = document.getElementById('god-mode-button');
-    if (godModeButton) godModeButton.hidden = this.gameMode !== 'sandbox';
-    const godModePanel = document.getElementById('god-mode-panel');
-    if (godModePanel && this.gameMode !== 'sandbox') {
-      godModePanel.hidden = true;
-      this.godModeOpen = false;
-      this.setGodModeTarget(null);
-    }
+    if (godModeButton) godModeButton.hidden = false;
   }
 
   private syncTemplateAvailability(): void {
@@ -1422,123 +1399,11 @@ export class ThreeGame {
     if (clear) clear.hidden = !searching;
   }
 
-  private registerBuiltInGameModes(): void {
-    for (const definition of Object.values(GAME_MODE_CONFIG)) {
-      if (definition.id === 'survival' || definition.id === 'sandbox') continue;
-      if (GAME_MODE_REGISTRY.has(definition.id)) continue;
-      GAME_MODE_REGISTRY.register({
-        id: definition.id,
-        displayName: definition.label,
-        description: definition.description,
-        available: true,
-        metadata: { source: 'existing-game-mode' },
-      });
-    }
-
-    if (!GAME_MODE_REGISTRY.has('survival')) {
-      GAME_MODE_REGISTRY.register(
-        createSurvivalDefinition({
-          battleSystem: this.battleSystem,
-          getBattleSetup: () => this.battleSetup,
-          getMilitaryTier: () => this.militaryTier,
-          setStatus: (message) => this.setStatus(message),
-          setAttackState: (active) => this.services.gateSystem.setAttackState(active),
-          onDefeat: () => {
-            if (this.services.session.getStatus() === 'running' || this.services.session.getStatus() === 'paused') {
-              this.services.session.end();
-            }
-            this.setStatus('Survival defeated · the castle was captured');
-          },
-        }),
-      );
-    }
-
-    if (!GAME_MODE_REGISTRY.has('sandbox')) {
-      GAME_MODE_REGISTRY.register(
-        createSandboxDefinition({
-          resetWorld: () => {
-            this.resetWorldForMode('sandbox');
-            this.save(false);
-          },
-          setStatus: (message) => this.setStatus(message),
-        }),
-      );
-    }
-  }
-
-  private renderGameModeSelection(): void {
-    const grid = document.querySelector<HTMLElement>('#game-mode-modal .mode-grid');
-    if (!grid) return;
-
-    const presentation = {
-      medieval: {
-        icon: '♜',
-        kicker: 'BUILD · GROW · DEFEND',
-        summary: 'Build a living medieval stronghold, grow the settlement, and defend it in siege battles.',
-      },
-      survival: {
-        icon: '⚔',
-        kicker: 'ENDLESS DEFENSE',
-        summary: 'Fortify the castle and hold out against escalating enemy waves.',
-      },
-      sandbox: {
-        icon: '✦',
-        kicker: 'FREE BUILD · EXPERIMENT',
-        summary: 'Build freely with every construction, terrain, and world-editing tool available.',
-      },
-    } as const;
-
-    const modes = GAME_MODE_REGISTRY.getAll().filter((mode) => mode.available);
-    grid.innerHTML = modes.map((mode) => {
-      const card = presentation[mode.id as keyof typeof presentation] ?? {
-        icon: '♜',
-        kicker: 'GAME MODE',
-        summary: mode.description,
-      };
-      return '<button class="mode-card mode-card-' + mode.id + '" type="button" data-game-mode="' + mode.id + '">' +
-        '<span class="mode-card-topline">' +
-          '<span class="mode-card-icon" aria-hidden="true">' + card.icon + '</span>' +
-          '<span class="mode-card-kicker">' + card.kicker + '</span>' +
-        '</span>' +
-        '<strong>' + mode.displayName + '</strong>' +
-        '<small>' + card.summary + '</small>' +
-        '<span class="mode-card-action">Select mode <span class="mode-card-arrow" aria-hidden="true">→</span></span>' +
-      '</button>';
-    }).join('');
-
-    grid.querySelectorAll<HTMLButtonElement>('[data-game-mode]').forEach((button) => {
-      button.onclick = () => {
-        const requested = button.dataset.gameMode;
-        if (requested) this.handleGameModeSelection(requested);
-      };
-    });
-  }
-
-  private openGameModeSelector(): void {
-    const layoutModal = document.getElementById('map-layout-modal');
-    if (layoutModal) layoutModal.hidden = true;
-    this.renderGameModeSelection();
-    const modal = document.getElementById('game-mode-modal');
-    if (modal) modal.hidden = false;
-  }
-
-  private handleGameModeSelection(modeId: string): void {
-    if (!isGameMode(modeId)) {
-      this.setStatus('Game mode is unavailable');
-      return;
-    }
-
-    this.openMapLayoutSelector(modeId);
-  }
-
-  private openMapLayoutSelector(mode: GameMode): void {
-    const modeModal = document.getElementById('game-mode-modal');
-    if (modeModal) modeModal.hidden = true;
-
+  private openMapLayoutSelector(): void {
     const modal = document.getElementById('map-layout-modal');
     const grid = document.getElementById('map-layout-grid');
     if (!modal || !grid) {
-      this.startNewGameWithMode(mode);
+      this.startNewGame();
       return;
     }
 
@@ -1556,24 +1421,16 @@ export class ThreeGame {
       button.onclick = () => {
         const layoutId = normalizeMapLayoutId(button.dataset.mapLayout);
         this.setMapLayoutId(layoutId);
-        this.startNewGameWithMode(mode);
+        this.startNewGame();
       };
     });
-
-    const back = document.getElementById('map-layout-back-button') as HTMLButtonElement | null;
-    if (back) {
-      back.onclick = () => {
-        modal.hidden = true;
-        this.openGameModeSelector();
-      };
-    }
 
     modal.hidden = false;
   }
 
-  private resetWorldForMode(mode: GameMode): void {
-    this.services.state.setGameMode(mode);
-    audioEvents.emit({ action: 'set_mode', mode });
+  private resetWorld(): void {
+    this.services.state.setGameMode('unified');
+    audioEvents.emit({ action: 'set_mode', mode: 'unified' });
     this.services.state.clear();
     this.services.keepSystem.clear();
     this.towerBridges.clear();
@@ -1591,6 +1448,11 @@ export class ThreeGame {
     this.workers.length = 0;
     this.clearSettlementAgents();
     this.battleSystem.reset(false);
+    this.endlessDefenseActive = false;
+    this.freeBuildEnabled = false;
+    this.endlessDefenseWave = 0;
+    this.endlessDefenseIntermissionMs = 0;
+    this.endlessDefenseAwaitingNextWave = false;
     this.militaryTier = 1;
     this.services.state.setMissileState();
     this.services.economySystem.reset();
@@ -1607,47 +1469,22 @@ export class ThreeGame {
     this.rebuildWorldLayoutSurface();
     this.seedNaturalProps();
     this.worldSeeded = true;
+    this.createWorkers();
     this.selectedTool = null;
     this.syncModeDependentUI();
     this.redraw();
   }
 
-  private startNewGameWithMode(mode: GameMode): void {
-    const session = this.services.session;
-    if (session.getStatus() === 'running' || session.getStatus() === 'paused') {
-      session.end();
-    }
-    session.cleanup();
-
-    const selection = session.selectMode(mode);
-    if (!selection.ok || !session.getSelectedMode()) {
-      this.setStatus('Selected game mode is unavailable');
-      return;
-    }
-
-    const initialized = session.initialize();
-    if (!initialized.ok) {
-      this.setStatus('Game mode could not be initialized');
-      return;
-    }
-
-    this.resetWorldForMode(mode);
-    const started = session.start();
-    if (!started.ok) {
-      this.setStatus('Game mode could not be started');
-      return;
-    }
-
+  private startNewGame(): void {
+    this.resetWorld();
     this.save(false);
-    const modeModal = document.getElementById('game-mode-modal');
-    if (modeModal) modeModal.hidden = true;
     const layoutModal = document.getElementById('map-layout-modal');
     if (layoutModal) layoutModal.hidden = true;
     const templates = document.getElementById('templates-modal');
     if (templates) templates.hidden = false;
     this.selectTool(null);
     const layout = MAP_LAYOUTS.find((item) => item.id === this.mapLayoutId);
-    this.setStatus('Mode selected: ' + getGameModeDefinition(mode).label + ' · ' + (layout?.label ?? 'Classic Island'));
+    this.setStatus('New game · ' + (layout?.label ?? 'Classic Island'));
   }
 
   private createRiverTexture(): THREE.CanvasTexture {
@@ -1986,7 +1823,7 @@ export class ThreeGame {
         }
 
         if (terrain === 'plains') {
-          if (this.gameMode === 'medieval' && h1 % 31 === 5 && x > 3 && y > 3) {
+          if (h1 % 31 === 5 && x > 3 && y > 3) {
             this.services.state.setCell(x, y, 'hut', 1);
           } else if (h1 % 23 === 7 && h2 % 3 !== 0) {
             this.services.state.setCell(x, y, 'tree', 1 + (h2 % 2));
@@ -10994,7 +10831,6 @@ export class ThreeGame {
   private bindUI(): void {
     const get = <T extends HTMLElement>(id: string): T => document.getElementById(id) as T;
     const toolbar = get<HTMLElement>('toolbar');
-    this.renderGameModeSelection();
 
     const noneHtml =
       '<button class="build-inspect-button is-selected" data-build-none="true" type="button" aria-pressed="true">' +
@@ -11470,6 +11306,12 @@ export class ThreeGame {
     get<HTMLButtonElement>('god-mode-close').onclick = () => this.closeGodMode();
     get<HTMLButtonElement>('god-mode-confirm').onclick = () => this.confirmGodModeAction();
     get<HTMLButtonElement>('god-mode-cancel').onclick = () => this.cancelGodModeTarget();
+    get<HTMLButtonElement>('god-mode-free-build').onclick = () => {
+      this.freeBuildEnabled = !this.freeBuildEnabled;
+      this.updateGodModeUI();
+      this.syncEconomyUI();
+      this.setStatus(this.freeBuildEnabled ? 'Free Build enabled' : 'Free Build disabled · economy costs restored');
+    };
     document.querySelectorAll<HTMLButtonElement>('[data-god-action]').forEach((button) => {
       button.onclick = () => {
         const actionId = button.dataset.godAction;
@@ -11498,6 +11340,7 @@ export class ThreeGame {
     });
 
     get<HTMLButtonElement>('battle-start').onclick = () => this.startBattleFromUI();
+    get<HTMLButtonElement>('battle-endless').onclick = () => this.startEndlessDefenseFromUI();
     get<HTMLButtonElement>('battle-stop').onclick = () => this.stopBattleFromUI();
     get<HTMLButtonElement>('battle-reset').onclick = () => this.resetBattleFromUI();
 
@@ -11533,11 +11376,6 @@ export class ThreeGame {
       help.hidden = true;
     };
     get<HTMLButtonElement>('templates-button').onclick = openTemplates;
-    get<HTMLButtonElement>('game-mode-button').onclick = () => {
-      const confirmRequired = this.settingsStore.get().interface.confirmDestructiveActions;
-      if (!confirmRequired || confirm(t('Start a new game and choose a game mode? Current changes will be replaced.'))) this.openGameModeSelector();
-    };
-
     get<HTMLButtonElement>('templates-close-button').onclick = () => {
       templates.hidden = true;
     };
@@ -11582,8 +11420,8 @@ export class ThreeGame {
     };
     get<HTMLButtonElement>('reset-button').onclick = () => {
       const confirmRequired = this.settingsStore.get().interface.confirmDestructiveActions;
-      if (!confirmRequired || confirm(t('Reset the entire world and choose a game mode?'))) {
-        this.openGameModeSelector();
+      if (!confirmRequired || confirm(t('Reset the entire world and start a new game?'))) {
+        this.openMapLayoutSelector();
       }
     };
     get<HTMLButtonElement>('fullscreen-button').onclick = async () => {
@@ -14313,6 +14151,8 @@ export class ThreeGame {
   }
 
   private startBattleFromUI(): void {
+    this.endlessDefenseActive = false;
+    this.endlessDefenseAwaitingNextWave = false;
     const current = this.battleSystem.status();
     if (current.mode === 'paused') {
       this.battleSystem.resume();
@@ -14362,6 +14202,86 @@ export class ThreeGame {
     this.setStatus('Battle started · Attackers are advancing on the castle');
   }
 
+  private startEndlessDefenseFromUI(): void {
+    if (this.battleSystem.isActive() && this.battleSystem.status().mode !== 'finished') {
+      this.setStatus('Reset the current battle before starting Endless Defense');
+      return;
+    }
+
+    this.syncPopulationDefenseAssignments(this.services.state.entries());
+    this.syncBattleSetupUI();
+    this.endlessDefenseActive = true;
+    this.endlessDefenseWave = 0;
+    this.endlessDefenseIntermissionMs = 0;
+    this.endlessDefenseAwaitingNextWave = false;
+    this.services.populationSystem.setMilitiaMobilized(true);
+    this.setViewMode('world3d');
+    this.setToolbarOpen(false);
+    this.workerLayer.visible = false;
+    this.settlementLayer.visible = false;
+    document.getElementById('game-shell')?.classList.add('battle-mode');
+    this.services.gateSystem.setAttackState(true);
+    this.startEndlessDefenseWave(1);
+  }
+
+  private startEndlessDefenseWave(waveNumber: number): void {
+    const wave = getEndlessDefenseWave(waveNumber);
+    const enemyTotal = endlessDefenseEnemyCount(wave.enemies);
+    const setup: BattleSetup = {
+      ...this.battleSetup,
+      attackerSwordsmen: wave.enemies.swordsman ?? 0,
+      attackerArchers: wave.enemies.archer ?? 0,
+      attackerSpearmen: wave.enemies.spearman ?? 0,
+      attackerCrossbowmen: wave.enemies.crossbowman ?? 0,
+      attackerModernSoldiers: 0,
+      defenderModernSoldiers: 0,
+    };
+
+    this.battleSetup = setup;
+    this.populationBattleCommitted = false;
+    this.populationBattleStart = { ...setup };
+    this.endlessDefenseWave = waveNumber;
+    this.endlessDefenseAwaitingNextWave = false;
+    this.endlessDefenseIntermissionMs = 0;
+    this.battleSystem.start(setup, {
+      attackerSpawnInterval: wave.spawnInterval,
+      attackerSpawnBatchSize: wave.spawnBatchSize,
+      preserveSessionWallDamage: true,
+      militaryTier: this.militaryTier,
+    });
+    this.syncBattleSetupUI();
+    this.setStatus(`Endless Defense · Wave ${waveNumber} · ${enemyTotal} enemies`);
+  }
+
+  private updateEndlessDefense(deltaMs: number): void {
+    if (!this.endlessDefenseActive) return;
+    const status = this.battleSystem.status();
+    if (status.mode !== 'finished') return;
+
+    if (status.result?.winner === 'attacker') {
+      this.endlessDefenseActive = false;
+      this.endlessDefenseAwaitingNextWave = false;
+      this.services.gateSystem.setAttackState(false);
+      this.setStatus(`Endless Defense defeated on Wave ${this.endlessDefenseWave}`);
+      return;
+    }
+
+    if (status.result?.winner !== 'defender') return;
+
+    if (!this.endlessDefenseAwaitingNextWave) {
+      const wave = getEndlessDefenseWave(this.endlessDefenseWave);
+      this.endlessDefenseAwaitingNextWave = true;
+      this.endlessDefenseIntermissionMs = wave.intermissionSeconds * 1000;
+      this.setStatus(`Wave ${this.endlessDefenseWave} cleared · next wave incoming`);
+      return;
+    }
+
+    this.endlessDefenseIntermissionMs = Math.max(0, this.endlessDefenseIntermissionMs - deltaMs);
+    if (this.endlessDefenseIntermissionMs <= 0) {
+      this.startEndlessDefenseWave(this.endlessDefenseWave + 1);
+    }
+  }
+
   private upgradeMilitaryTier(): void {
     if (this.battleSystem.isActive()) {
       this.setStatus('Reset the current battle before upgrading military technology');
@@ -14392,7 +14312,7 @@ export class ThreeGame {
   private launchMissileFromUI(): void {
     const state = this.services.state.getMissileState();
     if (!missileModeAvailable(this.gameMode)) {
-      this.setStatus('Missiles are available in Modern and Sandbox modes only');
+      this.setStatus('Missiles are unavailable');
       return;
     }
     if (!missilesUnlocked(this.gameMode, this.militaryTier)) {
@@ -14556,7 +14476,7 @@ export class ThreeGame {
     if (hint) {
       hint.textContent = unlocked
         ? `Range ${MISSILE_CONFIG.range}m · radius ${MISSILE_CONFIG.impactRadius}m · ${MISSILE_CONFIG.cooldownMs / 1000}s cooldown. Production is disabled during battles; supply recharges over time.`
-        : `Modern missiles unlock at Military Tier ${MISSILE_CONFIG.unlockTier}. Sandbox bypasses the tier requirement.`;
+        : `Missiles are available in the unified game.`;
     }
   }
 
@@ -14585,6 +14505,10 @@ export class ThreeGame {
   }
 
   private resetBattleFromUI(): void {
+    this.endlessDefenseActive = false;
+    this.endlessDefenseWave = 0;
+    this.endlessDefenseIntermissionMs = 0;
+    this.endlessDefenseAwaitingNextWave = false;
     if (this.settingsStore.get().gameplay.combatFeedback) {
       audioEvents.emit({ action: 'play_sfx', assetId: 'combat.battle-reset' });
     }
@@ -14653,6 +14577,7 @@ export class ThreeGame {
     const result = document.getElementById('battle-result');
     const startButton = document.getElementById('battle-start') as HTMLButtonElement | null;
     const stopButton = document.getElementById('battle-stop') as HTMLButtonElement | null;
+    const endlessButton = document.getElementById('battle-endless') as HTMLButtonElement | null;
     const battleSpeedLabel = document.getElementById('battle-speed-value');
     const battleSpeedDown = document.getElementById('battle-speed-down') as HTMLButtonElement | null;
     const battleSpeedUp = document.getElementById('battle-speed-up') as HTMLButtonElement | null;
@@ -14696,6 +14621,13 @@ export class ThreeGame {
 
     if (stopButton) {
       stopButton.disabled = status.mode !== 'running';
+    }
+
+    if (endlessButton) {
+      endlessButton.textContent = this.endlessDefenseActive
+        ? `Endless Defense · Wave ${Math.max(1, this.endlessDefenseWave)}`
+        : 'Start Endless Defense';
+      endlessButton.disabled = this.endlessDefenseActive || status.mode === 'running' || status.mode === 'paused';
     }
 
     if (battleSpeedLabel) battleSpeedLabel.textContent = `${status.battleSpeed}×`;
@@ -14827,10 +14759,10 @@ export class ThreeGame {
       for (const extension of this.extensions) extension.updateSettlement?.(deltaMs);
     }
     this.battleSystem.update(deltaMs, time);
+    this.updateEndlessDefense(deltaMs);
     this.updateEconomy(deltaMs);
     this.updateEnvironment(deltaMs);
     this.updateMissileCapability(deltaMs);
-    this.services.session.update(deltaMs, time);
     this.updateMissions(deltaMs);
     this.updateLongPress(time);
     this.updateGodModeEffects(deltaMs);

@@ -23,11 +23,7 @@ export function installAndroidBackNavigation(): void {
       return;
     }
     if (visible('map-layout-modal')) {
-      click('map-layout-back-button');
-      return;
-    }
-    if (visible('game-mode-modal')) {
-      // The initial game-mode choice is required; Back must not leave an unusable screen.
+      // Map layout is the only required new-game choice; keep it open until selected.
       return;
     }
     if (visible('templates-modal')) {

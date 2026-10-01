@@ -18,8 +18,7 @@
           <span id="save-status" class="status-pill">3D Ready</span>
           <button id="battle-button" class="secondary-button battle-button" type="button">Battle</button>
           <button id="military-button" class="secondary-button battle-button" type="button" hidden>Military</button>
-          <button id="god-mode-button" class="secondary-button god-mode-button" type="button" hidden>God Mode</button>
-          <button id="game-mode-button" class="secondary-button mode-button" type="button" aria-label="Current game mode: Medieval Castle">Mode: <span id="game-mode-label">Medieval Castle</span></button>
+          <button id="god-mode-button" class="secondary-button god-mode-button" type="button">God Mode</button>
           <button id="templates-button" class="secondary-button system-action-bridge" type="button" hidden>Templates</button>
           <button id="missions-button" class="secondary-button" type="button" aria-controls="mission-journal" aria-expanded="false">Mission Journal</button>
           <button id="settings-button" class="secondary-button" type="button">Settings</button>
@@ -186,6 +185,7 @@
 
           <div class="battle-actions">
             <button id="battle-start" class="battle-primary" type="button">Start Battle</button>
+            <button id="battle-endless" type="button">Start Endless Defense</button>
             <button id="battle-stop" type="button">Stop Battle</button>
             <button id="battle-reset" type="button">Reset Battle</button>
           </div>
@@ -196,13 +196,14 @@
         <aside id="god-mode-panel" class="god-mode-panel" aria-label="God Mode" hidden>
           <div class="battle-panel-header">
             <div>
-              <div class="eyebrow">SANDBOX CONTROL</div>
+              <div class="eyebrow">WORLD CONTROL</div>
               <strong>GOD MODE</strong>
             </div>
             <button id="god-mode-close" class="icon-button battle-close" type="button" aria-label="Close God Mode">×</button>
           </div>
           <p class="god-mode-instructions">Choose a weapon model, then select a building. On touch, confirm the selected target to fire. World changes use the same undo and save systems as construction.</p>
           <div id="god-mode-capacity" class="god-mode-capacity">Missiles: 10/10</div>
+          <button id="god-mode-free-build" class="secondary-button" type="button">Free Build: OFF</button>
           <div class="god-mode-actions" role="group" aria-label="God Mode actions">
             <button type="button" data-god-action="missileStrike" class="god-mode-action is-selected"><strong>🚀 Missile Strike</strong><small>Target one building with a visible impact.</small></button>
             <button type="button" data-god-action="flood" class="god-mode-action" disabled><strong>🌊 Flood</strong><small>Coming soon · area terrain event.</small></button>
@@ -382,25 +383,6 @@
           </section>
         </div>
 
-        <div id="game-mode-modal" class="modal-backdrop" hidden>
-          <section class="help-modal mode-modal" role="dialog" aria-modal="true" aria-labelledby="game-mode-title">
-            <div class="help-modal-header">
-              <div>
-                <div class="eyebrow">CASTLE ROLE · NEW GAME</div>
-                <h2 id="game-mode-title">Choose How You Want to Play</h2>
-              </div>
-            </div>
-            <p class="template-intro">Pick a mode for this new world. You can start a new game in another mode later.</p>
-            <div class="mode-grid">
-              <button class="mode-card" type="button" data-game-mode="medieval">
-                <span class="mode-card-icon">♜</span>
-                <strong>Medieval Castle</strong>
-                <small>Stone walls, medieval towers, gates, settlements, soldiers, and siege systems.</small>
-              </button>
-            </div>
-          </section>
-        </div>
-
         <div id="map-layout-modal" class="modal-backdrop" hidden>
           <section class="help-modal map-layout-modal" role="dialog" aria-modal="true" aria-labelledby="map-layout-title">
             <div class="help-modal-header">
@@ -408,7 +390,6 @@
                 <div class="eyebrow">CASTLE ROLE · WORLD SHAPE</div>
                 <h2 id="map-layout-title">Choose a Map Layout</h2>
               </div>
-              <button id="map-layout-back-button" class="icon-button" type="button" aria-label="Back to game modes">←</button>
             </div>
             <p class="template-intro">Choose the coastline and land-mass layout for this new world. Terrain-only templates remain compatible with every layout; complete castle templates currently require Classic Island.</p>
             <div id="map-layout-grid" class="map-layout-grid" aria-live="polite"></div>

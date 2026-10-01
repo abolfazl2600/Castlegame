@@ -1,123 +1,96 @@
 import type { TileKind, ToolKind } from './types';
 
-export type GameMode = "medieval" | "survival" | "sandbox";
+/**
+ * Castle Role has one canonical gameplay ruleset. The legacy mode names are
+ * accepted only while reading older saves and normalize into this single mode.
+ */
+export type GameMode = 'unified';
 
-export interface GameModeToolGroup {
+export interface GameToolGroup {
   label: string;
   toolIds: readonly ToolKind[];
 }
 
-export interface GameModeDefinition {
+export interface GameDefinition {
   id: GameMode;
   label: string;
   description: string;
-  toolGroups: readonly GameModeToolGroup[];
+  toolGroups: readonly GameToolGroup[];
   availableTools: readonly ToolKind[];
   availableBuildingKinds: readonly TileKind[];
   availableUnits: readonly string[];
   availableWeapons: readonly string[];
 }
 
-const MEDIEVAL_BUILDINGS: readonly TileKind[] = [
+const BUILDINGS: readonly TileKind[] = [
   'wall1','wall2','wall3','gate','tower',
   'road','dirtRoad','stoneRoad','harbor',
   'cottage','house','manor','villa','farm','cowBarn','appleOrchard','armyCamp',
   'market','basilica','mosque','windmill','mine','carpenter','mountain','tree','rock','hut','moat',
 ];
 
-const COMMON_WORLD_TOOLS: readonly ToolKind[] = [
+const WORLD_TOOLS: readonly ToolKind[] = [
   'tree','rock','mountain','mountainRange','river','land','raise','lower','flatten','smooth','hill','cliff','erase',
 ];
 
-const SANDBOX_BUILDINGS: readonly TileKind[] = [
-  ...MEDIEVAL_BUILDINGS,
-];
-
-const SANDBOX_TOOLS: readonly ToolKind[] = [
-  ...SANDBOX_BUILDINGS,
+const ALL_TOOLS: readonly ToolKind[] = [
+  ...BUILDINGS,
   'keep',
   'towerBridge',
   'mountainRange',
-  ...COMMON_WORLD_TOOLS,
+  ...WORLD_TOOLS,
 ];
 
-export const GAME_MODE_CONFIG: Record<GameMode, GameModeDefinition> = {
-  medieval: {
-    id: 'medieval',
-    label: 'Medieval Castle',
-    description: 'Stone fortifications, medieval buildings, soldiers, and siege systems.',
-    toolGroups: [
-      { label: 'Castle & Defense', toolIds: ['wall1','wall2','wall3','gate','tower','towerBridge','keep','moat'] },
-      { label: 'Buildings', toolIds: ['cottage','house','manor','villa','market','basilica','mosque','carpenter','farm','cowBarn','appleOrchard','windmill','mine','hut'] },
-      { label: 'Military', toolIds: ['armyCamp'] },
-      { label: 'Environment', toolIds: COMMON_WORLD_TOOLS },
-      { label: 'Roads & Harbor', toolIds: ['road','dirtRoad','stoneRoad','harbor'] },
-    ],
-    availableTools: [...MEDIEVAL_BUILDINGS, 'keep','towerBridge','mountainRange',...COMMON_WORLD_TOOLS],
-    availableBuildingKinds: [...MEDIEVAL_BUILDINGS, 'tree','rock','mountain'],
-    availableUnits: ['swordsman','spearman','archer','crossbowman'],
-    availableWeapons: ['sword','spear','bow','crossbow'],
-  },
-  survival: {
-    id: 'survival',
-    label: 'Survival',
-    description: 'Endless wave defense using the existing castle, enemy, combat, and navigation systems.',
-    toolGroups: [
-      { label: 'Castle & Defense', toolIds: ['wall1','wall2','wall3','gate','tower','towerBridge','keep','moat'] },
-      { label: 'Buildings', toolIds: ['cottage','house','manor','villa','market','basilica','mosque','carpenter','farm','cowBarn','appleOrchard','windmill','mine','hut'] },
-      { label: 'Military', toolIds: ['armyCamp'] },
-      { label: 'Environment', toolIds: COMMON_WORLD_TOOLS },
-      { label: 'Roads & Harbor', toolIds: ['road','dirtRoad','stoneRoad','harbor'] },
-    ],
-    availableTools: [...MEDIEVAL_BUILDINGS, 'keep','towerBridge','mountainRange',...COMMON_WORLD_TOOLS],
-    availableBuildingKinds: [...MEDIEVAL_BUILDINGS, 'tree','rock','mountain'],
-    availableUnits: ['swordsman','spearman','archer','crossbowman'],
-    availableWeapons: ['sword','spear','bow','crossbow'],
-  },
-  sandbox: {
-    id: 'sandbox',
-    label: 'Sandbox',
-    description: 'Free-form construction and experimentation using all building and world tools supported by the existing game.',
-    toolGroups: [
-      { label: 'Castle & Defense', toolIds: ['wall1','wall2','wall3','gate','tower','towerBridge','keep','moat'] },
-      { label: 'Buildings', toolIds: ['cottage','house','manor','villa','market','basilica','mosque','carpenter','farm','cowBarn','appleOrchard','windmill','mine','hut'] },
-      { label: 'Roads & Harbor', toolIds: ['road','dirtRoad','stoneRoad','harbor'] },
-      { label: 'Military', toolIds: ['armyCamp'] },
-      { label: 'Environment', toolIds: ['tree','rock','mountain'] },
-      { label: 'Terrain', toolIds: ['mountainRange','river','land','raise','lower','flatten','smooth','hill','cliff','erase'] },
-    ],
-    availableTools: SANDBOX_TOOLS,
-    availableBuildingKinds: SANDBOX_BUILDINGS,
-    availableUnits: ['swordsman','spearman','archer','crossbowman'],
-    availableWeapons: ['sword','spear','bow','crossbow'],
-  },
+export const GAME_DEFINITION: GameDefinition = {
+  id: 'unified',
+  label: 'Castle Role',
+  description: 'The complete castle-building, economy, battle, endless-defense, world-editing, and God Mode experience.',
+  toolGroups: [
+    { label: 'Castle & Defense', toolIds: ['wall1','wall2','wall3','gate','tower','towerBridge','keep','moat'] },
+    { label: 'Buildings', toolIds: ['cottage','house','manor','villa','market','basilica','mosque','carpenter','farm','cowBarn','appleOrchard','windmill','mine','hut'] },
+    { label: 'Roads & Harbor', toolIds: ['road','dirtRoad','stoneRoad','harbor'] },
+    { label: 'Military', toolIds: ['armyCamp'] },
+    { label: 'Environment', toolIds: ['tree','rock','mountain'] },
+    { label: 'Terrain', toolIds: ['mountainRange','river','land','raise','lower','flatten','smooth','hill','cliff','erase'] },
+  ],
+  availableTools: ALL_TOOLS,
+  availableBuildingKinds: BUILDINGS,
+  availableUnits: ['swordsman','spearman','archer','crossbowman'],
+  availableWeapons: ['sword','spear','bow','crossbow'],
 };
 
-export function getGameModeDefinition(mode: GameMode): GameModeDefinition {
-  return GAME_MODE_CONFIG[mode];
+export function getGameModeDefinition(_mode: GameMode = 'unified'): GameDefinition {
+  return GAME_DEFINITION;
 }
 
 export function isGameMode(value: unknown): value is GameMode {
-  return value === 'medieval' || value === 'survival' || value === 'sandbox';
+  return value === 'unified';
 }
 
-export function isToolAvailable(mode: GameMode, tool: ToolKind): boolean {
-  return GAME_MODE_CONFIG[mode].availableTools.includes(tool);
+/** Backward-compatible save migration only; legacy modes no longer exist at runtime. */
+export function normalizeGameMode(value: unknown): GameMode {
+  if (value === 'unified' || value === 'medieval' || value === 'survival' || value === 'sandbox') {
+    return 'unified';
+  }
+  return 'unified';
 }
 
-export function isBuildingAvailable(mode: GameMode, kind: TileKind): boolean {
-  return GAME_MODE_CONFIG[mode].availableBuildingKinds.includes(kind);
+export function isToolAvailable(_mode: GameMode, tool: ToolKind): boolean {
+  return GAME_DEFINITION.availableTools.includes(tool);
 }
 
-export function isMedievalMode(mode: GameMode): boolean {
-  return mode === 'medieval';
+export function isBuildingAvailable(_mode: GameMode, kind: TileKind): boolean {
+  return GAME_DEFINITION.availableBuildingKinds.includes(kind);
 }
 
-
-export function isUnitAvailable(mode: GameMode, unit: string): boolean {
-  return GAME_MODE_CONFIG[mode].availableUnits.includes(unit);
+export function isMedievalMode(_mode: GameMode): boolean {
+  return true;
 }
 
-export function isWeaponAvailable(mode: GameMode, weapon: string): boolean {
-  return GAME_MODE_CONFIG[mode].availableWeapons.includes(weapon);
+export function isUnitAvailable(_mode: GameMode, unit: string): boolean {
+  return GAME_DEFINITION.availableUnits.includes(unit);
+}
+
+export function isWeaponAvailable(_mode: GameMode, weapon: string): boolean {
+  return GAME_DEFINITION.availableWeapons.includes(weapon);
 }
