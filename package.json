@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "npm run test:battle-state-boundary && npm run test:gate-state && npm run test:castle-access-navigation && npm run test:castle-block-model && npm run test:castle-build-edit-ux && npm run test:construction-animation && npm run test:ambient-fauna && npm run test:settlement-lifecycle && npm run test:living-population && npm run test:camp-garrison && npm run test:river-water-visibility && npm run test:settings-bootstrap-order && npm run test:android-audio-lifecycle && npm run test:camera-zoom-contract && npm run test:building-silhouette-contract && npm run test:upgrade-visual-language && npm run test:settlement-upgrade-readability && npm run test:orchard-visual-contract && npm run test:defense-silhouette-contract && npm run test:ambient-world-motion && npm run test:adaptive-render-profile && npm run test:distance-detail-budget && npm run test:seasonal-environment && npm run test:final-visual-coherence-contract && npm run test:modern-mode-removed && npm run test:save-mode-ui-sync && npm run test:mobile-render-performance && npm run test:mobile-header-layout && npm run test:persian-localization && npm run test:persian-runtime-localization && tsc --noEmit && vite build",
+    "build": "npm run test:battle-state-boundary && npm run test:gate-state && npm run test:castle-access-navigation && npm run test:castle-block-model && npm run test:castle-build-edit-ux && npm run test:construction-animation && npm run test:ambient-fauna && npm run test:settlement-lifecycle && npm run test:living-population && npm run test:camp-garrison && npm run test:river-water-visibility && npm run test:settings-bootstrap-order && npm run test:android-audio-lifecycle && npm run test:camera-zoom-contract && npm run test:building-silhouette-contract && npm run test:upgrade-visual-language && npm run test:settlement-upgrade-readability && npm run test:orchard-visual-contract && npm run test:defense-silhouette-contract && npm run test:ambient-world-motion && npm run test:adaptive-render-profile && npm run test:distance-detail-budget && npm run test:seasonal-environment && npm run test:final-visual-coherence-contract && npm run test:modern-mode-removed && npm run test:save-mode-ui-sync && npm run test:mobile-render-performance && npm run test:mobile-header-layout && npm run test:persian-localization && npm run test:persian-runtime-localization && npm run test:missions && tsc --noEmit && vite build",
     "build:android": "tsc --noEmit && vite build --base=./",
     "android:sync": "npm run build:android && cap sync android",
     "android:copy": "npm run build:android && cap copy android",
@@ -77,7 +77,8 @@
     "android:debug": "npm run android:sync && cd android && ./gradlew --no-daemon assembleDebug",
     "test:adaptive-render-profile": "node --experimental-strip-types scripts/test-adaptive-render-profile.mjs",
     "test:persian-localization": "node scripts/test-persian-localization.mjs",
-    "test:persian-runtime-localization": "node scripts/test-persian-runtime-localization.mjs"
+    "test:persian-runtime-localization": "node scripts/test-persian-runtime-localization.mjs",
+    "test:missions": "node --experimental-strip-types scripts/test-mission-system.mjs"
   },
   "dependencies": {
     "@capacitor/android": "^8.5.2",
