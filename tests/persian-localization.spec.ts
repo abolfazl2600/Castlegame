@@ -1,5 +1,6 @@
 import { expect, test, type Page, type TestInfo } from '@playwright/test';
 import { SAVE_AUTOSAVE_KEY, SAVE_KEY, SAVE_VERSION } from '../src/core/constants';
+import { translate } from '../src/i18n/localization';
 
 // Stable small sandbox world: UI/RTL checks should not depend on heavyweight rendering.
 async function openLocalizedGame(page: Page, width: number, height: number): Promise<void> {
@@ -56,6 +57,22 @@ async function captureEvidence(page: Page, testInfo: TestInfo, filename: string)
   await page.screenshot({ path, animations: 'disabled', fullPage: false });
   await testInfo.attach(filename, { path, contentType: 'image/png' });
 }
+
+test('Composed Harbor upgrade descriptions are fully localized in Persian', () => {
+  expect(translate(
+    'A substantial port with a stone quay, twin docking arms, roofed harbor buildings, cranes, lantern posts, and trading vessel facilities. Maximum harbor level reached.',
+    'fa',
+  )).toBe(
+    'بندری بزرگ با بارانداز سنگی، دو بازوی پهلوگیری، ساختمان‌های سقف‌دار بندری، جرثقیل‌ها، چراغ‌های ساحلی و تجهیزات کشتی‌های بازرگانی. بندر به بالاترین سطح رسیده است.',
+  );
+
+  expect(translate(
+    'A compact timber landing with simple mooring posts, basic cargo, and a fishing boat. Next: Fishing Wharf.',
+    'fa',
+  )).toBe(
+    'اسکله کوچک چوبی با تیرک‌های ساده پهلوگیری، بار اولیه و قایق ماهیگیری. مرحله بعد: اسکله ماهیگیری.',
+  );
+});
 
 test('Persian is selected, switch to English and back persists across reload', async ({ page }, testInfo) => {
   await openLocalizedGame(page, 1280, 800);
