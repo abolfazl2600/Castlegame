@@ -55,13 +55,12 @@ async function loadQaRuntime(page: Page): Promise<void> {
   const record = emptyAutosave();
   await page.addInitScript(({ markerKey, autosaveKey, seededRecord }) => {
     localStorage.setItem(markerKey, '1');
-    // Interaction tests should not compete with expensive high-quality WebGL rendering on CI.
-    // Matched-view visual QA runs separately using high-quality settings.
+    // Use the normal high-quality profile so the city screenshot shows its buildings and full land silhouette.
     localStorage.setItem('castle-role.settings.v2', JSON.stringify({
       schemaVersion: 2,
       gameplay: { controlScheme: 'standard', tutorialCompleted: true, cameraSensitivity: 1, combatFeedback: true },
       graphics: {
-        quality: 'low', performanceMode: 'performance', environmentDetail: 'low',
+        quality: 'high', performanceMode: 'quality', environmentDetail: 'high',
         shadowsEnabled: false, effectsEnabled: false, debugMode: false,
       },
       interface: {
@@ -117,9 +116,11 @@ test('Urban city loads from the picker, supports undo/redo, and survives reload'
   const after = await saved();
   expect(after.mapLayoutId).toBe('urban-60x80');
   expect(after.cells).toHaveLength(before.cells.length);
+  await page.locator('#view-3d-button').evaluate(button => (button as HTMLButtonElement).click());
   await page.evaluate(() => {
     const qa = window as unknown as { __castleVisualCamera: (camera: object) => void };
-    qa.__castleVisualCamera({ x: 72, y: 85, z: 90, targetX: -2, targetY: 0, targetZ: 0 });
+    qa.__castleVisualCamera({ x: 44, y: 55, z: 66, targetX: -2, targetY: 0, targetZ: 0 });
   });
+  await page.waitForTimeout(1000);
   await page.screenshot({ path: testInfo.outputPath('urban-city-60x80.png'), fullPage: true });
 });
