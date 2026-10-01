@@ -4248,3 +4248,234 @@ html[dir="rtl"].mobile-ui-active .minimap {
 html.mobile-ui-active .battle-advanced {
   display: none !important;
 }
+
+
+/* Game mode selection UX refresh ------------------------------------------ */
+.mode-modal {
+  width: min(1040px, calc(100% - 28px));
+  max-width: 1040px;
+  padding: 26px;
+  overflow: auto;
+  border-color: rgba(126, 221, 232, .26);
+  background:
+    radial-gradient(circle at 84% 0%, rgba(77, 205, 220, .11), transparent 32%),
+    linear-gradient(180deg, rgba(12, 31, 45, .985), rgba(6, 20, 32, .99));
+  box-shadow: 0 34px 100px rgba(0, 0, 0, .54), inset 0 1px rgba(255, 255, 255, .055);
+}
+.mode-modal .help-modal-header {
+  margin-bottom: 8px;
+}
+.mode-modal .help-modal-header > div {
+  min-width: 0;
+}
+.mode-modal .eyebrow {
+  color: #78ddf6;
+  letter-spacing: .18em;
+}
+.mode-modal h2 {
+  margin-top: 7px;
+  font-size: clamp(27px, 3vw, 38px);
+  line-height: 1.12;
+  letter-spacing: -.035em;
+}
+.mode-modal .template-intro {
+  max-width: 720px;
+  margin: 0;
+  color: rgba(218, 237, 244, .67);
+  font-size: 13px;
+  line-height: 1.65;
+}
+.mode-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  margin-top: 22px;
+}
+.mode-card {
+  --mode-accent: 126, 221, 232;
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  min-width: 0;
+  min-height: 238px;
+  padding: 18px;
+  gap: 11px;
+  border: 1px solid rgba(var(--mode-accent), .20);
+  border-radius: 18px;
+  color: #f4fbff;
+  background:
+    linear-gradient(155deg, rgba(var(--mode-accent), .075), rgba(255,255,255,.018) 48%, rgba(0,0,0,.08)),
+    rgba(7, 21, 32, .86);
+  box-shadow: inset 0 1px rgba(255,255,255,.035);
+  text-align: start;
+  transition: transform .17s ease, border-color .17s ease, background .17s ease, box-shadow .17s ease;
+}
+.mode-card::before {
+  content: '';
+  position: absolute;
+  inset: 0 auto auto 0;
+  z-index: -1;
+  width: 100%;
+  height: 3px;
+  background: linear-gradient(90deg, rgba(var(--mode-accent), .92), rgba(var(--mode-accent), 0));
+  opacity: .82;
+}
+.mode-card::after {
+  content: '';
+  position: absolute;
+  z-index: -1;
+  width: 150px;
+  height: 150px;
+  top: -88px;
+  right: -72px;
+  border-radius: 50%;
+  background: rgba(var(--mode-accent), .09);
+  filter: blur(2px);
+}
+.mode-card-medieval { --mode-accent: 112, 220, 246; }
+.mode-card-survival { --mode-accent: 245, 170, 104; }
+.mode-card-sandbox { --mode-accent: 125, 224, 175; }
+.mode-card:hover {
+  transform: translateY(-3px);
+  border-color: rgba(var(--mode-accent), .58);
+  background:
+    linear-gradient(155deg, rgba(var(--mode-accent), .13), rgba(255,255,255,.028) 50%, rgba(0,0,0,.05)),
+    rgba(8, 25, 37, .94);
+  box-shadow: 0 17px 40px rgba(0,0,0,.24), inset 0 1px rgba(255,255,255,.05);
+}
+.mode-card:active {
+  transform: translateY(-1px) scale(.995);
+}
+.mode-card:focus-visible {
+  outline: 2px solid rgba(var(--mode-accent), .86);
+  outline-offset: 3px;
+}
+.mode-card-topline {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  min-width: 0;
+}
+.mode-card-icon {
+  flex: 0 0 auto;
+  width: 44px;
+  height: 44px;
+  border: 1px solid rgba(var(--mode-accent), .16);
+  border-radius: 13px;
+  color: rgb(var(--mode-accent));
+  background: rgba(var(--mode-accent), .10);
+  box-shadow: inset 0 1px rgba(255,255,255,.04);
+  font-size: 23px;
+}
+.mode-card-kicker {
+  min-width: 0;
+  color: rgba(var(--mode-accent), .92);
+  font-size: 9px;
+  font-weight: 900;
+  letter-spacing: .11em;
+  line-height: 1.25;
+}
+.mode-card strong {
+  margin-top: 2px;
+  font-size: 20px;
+  line-height: 1.2;
+  letter-spacing: -.02em;
+}
+.mode-card small {
+  flex: 1 1 auto;
+  color: rgba(222, 238, 244, .69);
+  font-size: 12px;
+  line-height: 1.65;
+}
+.mode-card-action {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 9px;
+  width: 100%;
+  margin-top: auto;
+  padding-top: 12px;
+  border-top: 1px solid rgba(var(--mode-accent), .11);
+  color: rgba(239, 250, 253, .88);
+  font-size: 10px;
+  font-weight: 850;
+}
+.mode-card-arrow {
+  color: rgb(var(--mode-accent));
+  font-size: 16px;
+  line-height: 1;
+  transition: transform .17s ease;
+}
+.mode-card:hover .mode-card-arrow {
+  transform: translateX(3px);
+}
+html[dir="rtl"] .mode-modal .eyebrow,
+html[dir="rtl"] .mode-card-kicker {
+  letter-spacing: normal;
+}
+html[dir="rtl"] .mode-card-arrow {
+  transform: scaleX(-1);
+}
+html[dir="rtl"] .mode-card:hover .mode-card-arrow {
+  transform: scaleX(-1) translateX(3px);
+}
+@media (max-width: 900px) and (min-width: 641px) {
+  .mode-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .mode-card:last-child:nth-child(odd) {
+    grid-column: 1 / -1;
+    min-height: 190px;
+  }
+}
+@media (max-width: 640px) {
+  .mode-modal {
+    width: 100%;
+    padding: 18px;
+    border-radius: 16px;
+  }
+  .mode-modal h2 {
+    font-size: clamp(23px, 8vw, 30px);
+  }
+  .mode-modal .template-intro {
+    font-size: 12px;
+  }
+  .mode-grid {
+    grid-template-columns: 1fr;
+    gap: 9px;
+    margin-top: 16px;
+  }
+  .mode-card {
+    min-height: 0;
+    padding: 14px;
+    gap: 8px;
+  }
+  .mode-card strong { font-size: 17px; }
+  .mode-card small { font-size: 11px; line-height: 1.5; }
+  .mode-card-action { padding-top: 9px; }
+}
+@media (orientation: landscape) and (max-height: 650px) and (pointer: coarse) {
+  .mode-modal {
+    width: min(920px, 100%);
+    padding: 12px 14px;
+  }
+  .mode-modal .help-modal-header { margin-bottom: 4px; }
+  .mode-modal h2 { font-size: clamp(18px, 4vh, 24px); }
+  .mode-modal .template-intro { font-size: 11px; line-height: 1.35; }
+  .mode-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 8px;
+    margin-top: 9px;
+  }
+  .mode-card {
+    min-height: 112px;
+    padding: 10px;
+    gap: 5px;
+    border-radius: 12px;
+  }
+  .mode-card-topline { gap: 6px; }
+  .mode-card-icon { width: 34px; height: 34px; border-radius: 9px; font-size: 18px; }
+  .mode-card-kicker { font-size: 7px; }
+  .mode-card strong { font-size: 13px; }
+  .mode-card small { font-size: 9px; line-height: 1.25; }
+  .mode-card-action { padding-top: 5px; font-size: 8px; }
+}
