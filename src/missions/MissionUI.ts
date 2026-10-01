@@ -7,7 +7,6 @@ export interface MissionUIOptions {
 }
 
 export class MissionUI {
-  private tracker: HTMLElement | null = null;
   private modal: HTMLElement | null = null;
   private toastHost: HTMLElement | null = null;
   private lastSignature = '';
@@ -15,20 +14,10 @@ export class MissionUI {
   constructor(private readonly options: MissionUIOptions) {}
 
   mount(): void {
-    if (typeof document === 'undefined' || this.tracker) return;
+    if (typeof document === 'undefined' || this.modal) return;
 
-    const tracker = document.createElement('section');
-    tracker.id = 'mission-tracker';
-    tracker.className = 'mission-tracker';
-    tracker.setAttribute('aria-label', t('Objectives'));
-    tracker.innerHTML =
-      '<button class="mission-tracker__header" type="button" data-mission-action="open">' +
-        '<span class="mission-tracker__crest">♜</span>' +
-        '<span class="mission-tracker__heading"><small>' + escapeHtml(t('CURRENT OBJECTIVES')) + '</small><strong>' + escapeHtml(t('Mission Journal')) + '</strong></span>' +
-        '<span class="mission-tracker__count" data-mission-count>0 / 0</span>' +
-      '</button>' +
-      '<div class="mission-tracker__body" data-mission-active></div>' +
-      '<button class="mission-tracker__footer" type="button" data-mission-action="open">' + escapeHtml(t('View all objectives →')) + '</button>';
+    const trigger = document.getElementById('missions-button');
+    if (!(trigger instanceof HTMLButtonElement)) return;
 
     const modal = document.createElement('div');
     modal.id = 'mission-journal';
@@ -52,37 +41,44 @@ export class MissionUI {
     toastHost.setAttribute('aria-live', 'polite');
     toastHost.setAttribute('aria-atomic', 'true');
 
-    document.body.appendChild(tracker);
     document.body.appendChild(modal);
     document.body.appendChild(toastHost);
 
-    this.tracker = tracker;
     this.modal = modal;
     this.toastHost = toastHost;
+
+    const setOpen = (open: boolean): void => {
+      modal.hidden = !open;
+      trigger.setAttribute('aria-expanded', String(open));
+      document.querySelectorAll<HTMLButtonElement>('[data-mobile-proxy="missions-button"]').forEach((proxy) => {
+        proxy.setAttribute('aria-expanded', String(open));
+      });
+    };
+
+    trigger.addEventListener('click', () => setOpen(modal.hidden));
 
     const handleClick = (event: Event): void => {
       const target = event.target as HTMLElement | null;
       const actionElement = target?.closest<HTMLElement>('[data-mission-action]');
       if (!actionElement) return;
       const action = actionElement.dataset.missionAction;
-      if (action === 'open') modal.hidden = false;
-      if (action === 'close') modal.hidden = true;
+      if (action === 'open') setOpen(true);
+      if (action === 'close') setOpen(false);
       if (action === 'pin') {
         this.options.onPinMission(actionElement.dataset.missionId);
-        modal.hidden = true;
+        setOpen(false);
       }
     };
 
-    tracker.addEventListener('click', handleClick);
     modal.addEventListener('click', (event) => {
-      if (event.target === modal) modal.hidden = true;
+      if (event.target === modal) setOpen(false);
       handleClick(event);
     });
   }
 
   render(view: MissionView, completedIds: readonly string[] = []): void {
     this.mount();
-    if (!this.tracker || !this.modal) return;
+    if (!this.modal) return;
 
     const signature = JSON.stringify({
       pinned: view.pinnedMissionId,
@@ -93,7 +89,6 @@ export class MissionUI {
 
     if (signature !== this.lastSignature) {
       this.lastSignature = signature;
-      this.renderTracker(view);
       this.renderJournal(view);
     }
 
@@ -101,19 +96,6 @@ export class MissionUI {
       const entry = view.completed.find((candidate) => candidate.definition.id === id);
       if (entry) this.showCompletionToast(entry);
     }
-  }
-
-  private renderTracker(view: MissionView): void {
-    if (!this.tracker) return;
-    const count = this.tracker.querySelector<HTMLElement>('[data-mission-count]');
-    const active = this.tracker.querySelector<HTMLElement>('[data-mission-active]');
-    if (count) count.textContent = formatMissionNumber(view.totalCompleted) + ' / ' + formatMissionNumber(view.totalMissions);
-    if (!active) return;
-
-    const visible = view.active.slice(0, 3);
-    active.innerHTML = visible.length
-      ? visible.map((entry) => this.compactCard(entry)).join('')
-      : '<div class="mission-tracker__empty"><span>✦</span><strong>' + escapeHtml(t('All current objectives complete')) + '</strong><small>' + escapeHtml(t('More missions can be added without changing the mission UI.')) + '</small></div>';
   }
 
   private renderJournal(view: MissionView): void {
@@ -148,14 +130,6 @@ export class MissionUI {
         ? view.locked.map((entry) => this.lockedCard(entry)).join('')
         : '<p class="mission-journal__empty-copy">' + escapeHtml(t('No locked objectives.')) + '</p>';
     }
-  }
-
-  private compactCard(entry: MissionViewEntry): string {
-    const ratio = progressPercent(entry);
-    return '<article class="mission-compact ' + (entry.pinned ? 'is-pinned' : '') + '">' +
-      '<div class="mission-compact__top"><span class="mission-compact__icon">' + escapeHtml(entry.definition.icon) + '</span><div><strong>' + escapeHtml(t(entry.definition.title)) + '</strong><small>' + escapeHtml(t(entry.definition.progressLabel)) + ' · ' + formatProgress(entry) + '</small></div></div>' +
-      '<div class="mission-progress" aria-label="' + formatMissionPercent(ratio) + '"><span style="width:' + ratio + '%"></span></div>' +
-    '</article>';
   }
 
   private fullCard(entry: MissionViewEntry, completed: boolean): string {
