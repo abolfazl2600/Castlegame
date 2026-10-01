@@ -1,4 +1,12 @@
 :root {
+  --safe-area-top: env(safe-area-inset-top, 0px);
+  --safe-area-right: env(safe-area-inset-right, 0px);
+  --safe-area-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-area-left: env(safe-area-inset-left, 0px);
+  --mobile-safe-top: var(--safe-area-top);
+  --mobile-safe-right: var(--safe-area-right);
+  --mobile-safe-bottom: var(--safe-area-bottom);
+  --mobile-safe-left: var(--safe-area-left);
   font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   color: #f7fbff;
   background: #07111c;
@@ -144,19 +152,6 @@ h1 { margin: 3px 0 0; font-size: 22px; line-height: 1; letter-spacing: -.035em; 
   align-items: center;
   justify-content: flex-end;
   gap: 7px;
-}
-.build-mode-chip {
-  overflow: hidden;
-  max-width: 104px;
-  padding: 5px 7px;
-  border: 1px solid rgba(105, 216, 255, .14);
-  border-radius: 999px;
-  color: #a9eaff;
-  background: rgba(64, 173, 217, .08);
-  font-size: 8px;
-  font-weight: 800;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 .toolbar-close {
   flex: 0 0 auto;
@@ -697,7 +692,6 @@ h1 { margin: 3px 0 0; font-size: 22px; line-height: 1; letter-spacing: -.035em; 
   .tool-category-items { gap: 5px; }
   .tool-button { min-height: 58px; padding: 7px 24px 7px 7px; }
   .tool-copy small { display: none; }
-  .build-mode-chip { max-width: 82px; }
   .build-category-tab { min-height: 30px; padding: 5px 7px; }
   .toolbar-open {
     left: 9px;
@@ -794,8 +788,6 @@ h1 { margin: 3px 0 0; font-size: 22px; line-height: 1; letter-spacing: -.035em; 
   background: #9be7ee;
 }
 
-
-
 .template-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -872,7 +864,6 @@ h1 { margin: 3px 0 0; font-size: 22px; line-height: 1; letter-spacing: -.035em; 
   .template-grid { grid-template-columns: 1fr; }
   .template-card { min-height: 92px; }
 }
-
 
 .builder-settings {
   display: grid;
@@ -1239,6 +1230,78 @@ h1 { margin: 3px 0 0; font-size: 22px; line-height: 1; letter-spacing: -.035em; 
   transform: none;
 }
 
+.carpenter-upgrade-card {
+  display: grid;
+  gap: 9px;
+  margin: 8px 0 10px;
+  padding: 11px;
+  border: 1px solid rgba(207, 164, 104, .24);
+  border-radius: 12px;
+  background: linear-gradient(145deg, rgba(55, 39, 27, .96), rgba(31, 23, 18, .96));
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,.035);
+}
+.carpenter-upgrade-card[hidden] { display: none; }
+.carpenter-upgrade-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+}
+.carpenter-upgrade-heading > div { display: grid; gap: 3px; }
+.carpenter-upgrade-heading strong { color: #fff2dc; font-size: 12px; }
+#carpenter-upgrade-badge {
+  flex: 0 0 auto;
+  padding: 4px 7px;
+  border: 1px solid rgba(220, 179, 118, .28);
+  border-radius: 999px;
+  color: #ffefd5;
+  background: rgba(135, 89, 49, .28);
+  font-size: 9px;
+  font-weight: 900;
+}
+.carpenter-level-track {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 5px;
+}
+.carpenter-level-track span {
+  height: 6px;
+  border: 1px solid rgba(255,255,255,.06);
+  border-radius: 99px;
+  background: rgba(255,255,255,.09);
+}
+.carpenter-level-track span.is-complete {
+  border-color: rgba(225, 186, 129, .34);
+  background: rgba(155, 105, 61, .76);
+}
+.carpenter-level-track span.is-current {
+  box-shadow: 0 0 0 2px rgba(229, 190, 132, .18);
+}
+#carpenter-upgrade-description {
+  color: rgba(247, 232, 210, .74);
+  font-size: 9px;
+  line-height: 1.45;
+}
+.carpenter-upgrade-button {
+  min-height: 34px;
+  border: 1px solid rgba(223, 181, 121, .32);
+  border-radius: 9px;
+  color: #fff8eb;
+  background: linear-gradient(135deg, rgba(138, 88, 47, .62), rgba(94, 69, 43, .52));
+  cursor: pointer;
+  font-size: 10px;
+  font-weight: 900;
+}
+.carpenter-upgrade-button:hover:not(:disabled) {
+  border-color: rgba(235, 199, 146, .66);
+  transform: translateY(-1px);
+}
+.carpenter-upgrade-button:disabled {
+  opacity: .52;
+  cursor: not-allowed;
+  transform: none;
+}
+
 .harbor-upgrade-card {
   display: grid;
   gap: 9px;
@@ -1346,7 +1409,6 @@ h1 { margin: 3px 0 0; font-size: 22px; line-height: 1; letter-spacing: -.035em; 
   background: linear-gradient(145deg, #9bb768, #6f5139);
   color: #fff1c4;
 }
-
 
 .battle-panel {
   position: absolute;
@@ -1826,7 +1888,6 @@ h1 { margin: 3px 0 0; font-size: 22px; line-height: 1; letter-spacing: -.035em; 
   }
 }
 
-
 .long-press-indicator {
   position: fixed;
   z-index: 100;
@@ -1890,7 +1951,6 @@ h1 { margin: 3px 0 0; font-size: 22px; line-height: 1; letter-spacing: -.035em; 
   }
 }
 
-
 .template-section-heading {
   grid-column: 1 / -1;
   display: grid;
@@ -1917,7 +1977,6 @@ h1 { margin: 3px 0 0; font-size: 22px; line-height: 1; letter-spacing: -.035em; 
 .terrain-template-card {
   border-color: rgba(116, 194, 143, .14);
 }
-
 
 /* Compact play-area optimization */
 html, body, #app {
@@ -2132,7 +2191,6 @@ kbd {
   font-size: 8px;
 }
 
-
 .battle-panel {
   right: 9px;
   bottom: 9px;
@@ -2254,16 +2312,6 @@ kbd {
   border-radius: 12px;
 }
 
-
-.mode-button { white-space: nowrap; }
-.mode-modal { max-width: 860px; }
-.mode-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:18px; margin-top:18px; }
-.mode-card { display:flex; flex-direction:column; align-items:flex-start; gap:8px; min-height:190px; padding:22px; border:1px solid rgba(151,196,204,.28); border-radius:18px; background:rgba(10,24,34,.82); color:inherit; text-align:left; cursor:pointer; }
-.mode-card:hover { border-color:rgba(126,221,232,.7); transform:translateY(-2px); }
-.mode-card-icon { display:grid; place-items:center; width:58px; height:58px; border-radius:14px; background:rgba(110,182,194,.16); font-size:30px; }
-.mode-card strong { font-size:18px; }
-.mode-card small { color:rgba(226,241,244,.72); line-height:1.5; }
-
 .map-layout-modal { max-width: 980px; }
 .map-layout-grid {
   display: grid;
@@ -2336,8 +2384,7 @@ kbd {
 }
 
 @media (max-width:720px) {
-  .mode-grid,
-  .map-layout-grid { grid-template-columns:1fr; }
+.map-layout-grid { grid-template-columns:1fr; }
   .map-layout-card { grid-template-columns: 82px minmax(0, 1fr); min-height: 112px; padding: 12px; }
   .map-layout-preview { width: 82px; height: 78px; font-size: 22px; }
 }
@@ -2365,14 +2412,12 @@ kbd {
   .mobile-header-actions::-webkit-scrollbar { display:none; }
   .mobile-action,.mobile-dock-button { -webkit-tap-highlight-color:transparent; touch-action:manipulation; user-select:none; }
   .mobile-action { flex:0 0 auto; min-width:44px; min-height:44px; padding:7px 9px; border:1px solid rgba(255,255,255,.13); border-radius:12px; color:#f1fbff; background:rgba(7,25,39,.84); backdrop-filter:blur(14px); box-shadow:0 8px 24px rgba(0,0,0,.22); font-size:16px; font-weight:800; cursor:pointer; }
-  .mobile-mode-action { max-width:148px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:10px; }
+  .mobile-mode-action { width:44px; max-width:44px; padding:7px; overflow:visible; font-size:18px; line-height:1; }
   .mobile-danger { color:#ffd7d2; border-color:rgba(255,140,130,.22); }
   .mobile-bottom-dock { position:absolute; left:0; right:0; bottom:0; min-height:calc(var(--mobile-dock-height) + var(--mobile-safe-bottom)); padding:5px max(8px,var(--mobile-safe-right)) calc(5px + var(--mobile-safe-bottom)) max(8px,var(--mobile-safe-left)); display:grid; grid-template-columns:repeat(2,minmax(44px,160px)); justify-content:center; gap:5px; pointer-events:auto; background:linear-gradient(0deg,rgba(4,16,27,.97),rgba(4,16,27,.88) 72%,rgba(4,16,27,0)); backdrop-filter:blur(12px); }
   .mobile-dock-button { min-width:44px; min-height:48px; display:grid; place-items:center; align-content:center; gap:2px; border:1px solid rgba(255,255,255,.1); border-radius:11px; color:#e8f8fc; background:rgba(255,255,255,.055); cursor:pointer; }
   .mobile-dock-button span { font-size:16px; line-height:1; }
   .mobile-dock-button small { font-size:8px; font-weight:850; letter-spacing:.04em; }
-  .mobile-status { position:absolute; left:max(8px,var(--mobile-safe-left)); bottom:calc(var(--mobile-dock-height) + var(--mobile-safe-bottom) + 8px); max-width:min(58vw,280px); min-height:30px; padding:6px 9px; display:flex; align-items:center; gap:6px; border:1px solid rgba(255,255,255,.1); border-radius:999px; color:rgba(238,250,255,.84); background:rgba(5,23,36,.78); backdrop-filter:blur(12px); box-shadow:0 8px 24px rgba(0,0,0,.2); overflow:hidden; pointer-events:none; font-size:8px; font-weight:800; white-space:nowrap; text-overflow:ellipsis; }
-  .mobile-status-dot { width:6px; height:6px; flex:0 0 auto; border-radius:50%; background:#63e6be; box-shadow:0 0 10px rgba(99,230,190,.7); }
   .toolbar { left:max(8px,var(--mobile-safe-left)); right:max(8px,var(--mobile-safe-right)); top:auto; bottom:calc(var(--mobile-dock-height) + var(--mobile-safe-bottom) + 7px); z-index:40; width:auto; max-width:none; max-height:min(64dvh,640px); padding:8px 8px 14px; border-radius:17px; transform:translateY(0); box-shadow:0 22px 60px rgba(0,0,0,.48),inset 0 1px rgba(255,255,255,.05); overscroll-behavior:contain; scroll-padding-bottom:18px; }
   .toolbar.is-collapsed { transform:translateY(calc(100% + 32px)); }
   .toolbar-open { display:none !important; }
@@ -2390,7 +2435,8 @@ kbd {
   .view-mode-switch,.camera-view-controls { display:none; }
   .battle-panel,.god-mode-panel { left:max(8px,var(--mobile-safe-left)); right:max(8px,var(--mobile-safe-right)); bottom:calc(var(--mobile-dock-height) + var(--mobile-safe-bottom) + 7px); width:auto; max-width:none; max-height:min(70dvh,680px); padding:12px; }
   .battle-close,.battle-stepper button,.battle-actions button { min-width:44px; min-height:44px; }
-  .help-modal,.template-modal,.mode-modal { max-height:calc(100dvh - var(--mobile-safe-top) - var(--mobile-safe-bottom) - 16px); margin-top:var(--mobile-safe-top); margin-bottom:var(--mobile-safe-bottom); }
+.help-modal,
+.template-modal { max-height:calc(100dvh - var(--mobile-safe-top) - var(--mobile-safe-bottom) - 16px); margin-top:var(--mobile-safe-top); margin-bottom:var(--mobile-safe-bottom); }
   .modal-backdrop { padding:max(8px,var(--mobile-safe-top)) max(8px,var(--mobile-safe-right)) max(8px,var(--mobile-safe-bottom)) max(8px,var(--mobile-safe-left)); }
   button,select,input[type=checkbox],input[type=range] { touch-action:manipulation; }
 }
@@ -2415,7 +2461,6 @@ kbd {
   .mobile-bottom-dock { gap:3px; padding-inline:max(5px,var(--mobile-safe-right)) max(5px,var(--mobile-safe-left)); }
   .mobile-dock-button small { font-size:7px; }
 }
-
 
 .audio-settings-modal {
   width: min(420px, calc(100vw - 28px));
@@ -2585,9 +2630,6 @@ kbd {
     flex-direction: column;
   }
 }
-
-
-
 
 /* Privacy & Legal inside the central Settings system */
 .settings-privacy-section {
@@ -2844,7 +2886,6 @@ html[data-high-contrast] .settings-modal { background:rgba(0,0,0,.86); }
 html[data-high-contrast] .settings-card { border-color:rgba(255,255,255,.42); }
 @media (max-width:560px) { .settings-modal { padding:8px; } .settings-card { max-height:calc(100vh - 16px); border-radius:14px; } .settings-scroll { padding:10px; } .settings-scroll label { grid-template-columns:1fr; gap:6px; } .settings-scroll label:has(input[type="checkbox"]) { grid-template-columns:1fr auto; } }
 
-
 .settings-system-actions-section {
   border-color: rgba(126,225,255,.18) !important;
   background: linear-gradient(145deg, rgba(83,199,240,.055), rgba(255,255,255,.025)) !important;
@@ -2988,7 +3029,6 @@ html[data-high-contrast] .settings-card { border-color:rgba(255,255,255,.42); }
   display: none;
 }
 
-
 /* User-controlled battle speed */
 .battle-speed-control {
   display: grid;
@@ -3037,7 +3077,6 @@ html[data-high-contrast] .settings-card { border-color:rgba(255,255,255,.42); }
   color: #8eabb6;
   font-size: 9px;
 }
-
 
 /* Settings control center refresh */
 .settings-modal {
@@ -3356,8 +3395,9 @@ button:disabled, button[aria-disabled="true"] { cursor: not-allowed; opacity: .5
 .tool-button.is-selected, .view-mode-button.is-active { border-color: var(--ui-focus); }
 .minimap {
   position: absolute;
-  right: 16px;
-  top: 110px;
+  left: 16px;
+  right: auto;
+  top: 16px;
   z-index: 8;
   width: 136px;
   display: grid;
@@ -3376,21 +3416,20 @@ button:disabled, button[aria-disabled="true"] { cursor: not-allowed; opacity: .5
 .minimap canvas { width: 100%; aspect-ratio: 1; image-rendering: pixelated; border: 1px solid rgba(255,255,255,.15); border-radius: 4px; }
 .minimap-hint { color: var(--ui-muted); font-size: 9px; }
 @media (max-width: 760px) {
-  .minimap { top: calc(var(--mobile-header-height) + var(--mobile-safe-top) + 48px); right: max(8px,var(--mobile-safe-right)); width: 94px; padding: 6px; }
+  .minimap { top: max(8px,var(--mobile-safe-top)); left: max(8px,var(--mobile-safe-left)); right: auto; width: 94px; padding: 6px; }
   .minimap-title { font-size: 8px; }
   .minimap-hint { display: none; }
 }
 html[data-reduced-motion] .minimap, html[data-reduced-motion] button { transition: none !important; }
 
-
 /* Touch / Mobile mode can be forced from Settings at any viewport size.
    MobileUI owns the active class so narrow screens and explicit touch preference
    share one presentation path instead of relying on width alone. */
 html.mobile-ui-active {
-  --mobile-safe-top: env(safe-area-inset-top, 0px);
-  --mobile-safe-right: env(safe-area-inset-right, 0px);
-  --mobile-safe-bottom: env(safe-area-inset-bottom, 0px);
-  --mobile-safe-left: env(safe-area-inset-left, 0px);
+  --mobile-safe-top: var(--safe-area-top);
+  --mobile-safe-right: var(--safe-area-right);
+  --mobile-safe-bottom: var(--safe-area-bottom);
+  --mobile-safe-left: var(--safe-area-left);
   --mobile-header-height: 54px;
   --mobile-dock-height: 0px;
 }
@@ -3506,11 +3545,12 @@ html.mobile-ui-active .mobile-action {
 }
 
 html.mobile-ui-active .mobile-mode-action {
-  max-width: 148px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-size: 10px;
+  width: 44px;
+  max-width: 44px;
+  padding: 7px;
+  overflow: visible;
+  font-size: 18px;
+  line-height: 1;
 }
 
 /* Build lives alongside the primary actions; the bottom dock is no longer rendered. */
@@ -3518,9 +3558,13 @@ html.mobile-ui-active .mobile-build-action {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 5px;
+  width: 44px;
+  max-width: 44px;
+  padding: 7px;
+  gap: 0;
   white-space: nowrap;
-  font-size: 12px;
+  font-size: 18px;
+  line-height: 1;
 }
 html.mobile-ui-active .mobile-build-action[aria-expanded="true"] {
   background: rgba(61,160,209,.25);
@@ -3560,38 +3604,6 @@ html.mobile-ui-active .mobile-dock-button {
 }
 html.mobile-ui-active .mobile-dock-button span { font-size: 16px; line-height: 1; }
 html.mobile-ui-active .mobile-dock-button small { font-size: 8px; font-weight: 850; letter-spacing: .04em; }
-
-html.mobile-ui-active .mobile-status {
-  position: absolute;
-  left: max(8px,var(--mobile-safe-left));
-  bottom: calc(var(--mobile-dock-height) + var(--mobile-safe-bottom) + 8px);
-  max-width: min(58vw,280px);
-  min-height: 30px;
-  padding: 6px 9px;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  border: 1px solid rgba(255,255,255,.1);
-  border-radius: 999px;
-  color: rgba(238,250,255,.84);
-  background: rgba(5,23,36,.78);
-  backdrop-filter: blur(12px);
-  box-shadow: 0 8px 24px rgba(0,0,0,.2);
-  overflow: hidden;
-  pointer-events: none;
-  font-size: 8px;
-  font-weight: 800;
-  white-space: nowrap;
-  text-overflow: ellipsis;
-}
-html.mobile-ui-active .mobile-status-dot {
-  width: 6px;
-  height: 6px;
-  flex: 0 0 auto;
-  border-radius: 50%;
-  background: #63e6be;
-  box-shadow: 0 0 10px rgba(99,230,190,.7);
-}
 
 html.mobile-ui-active .toolbar {
   left: max(8px,var(--mobile-safe-left));
@@ -3657,10 +3669,8 @@ html.mobile-ui-active .battle-stepper button,
 html.mobile-ui-active .battle-actions button,
 html.mobile-ui-active .god-mode-actions-footer button,
 html.mobile-ui-active .god-mode-action { min-width: 44px; min-height: 44px; }
-
 html.mobile-ui-active .help-modal,
-html.mobile-ui-active .template-modal,
-html.mobile-ui-active .mode-modal {
+html.mobile-ui-active .template-modal {
   max-height: calc(100dvh - var(--mobile-safe-top) - var(--mobile-safe-bottom) - 16px);
   max-width: 100%;
   margin: 0;
@@ -3671,10 +3681,8 @@ html.mobile-ui-active .modal-backdrop {
 }
 html.mobile-ui-active .modal-backdrop[hidden] { display: none; }
 html.mobile-ui-active #game-shell > .modal-backdrop:not([hidden]) { z-index: 50; }
-html.mobile-ui-active .mode-grid,
 html.mobile-ui-active .map-layout-grid,
 html.mobile-ui-active .template-grid { grid-template-columns: repeat(auto-fit, minmax(min(240px, 100%), 1fr)); }
-html.mobile-ui-active .mode-card,
 html.mobile-ui-active .map-layout-card,
 html.mobile-ui-active .template-card { min-height: 88px; }
 html.mobile-ui-active .help-modal-header { position: sticky; top: -12px; z-index: 1; background: #0a2030; }
@@ -3717,8 +3725,9 @@ html.mobile-ui-active .settings-system-actions { grid-template-columns: 1fr; }
 html.mobile-ui-active .settings-control-reference { grid-template-columns: 1fr; }
 
 html.mobile-ui-active .minimap {
-  top: calc(var(--mobile-header-height) + var(--mobile-safe-top) + 48px);
-  right: max(8px,var(--mobile-safe-right));
+  top: max(8px,var(--mobile-safe-top));
+  left: max(8px,var(--mobile-safe-left));
+  right: auto;
   width: 94px;
   padding: 6px;
 }
@@ -3750,7 +3759,6 @@ html.mobile-ui-active .minimap-hint { display: none; }
     max-height: calc(100dvh - var(--mobile-header-height) - var(--mobile-dock-height) - var(--mobile-safe-top) - var(--mobile-safe-bottom) - 16px);
   }
 }
-
 
 /* Performance debug overlay ------------------------------------------------ */
 .debug-performance-overlay {
@@ -3908,7 +3916,6 @@ html.mobile-ui-active .debug-performance-overlay {
   }
 }
 
-
 /* Compact Android/tablet landscape: use viewport height as well as width.
    Emulators often report >760 CSS px in landscape, bypassing phone-only rules. */
 @media (orientation: landscape) and (max-height: 650px) and (pointer: coarse) {
@@ -3938,55 +3945,20 @@ html.mobile-ui-active .debug-performance-overlay {
   .status-pill { display: none; }
   .status-group button { min-height: 36px; padding: 6px 9px; font-size: 11px; }
   .modal-backdrop {
-    padding: 6px max(8px, env(safe-area-inset-right, 0px)) 6px max(8px, env(safe-area-inset-left, 0px));
+    padding: 6px max(8px, var(--safe-area-right)) 6px max(8px, var(--safe-area-left));
     min-height: 0;
   }
-  .mode-modal {
-    box-sizing: border-box;
-    width: min(760px, 100%);
-    max-width: 100%;
-    max-height: calc(100dvh - 70px - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px));
-    overflow-y: auto;
-    overscroll-behavior: contain;
-    padding: 14px 16px;
-    border-radius: 14px;
-  }
-  .mode-modal h2 { font-size: clamp(18px, 3.8vh, 24px); line-height: 1.15; }
-  .mode-modal p { margin-block: 6px 10px; font-size: 12px; }
-  .mode-grid { gap: 10px; margin-top: 10px; }
-  .mode-card {
-    min-width: 0;
-    min-height: 108px;
-    padding: 12px;
-    gap: 5px;
-    border-radius: 12px;
-  }
-  .mode-card-icon { width: 38px; height: 38px; font-size: 21px; border-radius: 10px; }
-  .mode-card strong { font-size: 14px; }
-  .mode-card small { font-size: 11px; line-height: 1.3; }
-}
-@media (orientation: landscape) and (max-height: 400px) and (pointer: coarse) {
-  .mode-modal { max-height: calc(100dvh - 58px); padding: 10px 12px; }
-  .mode-card { min-height: 82px; padding: 9px; }
-  .mode-card-icon { width: 30px; height: 30px; font-size: 17px; }
-}
-@media (orientation: portrait) and (max-width: 760px) {
-  .mode-modal { width: 100%; max-height: calc(100dvh - 24px); overflow-y: auto; }
-  .mode-grid { grid-template-columns: 1fr; gap: 10px; }
-  .mode-card { min-height: 96px; padding: 12px; }
-  .mode-card-icon { width: 40px; height: 40px; font-size: 22px; }
-  .mode-card strong { font-size: 15px; }
-}
 
+}
 
 /* Touch-friendly Settings, including landscape Android viewports wider than 700px.
    Safe-area insets keep controls clear of Android system bars and display cutouts. */
 @media (max-width: 700px), (pointer: coarse) and (max-height: 700px) {
   .settings-modal {
-    inset: max(8px, env(safe-area-inset-top, 0px))
-           max(8px, env(safe-area-inset-right, 0px))
-           max(8px, env(safe-area-inset-bottom, 0px))
-           max(8px, env(safe-area-inset-left, 0px));
+    inset: max(8px, var(--safe-area-top))
+           max(8px, var(--safe-area-right))
+           max(8px, var(--safe-area-bottom))
+           max(8px, var(--safe-area-left));
     width: auto;
     height: auto;
     max-width: none;
@@ -4090,7 +4062,6 @@ html.mobile-ui-active .debug-performance-overlay {
   }
 }
 
-
 /* Mobile battle setup: progressive disclosure and compact, thumb-friendly controls. */
 #military-button[hidden] { display: none !important; }
 .battle-advanced,
@@ -4106,6 +4077,7 @@ html.mobile-ui-active .battle-panel {
   overflow-y: auto;
   overscroll-behavior: contain;
 }
+html.mobile-ui-active .battle-panel[hidden] { display: none !important; }
 html.mobile-ui-active .battle-panel-header { order: 0; flex: 0 0 auto; }
 html.mobile-ui-active .battle-live { order: 1; flex: 0 0 auto; grid-template-columns: 1fr; }
 html.mobile-ui-active .battle-armies { order: 2; flex: 0 0 auto; grid-template-columns: 1fr; }
@@ -4131,6 +4103,18 @@ html.mobile-ui-active .battle-advanced[open] > summary { margin-bottom: 8px; }
 html.mobile-ui-active .battle-advanced-content { display: grid; gap: 8px; }
 html.mobile-ui-active .battle-panel[data-battle-phase="idle"] .battle-live,
 html.mobile-ui-active .battle-panel[data-battle-phase="idle"] .battle-capture { display: none; }
+html.mobile-ui-active .battle-panel[data-battle-phase="running"] .battle-armies,
+html.mobile-ui-active .battle-panel[data-battle-phase="paused"] .battle-armies,
+html.mobile-ui-active .battle-panel[data-battle-phase="finished"] .battle-armies {
+  display: none;
+}
+html.mobile-ui-active .battle-panel[data-battle-phase="running"] {
+  max-height: min(46dvh, 320px);
+}
+html.mobile-ui-active .battle-panel[data-battle-phase="paused"],
+html.mobile-ui-active .battle-panel[data-battle-phase="finished"] {
+  max-height: min(52dvh, 360px);
+}
 html.mobile-ui-active .battle-panel-header .eyebrow { display: none; }
 html.mobile-ui-active .battle-panel-header strong { font-size: 12px; }
 html.mobile-ui-active .battle-faction { padding: 7px 9px; gap: 3px; }
@@ -4164,6 +4148,387 @@ html.mobile-ui-active .battle-actions .battle-primary { grid-column: auto; }
 html.mobile-ui-active .battle-actions button { min-width: 0; padding: 5px 3px; font-size: 10px; }
 @media (orientation: landscape) {
   html.mobile-ui-active .battle-panel {
-    max-height: calc(100dvh - var(--mobile-header-height) - var(--mobile-dock-height) - var(--mobile-safe-top) - var(--mobile-safe-bottom) - 16px);
+    left: auto;
+    right: max(8px, var(--mobile-safe-right));
+    bottom: max(8px, var(--mobile-safe-bottom));
+    width: min(360px, 42vw);
+    max-width: calc(100vw - var(--mobile-safe-left) - var(--mobile-safe-right) - 16px);
+    max-height: calc(100dvh - var(--mobile-header-height) - var(--mobile-safe-top) - var(--mobile-safe-bottom) - 16px);
+  }
+
+  html.mobile-ui-active .battle-panel[data-battle-phase="running"] {
+    max-height: min(78dvh, 300px);
+  }
+
+  html.mobile-ui-active .battle-panel[data-battle-phase="paused"],
+  html.mobile-ui-active .battle-panel[data-battle-phase="finished"] {
+    max-height: min(84dvh, 340px);
+  }
+}
+
+/* Persian user interface (RTL) — never mirror world geometry or camera controls. */
+html[dir="rtl"] {
+  font-family: Tahoma, 'Noto Sans Arabic', 'Segoe UI', system-ui, sans-serif;
+}
+html[dir="rtl"] .topbar,
+html[dir="rtl"] .toolbar,
+html[dir="rtl"] .settings-modal,
+html[dir="rtl"] .help-modal,
+html[dir="rtl"] .battle-panel,
+html[dir="rtl"] .mobile-header,
+html[dir="rtl"] .mobile-bottom-dock,
+html[dir="rtl"] .modal-backdrop {
+  direction: rtl;
+  text-align: right;
+}
+html[dir="rtl"] kbd,
+html[dir="rtl"] code,
+html[dir="rtl"] input[type="number"],
+html[dir="rtl"] input[type="range"],
+html[dir="rtl"] .debug-panel,
+html[dir="rtl"] .render-debug-panel {
+  direction: ltr;
+}
+
+/* RTL hardening for touch controls, compact settings, and readable Persian copy.
+   Only HTML overlays change direction; WebGL and camera gestures remain unchanged. */
+html[dir="rtl"] .settings-nav {
+  border-right: 0;
+  border-left: 1px solid rgba(255,255,255,.07);
+}
+html[dir="rtl"] .settings-nav-button,
+html[dir="rtl"] .settings-system-actions button {
+  text-align: right;
+}
+html[dir="rtl"] .settings-action-copy,
+html[dir="rtl"] .tool-copy,
+html[dir="rtl"] .mobile-brand,
+html[dir="rtl"] .privacy-document {
+  min-width: 0;
+  overflow-wrap: break-word;
+}
+html[dir="rtl"] .settings-scroll h3,
+html[dir="rtl"] .settings-section-eyebrow,
+html[dir="rtl"] .settings-eyebrow,
+html[dir="rtl"] .mobile-eyebrow {
+  letter-spacing: normal;
+  text-transform: none;
+}
+html[dir="rtl"] .settings-scroll input[type="number"],
+html[dir="rtl"] .battle-stepper input,
+html[dir="rtl"] .battle-speed-actions,
+html[dir="rtl"] .settings-scroll output {
+  direction: ltr;
+  unicode-bidi: isolate;
+}
+html[dir="rtl"].mobile-ui-active .mobile-brand {
+  padding-left: 0;
+  padding-right: 3px;
+}
+html[dir="rtl"].mobile-ui-active .minimap {
+  right: auto;
+  left: max(8px, var(--mobile-safe-left));
+}
+@media (max-width: 700px), (pointer: coarse) and (max-height: 700px) {
+  html[dir="rtl"] .settings-nav {
+    border-left: 0;
+  }
+  html[dir="rtl"] .settings-nav-button strong {
+    font-size: 11px;
+  }
+}
+@media (orientation: landscape) {
+  html[dir="rtl"].mobile-ui-active .toolbar {
+    left: auto;
+    right: max(8px, var(--mobile-safe-right));
+  }
+  html[dir="rtl"].mobile-ui-active .toolbar.is-collapsed {
+    transform: translateX(calc(100% + 32px));
+  }
+}
+
+/* Mobile: advanced military development is desktop-only and must not appear in the battle panel. */
+html.mobile-ui-active .battle-advanced {
+  display: none !important;
+}
+
+/* Persian RTL Settings normalization */
+html[dir="rtl"] .settings-modal {
+  direction: rtl;
+}
+html[dir="rtl"] .settings-header-copy,
+html[dir="rtl"] .settings-pane-heading,
+html[dir="rtl"] .settings-control-copy,
+html[dir="rtl"] .settings-action-copy,
+html[dir="rtl"] .settings-control-reference,
+html[dir="rtl"] .settings-data-actions button,
+html[dir="rtl"] .settings-system-actions button,
+html[dir="rtl"] .settings-nav-button {
+  text-align: right;
+}
+html[dir="rtl"] .settings-control-row,
+html[dir="rtl"] .settings-toggle-row {
+  text-align: right;
+}
+html[dir="rtl"] .settings-control-row select {
+  direction: rtl;
+  text-align: right;
+}
+html[dir="rtl"] .settings-control-reference kbd {
+  direction: ltr;
+  margin-right: 0;
+  margin-left: 4px;
+}
+html[dir="rtl"] .settings-system-actions button > span:last-child {
+  transform: rotate(180deg);
+}
+html[dir="rtl"] .settings-nav {
+  border-right: 0;
+  border-left: 1px solid rgba(255,255,255,.07);
+}
+html[dir="rtl"] .settings-nav-button.is-active {
+  background: linear-gradient(270deg, rgba(83,199,240,.12), rgba(83,199,240,.035));
+}
+@media (max-width: 700px), (pointer: coarse) and (max-height: 700px) {
+  html[dir="rtl"] .settings-nav {
+    border-left: 0;
+  }
+}
+html[dir="rtl"].mobile-ui-active .settings-nav {
+  border-left: 0;
+}
+
+
+
+/* Starting world chooser: mobile-first RTL browser */
+#templates-modal .template-modal {
+  width: min(980px, 100%);
+  direction: inherit;
+  text-align: start;
+}
+
+#templates-modal .template-intro {
+  max-width: 72ch;
+  margin-bottom: 12px;
+  text-align: start;
+}
+
+#templates-modal .template-grid {
+  gap: 10px;
+}
+
+#templates-modal .template-card {
+  grid-template-columns: 64px minmax(0, 1fr);
+  min-height: 90px;
+  padding: 11px 12px;
+  gap: 3px 11px;
+  text-align: start;
+}
+
+#templates-modal .template-card strong,
+#templates-modal .template-card small {
+  text-align: start;
+}
+
+#templates-modal .template-preview {
+  width: 64px;
+  height: 64px;
+  border-radius: 16px;
+  font-size: 29px;
+}
+
+#templates-modal .template-section-heading--compact {
+  gap: 0;
+  margin-top: 6px;
+  padding: 8px 11px;
+  border-radius: 11px;
+}
+
+#templates-modal .template-section-heading--compact strong {
+  font-size: 11px;
+  letter-spacing: .02em;
+}
+
+html[dir="rtl"] #templates-modal .template-modal,
+html[dir="rtl"] #templates-modal .template-card,
+html[dir="rtl"] #templates-modal .template-card strong,
+html[dir="rtl"] #templates-modal .template-card small,
+html[dir="rtl"] #templates-modal .template-intro,
+html[dir="rtl"] #templates-modal .template-section-heading {
+  direction: rtl;
+  text-align: right;
+}
+
+html.mobile-ui-active #templates-modal {
+  place-items: stretch;
+  padding:
+    max(6px, var(--mobile-safe-top))
+    max(6px, var(--mobile-safe-right))
+    max(6px, var(--mobile-safe-bottom))
+    max(6px, var(--mobile-safe-left));
+}
+
+html.mobile-ui-active #templates-modal .template-modal {
+  width: 100%;
+  height: 100%;
+  max-width: none;
+  max-height: none;
+  margin: 0;
+  padding: 12px;
+  border-radius: 16px;
+  overscroll-behavior: contain;
+}
+
+html.mobile-ui-active #templates-modal .help-modal-header {
+  position: sticky;
+  top: -12px;
+  z-index: 4;
+  align-items: center;
+  margin: -12px -12px 8px;
+  padding: 12px;
+  border-bottom: 1px solid rgba(135,220,255,.12);
+  background: rgba(10, 32, 48, .98);
+  backdrop-filter: blur(14px);
+}
+
+html.mobile-ui-active #templates-modal .help-modal-header > div {
+  min-width: 0;
+}
+
+html.mobile-ui-active #templates-modal .help-modal h2 {
+  margin-top: 3px;
+  font-size: 20px;
+  line-height: 1.2;
+}
+
+html.mobile-ui-active #templates-modal .help-modal-header .eyebrow {
+  font-size: 7px;
+  letter-spacing: .12em;
+}
+
+html.mobile-ui-active #templates-modal .template-intro {
+  margin: 0 0 9px;
+  font-size: 10px;
+  line-height: 1.4;
+}
+
+html.mobile-ui-active #templates-modal .template-grid {
+  grid-template-columns: repeat(auto-fit, minmax(min(250px, 100%), 1fr));
+  gap: 7px;
+}
+
+html.mobile-ui-active #templates-modal .template-section-heading--compact {
+  margin-top: 4px;
+  padding: 7px 9px;
+}
+
+html.mobile-ui-active #templates-modal .template-section-heading--compact strong {
+  font-size: 10px;
+}
+
+html.mobile-ui-active #templates-modal .template-card {
+  grid-template-columns: 52px minmax(0, 1fr);
+  min-height: 68px;
+  padding: 8px 9px;
+  gap: 2px 9px;
+  border-radius: 12px;
+}
+
+html.mobile-ui-active #templates-modal .template-preview {
+  width: 52px;
+  height: 52px;
+  border-radius: 13px;
+  font-size: 24px;
+}
+
+html.mobile-ui-active #templates-modal .template-card strong {
+  font-size: 12px;
+  line-height: 1.25;
+}
+
+html.mobile-ui-active #templates-modal .template-card small {
+  display: -webkit-box;
+  overflow: hidden;
+  font-size: 9px;
+  line-height: 1.35;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+html.mobile-ui-active #templates-modal .icon-button {
+  flex: 0 0 44px;
+  width: 44px;
+  height: 44px;
+}
+
+@media (max-width: 760px) {
+  #templates-modal {
+    place-items: stretch;
+    padding:
+      max(6px, var(--mobile-safe-top))
+      max(6px, var(--mobile-safe-right))
+      max(6px, var(--mobile-safe-bottom))
+      max(6px, var(--mobile-safe-left));
+  }
+
+  #templates-modal .template-modal {
+    width: 100%;
+    height: 100%;
+    max-height: none;
+    margin: 0;
+    padding: 12px;
+    border-radius: 16px;
+  }
+
+  #templates-modal .help-modal-header {
+    position: sticky;
+    top: -12px;
+    z-index: 4;
+    align-items: center;
+    margin: -12px -12px 8px;
+    padding: 12px;
+    border-bottom: 1px solid rgba(135,220,255,.12);
+    background: rgba(10, 32, 48, .98);
+  }
+
+  #templates-modal .help-modal h2 {
+    margin-top: 3px;
+    font-size: 20px;
+    line-height: 1.2;
+  }
+
+  #templates-modal .template-intro {
+    margin: 0 0 9px;
+    font-size: 10px;
+    line-height: 1.4;
+  }
+
+  #templates-modal .template-grid {
+    grid-template-columns: 1fr;
+    gap: 7px;
+  }
+
+  #templates-modal .template-card {
+    grid-template-columns: 52px minmax(0, 1fr);
+    min-height: 68px;
+    padding: 8px 9px;
+    gap: 2px 9px;
+    border-radius: 12px;
+  }
+
+  #templates-modal .template-preview {
+    width: 52px;
+    height: 52px;
+    border-radius: 13px;
+    font-size: 24px;
+  }
+
+  #templates-modal .template-card strong {
+    font-size: 12px;
+  }
+
+  #templates-modal .template-card small {
+    font-size: 9px;
+    line-height: 1.35;
   }
 }

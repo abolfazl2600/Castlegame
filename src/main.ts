@@ -1,15 +1,23 @@
 import { MobileUI } from './ui/MobileUI';
+import { SafeAreaController } from './ui/SafeAreaController';
+import { installLocalization } from './i18n/localization';
 import { SettingsStore } from './settings/SettingsStore';
 import { SettingsUI } from './settings/SettingsUI';
+import { AndroidUpdateUI } from './settings/AndroidUpdateUI';
 import { installAndroidBackNavigation } from './android/androidBackNavigation';
+import { installAndroidImmersiveViewportBridge } from './android/androidImmersiveMode';
 import './style.css';
 
 const settingsStore = new SettingsStore(localStorage);
+installLocalization(settingsStore);
+new SafeAreaController();
 
 new SettingsUI(settingsStore, () => {
   settingsStore.resetLocalSave();
   window.location.reload();
 });
+
+new AndroidUpdateUI();
 
 try {
   new MobileUI(settingsStore);
@@ -17,6 +25,7 @@ try {
   console.error('Mobile UI initialization failed', error);
 }
 
+installAndroidImmersiveViewportBridge();
 installAndroidBackNavigation();
 void startGameRuntime();
 

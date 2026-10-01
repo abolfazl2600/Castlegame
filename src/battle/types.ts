@@ -42,8 +42,6 @@ export interface BattleSetup {
   defenderModernSoldiers: number;
 }
 
-import type { BattleObjectiveRuntimeState, BattleScenario } from './objectives/BattleObjectiveTypes';
-
 export interface BattleResult {
   winner: Faction | 'none';
   attackersRemaining: number;
@@ -55,7 +53,6 @@ export interface BattleResult {
   completedObjectives?: string[];
   failedObjectives?: string[];
 }
-
 
 export interface DefenderTypeCounts {
   swordsman: number;
@@ -75,7 +72,11 @@ export interface BattleStatus {
   defendersAlive: number;
   defenderAliveByType: DefenderTypeCounts;
   result?: BattleResult;
-  objectives?: BattleObjectiveRuntimeState[];
+  /**
+   * Deprecated compatibility field. Objective runtime types were removed;
+   * the current BattleSystem intentionally emits an empty array only.
+   */
+  objectives?: never[];
 }
 
 export interface BattleMissileTarget {
@@ -96,8 +97,4 @@ export interface BattleMissileLaunchOptions {
 export interface BattleMissileLaunchResult {
   ok: boolean;
   message: string;
-}
-
-export interface BattleScenarioSetup {
-  readonly scenario?: BattleScenario;
 }

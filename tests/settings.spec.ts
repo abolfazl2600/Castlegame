@@ -3,6 +3,10 @@ import { expect, test, type Page } from '@playwright/test';
 const APP_PATH = '/Castlegame/';
 
 async function loadApp(page: Page): Promise<void> {
+  // Legacy functional checks intentionally exercise English; Persian is covered separately.
+  await page.addInitScript(() => localStorage.setItem('castle-role.settings.v2', JSON.stringify({
+    schemaVersion: 2, interface: { language: 'en' },
+  })));
   await page.goto(APP_PATH, { waitUntil: 'domcontentloaded' });
   await expect(page.locator('#settings-modal')).toBeAttached();
   await expect(page.locator('#settings-backdrop')).toBeAttached();

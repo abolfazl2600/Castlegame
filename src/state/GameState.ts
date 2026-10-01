@@ -9,7 +9,7 @@ export interface CellEntry extends GridCell {
 }
 
 export class GameState {
-  private gameMode: GameMode = 'medieval';
+  private gameMode: GameMode = 'unified';
   private readonly cells = new Map<string, GridCell>();
   private missiles: MissileInventoryState = defaultMissileState();
 

@@ -247,7 +247,7 @@ function validateSettings(input: SettingsData): SettingsData {
     },
     interface: {
       uiScale: numberInRange(input.interface.uiScale, defaults.interface.uiScale, 0.75, 1.5),
-      language: language === 'system' || language === 'en' ? language : defaults.interface.language,
+      language: language === 'system' || language === 'en' || language === 'fa' ? language : defaults.interface.language,
       reducedMotion:
         typeof input.interface.reducedMotion === 'boolean'
           ? input.interface.reducedMotion

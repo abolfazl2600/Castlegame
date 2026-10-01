@@ -99,13 +99,13 @@ assert.doesNotMatch(
 
 const newGameFlow = between(
   threeGame,
-  'private handleGameModeSelection(',
-  'private resetWorldForMode(',
+  'private openMapLayoutSelector(',
+  'private resetWorld(',
 );
 assert.match(
-  newGameFlow,
-  /this\.openMapLayoutSelector\(modeId\)/,
-  'Choosing a game mode must continue to map layout selection.',
+  threeGame,
+  /if \(!hadSave\) this\.openMapLayoutSelector\(\)/,
+  'A new game must open map selection directly.',
 );
 assert.match(
   newGameFlow,
@@ -114,7 +114,7 @@ assert.match(
 );
 assert.match(
   newGameFlow,
-  /this\.setMapLayoutId\(layoutId\);[\s\S]*?this\.startNewGameWithMode\(mode\);/,
+  /this\.setMapLayoutId\(layoutId\);[\s\S]*?this\.startNewGame\(\);/,
   'Selecting a map layout must apply it before starting the new game.',
 );
 

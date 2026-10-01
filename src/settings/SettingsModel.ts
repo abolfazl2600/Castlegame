@@ -3,7 +3,7 @@ export const SETTINGS_SCHEMA_VERSION = 2 as const;
 export type GraphicsQuality = 'low' | 'medium' | 'high';
 export type PerformanceMode = 'auto' | 'performance' | 'balanced' | 'quality';
 export type EnvironmentDetail = 'low' | 'medium' | 'high';
-export type LanguageCode = 'system' | 'en';
+export type LanguageCode = 'system' | 'en' | 'fa';
 export type ControlScheme = 'standard' | 'touch';
 
 export interface GameplaySettings {
@@ -75,7 +75,7 @@ export function createDefaultSettings(): SettingsData {
     },
     interface: {
       uiScale: 1,
-      language: 'system',
+      language: 'fa',
       reducedMotion: false,
       highContrast: false,
       confirmDestructiveActions: true,

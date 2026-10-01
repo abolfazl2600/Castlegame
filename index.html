@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en">
+<html lang="fa" dir="rtl">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
@@ -18,9 +18,9 @@
           <span id="save-status" class="status-pill">3D Ready</span>
           <button id="battle-button" class="secondary-button battle-button" type="button">Battle</button>
           <button id="military-button" class="secondary-button battle-button" type="button" hidden>Military</button>
-          <button id="god-mode-button" class="secondary-button god-mode-button" type="button" hidden>God Mode</button>
-          <button id="game-mode-button" class="secondary-button mode-button" type="button" aria-label="Current game mode: Medieval Castle">Mode: <span id="game-mode-label">Medieval Castle</span></button>
+          <button id="god-mode-button" class="secondary-button god-mode-button" type="button">God Mode</button>
           <button id="templates-button" class="secondary-button system-action-bridge" type="button" hidden>Templates</button>
+          <button id="missions-button" class="secondary-button" type="button" aria-controls="mission-journal" aria-expanded="false">Mission Journal</button>
           <button id="settings-button" class="secondary-button" type="button">Settings</button>
           <button id="fullscreen-button" class="secondary-button" type="button">Fullscreen</button>
           <button id="load-button" class="secondary-button system-action-bridge" type="button" hidden>Load</button>
@@ -46,7 +46,7 @@
         <aside id="toolbar" class="toolbar" aria-label="Build tools"></aside>
 
         <button id="minimap" class="minimap" type="button" aria-label="Map overview; click to move camera">
-          <span class="minimap-title">WORLD MAP</span>
+          <span class="minimap-title">MAP</span>
           <canvas id="minimap-canvas" width="48" height="48" aria-hidden="true"></canvas>
           <span class="minimap-hint">Tap to move camera</span>
         </button>
@@ -174,7 +174,6 @@
               <button id="battle-speed-down" type="button" aria-label="Decrease battle speed">−</button>
               <strong id="battle-speed-value">1×</strong>
               <button id="battle-speed-up" type="button" aria-label="Increase battle speed">+</button>
-              <button id="battle-speed-reset" type="button" aria-label="Reset battle speed to normal">1×</button>
             </div>
             <small>Simulation and combat animations</small>
           </div>
@@ -186,6 +185,7 @@
 
           <div class="battle-actions">
             <button id="battle-start" class="battle-primary" type="button">Start Battle</button>
+            <button id="battle-endless" type="button">Start Endless Defense</button>
             <button id="battle-stop" type="button">Stop Battle</button>
             <button id="battle-reset" type="button">Reset Battle</button>
           </div>
@@ -196,13 +196,14 @@
         <aside id="god-mode-panel" class="god-mode-panel" aria-label="God Mode" hidden>
           <div class="battle-panel-header">
             <div>
-              <div class="eyebrow">SANDBOX CONTROL</div>
+              <div class="eyebrow">WORLD CONTROL</div>
               <strong>GOD MODE</strong>
             </div>
             <button id="god-mode-close" class="icon-button battle-close" type="button" aria-label="Close God Mode">×</button>
           </div>
           <p class="god-mode-instructions">Choose a weapon model, then select a building. On touch, confirm the selected target to fire. World changes use the same undo and save systems as construction.</p>
           <div id="god-mode-capacity" class="god-mode-capacity">Missiles: 10/10</div>
+          <button id="god-mode-free-build" aria-pressed="false" class="secondary-button" type="button">Free Build: OFF</button>
           <div class="god-mode-actions" role="group" aria-label="God Mode actions">
             <button type="button" data-god-action="missileStrike" class="god-mode-action is-selected"><strong>🚀 Missile Strike</strong><small>Target one building with a visible impact.</small></button>
             <button type="button" data-god-action="flood" class="god-mode-action" disabled><strong>🌊 Flood</strong><small>Coming soon · area terrain event.</small></button>
@@ -248,7 +249,7 @@
                 <strong>Settlement Economy</strong>
                 <span>Farms produce Grain, Orchards produce Apples, Cow Barns produce Food, Mines produce Stone, and Huts/Trees contribute Wood.</span>
                 <span>Windmills consume Grain to make Flour; Markets convert part of that Flour into ready Food. Population consumes edible reserves every deterministic economy tick.</span>
-                <span>Medieval and Survival construction costs Wood/Stone, while Sandbox remains free. Resource totals, net rates, storage capacity, and food-shortage state appear inside Build.</span>
+                <span>Construction costs Wood/Stone. Enable Free Build in God Mode to build without resource costs. Resource totals, net rates, storage capacity, and food-shortage state appear inside Build.</span>
                 <span>Economy inventory is saved with the world; older saves without economy data receive backward-compatible starter resources.</span>
               </div>
 
@@ -382,25 +383,6 @@
           </section>
         </div>
 
-        <div id="game-mode-modal" class="modal-backdrop" hidden>
-          <section class="help-modal mode-modal" role="dialog" aria-modal="true" aria-labelledby="game-mode-title">
-            <div class="help-modal-header">
-              <div>
-                <div class="eyebrow">CASTLE ROLE · GAME MODE</div>
-                <h2 id="game-mode-title">Choose Your Fortress Era</h2>
-              </div>
-            </div>
-            <p class="template-intro">Choose the gameplay mode before starting a new game.</p>
-            <div class="mode-grid">
-              <button class="mode-card" type="button" data-game-mode="medieval">
-                <span class="mode-card-icon">♜</span>
-                <strong>Medieval Castle</strong>
-                <small>Stone walls, medieval towers, gates, settlements, soldiers, and siege systems.</small>
-              </button>
-            </div>
-          </section>
-        </div>
-
         <div id="map-layout-modal" class="modal-backdrop" hidden>
           <section class="help-modal map-layout-modal" role="dialog" aria-modal="true" aria-labelledby="map-layout-title">
             <div class="help-modal-header">
@@ -408,7 +390,6 @@
                 <div class="eyebrow">CASTLE ROLE · WORLD SHAPE</div>
                 <h2 id="map-layout-title">Choose a Map Layout</h2>
               </div>
-              <button id="map-layout-back-button" class="icon-button" type="button" aria-label="Back to game modes">←</button>
             </div>
             <p class="template-intro">Choose the coastline and land-mass layout for this new world. Terrain-only templates remain compatible with every layout; complete castle templates currently require Classic Island.</p>
             <div id="map-layout-grid" class="map-layout-grid" aria-live="polite"></div>
@@ -420,263 +401,287 @@
             <div class="help-modal-header">
               <div>
                 <div class="eyebrow">STARTING WORLDS</div>
-                <h2 id="templates-title">Choose a Castle Template</h2>
+                <h2 id="templates-title">Choose a Starting World</h2>
               </div>
               <button id="templates-close-button" class="icon-button" type="button" aria-label="Close templates">×</button>
             </div>
 
-            <p class="template-intro">Choose from 34 complete starting worlds or start with one of the editable terrain-only worlds. Every template becomes normal editable game state after loading.</p>
+            <p class="template-intro">Choose a starting world. Every world remains fully editable after loading.</p>
 
             <div class="template-grid">
+              <div class="template-section-heading template-section-heading--compact" role="heading" aria-level="3">
+                <strong>World Layouts</strong>
+              </div>
+
               <button class="template-card" type="button" data-template="mainland-frontier">
                 <span class="template-preview template-preview-motte">▰⚑</span>
                 <strong>Mainland Frontier</strong>
-                <small>Mainland Coast layout · fortified border settlement, farms, roads, military camp, Level 3 Merchant Pier, and broad inland expansion space.</small>
+                <small>Coast, fortified town, farms, roads, camp, and pier.</small>
               </button>
 
               <button class="template-card" type="button" data-template="coastal-peninsula">
                 <span class="template-preview template-preview-river">▽⚓</span>
                 <strong>Coastal Peninsula</strong>
-                <small>Peninsula layout · a cross-wall on the narrow approach, coastal town, farms, Fishing Wharf and Grand Harbor levels, and protected interior.</small>
+                <small>Narrow peninsula, cross-wall, town, farms, and harbors.</small>
               </button>
 
               <button class="template-card" type="button" data-template="split-isles">
                 <span class="template-preview template-preview-castle">◉≈◉</span>
                 <strong>Split Isles</strong>
-                <small>Twin Isles layout · castle island plus a working village island, each with transport-harbor access across open water.</small>
+                <small>Castle island + village island with sea transport.</small>
               </button>
 
               <button class="template-card" type="button" data-template="empty-land">
                 <span class="template-preview template-preview-blank">○</span>
                 <strong>Empty Land</strong>
-                <small>A clean buildable island for a castle from scratch.</small>
+                <small>Blank island for building from scratch.</small>
               </button>
+
+              <div class="template-section-heading template-section-heading--compact" role="heading" aria-level="3">
+                <strong>Classic Castles</strong>
+              </div>
 
               <button class="template-card" type="button" data-template="small-castle">
                 <span class="template-preview template-preview-castle">♜</span>
                 <strong>Small Castle</strong>
-                <small>Compact stone walls, four towers, gate, homes, road, and wall access.</small>
+                <small>Compact walls, four towers, gate, homes, and road.</small>
               </button>
 
               <button class="template-card" type="button" data-template="motte-bailey">
                 <span class="template-preview template-preview-motte">▲</span>
                 <strong>Motte &amp; Bailey</strong>
-                <small>A raised motte with a tall keep and wooden bailey defenses.</small>
+                <small>Raised motte, tall keep, and timber bailey.</small>
               </button>
 
               <button class="template-card" type="button" data-template="river-castle">
                 <span class="template-preview template-preview-river">≈</span>
                 <strong>River Castle</strong>
-                <small>A fortified settlement beside a strong editable river channel.</small>
+                <small>Fortified settlement beside an editable river.</small>
               </button>
+
+              <div class="template-section-heading template-section-heading--compact" role="heading" aria-level="3">
+                <strong>Nature & Highlands</strong>
+              </div>
 
               <button class="template-card" type="button" data-template="mountain-valley">
                 <span class="template-preview template-preview-motte">⛰</span>
                 <strong>Mountain Valley</strong>
-                <small>Mountain ranges, forested foothills, a river, and a broad protected central valley.</small>
+                <small>Mountains, forest, river, and a protected central valley.</small>
               </button>
 
               <button class="template-card" type="button" data-template="coastal-kingdom">
                 <span class="template-preview template-preview-river">⚓</span>
                 <strong>Coastal Kingdom</strong>
-                <small>Wide beaches, harbor-friendly coast, inland woods, hills, and open castle land.</small>
+                <small>Beaches, harbor coast, woods, hills, and open land.</small>
               </button>
 
               <button class="template-card" type="button" data-template="highland-river">
                 <span class="template-preview template-preview-motte">≈▲</span>
                 <strong>Highland River</strong>
-                <small>A rugged highland ridge with a descending river, forests, rocks, and a buildable shelf.</small>
+                <small>Highland ridge, descending river, forest, and buildable shelf.</small>
               </button>
+
+              <div class="template-section-heading template-section-heading--compact" role="heading" aria-level="3">
+                <strong>Strongholds & Cities</strong>
+              </div>
 
               <button class="template-card" type="button" data-template="grand-citadel">
                 <span class="template-preview template-preview-castle">♜+</span>
                 <strong>Grand Citadel</strong>
-                <small>Limestone capital with thick Wall Walks, advanced roofs, Stair Tower, Keep, farms, and stone roads.</small>
+                <small>Thick walls, advanced roofs, stair tower, keep, and farms.</small>
               </button>
 
               <button class="template-card" type="button" data-template="dark-fortress">
                 <span class="template-preview template-preview-castle">◆</span>
                 <strong>Dark Fortress</strong>
-                <small>Dark-stone reinforced stronghold with high walls, machicolation-ready towers, moat, and defensive Keep.</small>
+                <small>Dark-stone stronghold, high walls, moat, and defensive keep.</small>
               </button>
 
               <button class="template-card" type="button" data-template="sandstone-oasis">
                 <span class="template-preview template-preview-river">☀</span>
                 <strong>Sandstone Oasis</strong>
-                <small>Thin sandstone defenses, oasis river, farms, conical roofs, hipped roofs, and a light open Keep.</small>
+                <small>Sandstone walls, oasis river, farms, and varied roofs.</small>
               </button>
 
               <button class="template-card" type="button" data-template="frontier-outpost">
                 <span class="template-preview template-preview-motte">⌂</span>
                 <strong>Frontier Outpost</strong>
-                <small>Rough frontier stone, timber walls, Timber Roof towers, dirt roads, huts, farm, and Stair Tower access.</small>
+                <small>Timber frontier, dirt roads, huts, farm, and stair tower.</small>
               </button>
 
               <button class="template-card" type="button" data-template="bridge-stronghold">
                 <span class="template-preview template-preview-castle">═♜═</span>
                 <strong>Bridge Stronghold</strong>
-                <small>Six towers connected by both Stone and Wooden Tower Bridges inside a protected outer fortress.</small>
+                <small>Six towers linked by stone and timber bridges.</small>
               </button>
 
               <button class="template-card" type="button" data-template="siege-academy">
                 <span class="template-preview template-preview-castle">⚔</span>
                 <strong>Siege Academy</strong>
-                <small>A battle-test castle with moat, Wall Walks, Stair Tower, stairs, ramp, ladder, gate, and heavy defenses.</small>
+                <small>Battle-ready castle with moat, wall walks, stairs, and gate.</small>
               </button>
 
               <button class="template-card" type="button" data-template="harbor-capital">
                 <span class="template-preview template-preview-river">⚓+</span>
                 <strong>Harbor Capital</strong>
-                <small>All four Harbor upgrade levels with fishing, transport, and trading ships plus a dense coastal settlement.</small>
+                <small>Four harbor levels, ships, and a dense coastal settlement.</small>
               </button>
 
               <button class="template-card" type="button" data-template="mountain-fortress">
                 <span class="template-preview template-preview-motte">▲♜</span>
                 <strong>Mountain Fortress</strong>
-                <small>Rough-stone highland castle demonstrating steep terrain, stepped foundations, mine, rocks, and cliff-like plateaus.</small>
+                <small>Steep highland castle with stepped foundations and mine.</small>
               </button>
 
               <button class="template-card" type="button" data-template="royal-city">
                 <span class="template-preview template-preview-castle">♛</span>
                 <strong>Royal City</strong>
-                <small>Sandstone walled city with Cottage, House, Manor, Villa, farms, and all three road families.</small>
+                <small>Walled city with homes, villas, farms, and road types.</small>
               </button>
 
               <button class="template-card" type="button" data-template="architecture-gallery">
                 <span class="template-preview template-preview-castle">▦</span>
                 <strong>Architecture Gallery</strong>
-                <small>Every tower base, every modern roof mode, legacy top variants, all Keep roof styles, wall materials, bridge types, and terrain forms.</small>
+                <small>Tower, roof, wall, bridge, and terrain style showcase.</small>
               </button>
+
+              <div class="template-section-heading template-section-heading--compact" role="heading" aria-level="3">
+                <strong>Settlements & Frontiers</strong>
+              </div>
 
               <button class="template-card" type="button" data-template="river-port-fort">
                 <span class="template-preview template-preview-river">⚓≈</span>
                 <strong>River Port Fort</strong>
-                <small>River-side fort, farms, settlement blocks, Wall Walk access, Fishing Wharf-level Harbors, and flowing water.</small>
+                <small>River fort, farms, wall walks, harbors, and flowing water.</small>
               </button>
 
               <button class="template-card" type="button" data-template="farming-duchy">
                 <span class="template-preview template-preview-farm">🌾</span>
                 <strong>Farming Duchy</strong>
-                <small>A farm-heavy sandstone duchy with villages, road network, fields, and visible farmer activity.</small>
+                <small>Farm-focused duchy with villages, roads, and active fields.</small>
               </button>
 
               <button class="template-card" type="button" data-template="twin-keep">
                 <span class="template-preview template-preview-castle">♜♜</span>
                 <strong>Twin Keep</strong>
-                <small>Two high Keeps, reinforced defenses, a tower bridge, Stair Tower access, and an Army Camp.</small>
+                <small>Two keeps, reinforced walls, tower bridge, and army camp.</small>
               </button>
 
               <button class="template-card" type="button" data-template="border-march">
                 <span class="template-preview template-preview-motte">│⌂</span>
                 <strong>Border March</strong>
-                <small>Long timber frontier wall, watch towers, Army Camp, farm, huts, dirt road, and woodland frontier.</small>
+                <small>Timber border wall, watchtowers, camp, farm, and woodland.</small>
               </button>
 
               <button class="template-card" type="button" data-template="forest-citadel">
                 <span class="template-preview template-preview-motte">🌲♜</span>
                 <strong>Forest Citadel</strong>
-                <small>A strong stone citadel surrounded by dense forest with open internal settlement land.</small>
+                <small>Stone citadel in dense forest with open inner land.</small>
               </button>
 
               <button class="template-card" type="button" data-template="cliff-watch">
                 <span class="template-preview template-preview-mountain">▰▲</span>
                 <strong>Cliff Watch</strong>
-                <small>Dark-stone fortress across stepped high ground, cliff-like shelves, watch towers, and military camp.</small>
+                <small>Dark-stone fortress on stepped cliffs with watchtowers.</small>
               </button>
 
               <button class="template-card" type="button" data-template="moat-palace">
                 <span class="template-preview template-preview-river">◇</span>
                 <strong>Moat Palace</strong>
-                <small>Sandstone palace fortress surrounded by defensive moat lines, towers, Wall Walks, and stone approach.</small>
+                <small>Sandstone palace with moat, towers, and stone approach.</small>
               </button>
 
               <button class="template-card" type="button" data-template="merchant-republic">
                 <span class="template-preview template-preview-castle">⚖</span>
                 <strong>Merchant Republic</strong>
-                <small>Dense residential districts, mixed roads, farms, walls, Keep, and a compact coastal trading quarter.</small>
+                <small>Dense homes, mixed roads, farms, and coastal trade quarter.</small>
               </button>
 
               <button class="template-card" type="button" data-template="war-camp">
                 <span class="template-preview template-preview-motte">⛺</span>
                 <strong>War Camp</strong>
-                <small>Four large Army Camps, timber enclosure, barrack-like huts, farms, command Keep, and field roads.</small>
+                <small>Four army camps, timber enclosure, farms, and command keep.</small>
               </button>
+
+<button class="template-card" type="button" data-template="island-monastery">
+                <span class="template-preview template-preview-river">☩</span>
+                <strong>Island Monastery</strong>
+                <small>Quiet island enclosure with cottages, farms, and landing harbor.</small>
+              </button>
+
+
+              <div class="template-section-heading template-section-heading--compact" role="heading" aria-level="3">
+                <strong>Historic Castles</strong>
+              </div>
 
               <button class="template-card" type="button" data-template="carcassonne">
                 <span class="template-preview template-preview-castle">◉♜◉</span>
                 <strong>Carcassonne · France</strong>
-                <small>Historic fortified city · double irregular ramparts, dense round towers, Narbonnaise and Aude gates, Château Comtal, Saint-Nazaire basilica, raised cité, and Aude approach.</small>
+                <small>Historic France · double ramparts, round towers, and fortified gates.</small>
               </button>
 
               <button class="template-card" type="button" data-template="crac-des-chevaliers">
                 <span class="template-preview template-preview-castle">◉▣◉</span>
                 <strong>Crac des Chevaliers · Syria</strong>
-                <small>Mid-13th-century Hospitaller fortress · concentric enceintes, elevated inner ward, eastern access ramp, southern cistern and barbican, major round towers, chapel, and keep.</small>
+                <small>Historic Syria · concentric defenses, inner ward, and round towers.</small>
               </button>
 
               <button class="template-card" type="button" data-template="himeji-castle">
                 <span class="template-preview template-preview-castle">🏯</span>
                 <strong>Himeji Castle · Japan</strong>
-                <small>Historic Japanese hill castle · white-plaster tenshu group, tiered tiled roofs, layered baileys and moats, Hishi Gate, winding fortified approach, and Nishi-no-Maru.</small>
+                <small>Historic Japan · white keep, layered baileys, moats, and winding approach.</small>
               </button>
 
               <button class="template-card" type="button" data-template="arg-e-bam">
                 <span class="template-preview template-preview-motte">▰◫</span>
                 <strong>Arg-e Bam · Iran</strong>
-                <small>Pre-2003 earthen citadel · southern gate, dry moat, towered enclosure, bazaar axis, courtyard mosque, dense lower town, and raised governor's citadel.</small>
+                <small>Historic Iran · earthen citadel, bazaar axis, and raised governor keep.</small>
               </button>
 
-              <button class="template-card" type="button" data-template="island-monastery">
-                <span class="template-preview template-preview-river">☩</span>
-                <strong>Island Monastery</strong>
-                <small>Quiet elevated island enclosure with light defenses, cottages, farms, trees, and a Landing Dock-level Harbor.</small>
-              </button>
-
-              <div class="template-section-heading">
-                <strong>Editable Terrain Templates</strong>
-                <small>Terrain-only starting worlds. Every tile remains editable with Raise, Lower, Smooth, River, Land, Hill, Cliff, and normal building tools.</small>
+              <div class="template-section-heading template-section-heading--compact" role="heading" aria-level="3">
+                <strong>Editable Terrain</strong>
               </div>
 
               <button class="template-card terrain-template-card" type="button" data-terrain-template="rolling-plains">
                 <span class="template-preview template-preview-blank">〰</span>
                 <strong>Rolling Plains</strong>
-                <small>Open construction land with broad gentle hills and scattered trees.</small>
+                <small>Open land with gentle hills and scattered trees.</small>
               </button>
 
               <button class="template-card terrain-template-card" type="button" data-terrain-template="twin-rivers">
                 <span class="template-preview template-preview-river">≈≈</span>
                 <strong>Twin Rivers</strong>
-                <small>Two independent flowing rivers crossing otherwise open buildable land.</small>
+                <small>Two flowing rivers across open buildable land.</small>
               </button>
 
               <button class="template-card terrain-template-card" type="button" data-terrain-template="alpine-basin">
                 <span class="template-preview template-preview-mountain">△</span>
                 <strong>Alpine Basin</strong>
-                <small>Mountain ranges on three sides with an editable central basin for a highland castle.</small>
+                <small>Mountain ring with an editable central basin.</small>
               </button>
 
               <button class="template-card terrain-template-card" type="button" data-terrain-template="coastal-cliffs">
                 <span class="template-preview template-preview-mountain">▰≈</span>
                 <strong>Coastal Cliffs</strong>
-                <small>Raised rocky coast, lower central ground, cliff shelves, and exposed stone areas.</small>
+                <small>Raised rocky coast, lower center, and cliff shelves.</small>
               </button>
 
               <button class="template-card terrain-template-card" type="button" data-terrain-template="forest-highlands">
                 <span class="template-preview template-preview-motte">🌲▲</span>
                 <strong>Forest Highlands</strong>
-                <small>Uneven wooded highland terrain with a large central clearing.</small>
+                <small>Wooded highlands with a large central clearing.</small>
               </button>
 
               <button class="template-card terrain-template-card" type="button" data-terrain-template="marsh-island">
                 <span class="template-preview template-preview-river">≈☘</span>
                 <strong>Marsh Island</strong>
-                <small>Very low terrain with isolated self-contained water channels and sparse trees.</small>
+                <small>Low wetland with isolated channels and sparse trees.</small>
               </button>
 
               <button class="template-card terrain-template-card" type="button" data-terrain-template="terraced-hills">
                 <span class="template-preview template-preview-motte">▤</span>
                 <strong>Terraced Hills</strong>
-                <small>Concentric stepped elevations for hill forts, mountain settlements, and tiered castles.</small>
+                <small>Stepped hills for tiered forts and settlements.</small>
               </button>
             </div>
           </section>

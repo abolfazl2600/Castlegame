@@ -1,5 +1,9 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { App } from '@capacitor/app';
+import { Capacitor } from '@capacitor/core';
+import { TouchGestureSession } from './input/TouchGestureSession';
+import { applyTouchCameraDelta } from './input/TouchCamera';
 import { createGameDomainServices } from './core/GameDomainServices';
 import { SaveSystem, type SaveStorage } from './core/SaveSystem';
 import type { GameExtension } from './core/GameExtension';
@@ -12,6 +16,7 @@ import { AmbientFaunaSystem } from './rendering/AmbientFaunaSystem';
 import { rasterizeWallPath } from './building/WallPath';
 import { KeepRenderer } from './rendering/KeepRenderer';
 import { BasilicaRenderer } from './rendering/BasilicaRenderer';
+import { CarpenterWorkshopRenderer } from './rendering/CarpenterWorkshopRenderer';
 import { MedievalMaterials } from './rendering/MedievalMaterials';
 import { CASTLE_ARCHITECTURE_STYLE } from './rendering/CastleArchitectureStyle';
 import { WORLD_STYLE, styleTone } from './rendering/WorldStyle';
@@ -41,24 +46,24 @@ import { MILITARY_TIERS, militaryTierDefinition, normalizeMilitaryTier, type Mil
 import {
   beginMissileProduction,
   MISSILE_CONFIG,
-  missileModeAvailable,
   missilesUnlocked,
   tickMissileState,
 } from './battle/MissileCapability';
 import type { BattleSetup, BattleStatus } from './battle/types';
+import { endlessDefenseEnemyCount, getEndlessDefenseWave } from './battle/EndlessDefense';
 import { MaritimeSystem } from './systems/MaritimeSystem';
 import type { GameMode } from './core/GameMode';
-import { GAME_MODE_CONFIG, getGameModeDefinition, isBuildingAvailable, isGameMode, isToolAvailable } from './core/GameMode';
-import { GAME_MODE_REGISTRY } from './core/GameModeFoundation';
-import { createSurvivalDefinition } from './SurvivalGameMode';
-import { createSandboxDefinition } from './SandboxGameMode';
+import { GAME_DEFINITION, isBuildingAvailable, isToolAvailable } from './core/GameMode';
 import type { SettingsStore } from './settings/SettingsStore';
+import { resolveLocale, t } from './i18n/localization';
 import { applyGraphicsSettings, applyInputSettings, applySceneGraphicsSettings } from './settings/SettingsSubsystems';
 import { getStructureFootprint } from './building/StructureFootprints';
 import { MAP_LAYOUTS, normalizeMapLayoutId, terrainForMapLayout } from './world/MapLayouts';
 import { AudioManager } from './audio/AudioManager';
 import { audioEvents } from './audio/AudioEventBus';
 import { registerSystemAction } from './app/applicationActions';
+import { MissionSystem, type MissionSnapshot } from './missions/MissionSystem';
+import { MissionUI } from './missions/MissionUI';
 import {
   GodModeActionRegistry,
   createFutureGodModeAction,
@@ -136,6 +141,13 @@ const AGRICULTURE_UPGRADE_LEVELS: Record<AgricultureUpgradeKind, readonly Agricu
 };
 const AGRICULTURE_MAX_LEVEL = 4;
 
+const CARPENTER_LEVELS = [
+  { level: 1, name: 'Timber Yard', description: 'A small open carpenter yard that processes Logs into construction-ready Wood.', workers: 2, inputPerSecond: 0.30, yieldRatio: 0.80 },
+  { level: 2, name: 'Carpenter Workshop', description: 'A larger covered workshop with a dedicated cutting bay, better tools, and higher throughput.', workers: 4, inputPerSecond: 0.58, yieldRatio: 0.90 },
+  { level: 3, name: 'Master Carpenter Guild', description: 'A mature timber workshop with a loft, heavy saw frame, hoist, storage, and maximum conversion efficiency.', workers: 6, inputPerSecond: 0.90, yieldRatio: 1.00 },
+] as const;
+const CARPENTER_MAX_LEVEL = CARPENTER_LEVELS.length;
+
 const HARBOR_LEVELS = [
   { level: 1, name: 'Landing Dock', description: 'A compact timber landing with simple mooring posts, basic cargo, and a fishing boat.' },
   { level: 2, name: 'Fishing Wharf', description: 'A broader working wharf with side platforms, railings, fishing gear, storage, and more supports.' },
@@ -144,7 +156,7 @@ const HARBOR_LEVELS = [
 ] as const;
 const HARBOR_MAX_LEVEL = HARBOR_LEVELS.length;
 
-type FortificationUpgradeKind = 'tower' | 'gate' | 'towerBridge';
+type FortificationUpgradeKind = 'tower' | 'gate' | 'towerBridge' | 'keep';
 interface FortificationUpgradeLevel {
   level: 1 | 2 | 3 | 4;
   name: string;
@@ -169,8 +181,20 @@ const FORTIFICATION_UPGRADE_LEVELS: Record<FortificationUpgradeKind, readonly Fo
     { level: 3, name: 'Fortified Skyway', description: 'Guard frames, reinforced rails, and structural bracing give the bridge a mature defensive profile.' },
     { level: 4, name: 'Royal Tower Bridge', description: 'A prestigious fortified crossing with overhead guard frames, metal accents, and visible standards.' },
   ],
+  keep: [
+    { level: 1, name: 'Stone Keep', description: 'A compact defensive keep with a clear, readable base silhouette.' },
+    { level: 2, name: 'Fortified Keep', description: 'The keep grows taller and gains stronger roof and corner defenses.' },
+    { level: 3, name: 'Great Keep', description: 'A larger footprint, taller massing, and prominent towers make the keep a settlement landmark.' },
+    { level: 4, name: 'Royal Keep', description: 'The final keep form is broader, taller, and visually richer with a commanding defensive crown.' },
+  ],
 };
 const FORTIFICATION_MAX_LEVEL = 4;
+const KEEP_UPGRADE_PRESETS = [
+  { level: 1, width: 3, depth: 3, floors: 2, roof: 'flatBattlement', cornerTowers: false, battlements: true },
+  { level: 2, width: 3, depth: 3, floors: 3, roof: 'sloped', cornerTowers: true, battlements: true },
+  { level: 3, width: 4, depth: 4, floors: 4, roof: 'towered', cornerTowers: true, battlements: true },
+  { level: 4, width: 5, depth: 5, floors: 5, roof: 'defensivePlatform', cornerTowers: true, battlements: true },
+] as const;
 
 const BUILDING_KINDS: TileKind[] = [
   'wall1',
@@ -195,6 +219,7 @@ const BUILDING_KINDS: TileKind[] = [
   'mosque',
   'windmill',
   'mine',
+  'carpenter',
   'mountain',
   'tree',
   'rock',
@@ -203,7 +228,7 @@ const BUILDING_KINDS: TileKind[] = [
 ];
 const CONSTRUCTION_VISUAL_KINDS = new Set<TileKind>([
   'wall1', 'wall2', 'wall3', 'gate', 'tower', 'cottage', 'house', 'manor', 'villa',
-  'hut', 'farm', 'cowBarn', 'appleOrchard', 'market', 'windmill', 'mine',
+  'hut', 'farm', 'cowBarn', 'appleOrchard', 'market', 'windmill', 'mine', 'carpenter',
   'armyCamp', 'harbor', 'basilica', 'mosque',
 ]);
 
@@ -289,9 +314,9 @@ const TOOL_GROUPS: Array<{ label: string; tools: ToolDefinition[] }> = [
       { id: 'wall2', icon: '🪵', label: 'Wooden Wall', detail: 'Drag A → B · timber defense', shortcut: '2' },
       { id: 'wall3', icon: '🛡️', label: 'Reinforced Wall', detail: 'Drag A → B · heavy defense', shortcut: '3' },
       { id: 'gate', icon: '🚪', label: 'Gate', detail: 'Snaps into fortification lines', shortcut: '4' },
-      { id: 'tower', icon: '🏰', label: 'Modular Tower', detail: '5 bases · medieval roof modules', shortcut: '5' },
+      { id: 'tower', icon: '🏰', label: 'Tower', detail: 'Place a tower · appearance evolves automatically', shortcut: '5' },
       { id: 'towerBridge', icon: '🌉', label: 'Tower Bridge', detail: 'Build or select between two compatible towers', shortcut: 'D' },
-      { id: 'keep', icon: '🏯', label: 'Modular Keep', detail: 'Width · depth · floors · roof', shortcut: 'P' },
+      { id: 'keep', icon: '🏯', label: 'Keep', detail: 'Place a keep · size and detail grow with upgrades', shortcut: 'P' },
       { id: 'moat', icon: '💧', label: 'Moat', detail: 'Workers excavate queued tiles', shortcut: 'Q' },
     ],
   },
@@ -310,6 +335,9 @@ const TOOL_GROUPS: Array<{ label: string; tools: ToolDefinition[] }> = [
       { id: 'market', icon: '🏪', label: 'Market', detail: 'Large medieval marketplace · tents · stalls · shops', shortcut: '-' },
       { id: 'basilica', icon: '⛪', label: 'Basilica', detail: 'Large stone church landmark · nave · transept · tower', shortcut: '-' },
       { id: 'mosque', icon: '◫', label: 'Courtyard Mosque', detail: 'Low-rise prayer hall · courtyard · domed bays', shortcut: '-' },
+      { id: 'mine', icon: '⛏️', label: 'Mine', detail: 'Produces stone for construction', shortcut: '-' },
+      { id: 'hut', icon: '🛖', label: 'Woodcutter Hut', detail: 'Produces logs from nearby trees', shortcut: '-' },
+      { id: 'carpenter', icon: '🪚', label: 'Carpenter Workshop', detail: '3 levels · converts Logs into Wood', shortcut: '-' },
     ],
   },
   {
@@ -332,6 +360,7 @@ const TOOL_GROUPS: Array<{ label: string; tools: ToolDefinition[] }> = [
   {
     label: 'Terrain',
     tools: [
+      { id: 'rock', icon: '🪨', label: 'Rock', detail: 'Place natural rock formations', shortcut: '-' },
       { id: 'mountain', icon: '⛰️', label: 'Mountain', detail: 'Repeated clicks grow natural peaks', shortcut: 'N' },
       { id: 'mountainRange', icon: '🏔️', label: 'Mountain Range', detail: 'Drag A → B · ridge + foothills', shortcut: 'K' },
       { id: 'river', icon: '🌊', label: 'River', detail: 'Carve connected flowing water', shortcut: 'R' },
@@ -389,6 +418,11 @@ export class ThreeGame {
   private readonly performanceDebug: PerformanceDebugOverlay;
   /** Domain state and gameplay services are composed here, away from rendering/UI concerns. */
   private readonly services = createGameDomainServices();
+  private readonly missionSystem = new MissionSystem();
+  private readonly missionUI = new MissionUI({
+    onPinMission: (id) => this.setPinnedMission(id),
+  });
+  private missionRefreshAccumulatorMs = 0;
   private readonly castleBlockSystem = new CastleBlockSystem();
   private readonly constructionAnimation = new ConstructionAnimationSystem();
   private readonly ambientFauna = new AmbientFaunaSystem();
@@ -401,6 +435,7 @@ export class ThreeGame {
     private readonly medievalMaterials = new MedievalMaterials();
   private readonly keepRenderer = new KeepRenderer(this.services.detailGenerator, this.medievalMaterials);
   private readonly basilicaRenderer = new BasilicaRenderer(this.medievalMaterials);
+  private readonly carpenterRenderer = new CarpenterWorkshopRenderer();
   private saveSystem!: SaveSystem;
   private readonly terrainOverrides = new Map<string, TerrainOverrideKind>();
   private readonly elevationOverrides = new Map<string, number>();
@@ -466,9 +501,9 @@ export class ThreeGame {
   private selectedTowerBridgeId: number | null = null;
   private keepWidth = 3;
   private keepDepth = 3;
-  private keepFloors = 3;
+  private keepFloors = 2;
   private keepRotation = 0;
-  private keepCornerTowers = true;
+  private keepCornerTowers = false;
   private keepRoof: KeepRoofStyle = 'flatBattlement';
   private keepBattlements = true;
   private selectedKeepId: number | null = null;
@@ -489,12 +524,18 @@ export class ThreeGame {
   private militaryTier: MilitaryTier = 1;
   private populationBattleCommitted = false;
   private populationBattleStart: BattleSetup | null = null;
+  private endlessDefenseActive = false;
+  private endlessDefensePaused = false;
+  private endlessDefenseWave = 0;
+  private endlessDefenseIntermissionMs = 0;
+  private endlessDefenseAwaitingNextWave = false;
   private missileUiRefreshMs = 0;
   private environmentRefreshMs = 0;
 
   private readonly undoStack: HistorySnapshot[] = [];
   private readonly redoStack: HistorySnapshot[] = [];
   private godModeOpen = false;
+  private freeBuildEnabled = false;
   private godModeActionId = 'missileStrike';
   private godModeTarget: GodModeTarget | null = null;
   private godModeHover: GridPoint | null = null;
@@ -505,6 +546,7 @@ export class ThreeGame {
   private terrainStrokeActive = false;
   private terrainStrokeChanged = false;
   private terrainStrokeSnapshot: HistorySnapshot | null = null;
+  private cancelWorldTouchInput: (() => void) | null = null;
   private lastTerrainBrushKey = '';
 
   private wallDragStart: GridPoint | null = null;
@@ -520,8 +562,6 @@ export class ThreeGame {
   private longPressStartedAt = 0;
   private longPressTriggered = false;
   private longPressStartScreen: { x: number; y: number } | null = null;
-  private readonly activeTouchPointers = new Set<number>();
-  private readonly suppressedTouchPointers = new Set<number>();
 
   private saveTimer: number | null = null;
   private economySaveAccumulatorMs = 0;
@@ -540,6 +580,8 @@ export class ThreeGame {
       keepSystem: this.services.keepSystem,
       terrainOverrides: this.terrainOverrides,
       elevationOverrides: this.elevationOverrides,
+      getCommittedElevationOverrides: () => this.terrainStrokeActive && this.terrainStrokeSnapshot
+        ? new Map(this.terrainStrokeSnapshot.elevations) : this.elevationOverrides,
       towerBridges: this.towerBridges,
       getGameMode: () => this.gameMode,
       getMapLayoutId: () => this.mapLayoutId,
@@ -558,14 +600,37 @@ export class ThreeGame {
       setPopulationState: (value) => { this.services.populationSystem.setState(value); },
       getEnvironmentState: () => this.environmentSystem.getState(),
       setEnvironmentState: (value) => { this.environmentSystem.setState(value); },
+      getMissionState: () => this.missionSystem.getState(),
+      setMissionState: (value) => { this.missionSystem.setState(value); },
       setWorldSeeded: (value) => { this.worldSeeded = value; },
       setLoadedSaveVersion: (value) => { this.loadedSaveVersion = value; },
       setStoneStyle: (value) => { this.stoneStyle = value; },
       migrateKind: (kind, level, saveVersion) => this.migrateKind(kind, level, saveVersion),
-      isBuildingAvailableForMode: (mode, kind) => isBuildingAvailable(mode, kind as TileKind),
+      isBuildingAvailable: (kind) => isBuildingAvailable(kind as TileKind),
       key: (x, y) => this.key(x, y),
-      syncModeDependentUI: () => this.syncModeDependentUI(),
+      syncLoadedWorldUI: () => this.syncLoadedWorldUI(),
       prepareForLoad: () => {
+        this.cancelWorldTouchInput?.();
+        this.endlessDefenseActive = false;
+        this.endlessDefensePaused = false;
+        this.endlessDefenseWave = 0;
+        this.endlessDefenseIntermissionMs = 0;
+        this.endlessDefenseAwaitingNextWave = false;
+        this.battleSystem.reset(false);
+        this.populationBattleCommitted = false;
+        this.populationBattleStart = null;
+        this.services.gateSystem.setAttackState(false);
+        document.getElementById('game-shell')?.classList.remove('battle-mode');
+        this.workerLayer.visible = this.viewMode === 'world3d';
+        this.settlementLayer.visible = this.viewMode === 'world3d';
+        this.freeBuildEnabled = false;
+        this.godModeOpen = false;
+        this.godModeTarget = null;
+        this.godModeHover = null;
+        this.godModeTouchStart = null;
+        this.clearGroup(this.godModeMarkerLayer);
+        const godModePanel = document.getElementById('god-mode-panel');
+        if (godModePanel) godModePanel.hidden = true;
         this.constructionAnimation.clear();
         this.clearSettlementAgents();
       },
@@ -733,7 +798,7 @@ export class ThreeGame {
       document.documentElement.style.setProperty('--castle-ui-scale', String(settings.interface.uiScale));
       document.documentElement.toggleAttribute('data-reduced-motion', settings.interface.reducedMotion);
       document.documentElement.toggleAttribute('data-high-contrast', settings.interface.highContrast);
-      document.documentElement.lang = settings.interface.language === 'en' ? 'en' : (navigator.language || 'en');
+      document.documentElement.lang = resolveLocale(settings.interface.language);
       const helpModal = document.getElementById('help-modal');
       if (helpModal && !settings.interface.showHelp) helpModal.hidden = true;
       const battlePanel = document.getElementById('battle-panel');
@@ -788,7 +853,6 @@ export class ThreeGame {
       (status) => this.updateBattleUI(status),
     );
 
-    this.registerBuiltInGameModes();
     this.registerGodModeActions();
 
     this.groundHit.rotation.x = -Math.PI / 2;
@@ -796,12 +860,6 @@ export class ThreeGame {
     this.scene.add(this.groundHit);
 
     this.load();
-    const loadedMode = this.gameMode;
-    const loadedSelection = this.services.session.selectMode(loadedMode);
-    if (loadedSelection.ok) {
-      const loadedInitialization = this.services.session.initialize();
-      if (loadedInitialization.ok) this.services.session.start();
-    }
     if (!this.worldSeeded || this.loadedSaveVersion < SAVE_VERSION) {
       this.seedNaturalProps();
       this.worldSeeded = true;
@@ -809,22 +867,18 @@ export class ThreeGame {
       this.save(false);
     }
 
-    if (this.gameMode === 'medieval') this.createWorkers();
+    this.createWorkers();
     this.redraw();
     this.applyEnvironmentVisuals(true);
     this.bindUI();
+    this.updateMissions(0, true);
     // Keep the construction tool initialized during world creation/redraw, then enter the neutral mode only after UI binding.
     this.selectTool(null);
     this.setToolbarOpen(this.toolbarOpen);
     this.setViewMode(hadSave ? 'world3d' : 'plan2d');
-    this.updateGameModeUI();
+    this.syncGameplayControls();
     this.syncTemplateAvailability();
-    audioEvents.emit({ action: 'set_mode', mode: this.gameMode });
-    if (!hadSave) {
-      this.renderGameModeSelection();
-      const modeModal = document.getElementById('game-mode-modal');
-      if (modeModal) modeModal.hidden = false;
-    }
+    if (!hadSave) this.openMapLayoutSelector();
     this.bindPointerInput();
     this.resize();
 
@@ -863,15 +917,15 @@ export class ThreeGame {
   }
 
   private isToolAvailable(tool: ToolKind): boolean {
-    return isToolAvailable(this.gameMode, tool);
+    return isToolAvailable(tool);
   }
 
   private isBuildingAvailable(kind: TileKind): boolean {
-    return isBuildingAvailable(this.gameMode, kind);
+    return isBuildingAvailable(kind);
   }
 
   private economyConstructionEnabled(): boolean {
-    return this.gameMode === 'medieval' || this.gameMode === 'survival';
+    return !this.freeBuildEnabled;
   }
 
   private isConstructionAffordable(tool: ToolKind, quantity = 1): boolean {
@@ -915,7 +969,6 @@ export class ThreeGame {
       id: 'missileStrike',
       label: 'Missile Strike',
       description: 'Target one building and call down a direct missile impact.',
-      availableModes: ['sandbox'],
       enabled: true,
       validateTarget: (target, context) => {
         if (!target) return 'Select a building in the world.';
@@ -941,7 +994,6 @@ export class ThreeGame {
 
   private godModeContext(): GodModeActionContext {
     return {
-      mode: this.gameMode,
       getCell: (point) => this.services.state.getCell(point.x, point.y),
       isDestructible: (kind) => this.services.destructibleBuildingSystem.isDestructible(kind),
       executeMissileStrike: (target) => this.executeMissileStrike(target),
@@ -949,7 +1001,7 @@ export class ThreeGame {
   }
 
   private isGodModeTargeting(): boolean {
-    return this.godModeOpen && this.gameMode === 'sandbox' && this.godModeActionId === 'missileStrike';
+    return this.godModeOpen && this.godModeActionId === 'missileStrike';
   }
 
   private resolveGodModeTarget(point: GridPoint): GodModeTarget | null {
@@ -987,8 +1039,8 @@ export class ThreeGame {
 
   private selectGodModeAction(actionId: string): void {
     const action = this.godModeActions.get(actionId);
-    if (!action || !this.godModeActions.isAvailable(actionId, this.gameMode)) {
-      this.setStatus('God Mode action is unavailable in ' + getGameModeDefinition(this.gameMode).label);
+    if (!action || !this.godModeActions.isAvailable(actionId)) {
+      this.setStatus('God Mode action is unavailable');
       return;
     }
     this.godModeActionId = actionId;
@@ -997,10 +1049,6 @@ export class ThreeGame {
   }
 
   private openGodMode(): void {
-    if (this.gameMode !== 'sandbox') {
-      this.setStatus('God Mode is available in Sandbox only');
-      return;
-    }
     this.godModeOpen = true;
     this.setToolbarOpen(false);
     const battlePanel = document.getElementById('battle-panel');
@@ -1072,6 +1120,7 @@ export class ThreeGame {
     const feedback = document.getElementById('god-mode-feedback');
     const confirm = document.getElementById('god-mode-confirm') as HTMLButtonElement | null;
     const cancel = document.getElementById('god-mode-cancel') as HTMLButtonElement | null;
+    const freeBuild = document.getElementById('god-mode-free-build') as HTMLButtonElement | null;
     const preview = this.godModeTarget;
     if (targetLabel) {
       targetLabel.textContent = preview
@@ -1085,8 +1134,12 @@ export class ThreeGame {
     }
     const capacity = document.getElementById('god-mode-capacity');
     if (capacity) capacity.textContent = `Missiles: ${this.godModeCapacity}/${this.godModeMaxCapacity}`;
-    if (confirm) confirm.disabled = !preview || !action || !this.godModeActions.isAvailable(this.godModeActionId, this.gameMode);
+    if (confirm) confirm.disabled = !preview || !action || !this.godModeActions.isAvailable(this.godModeActionId);
     if (cancel) cancel.disabled = !preview;
+    if (freeBuild) {
+      freeBuild.textContent = `Free Build: ${this.freeBuildEnabled ? 'ON' : 'OFF'}`;
+      freeBuild.setAttribute('aria-pressed', String(this.freeBuildEnabled));
+    }
     document.querySelectorAll<HTMLButtonElement>('[data-god-action]').forEach((button) => {
       button.classList.toggle('is-selected', button.dataset.godAction === this.godModeActionId);
     });
@@ -1204,22 +1257,11 @@ export class ThreeGame {
     }
   }
 
-  private updateGameModeUI(): void {
-    const label = document.getElementById('game-mode-label');
-    const button = document.getElementById('game-mode-button');
-    const config = getGameModeDefinition(this.gameMode);
-    if (label) label.textContent = config.label;
-    if (button) button.setAttribute('aria-label', 'Current game mode: ' + config.label);
+  private syncGameplayControls(): void {
     const battleButton = document.getElementById('battle-button');
     if (battleButton) battleButton.hidden = false;
     const godModeButton = document.getElementById('god-mode-button');
-    if (godModeButton) godModeButton.hidden = this.gameMode !== 'sandbox';
-    const godModePanel = document.getElementById('god-mode-panel');
-    if (godModePanel && this.gameMode !== 'sandbox') {
-      godModePanel.hidden = true;
-      this.godModeOpen = false;
-      this.setGodModeTarget(null);
-    }
+    if (godModeButton) godModeButton.hidden = false;
   }
 
   private syncTemplateAvailability(): void {
@@ -1241,15 +1283,12 @@ export class ThreeGame {
     });
   }
 
-  private syncModeDependentUI(): void {
-    if (this.selectedTool !== null && !this.isToolAvailable(this.selectedTool)) {
-      this.selectedTool = null;
-    }
-
-    this.updateGameModeUI();
+  private syncLoadedWorldUI(): void {
+    this.syncGameplayControls();
     this.syncTemplateAvailability();
     this.syncMilitaryUI();
-    this.refreshBuildPanelForMode();
+    this.updateGodModeUI();
+    this.refreshBuildPanel();
   }
 
   private buildCategoryIcon(label: string): string {
@@ -1261,11 +1300,11 @@ export class ThreeGame {
     return '⌂';
   }
 
-  private refreshBuildPanelForMode(): void {
+  private refreshBuildPanel(): void {
     const toolbar = document.getElementById('toolbar');
     if (!toolbar) return;
 
-    const modeConfig = getGameModeDefinition(this.gameMode);
+    const ruleset = GAME_DEFINITION;
     const toolDefinitions = new Map(
       TOOL_GROUPS.flatMap((group) => group.tools.map((tool) => [tool.id, tool] as const)),
     );
@@ -1273,10 +1312,9 @@ export class ThreeGame {
     const sections = toolbar.querySelector<HTMLElement>('.build-tool-sections');
     const settings = toolbar.querySelector<HTMLElement>('.builder-settings');
     const noneButton = toolbar.querySelector<HTMLElement>('[data-build-none]');
-    const modeChip = toolbar.querySelector<HTMLElement>('#build-mode-chip');
     if (!tabs || !sections || !settings) return;
 
-    const groups = modeConfig.toolGroups
+    const groups = ruleset.toolGroups
       .map((group) => ({
         label: group.label,
         tools: group.toolIds
@@ -1332,7 +1370,6 @@ export class ThreeGame {
       );
     }).join('');
 
-    if (modeChip) modeChip.textContent = modeConfig.label;
     settings.hidden = false;
 
     noneButton?.classList.toggle('is-selected', this.selectedTool === null);
@@ -1400,96 +1437,11 @@ export class ThreeGame {
     if (clear) clear.hidden = !searching;
   }
 
-  private registerBuiltInGameModes(): void {
-    for (const definition of Object.values(GAME_MODE_CONFIG)) {
-      if (definition.id === 'survival' || definition.id === 'sandbox') continue;
-      if (GAME_MODE_REGISTRY.has(definition.id)) continue;
-      GAME_MODE_REGISTRY.register({
-        id: definition.id,
-        displayName: definition.label,
-        description: definition.description,
-        available: true,
-        metadata: { source: 'existing-game-mode' },
-      });
-    }
-
-    if (!GAME_MODE_REGISTRY.has('survival')) {
-      GAME_MODE_REGISTRY.register(
-        createSurvivalDefinition({
-          battleSystem: this.battleSystem,
-          getBattleSetup: () => this.battleSetup,
-          getMilitaryTier: () => this.militaryTier,
-          setStatus: (message) => this.setStatus(message),
-          setAttackState: (active) => this.services.gateSystem.setAttackState(active),
-          onDefeat: () => {
-            if (this.services.session.getStatus() === 'running' || this.services.session.getStatus() === 'paused') {
-              this.services.session.end();
-            }
-            this.setStatus('Survival defeated · the castle was captured');
-          },
-        }),
-      );
-    }
-
-    if (!GAME_MODE_REGISTRY.has('sandbox')) {
-      GAME_MODE_REGISTRY.register(
-        createSandboxDefinition({
-          resetWorld: () => {
-            this.resetWorldForMode('sandbox');
-            this.save(false);
-          },
-          setStatus: (message) => this.setStatus(message),
-        }),
-      );
-    }
-  }
-
-  private renderGameModeSelection(): void {
-    const grid = document.querySelector<HTMLElement>('#game-mode-modal .mode-grid');
-    if (!grid) return;
-
-    const modes = GAME_MODE_REGISTRY.getAll().filter((mode) => mode.available);
-    grid.innerHTML = modes.map((mode) =>
-      '<button class="mode-card" type="button" data-game-mode="' + mode.id + '">' +
-      '<span class="mode-card-icon">♜</span>' +
-      '<strong>' + mode.displayName + '</strong>' +
-      '<small>' + mode.description + '</small>' +
-      '</button>',
-    ).join('');
-
-    grid.querySelectorAll<HTMLButtonElement>('[data-game-mode]').forEach((button) => {
-      button.onclick = () => {
-        const requested = button.dataset.gameMode;
-        if (requested) this.handleGameModeSelection(requested);
-      };
-    });
-  }
-
-  private openGameModeSelector(): void {
-    const layoutModal = document.getElementById('map-layout-modal');
-    if (layoutModal) layoutModal.hidden = true;
-    this.renderGameModeSelection();
-    const modal = document.getElementById('game-mode-modal');
-    if (modal) modal.hidden = false;
-  }
-
-  private handleGameModeSelection(modeId: string): void {
-    if (!isGameMode(modeId)) {
-      this.setStatus('Game mode is unavailable');
-      return;
-    }
-
-    this.openMapLayoutSelector(modeId);
-  }
-
-  private openMapLayoutSelector(mode: GameMode): void {
-    const modeModal = document.getElementById('game-mode-modal');
-    if (modeModal) modeModal.hidden = true;
-
+  private openMapLayoutSelector(): void {
     const modal = document.getElementById('map-layout-modal');
     const grid = document.getElementById('map-layout-grid');
     if (!modal || !grid) {
-      this.startNewGameWithMode(mode);
+      this.startNewGame();
       return;
     }
 
@@ -1507,24 +1459,15 @@ export class ThreeGame {
       button.onclick = () => {
         const layoutId = normalizeMapLayoutId(button.dataset.mapLayout);
         this.setMapLayoutId(layoutId);
-        this.startNewGameWithMode(mode);
+        this.startNewGame();
       };
     });
-
-    const back = document.getElementById('map-layout-back-button') as HTMLButtonElement | null;
-    if (back) {
-      back.onclick = () => {
-        modal.hidden = true;
-        this.openGameModeSelector();
-      };
-    }
 
     modal.hidden = false;
   }
 
-  private resetWorldForMode(mode: GameMode): void {
-    this.services.state.setGameMode(mode);
-    audioEvents.emit({ action: 'set_mode', mode });
+  private resetWorld(): void {
+    this.services.state.setGameMode('unified');
     this.services.state.clear();
     this.services.keepSystem.clear();
     this.towerBridges.clear();
@@ -1542,10 +1485,18 @@ export class ThreeGame {
     this.workers.length = 0;
     this.clearSettlementAgents();
     this.battleSystem.reset(false);
+    this.endlessDefenseActive = false;
+    this.endlessDefensePaused = false;
+    this.freeBuildEnabled = false;
+    this.endlessDefenseWave = 0;
+    this.endlessDefenseIntermissionMs = 0;
+    this.endlessDefenseAwaitingNextWave = false;
     this.militaryTier = 1;
     this.services.state.setMissileState();
     this.services.economySystem.reset();
     this.services.populationSystem.setState();
+    this.missionSystem.reset();
+    this.missionRefreshAccumulatorMs = 0;
     this.populationBattleCommitted = false;
     this.populationBattleStart = null;
     this.economySaveAccumulatorMs = 0;
@@ -1556,47 +1507,22 @@ export class ThreeGame {
     this.rebuildWorldLayoutSurface();
     this.seedNaturalProps();
     this.worldSeeded = true;
+    this.createWorkers();
     this.selectedTool = null;
-    this.syncModeDependentUI();
+    this.syncLoadedWorldUI();
     this.redraw();
   }
 
-  private startNewGameWithMode(mode: GameMode): void {
-    const session = this.services.session;
-    if (session.getStatus() === 'running' || session.getStatus() === 'paused') {
-      session.end();
-    }
-    session.cleanup();
-
-    const selection = session.selectMode(mode);
-    if (!selection.ok || !session.getSelectedMode()) {
-      this.setStatus('Selected game mode is unavailable');
-      return;
-    }
-
-    const initialized = session.initialize();
-    if (!initialized.ok) {
-      this.setStatus('Game mode could not be initialized');
-      return;
-    }
-
-    this.resetWorldForMode(mode);
-    const started = session.start();
-    if (!started.ok) {
-      this.setStatus('Game mode could not be started');
-      return;
-    }
-
+  private startNewGame(): void {
+    this.resetWorld();
     this.save(false);
-    const modeModal = document.getElementById('game-mode-modal');
-    if (modeModal) modeModal.hidden = true;
     const layoutModal = document.getElementById('map-layout-modal');
     if (layoutModal) layoutModal.hidden = true;
     const templates = document.getElementById('templates-modal');
     if (templates) templates.hidden = false;
     this.selectTool(null);
     const layout = MAP_LAYOUTS.find((item) => item.id === this.mapLayoutId);
-    this.setStatus('Mode selected: ' + getGameModeDefinition(mode).label + ' · ' + (layout?.label ?? 'Classic Island'));
+    this.setStatus('New game · ' + (layout?.label ?? 'Classic Island'));
   }
 
   private createRiverTexture(): THREE.CanvasTexture {
@@ -1935,7 +1861,7 @@ export class ThreeGame {
         }
 
         if (terrain === 'plains') {
-          if (this.gameMode === 'medieval' && h1 % 31 === 5 && x > 3 && y > 3) {
+          if (h1 % 31 === 5 && x > 3 && y > 3) {
             this.services.state.setCell(x, y, 'hut', 1);
           } else if (h1 % 23 === 7 && h2 % 3 !== 0) {
             this.services.state.setCell(x, y, 'tree', 1 + (h2 % 2));
@@ -3469,6 +3395,12 @@ export class ThreeGame {
     else if (cell.kind === 'mosque') this.makeMosque(group, cell.x, cell.y);
     else if (cell.kind === 'windmill') this.services.windmillSystem.create(group);
     else if (cell.kind === 'mine') this.makeMine(group);
+    else if (cell.kind === 'carpenter') group.add(
+      this.carpenterRenderer.render(
+        Math.max(1, Math.min(CARPENTER_MAX_LEVEL, cell.level ?? 1)),
+        cell.x * 97 + cell.y * 53,
+      ),
+    );
     else if (cell.kind === 'mountain') this.makeMountain(group, cell.level ?? 1, cell.x, cell.y);
     else if (cell.kind === 'tree') this.makeTree(group, cell.level ?? 1);
     else if (cell.kind === 'rock') this.makeRock(group, cell.level ?? 1);
@@ -7937,79 +7869,6 @@ export class ThreeGame {
     }
   }
 
-  private moveSelected(dx: number, dy: number): void {
-    if (this.selectedKeepId !== null) {
-      const keep = this.services.keepSystem.get(this.selectedKeepId);
-      if (!keep) return;
-
-      const draft = {
-        x: keep.x + dx,
-        y: keep.y + dy,
-        width: keep.width,
-        depth: keep.depth,
-        floors: keep.floors,
-        rotation: keep.rotation,
-        cornerTowers: keep.cornerTowers,
-        roof: keep.roof,
-        battlements: keep.battlements,
-      };
-      const validation = this.validateKeepDraft(draft, keep.id);
-      if (!validation.valid) {
-        this.setStatus(validation.reason ?? 'Cannot move Keep there');
-        return;
-      }
-
-      this.recordHistory();
-      const updated = this.services.keepSystem.update(keep.id, { x: draft.x, y: draft.y });
-      if (updated) {
-        this.selectKeep(updated);
-        this.redraw();
-        this.scheduleSave();
-        this.setStatus('Moved Keep');
-      }
-      return;
-    }
-
-    if (!this.selectedCell) {
-      this.setStatus('Click a structure first');
-      return;
-    }
-
-    const source = this.services.state.getCell(this.selectedCell.x, this.selectedCell.y);
-    if (!source) {
-      this.setStatus('Selected tile has no structure');
-      return;
-    }
-
-    const nx = this.selectedCell.x + dx;
-    const ny = this.selectedCell.y + dy;
-    if (nx < 0 || ny < 0 || nx >= SIZE || ny >= SIZE || this.services.state.getCell(nx, ny)) {
-      this.setStatus('Cannot move there');
-      return;
-    }
-
-    const destinationTerrain = this.terrainAt(nx, ny);
-    if (destinationTerrain === 'water' || destinationTerrain === 'river') {
-      this.setStatus('Cannot move onto water');
-      return;
-    }
-
-    this.recordHistory();
-
-    const sourceX = this.selectedCell.x;
-    const sourceY = this.selectedCell.y;
-    if (source.kind === 'tower') this.removeTowerBridgesAt(sourceX, sourceY);
-
-    const { kind, level, ...options } = source;
-    this.services.state.removeCell(sourceX, sourceY);
-    this.services.state.setCell(nx, ny, kind, level ?? 1, options);
-    this.selectedCell = { x: nx, y: ny };
-
-    this.redraw();
-    this.scheduleSave();
-    this.setStatus('Moved selected structure');
-  }
-
   private rotateSelected(): void {
     if (this.selectedKeepId !== null) {
       this.rotateSelectedKeep();
@@ -8037,7 +7896,7 @@ export class ThreeGame {
     this.setStatus('Rotated selected structure');
   }
 
-  private cancelActiveTouchBuildGesture(canvas: HTMLCanvasElement): void {
+  private cancelActiveTouchBuildGesture(): void {
     const terrainSnapshot =
       this.terrainStrokeActive && this.terrainStrokeChanged
         ? this.terrainStrokeSnapshot
@@ -8058,39 +7917,66 @@ export class ThreeGame {
     this.lastTerrainBrushKey = '';
     this.pointerStart = null;
     this.buildPreviewKey = '';
-    this.clearGroup(this.wallPreviewLayer);
+    this.clearBuildPlacementPreview();
+    this.towerBridgeStart = null;
+    this.towerBridgeHover = null;
     this.controls.enabled = true;
 
-    for (const pointerId of this.activeTouchPointers) {
-      if (canvas.hasPointerCapture(pointerId)) canvas.releasePointerCapture(pointerId);
-    }
-
     if (terrainSnapshot) {
-      this.restoreSnapshot(terrainSnapshot);
-      this.setStatus('Touch gesture changed · cancelled unfinished terrain edit');
+      // A stroke changes elevation only. Do not rewind economy/population that
+      // continued simulating while the player held a finger down.
+      this.elevationOverrides.clear();
+      for (const [key, value] of terrainSnapshot.elevations) this.elevationOverrides.set(key, value);
+      this.normalizeRiverElevations();
+      this.redraw();
     }
   }
 
   private bindPointerInput(): void {
     const canvas = this.renderer.domElement;
+    const touches = new TouchGestureSession(
+      () => this.cancelActiveTouchBuildGesture(),
+      (delta) => {
+        applyTouchCameraDelta(this.camera, this.controls, delta, canvas.clientHeight);
+        this.enforceGameplayCameraBounds();
+      },
+    );
+    if (new URLSearchParams(window.location.search).has('touchQA')) {
+      // Read-only, opt-in diagnostics for CDP touch tests; normal release bounds
+      // remain enabled (unlike visualBaseline's fixed-camera benchmark mode).
+      (window as unknown as { __castleTouchQA: () => object }).__castleTouchQA = () => ({
+        camera: this.camera.position.toArray(), target: this.controls.target.toArray(),
+        distance: this.camera.position.distanceTo(this.controls.target),
+        minDistance: this.controls.minDistance, maxDistance: this.controls.maxDistance,
+        cells: this.services.state.entries(), elevations: [...this.elevationOverrides.entries()],
+        undoCount: this.undoStack.length, pointers: touches.pointerIds,
+        dragging: Boolean(this.wallDragStart || this.roadDragStart || this.terrainStrokeActive),
+        preview: this.wallPreviewLayer.children.length,
+      });
+    }
+    // Canvas touches belong to one owner. OrbitControls retains desktop mouse,
+    // wheel and keyboard events; it never receives half of a touch sequence.
+    const consumeTouch = (event: PointerEvent): void => {
+      event.preventDefault();
+      event.stopPropagation();
+    };
 
     canvas.addEventListener(
       'pointerdown',
       (event) => {
         if (event.button !== 0) return;
-        if (this.battleSystem.isActive()) return;
-
         if (event.pointerType === 'touch') {
-          this.activeTouchPointers.add(event.pointerId);
-          if (this.activeTouchPointers.size > 1) {
-            for (const pointerId of this.activeTouchPointers) {
-              this.suppressedTouchPointers.add(pointerId);
-            }
-            this.cancelActiveTouchBuildGesture(canvas);
-            this.setStatus('Multi-touch camera gesture · castle build action cancelled');
-            return;
-          }
+          consumeTouch(event);
+          void this.audioManager.initializeFromUserGesture();
+          canvas.setPointerCapture(event.pointerId);
+          const stroke = !this.isGodModeTargeting() && this.selectedTool !== null &&
+            (this.isWallTool(this.selectedTool) || this.isRoadTool(this.selectedTool) ||
+              this.isTerrainTool(this.selectedTool) || this.selectedTool === 'mountainRange');
+          const intent = !this.controls.enabled && !touches.pointerIds.length ? 'blocked' :
+            this.battleSystem.isActive() ? 'camera' : stroke ? 'stroke' : 'tap';
+          if (!touches.down(event, intent)) return;
         }
+        if (this.battleSystem.isActive()) return;
 
         const cell = this.pickGridCell(event);
         if (cell && event.pointerType !== 'mouse') {
@@ -8174,6 +8060,10 @@ export class ThreeGame {
     canvas.addEventListener(
       'pointermove',
       (event) => {
+        if (event.pointerType === 'touch') {
+          consumeTouch(event);
+          if (!touches.move(event)) return;
+        }
         if (this.isGodModeTargeting() && event.pointerType === 'mouse' && !this.wallDragStart && !this.roadDragStart && !this.terrainStrokeActive) {
           const cell = this.pickGridCell(event);
           if (cell && (cell.x !== this.godModeHover?.x || cell.y !== this.godModeHover?.y)) {
@@ -8281,18 +8171,10 @@ export class ThreeGame {
         if (event.button !== 0) return;
 
         if (event.pointerType === 'touch') {
-          const suppressed = this.suppressedTouchPointers.has(event.pointerId);
-          this.activeTouchPointers.delete(event.pointerId);
-          this.suppressedTouchPointers.delete(event.pointerId);
-          if (suppressed) {
-            this.cancelLongPress();
-            this.longPressTriggered = false;
-            if (canvas.hasPointerCapture(event.pointerId)) canvas.releasePointerCapture(event.pointerId);
-            if (this.activeTouchPointers.size === 0) this.suppressedTouchPointers.clear();
-            event.preventDefault();
-            event.stopPropagation();
-            return;
-          }
+          consumeTouch(event);
+          const action = touches.up(event);
+          if (canvas.hasPointerCapture(event.pointerId)) canvas.releasePointerCapture(event.pointerId);
+          if (!action) return;
         }
 
         if (this.isGodModeTargeting()) {
@@ -8428,43 +8310,44 @@ export class ThreeGame {
       }
     });
 
-    canvas.addEventListener(
-      'pointercancel',
-      (event) => {
-        this.godModeTouchStart = null;
-        if (event.pointerType === 'touch') {
-          this.activeTouchPointers.delete(event.pointerId);
-          this.suppressedTouchPointers.delete(event.pointerId);
-          if (this.activeTouchPointers.size === 0) this.suppressedTouchPointers.clear();
-        }
-        this.cancelLongPress();
-        this.longPressTriggered = false;
-        this.wallDragStart = null;
-        this.wallDragEnd = null;
-        this.roadDragStart = null;
-        this.roadDragEnd = null;
-        this.mountainRangeStart = null;
-        this.mountainRangeEnd = null;
-        this.terrainStrokeActive = false;
-        this.terrainStrokeSnapshot = null;
-        this.pointerStart = null;
-        this.buildPreviewKey = '';
-        this.clearGroup(this.wallPreviewLayer);
-        this.controls.enabled = true;
-      },
-      true,
-    );
+    canvas.addEventListener('pointercancel', (event) => {
+      if (event.pointerType === 'touch') {
+        consumeTouch(event);
+        touches.cancel(event.pointerId);
+      } else {
+        this.cancelActiveTouchBuildGesture();
+      }
+    }, true);
+    canvas.addEventListener('lostpointercapture', (event) => {
+      // Normal pointer-up removes the pointer first; unexpected capture loss
+      // cancels and rolls back the active stroke instead of committing it.
+      if (event.pointerType === 'touch') touches.cancel(event.pointerId);
+    });
 
     const cancelInterruptedTouchGesture = (): void => {
-      if (this.activeTouchPointers.size === 0) return;
-      this.cancelActiveTouchBuildGesture(canvas);
-      this.activeTouchPointers.clear();
-      this.suppressedTouchPointers.clear();
+      const captured = touches.pointerIds;
+      touches.interrupt();
+      for (const pointerId of captured) {
+        if (canvas.hasPointerCapture(pointerId)) canvas.releasePointerCapture(pointerId);
+      }
     };
+    this.cancelWorldTouchInput = cancelInterruptedTouchGesture;
     window.addEventListener('blur', cancelInterruptedTouchGesture);
+    window.addEventListener('pagehide', cancelInterruptedTouchGesture);
+    document.addEventListener('pause', cancelInterruptedTouchGesture);
     document.addEventListener('visibilitychange', () => {
       if (document.hidden) cancelInterruptedTouchGesture();
     });
+    // UI owns touches that start outside the canvas. Cancel any unfinished world
+    // gesture before a panel/tool/load action changes the game underneath it.
+    document.addEventListener('pointerdown', (event) => {
+      if (event.target !== canvas) cancelInterruptedTouchGesture();
+    }, true);
+    if (Capacitor.isNativePlatform()) {
+      void App.addListener('appStateChange', ({ isActive }) => {
+        if (!isActive) cancelInterruptedTouchGesture();
+      });
+    }
   }
 
   private beginLongPress(event: PointerEvent, cell: GridPoint): void {
@@ -9277,17 +9160,7 @@ export class ThreeGame {
     }
 
     if (tool === 'keep') {
-      return this.services.keepSystem.footprint({
-        x: point.x,
-        y: point.y,
-        width: this.keepWidth,
-        depth: this.keepDepth,
-        floors: this.keepFloors,
-        rotation: this.keepRotation,
-        cornerTowers: this.keepCornerTowers,
-        roof: this.keepRoof,
-        battlements: this.keepBattlements,
-      });
+      return this.services.keepSystem.footprint(this.keepDraftForPlacement(point.x, point.y));
     }
 
     return [{ ...point }];
@@ -9350,17 +9223,7 @@ export class ThreeGame {
     }
 
     if (tool === 'keep') {
-      const draft = {
-        x: point.x,
-        y: point.y,
-        width: this.keepWidth,
-        depth: this.keepDepth,
-        floors: this.keepFloors,
-        rotation: this.keepRotation,
-        cornerTowers: this.keepCornerTowers,
-        roof: this.keepRoof,
-        battlements: this.keepBattlements,
-      };
+      const draft = this.keepDraftForPlacement(point.x, point.y);
       const validation = this.validateKeepDraft(draft);
       const costUnits = Math.max(1, Math.ceil((draft.width * draft.depth * draft.floors) / 6));
       const affordable = this.isConstructionAffordable('keep', costUnits);
@@ -9509,7 +9372,7 @@ export class ThreeGame {
     };
   }
 
-  private previewCastlePlacementBlock(point: GridPoint, decrease = false): CastleBlockState | null {
+  private previewCastlePlacementBlock(point: GridPoint): CastleBlockState | null {
     const tool = this.selectedTool;
     if (tool !== 'gate' && tool !== 'tower') return null;
 
@@ -9522,21 +9385,16 @@ export class ThreeGame {
     const existing = byKey.get(key);
 
     if (tool === 'tower') {
-      const currentLevel = Math.max(1, Math.floor(existing?.level ?? 1));
-      const level = existing?.kind === 'tower'
-        ? (decrease
-          ? Math.max(1, currentLevel - 1)
-          : Math.min(FORTIFICATION_MAX_LEVEL, currentLevel + 1))
-        : Math.min(FORTIFICATION_MAX_LEVEL, currentLevel);
-      const compatibleTop = this.compatibleTowerTop(this.towerShape, this.towerTop);
+      const level = Math.max(1, Math.min(FORTIFICATION_MAX_LEVEL, Math.floor(existing?.level ?? 1)));
+      const towerStyle = this.towerStyleForLevel(level, point.x, point.y);
       byKey.set(key, {
         ...(existing ?? { x: point.x, y: point.y, kind: 'tower' as const }),
         x: point.x,
         y: point.y,
         kind: 'tower',
         level,
-        towerShape: this.towerShape,
-        towerTop: compatibleTop,
+        towerShape: towerStyle.shape,
+        towerTop: towerStyle.top,
         wallLinks: existing?.wallLinks,
       });
     } else {
@@ -9590,7 +9448,7 @@ export class ThreeGame {
       return;
     }
 
-    const castlePreview = preview.valid ? this.previewCastlePlacementBlock(point, decrease) : null;
+    const castlePreview = preview.valid ? this.previewCastlePlacementBlock(point) : null;
     const key =
       `${this.selectedTool}:${point.x},${point.y}:${preview.valid}:${preview.cells.map((cell) => `${cell.x},${cell.y}`).join(';')}:` +
       `${this.keepWidth}x${this.keepDepth}x${this.keepFloors}:${this.keepRotation}:${this.viewMode}:${decrease}:` +
@@ -9965,25 +9823,9 @@ export class ThreeGame {
     if (this.selectedTool === 'tower') {
       if (current === 'tower') {
         const currentLevel = Math.max(1, Math.min(FORTIFICATION_MAX_LEVEL, Math.floor(cell?.level ?? 1)));
-        const nextLevel = event.shiftKey
-          ? Math.max(1, currentLevel - 1)
-          : Math.min(FORTIFICATION_MAX_LEVEL, currentLevel + 1);
-        if (nextLevel === currentLevel) {
-          this.setStatus(event.shiftKey ? 'Tower is already at Level 1' : 'Tower is already at Level 4 · Royal Bastion');
-          this.syncArmyCampUpgradeUI();
-          return;
-        }
-
-        this.recordHistory();
-        const compatibleTop = this.compatibleTowerTop(this.towerShape, this.towerTop);
-        this.towerTop = compatibleTop;
-        this.services.state.updateCell(gx, gy, {
-          level: nextLevel,
-          towerShape: this.towerShape,
-          towerTop: compatibleTop,
-        });
-        this.finishBuild();
-        this.setStatus(`Tower changed to Level ${nextLevel} · ${this.fortificationLevelDefinition('tower', nextLevel).name}`);
+        this.selectedKeepId = null;
+        this.syncArmyCampUpgradeUI();
+        this.setStatus(`Tower selected · Level ${currentLevel} · use Upgrade below`);
         return;
       }
 
@@ -9992,15 +9834,16 @@ export class ThreeGame {
 
       if (!this.ensureConstructionAffordable('tower')) return;
       this.recordHistory();
-      const compatibleTop = this.compatibleTowerTop(this.towerShape, this.towerTop);
-      this.towerTop = compatibleTop;
-      this.services.state.setCell(gx, gy, 'tower', cell?.level ?? 1, {
-        towerShape: this.towerShape,
-        towerTop: compatibleTop,
+      const level = Math.max(1, Math.min(FORTIFICATION_MAX_LEVEL, Math.floor(cell?.level ?? 1)));
+      const towerStyle = this.towerStyleForLevel(level, gx, gy);
+      this.services.state.setCell(gx, gy, 'tower', level, {
+        towerShape: towerStyle.shape,
+        towerTop: towerStyle.top,
         wallLinks: cell?.wallLinks,
       });
       this.spendConstructionCost('tower');
       this.finishBuild();
+      this.setStatus('Tower built · appearance will evolve automatically when upgraded');
       return;
     }
 
@@ -10023,7 +9866,7 @@ export class ThreeGame {
       return;
     }
     if (!this.isBuildingAvailable(selectedTile)) {
-      this.setStatus('This building is unavailable in ' + getGameModeDefinition(this.gameMode).label);
+      this.setStatus('This building is unavailable');
       return;
     }
     const selectedFortification = selectedTile === 'gate';
@@ -10666,12 +10509,14 @@ export class ThreeGame {
       return `${rounded >= 0 ? '+' : ''}${rounded.toFixed(2)}/s`;
     };
 
+    setText('economy-logs', `Logs ${formatAmount(resources.logs)}`);
     setText('economy-wood', `Wood ${formatAmount(resources.wood)}`);
     setText('economy-stone', `Stone ${formatAmount(resources.stone)}`);
     setText('economy-grain', `Grain ${formatAmount(resources.grain)}`);
     setText('economy-apples', `Apples ${formatAmount(resources.apples)}`);
     setText('economy-flour', `Flour ${formatAmount(resources.flour)}`);
     setText('economy-food', `Food ${formatAmount(resources.food)}`);
+    setText('economy-logs-rate', formatRate(rates.logsPerSecond));
     setText('economy-wood-rate', formatRate(rates.woodPerSecond));
     setText('economy-stone-rate', formatRate(rates.stonePerSecond));
     setText('economy-grain-rate', formatRate(rates.grainPerSecond));
@@ -10729,6 +10574,39 @@ export class ThreeGame {
     setText('population-workers', `Production/Service ${snapshot.productionWorkers}`);
     setText('population-militia', `Militia ${snapshot.militia}`);
     setText('population-professional', `Professional ${snapshot.professionalArmy}`);
+  }
+
+  private missionSnapshot(status: BattleStatus = this.battleSystem.status()): MissionSnapshot {
+    const cells = this.services.state.entries();
+    this.services.populationSystem.reconcile(cells);
+    const population = this.services.populationSystem.snapshot();
+    return {
+      population: {
+        totalPopulation: population.totalPopulation,
+        deadCivilians: population.deadCivilians,
+      },
+      cells,
+      keeps: this.services.keepSystem.entries(),
+      battle: status,
+    };
+  }
+
+  private updateMissions(deltaMs: number, force = false, status?: BattleStatus): void {
+    this.missionRefreshAccumulatorMs += deltaMs;
+    if (!force && this.missionRefreshAccumulatorMs < 300) return;
+    this.missionRefreshAccumulatorMs = 0;
+
+    const snapshot = this.missionSnapshot(status);
+    const result = this.missionSystem.update(snapshot);
+    this.missionUI.render(this.missionSystem.getView(snapshot), result.completedIds);
+    if (result.stateChanged) this.save(false);
+  }
+
+  private setPinnedMission(id?: string): void {
+    if (!this.missionSystem.setPinnedMission(id)) return;
+    const snapshot = this.missionSnapshot();
+    this.missionUI.render(this.missionSystem.getView(snapshot));
+    this.save(false);
   }
 
   private updateWorkers(deltaMs: number): void {
@@ -10902,7 +10780,6 @@ export class ThreeGame {
   private bindUI(): void {
     const get = <T extends HTMLElement>(id: string): T => document.getElementById(id) as T;
     const toolbar = get<HTMLElement>('toolbar');
-    this.renderGameModeSelection();
 
     const noneHtml =
       '<button class="build-inspect-button is-selected" data-build-none="true" type="button" aria-pressed="true">' +
@@ -10911,7 +10788,7 @@ export class ThreeGame {
     toolbar.innerHTML =
       '<div class="toolbar-title">' +
       '<div class="toolbar-heading"><span>Build</span><small>Choose a tool and place it</small></div>' +
-      '<div class="toolbar-title-actions"><span id="build-mode-chip" class="build-mode-chip"></span>' +
+      '<div class="toolbar-title-actions">' +
       '<button id="toolbar-close" class="toolbar-close" type="button" aria-label="Close build panel">×</button></div>' +
       '</div>' +
       '<div class="build-search" role="search">' +
@@ -10936,6 +10813,7 @@ export class ThreeGame {
       '<span id="population-professional">Professional 0</span>' +
       '</div>' +
       '<div class="build-economy-summary" role="group" aria-label="Settlement resources">' +
+      '<span class="build-resource-stat"><b id="economy-logs">Logs 0</b><small id="economy-logs-rate">+0/s</small></span>' +
       '<span class="build-resource-stat"><b id="economy-wood">Wood 0</b><small id="economy-wood-rate">+0/s</small></span>' +
       '<span class="build-resource-stat"><b id="economy-stone">Stone 0</b><small id="economy-stone-rate">+0/s</small></span>' +
       '<span class="build-resource-stat"><b id="economy-grain">Grain 0</b><small id="economy-grain-rate">+0/s</small></span>' +
@@ -10949,10 +10827,16 @@ export class ThreeGame {
       '<div id="build-search-empty" class="build-search-empty" hidden>No tools match that search.</div>' +
       '<div class="build-tool-sections"></div>' +
       '<div class="builder-settings">' +
+      '<div class="settings-actions build-global-actions" role="group" aria-label="Build history actions"><button id="undo-button" type="button">↶ Undo</button><button id="redo-button" type="button">↷ Redo</button></div>' +
+      '<section id="selection-action-card" class="fortification-upgrade-card" aria-label="Selected building actions" hidden>' +
+      '<div class="fortification-upgrade-heading"><div><span class="eyebrow">SELECTED BUILDING</span><strong id="selection-action-name">Building</strong></div></div>' +
+      '<div class="settings-actions"><button id="rotate-selected" type="button" hidden>↻ Rotate</button><button id="remove-selected" type="button">Remove</button></div>' +
+      '<div class="settings-actions"><button id="selected-gate-toggle" type="button" hidden>Open Gate</button></div>' +
+      '</section>' +
       '<section id="fortification-upgrade-card" class="fortification-upgrade-card" aria-label="Selected fortification upgrade" hidden>' +
       '<div class="fortification-upgrade-heading"><div><span id="fortification-upgrade-type" class="eyebrow">SELECTED FORTIFICATION</span><strong id="fortification-upgrade-name">Fortification · Level 1</strong></div><span id="fortification-upgrade-badge">1 / 4</span></div>' +
       '<div class="fortification-level-track" aria-hidden="true"><span data-fortification-level="1"></span><span data-fortification-level="2"></span><span data-fortification-level="3"></span><span data-fortification-level="4"></span></div>' +
-      '<small id="fortification-upgrade-description">Select a Modular Tower or Gate. For a Tower Bridge, choose the Bridge tool and select both connected towers.</small>' +
+      '<small id="fortification-upgrade-description">Select a Tower, Gate, Keep, or Tower Bridge to inspect its upgrade path.</small>' +
       '<div class="fortification-upgrade-actions"><button id="fortification-upgrade-button" class="fortification-upgrade-button" type="button">Upgrade to Level 2</button><button id="fortification-remove-bridge-button" class="fortification-remove-bridge-button" type="button" hidden>Remove Bridge</button></div>' +
       '</section>' +
       '<section id="army-camp-upgrade-card" class="army-camp-upgrade-card" aria-label="Selected Army Camp upgrade" hidden>' +
@@ -10967,6 +10851,12 @@ export class ThreeGame {
       '<small id="agriculture-upgrade-description">Select a Farm or Cow Barn to inspect its level.</small>' +
       '<button id="agriculture-upgrade-button" class="agriculture-upgrade-button" type="button">Upgrade to Level 2</button>' +
       '</section>' +
+      '<section id="carpenter-upgrade-card" class="carpenter-upgrade-card" aria-label="Selected Carpenter Workshop upgrade" hidden>' +
+      '<div class="carpenter-upgrade-heading"><div><span class="eyebrow">SELECTED CARPENTER</span><strong id="carpenter-upgrade-name">Timber Yard · Level 1</strong></div><span id="carpenter-upgrade-badge">1 / 3</span></div>' +
+      '<div class="carpenter-level-track" aria-hidden="true"><span data-carpenter-level="1"></span><span data-carpenter-level="2"></span><span data-carpenter-level="3"></span></div>' +
+      '<small id="carpenter-upgrade-description">Converts Logs into construction-ready Wood.</small>' +
+      '<button id="carpenter-upgrade-button" class="carpenter-upgrade-button" type="button">Upgrade to Level 2</button>' +
+      '</section>' +
       '<section id="harbor-upgrade-card" class="harbor-upgrade-card" aria-label="Selected Harbor upgrade" hidden>' +
       '<div class="harbor-upgrade-heading"><div><span class="eyebrow">SELECTED HARBOR</span><strong id="harbor-upgrade-name">Landing Dock · Level 1</strong></div><span id="harbor-upgrade-badge">1 / 4</span></div>' +
       '<div class="harbor-level-track" aria-hidden="true"><span data-harbor-level="1"></span><span data-harbor-level="2"></span><span data-harbor-level="3"></span><span data-harbor-level="4"></span></div>' +
@@ -10975,8 +10865,8 @@ export class ThreeGame {
       '</section>' +
       '<section class="settings-section build-settings-section">' +
       '<button class="settings-section-header" type="button" aria-expanded="false">' +
-      '<span class="settings-section-title">Tool Options</span>' +
-      '<span id="build-settings-summary" class="settings-section-summary">Advanced adjustments</span>' +
+      '<span class="settings-section-title">Advanced Editor</span>' +
+      '<span id="build-settings-summary" class="settings-section-summary">Manual architecture & terrain tuning</span>' +
       '<span class="settings-section-chevron" aria-hidden="true">▶</span>' +
       '</button>' +
       '<div class="settings-section-items">' +
@@ -10988,7 +10878,6 @@ export class ThreeGame {
       '<label class="settings-check"><input id="wall-walkway" type="checkbox" /><span>Top Walkway</span></label>' +
       '<div class="settings-actions"><button id="selected-down" type="button">− Height</button><button id="selected-up" type="button">+ Height</button></div>' +
       '<div class="settings-title">Castle Architecture</div>' +
-      '<div class="settings-actions"><button id="selected-gate-toggle" type="button" disabled>Select a Gate</button></div>' +
       '<label class="settings-row"><span>Stone Style</span><select id="castle-stone-style">' +
       '<option value="limestone" selected>Limestone</option><option value="darkStone">Dark Stone</option>' +
       '<option value="sandstone">Sandstone</option><option value="frontier">Rough Frontier</option><option value="whitePlaster">White Plaster</option>' +
@@ -11015,25 +10904,20 @@ export class ThreeGame {
       '<option value="2">2 tiles</option><option value="3" selected>3 tiles</option><option value="4">4 tiles</option><option value="5">5 tiles</option><option value="6">6 tiles</option>' +
       '</select></label>' +
       '<label class="settings-row"><span>Floors</span><select id="keep-floors">' +
-      '<option value="1">1 floor</option><option value="2">2 floors</option><option value="3" selected>3 floors</option><option value="4">4 floors</option><option value="5">5 floors</option><option value="6">6 floors</option><option value="7">7 floors</option><option value="8">8 floors</option><option value="9">9 floors</option>' +
+      '<option value="1">1 floor</option><option value="2" selected>2 floors</option><option value="3">3 floors</option><option value="4">4 floors</option><option value="5">5 floors</option><option value="6">6 floors</option><option value="7">7 floors</option><option value="8">8 floors</option><option value="9">9 floors</option>' +
       '</select></label>' +
       '<label class="settings-row"><span>Roof</span><select id="keep-roof">' +
       '<option value="flatBattlement">Flat Battlement</option><option value="sloped">Medieval Sloped</option><option value="defensivePlatform">Defensive Platform</option><option value="towered">Towered Roof</option><option value="japaneseTiered">Japanese Tiered</option>' +
       '</select></label>' +
-      '<label class="settings-check"><input id="keep-corner-towers" type="checkbox" checked /><span>Corner Towers</span></label>' +
+      '<label class="settings-check"><input id="keep-corner-towers" type="checkbox" /><span>Corner Towers</span></label>' +
       '<label class="settings-check"><input id="keep-battlements" type="checkbox" checked /><span>Keep Battlements</span></label>' +
-      '<div class="settings-actions"><button id="keep-floor-down" type="button">− Keep Floor</button><button id="keep-floor-up" type="button">+ Keep Floor</button></div>' +
-      '<div class="settings-actions"><button id="keep-rotate" type="button">↻ Keep 90°</button><button id="keep-remove" type="button">Remove Keep</button></div>' +
+
       '<div class="settings-title">Terrain Brush</div>' +
       '<label class="settings-row"><span>Brush Size</span><select id="brush-size">' +
       '<option value="1">1 tile</option><option value="2" selected>2 tiles</option><option value="3">3 tiles</option><option value="4">4 tiles</option>' +
       '</select></label>' +
       '<label class="settings-row"><span>Strength</span><span class="range-wrap"><input id="brush-strength" type="range" min="0.25" max="2" step="0.25" value="1" /><b id="brush-strength-value">1.00</b></span></label>' +
-      '<div class="settings-title">Selection</div>' +
-      '<div class="move-pad"><button id="move-up" type="button">↑</button><button id="move-left" type="button">←</button><button id="move-down" type="button">↓</button><button id="move-right" type="button">→</button></div>' +
-      '<div class="settings-actions"><button id="rotate-selected" type="button">↻ Rotate</button><button id="undo-button" type="button">Undo</button></div>' +
-      '<div class="settings-actions"><button id="redo-button" type="button">Redo</button><button id="select-clear" type="button">Clear Select</button></div>' +
-      '<div class="settings-hint">Walls and terrain support drag gestures. Ctrl+Z / Ctrl+Y undo and redo.</div>' +
+      '<div class="settings-hint">Advanced architecture and terrain tuning is optional. Normal building uses automatic defaults.</div>' +
       '</div></section></div>';
 
     const builderSettings = toolbar.querySelector<HTMLElement>('.builder-settings');
@@ -11160,7 +11044,7 @@ export class ThreeGame {
       activateBuildControl(control, event);
     });
 
-    this.refreshBuildPanelForMode();
+    this.refreshBuildPanel();
     this.updatePopulationUI();
     this.syncEconomyUI();
 
@@ -11300,11 +11184,6 @@ export class ThreeGame {
     keepCornerTowers.onchange = updateKeepDraft;
     keepBattlements.onchange = updateKeepDraft;
 
-    get<HTMLButtonElement>('keep-floor-down').onclick = () => this.adjustSelectedKeepFloors(-1);
-    get<HTMLButtonElement>('keep-floor-up').onclick = () => this.adjustSelectedKeepFloors(1);
-    get<HTMLButtonElement>('keep-rotate').onclick = () => this.rotateSelectedKeep();
-    get<HTMLButtonElement>('keep-remove').onclick = () => this.removeSelectedKeep();
-
     get<HTMLButtonElement>('selected-down').onclick = () => this.adjustSelectedHeight(-1);
     get<HTMLButtonElement>('selected-up').onclick = () => this.adjustSelectedHeight(1);
 
@@ -11321,26 +11200,16 @@ export class ThreeGame {
       brushStrengthValue.textContent = this.brushStrength.toFixed(2);
     };
 
-    get<HTMLButtonElement>('move-up').onclick = () => this.moveSelected(0, -1);
-    get<HTMLButtonElement>('move-left').onclick = () => this.moveSelected(-1, 0);
-    get<HTMLButtonElement>('move-down').onclick = () => this.moveSelected(0, 1);
-    get<HTMLButtonElement>('move-right').onclick = () => this.moveSelected(1, 0);
     get<HTMLButtonElement>('rotate-selected').onclick = () => this.rotateSelected();
+    get<HTMLButtonElement>('remove-selected').onclick = () => this.removeSelected();
     get<HTMLButtonElement>('fortification-upgrade-button').onclick = () => this.upgradeSelectedFortification();
     get<HTMLButtonElement>('fortification-remove-bridge-button').onclick = () => this.removeSelectedTowerBridge();
     get<HTMLButtonElement>('army-camp-upgrade-button').onclick = () => this.upgradeSelectedArmyCamp();
     get<HTMLButtonElement>('agriculture-upgrade-button').onclick = () => this.upgradeSelectedAgricultureBuilding();
+    get<HTMLButtonElement>('carpenter-upgrade-button').onclick = () => this.upgradeSelectedCarpenter();
     get<HTMLButtonElement>('harbor-upgrade-button').onclick = () => this.upgradeSelectedHarbor();
     get<HTMLButtonElement>('undo-button').onclick = () => this.undo();
     get<HTMLButtonElement>('redo-button').onclick = () => this.redo();
-    get<HTMLButtonElement>('select-clear').onclick = () => {
-      this.selectedCell = null;
-      this.selectedKeepId = null;
-      this.selectedTowerBridgeId = null;
-      this.syncArmyCampUpgradeUI();
-      this.setStatus('Selection cleared');
-    };
-
     const help = get<HTMLElement>('help-modal');
     const templates = get<HTMLElement>('templates-modal');
     const battlePanel = get<HTMLElement>('battle-panel');
@@ -11370,6 +11239,12 @@ export class ThreeGame {
     get<HTMLButtonElement>('god-mode-close').onclick = () => this.closeGodMode();
     get<HTMLButtonElement>('god-mode-confirm').onclick = () => this.confirmGodModeAction();
     get<HTMLButtonElement>('god-mode-cancel').onclick = () => this.cancelGodModeTarget();
+    get<HTMLButtonElement>('god-mode-free-build').onclick = () => {
+      this.freeBuildEnabled = !this.freeBuildEnabled;
+      this.updateGodModeUI();
+      this.syncEconomyUI();
+      this.setStatus(this.freeBuildEnabled ? 'Free Build enabled' : 'Free Build disabled · economy costs restored');
+    };
     document.querySelectorAll<HTMLButtonElement>('[data-god-action]').forEach((button) => {
       button.onclick = () => {
         const actionId = button.dataset.godAction;
@@ -11398,6 +11273,7 @@ export class ThreeGame {
     });
 
     get<HTMLButtonElement>('battle-start').onclick = () => this.startBattleFromUI();
+    get<HTMLButtonElement>('battle-endless').onclick = () => this.startEndlessDefenseFromUI();
     get<HTMLButtonElement>('battle-stop').onclick = () => this.stopBattleFromUI();
     get<HTMLButtonElement>('battle-reset').onclick = () => this.resetBattleFromUI();
 
@@ -11407,10 +11283,6 @@ export class ThreeGame {
     get<HTMLButtonElement>('battle-speed-up').onclick = () => {
       this.battleSystem.increaseBattleSpeed();
     };
-    get<HTMLButtonElement>('battle-speed-reset').onclick = () => {
-      this.battleSystem.resetBattleSpeed();
-    };
-
     this.syncBattleSetupUI();
     this.syncMilitaryUI();
     this.updateBattleUI(this.battleSystem.status());
@@ -11437,14 +11309,15 @@ export class ThreeGame {
       help.hidden = true;
     };
     get<HTMLButtonElement>('templates-button').onclick = openTemplates;
-    get<HTMLButtonElement>('game-mode-button').onclick = () => {
-      const confirmRequired = this.settingsStore.get().interface.confirmDestructiveActions;
-      if (!confirmRequired || confirm('Start a new game and choose a game mode? Current changes will be replaced.')) this.openGameModeSelector();
-    };
-
     get<HTMLButtonElement>('templates-close-button').onclick = () => {
       templates.hidden = true;
     };
+
+    templates.addEventListener('click', (event) => {
+      if (event.target === templates) {
+        templates.hidden = true;
+      }
+    });
 
     document.querySelectorAll<HTMLButtonElement>('[data-template]').forEach((button) => {
       button.onclick = () => {
@@ -11480,8 +11353,8 @@ export class ThreeGame {
     };
     get<HTMLButtonElement>('reset-button').onclick = () => {
       const confirmRequired = this.settingsStore.get().interface.confirmDestructiveActions;
-      if (!confirmRequired || confirm('Reset the entire world and choose a game mode?')) {
-        this.openGameModeSelector();
+      if (!confirmRequired || confirm(t('Reset the entire world and start a new game?'))) {
+        this.openMapLayoutSelector();
       }
     };
     get<HTMLButtonElement>('fullscreen-button').onclick = async () => {
@@ -11585,8 +11458,45 @@ export class ThreeGame {
     if (!button) return;
     const point = this.selectedCell;
     const cell = point && this.services.state.getCell(point.x, point.y);
+    button.hidden = !cell || cell.kind !== 'gate';
     button.disabled = !cell || cell.kind !== 'gate' || this.battleSystem.isActive();
-    button.textContent = cell?.kind === 'gate' ? (cell.gateOpen === false ? 'Open Gate' : 'Close Gate') : 'Select a Gate';
+    button.textContent = cell?.kind === 'gate' ? (cell.gateOpen === false ? 'Open Gate' : 'Close Gate') : 'Open Gate';
+  }
+
+  private syncSelectionActionUI(): void {
+    const card = document.getElementById('selection-action-card');
+    if (!card) return;
+
+    const keep = this.selectedKeepId !== null ? this.services.keepSystem.get(this.selectedKeepId) : undefined;
+    const cell = this.selectedCell
+      ? this.services.state.getCell(this.selectedCell.x, this.selectedCell.y)
+      : undefined;
+    const bridgeSelected = this.selectedTowerBridgeId !== null && this.towerBridges.has(this.selectedTowerBridgeId);
+    const hasSelection = Boolean(keep || cell || bridgeSelected);
+    card.hidden = !hasSelection;
+
+    const name = document.getElementById('selection-action-name');
+    if (name) {
+      name.textContent = keep
+        ? `Keep · Level ${this.keepUpgradeLevel(keep)}`
+        : bridgeSelected
+          ? 'Tower Bridge'
+          : cell?.kind === 'tower'
+            ? `Tower · Level ${Math.max(1, Math.floor(cell.level ?? 1))}`
+            : cell?.kind === 'gate'
+              ? `Gate · Level ${Math.max(1, Math.floor(cell.level ?? 1))}`
+              : 'Selected Building';
+    }
+
+    const rotate = document.getElementById('rotate-selected') as HTMLButtonElement | null;
+    const remove = document.getElementById('remove-selected') as HTMLButtonElement | null;
+    const rotatable = Boolean(keep || cell?.kind === 'gate' || cell?.kind === 'harbor' || cell?.kind === 'basilica');
+    if (rotate) {
+      rotate.hidden = !rotatable;
+      rotate.disabled = !rotatable || this.battleSystem.isActive();
+    }
+    if (remove) remove.disabled = !hasSelection || this.battleSystem.isActive();
+    this.syncSelectedGateButton();
   }
 
   private toggleSelectedGate(): void {
@@ -11621,6 +11531,33 @@ export class ThreeGame {
     });
     this.redrawCastleNeighborhood([this.selectedCell]);
     this.scheduleSave();
+  }
+
+  private towerStyleForLevel(level: number, gx: number, gy: number): { shape: TowerShape; top: TowerTop } {
+    const normalized = Math.max(1, Math.min(FORTIFICATION_MAX_LEVEL, Math.floor(level)));
+    const styleOffset: Record<StoneStyle, number> = {
+      limestone: 0,
+      darkStone: 1,
+      sandstone: 2,
+      frontier: 3,
+      whitePlaster: 0,
+      earthen: 3,
+    };
+    const progressions: readonly (readonly TowerShape[])[] = [
+      ['round', 'round', 'octagonal', 'square'],
+      ['square', 'round', 'square', 'octagonal'],
+      ['round', 'octagonal', 'round', 'square'],
+      ['watch', 'square', 'round', 'octagonal'],
+    ];
+    const progression = progressions[(styleOffset[this.stoneStyle] + ((gx + gy) & 1)) % progressions.length];
+    const shape = progression[normalized - 1] ?? 'round';
+    const requestedTop: TowerTop = normalized <= 2
+      ? 'openBattlement'
+      : normalized === 3
+        ? (shape === 'square' || shape === 'corner' ? 'hipped' : 'conical')
+        : (shape === 'square' || shape === 'corner' ? 'pyramidal' : 'conical');
+
+    return { shape, top: this.compatibleTowerTop(shape, requestedTop) };
   }
 
   private compatibleTowerTop(shape: TowerShape, top: TowerTop): TowerTop {
@@ -11796,6 +11733,47 @@ export class ThreeGame {
     }
   }
 
+  private removeSelected(): void {
+    if (this.battleSystem.isActive()) {
+      this.setStatus('Finish or reset the battle before editing buildings');
+      return;
+    }
+
+    if (this.selectedTowerBridgeId !== null) {
+      this.removeSelectedTowerBridge();
+      this.syncArmyCampUpgradeUI();
+      return;
+    }
+
+    if (this.selectedKeepId !== null) {
+      this.removeSelectedKeep();
+      this.syncArmyCampUpgradeUI();
+      return;
+    }
+
+    if (!this.selectedCell) {
+      this.setStatus('Select a building first');
+      return;
+    }
+
+    const point = this.selectedCell;
+    const cell = this.services.state.getCell(point.x, point.y);
+    if (!cell) {
+      this.setStatus('Select a building first');
+      this.syncArmyCampUpgradeUI();
+      return;
+    }
+
+    this.recordHistory();
+    if (cell.kind === 'tower') this.removeTowerBridgesAt(point.x, point.y);
+    this.services.state.removeCell(point.x, point.y);
+    this.selectedCell = null;
+    this.redraw();
+    this.scheduleSave();
+    this.syncArmyCampUpgradeUI();
+    this.setStatus('Building removed · Undo available');
+  }
+
   private removeSelectedKeep(): void {
     if (this.selectedKeepId === null) {
       this.setStatus('Select a Keep first');
@@ -11810,6 +11788,38 @@ export class ThreeGame {
     this.setStatus('Keep removed');
   }
 
+  private keepUpgradeLevel(keep: KeepState): number {
+    if (keep.floors >= 5 || keep.width >= 5 || keep.depth >= 5) return 4;
+    if (keep.floors >= 4 || keep.width >= 4 || keep.depth >= 4) return 3;
+    if (keep.floors >= 3) return 2;
+    return 1;
+  }
+
+  private keepDraftForLevel(
+    gx: number,
+    gy: number,
+    level: number,
+    rotation = this.keepRotation,
+  ): Omit<KeepState, 'id' | 'seed'> {
+    const normalized = Math.max(1, Math.min(FORTIFICATION_MAX_LEVEL, Math.floor(level)));
+    const preset = KEEP_UPGRADE_PRESETS[normalized - 1];
+    return {
+      x: gx,
+      y: gy,
+      width: preset.width,
+      depth: preset.depth,
+      floors: preset.floors,
+      rotation,
+      cornerTowers: preset.cornerTowers,
+      roof: preset.roof,
+      battlements: preset.battlements,
+    };
+  }
+
+  private keepDraftForPlacement(gx: number, gy: number): Omit<KeepState, 'id' | 'seed'> {
+    return this.keepDraftForLevel(gx, gy, 1);
+  }
+
   private placeKeep(gx: number, gy: number): void {
     const existing = this.services.keepSystem.findAtCell(gx, gy);
     if (existing) {
@@ -11817,17 +11827,7 @@ export class ThreeGame {
       return;
     }
 
-    const draft = {
-      x: gx,
-      y: gy,
-      width: this.keepWidth,
-      depth: this.keepDepth,
-      floors: this.keepFloors,
-      rotation: this.keepRotation,
-      cornerTowers: this.keepCornerTowers,
-      roof: this.keepRoof,
-      battlements: this.keepBattlements,
-    };
+    const draft = this.keepDraftForPlacement(gx, gy);
 
     const validation = this.validateKeepDraft(draft);
     if (!validation.valid) {
@@ -11870,6 +11870,16 @@ export class ThreeGame {
       }
     }
 
+    if (!kind && this.selectedKeepId !== null) {
+      const keep = this.services.keepSystem.get(this.selectedKeepId);
+      if (keep) {
+        kind = 'keep';
+        level = this.keepUpgradeLevel(keep);
+      } else {
+        this.selectedKeepId = null;
+      }
+    }
+
     if (!kind && this.selectedCell) {
       const cell = this.services.state.getCell(this.selectedCell.x, this.selectedCell.y);
       if (cell?.kind === 'tower' || cell?.kind === 'gate') {
@@ -11886,14 +11896,16 @@ export class ThreeGame {
       ? this.fortificationLevelDefinition(kind, level + 1)
       : undefined;
     const labels: Record<FortificationUpgradeKind, string> = {
-      tower: 'Modular Tower',
+      tower: 'Tower',
       gate: 'Gate',
       towerBridge: 'Tower Bridge',
+      keep: 'Keep',
     };
     const eyebrowLabels: Record<FortificationUpgradeKind, string> = {
-      tower: 'SELECTED MODULAR TOWER',
+      tower: 'SELECTED TOWER',
       gate: 'SELECTED GATE',
       towerBridge: 'SELECTED TOWER BRIDGE',
+      keep: 'SELECTED KEEP',
     };
     const type = document.getElementById('fortification-upgrade-type');
     const name = document.getElementById('fortification-upgrade-name');
@@ -11908,7 +11920,7 @@ export class ThreeGame {
     if (description) {
       description.textContent = next
         ? `${definition.description} Next: ${next.name}.`
-        : `${definition.description} Maximum fortification level reached.`;
+        : `${definition.description} Maximum upgrade level reached.`;
     }
 
     card.querySelectorAll<HTMLElement>('[data-fortification-level]').forEach((step) => {
@@ -11960,14 +11972,49 @@ export class ThreeGame {
       return;
     }
 
+    if (this.selectedKeepId !== null) {
+      const keep = this.services.keepSystem.get(this.selectedKeepId);
+      if (!keep) {
+        this.selectedKeepId = null;
+        this.syncArmyCampUpgradeUI();
+        this.setStatus('Select a Keep first');
+        return;
+      }
+
+      const currentLevel = this.keepUpgradeLevel(keep);
+      if (currentLevel >= FORTIFICATION_MAX_LEVEL) {
+        this.setStatus('Keep is already at Level 4 · Royal Keep');
+        this.syncArmyCampUpgradeUI();
+        return;
+      }
+
+      const nextLevel = currentLevel + 1;
+      const draft = this.keepDraftForLevel(keep.x, keep.y, nextLevel, keep.rotation);
+      const validation = this.validateKeepDraft(draft, keep.id);
+      if (!validation.valid) {
+        this.setStatus(validation.reason ?? 'Clear more space around the Keep before upgrading');
+        return;
+      }
+
+      this.recordHistory();
+      const updated = this.services.keepSystem.update(keep.id, draft);
+      if (updated) {
+        this.selectKeep(updated);
+        this.redraw();
+        this.scheduleSave();
+        this.setStatus(`Keep upgraded to Level ${nextLevel} · ${this.fortificationLevelDefinition('keep', nextLevel).name}`);
+      }
+      return;
+    }
+
     if (!this.selectedCell) {
-      this.setStatus('Select a Modular Tower, Gate, or Tower Bridge first');
+      this.setStatus('Select a Tower, Gate, Keep, or Tower Bridge first');
       return;
     }
 
     const cell = this.services.state.getCell(this.selectedCell.x, this.selectedCell.y);
     if (!cell || (cell.kind !== 'tower' && cell.kind !== 'gate')) {
-      this.setStatus('Select a Modular Tower, Gate, or Tower Bridge first');
+      this.setStatus('Select a Tower, Gate, Keep, or Tower Bridge first');
       this.syncFortificationUpgradeUI();
       return;
     }
@@ -11975,18 +12022,27 @@ export class ThreeGame {
     const kind = cell.kind as 'tower' | 'gate';
     const currentLevel = Math.max(1, Math.min(FORTIFICATION_MAX_LEVEL, Math.floor(cell.level ?? 1)));
     if (currentLevel >= FORTIFICATION_MAX_LEVEL) {
-      this.setStatus(`${kind === 'tower' ? 'Modular Tower' : 'Gate'} is already at Level 4 · ${this.fortificationLevelDefinition(kind, 4).name}`);
+      this.setStatus(`${kind === 'tower' ? 'Tower' : 'Gate'} is already at Level 4 · ${this.fortificationLevelDefinition(kind, 4).name}`);
       this.syncFortificationUpgradeUI();
       return;
     }
 
     const nextLevel = currentLevel + 1;
     this.recordHistory();
-    this.services.state.setLevel(this.selectedCell.x, this.selectedCell.y, nextLevel);
+    if (kind === 'tower') {
+      const style = this.towerStyleForLevel(nextLevel, this.selectedCell.x, this.selectedCell.y);
+      this.services.state.updateCell(this.selectedCell.x, this.selectedCell.y, {
+        level: nextLevel,
+        towerShape: style.shape,
+        towerTop: style.top,
+      });
+    } else {
+      this.services.state.setLevel(this.selectedCell.x, this.selectedCell.y, nextLevel);
+    }
     this.redraw();
     this.scheduleSave();
     this.setStatus(
-      `${kind === 'tower' ? 'Modular Tower' : 'Gate'} upgraded to Level ${nextLevel} · ${this.fortificationLevelDefinition(kind, nextLevel).name}`,
+      `${kind === 'tower' ? 'Tower' : 'Gate'} upgraded to Level ${nextLevel} · ${this.fortificationLevelDefinition(kind, nextLevel).name}`,
     );
   }
 
@@ -12008,6 +12064,86 @@ export class ThreeGame {
     this.redraw();
     this.scheduleSave();
     this.setStatus('Tower Bridge removed · Undo available');
+  }
+
+  private carpenterLevelDefinition(level: number): (typeof CARPENTER_LEVELS)[number] {
+    const normalized = Math.max(1, Math.min(CARPENTER_MAX_LEVEL, Math.floor(level)));
+    return CARPENTER_LEVELS[normalized - 1];
+  }
+
+  private syncCarpenterUpgradeUI(): void {
+    const card = document.getElementById('carpenter-upgrade-card');
+    if (!card) return;
+
+    const cell = this.selectedCell
+      ? this.services.state.getCell(this.selectedCell.x, this.selectedCell.y)
+      : undefined;
+    const selected = cell?.kind === 'carpenter' ? cell : undefined;
+    card.hidden = !selected;
+    if (!selected) return;
+
+    const level = Math.max(1, Math.min(CARPENTER_MAX_LEVEL, selected.level ?? 1));
+    const definition = this.carpenterLevelDefinition(level);
+    const next = level < CARPENTER_MAX_LEVEL ? this.carpenterLevelDefinition(level + 1) : undefined;
+    const name = document.getElementById('carpenter-upgrade-name');
+    const badge = document.getElementById('carpenter-upgrade-badge');
+    const description = document.getElementById('carpenter-upgrade-description');
+    const button = document.getElementById('carpenter-upgrade-button') as HTMLButtonElement | null;
+
+    if (name) name.textContent = `${definition.name} · Level ${level}`;
+    if (badge) badge.textContent = `${level} / ${CARPENTER_MAX_LEVEL}`;
+    if (description) {
+      const outputRate = (definition.inputPerSecond * definition.yieldRatio).toFixed(2);
+      description.textContent = next
+        ? `${definition.description} ${definition.workers} workers · up to ${outputRate} Wood/s. Next: ${next.name}.`
+        : `${definition.description} ${definition.workers} workers · up to ${outputRate} Wood/s. Maximum building level reached.`;
+    }
+
+    card.querySelectorAll<HTMLElement>('[data-carpenter-level]').forEach((step) => {
+      const stepLevel = Number(step.dataset.carpenterLevel ?? 0);
+      step.classList.toggle('is-complete', stepLevel <= level);
+      step.classList.toggle('is-current', stepLevel === level);
+    });
+
+    if (button) {
+      button.disabled = !next || this.battleSystem.isActive();
+      button.textContent = next ? `Upgrade to Level ${next.level} · ${next.name}` : 'Maximum Level';
+    }
+  }
+
+  private upgradeSelectedCarpenter(): void {
+    if (this.battleSystem.isActive()) {
+      this.setStatus('Finish or reset the battle before upgrading the Carpenter Workshop');
+      return;
+    }
+    if (!this.selectedCell) {
+      this.setStatus('Select a Carpenter Workshop first');
+      return;
+    }
+
+    const cell = this.services.state.getCell(this.selectedCell.x, this.selectedCell.y);
+    if (!cell || cell.kind !== 'carpenter') {
+      this.setStatus('Select a Carpenter Workshop first');
+      this.syncCarpenterUpgradeUI();
+      return;
+    }
+
+    const currentLevel = Math.max(1, Math.min(CARPENTER_MAX_LEVEL, cell.level ?? 1));
+    if (currentLevel >= CARPENTER_MAX_LEVEL) {
+      this.setStatus('Carpenter Workshop is already at Level 3 · Master Carpenter Guild');
+      this.syncCarpenterUpgradeUI();
+      return;
+    }
+
+    const nextLevel = currentLevel + 1;
+    this.recordHistory();
+    this.services.state.setLevel(this.selectedCell.x, this.selectedCell.y, nextLevel);
+    this.services.populationSystem.reconcile(this.services.state.entries());
+    this.redraw();
+    this.syncEconomyUI();
+    this.updatePopulationUI();
+    this.scheduleSave();
+    this.setStatus(`Carpenter Workshop upgraded to Level ${nextLevel} · ${this.carpenterLevelDefinition(nextLevel).name}`);
   }
 
   private harborLevelDefinition(level: number): (typeof HARBOR_LEVELS)[number] {
@@ -12187,7 +12323,9 @@ export class ThreeGame {
 
   private syncArmyCampUpgradeUI(): void {
     this.syncFortificationUpgradeUI();
+    this.syncSelectionActionUI();
     this.syncAgricultureUpgradeUI();
+    this.syncCarpenterUpgradeUI();
     this.syncHarborUpgradeUI();
     const card = document.getElementById('army-camp-upgrade-card');
     if (!card) return;
@@ -12281,7 +12419,9 @@ export class ThreeGame {
             ? 'Use the agriculture Upgrade button in Build Settings'
             : cell?.kind === 'harbor'
               ? 'Use the Harbor Upgrade button in Build Settings'
-              : 'Selected tile is not a wall or tower',
+              : cell?.kind === 'carpenter'
+                ? 'Use the Carpenter Upgrade button in Build Settings'
+                : 'Selected tile is not a wall or tower',
       );
       return;
     }
@@ -12334,6 +12474,8 @@ export class ThreeGame {
     this.moatTasks.clear();
     this.services.economySystem.reset();
     this.services.populationSystem.setState();
+    this.missionSystem.reset();
+    this.missionRefreshAccumulatorMs = 0;
     this.populationBattleCommitted = false;
     this.populationBattleStart = null;
     this.economySaveAccumulatorMs = 0;
@@ -13952,6 +14094,8 @@ export class ThreeGame {
     this.moatTasks.clear();
     this.services.economySystem.reset();
     this.services.populationSystem.setState();
+    this.missionSystem.reset();
+    this.missionRefreshAccumulatorMs = 0;
     this.populationBattleCommitted = false;
     this.populationBattleStart = null;
     this.economySaveAccumulatorMs = 0;
@@ -14124,6 +14268,15 @@ export class ThreeGame {
   }
 
   private startBattleFromUI(): void {
+    if (this.endlessDefenseActive) {
+      if (this.endlessDefensePaused) {
+        this.endlessDefensePaused = false;
+        this.battleSystem.resume();
+        this.updateBattleUI(this.battleSystem.status());
+        this.setStatus('Endless Defense resumed');
+      }
+      return;
+    }
     const current = this.battleSystem.status();
     if (current.mode === 'paused') {
       this.battleSystem.resume();
@@ -14173,6 +14326,95 @@ export class ThreeGame {
     this.setStatus('Battle started · Attackers are advancing on the castle');
   }
 
+  private startEndlessDefenseFromUI(): void {
+    if (this.battleSystem.isActive() && this.battleSystem.status().mode !== 'finished') {
+      this.setStatus('Reset the current battle before starting Endless Defense');
+      return;
+    }
+
+    this.syncPopulationDefenseAssignments(this.services.state.entries());
+    this.syncBattleSetupUI();
+    this.endlessDefenseActive = true;
+    this.endlessDefensePaused = false;
+    this.endlessDefenseWave = 0;
+    this.endlessDefenseIntermissionMs = 0;
+    this.endlessDefenseAwaitingNextWave = false;
+    this.services.populationSystem.setMilitiaMobilized(true);
+    this.setViewMode('world3d');
+    this.setToolbarOpen(false);
+    this.workerLayer.visible = false;
+    this.settlementLayer.visible = false;
+    document.getElementById('game-shell')?.classList.add('battle-mode');
+    this.services.gateSystem.setAttackState(true);
+    this.startEndlessDefenseWave(1);
+  }
+
+  private startEndlessDefenseWave(waveNumber: number): void {
+    this.syncPopulationDefenseAssignments(this.services.state.entries());
+    this.services.populationSystem.setMilitiaMobilized(true);
+    const wave = getEndlessDefenseWave(waveNumber);
+    const enemyTotal = endlessDefenseEnemyCount(wave.enemies);
+    const setup: BattleSetup = {
+      ...this.battleSetup,
+      attackerSwordsmen: wave.enemies.swordsman ?? 0,
+      attackerArchers: wave.enemies.archer ?? 0,
+      attackerSpearmen: wave.enemies.spearman ?? 0,
+      attackerCrossbowmen: wave.enemies.crossbowman ?? 0,
+      attackerModernSoldiers: 0,
+      defenderModernSoldiers: 0,
+    };
+
+    this.battleSetup = setup;
+    this.populationBattleCommitted = false;
+    this.populationBattleStart = { ...setup };
+    this.endlessDefenseWave = waveNumber;
+    this.endlessDefenseAwaitingNextWave = false;
+    this.endlessDefenseIntermissionMs = 0;
+    this.battleSystem.start(setup, {
+      attackerSpawnInterval: wave.spawnInterval,
+      attackerSpawnBatchSize: wave.spawnBatchSize,
+      preserveSessionWallDamage: true,
+      militaryTier: this.militaryTier,
+    });
+    this.syncBattleSetupUI();
+    this.setStatus(`Endless Defense · Wave ${waveNumber} · ${enemyTotal} enemies`);
+  }
+
+  private updateEndlessDefense(deltaMs: number): void {
+    if (!this.endlessDefenseActive || this.endlessDefensePaused) return;
+    const status = this.battleSystem.status();
+    if (status.mode !== 'finished') return;
+
+    if (status.result?.winner === 'attacker') {
+      this.endlessDefenseActive = false;
+      this.endlessDefensePaused = false;
+      this.endlessDefenseAwaitingNextWave = false;
+      this.services.gateSystem.setAttackState(false);
+      this.services.populationSystem.setMilitiaMobilized(false);
+      document.getElementById('game-shell')?.classList.remove('battle-mode');
+      this.workerLayer.visible = this.viewMode === 'world3d';
+      this.settlementLayer.visible = this.viewMode === 'world3d';
+      this.updateBattleUI(status);
+      this.setStatus(`Endless Defense defeated on Wave ${this.endlessDefenseWave}`);
+      return;
+    }
+
+    if (status.result?.winner !== 'defender') return;
+
+    if (!this.endlessDefenseAwaitingNextWave) {
+      const wave = getEndlessDefenseWave(this.endlessDefenseWave);
+      this.endlessDefenseAwaitingNextWave = true;
+      this.endlessDefenseIntermissionMs = wave.intermissionSeconds * 1000;
+      this.setStatus(`Wave ${this.endlessDefenseWave} cleared · next wave incoming`);
+      return;
+    }
+
+    this.endlessDefenseIntermissionMs = Math.max(0, this.endlessDefenseIntermissionMs - deltaMs);
+    if (this.endlessDefenseIntermissionMs <= 0) {
+      this.startEndlessDefenseWave(this.endlessDefenseWave + 1);
+    }
+  }
+
   private upgradeMilitaryTier(): void {
     if (this.battleSystem.isActive()) {
       this.setStatus('Reset the current battle before upgrading military technology');
@@ -14190,7 +14432,6 @@ export class ThreeGame {
   private produceMissileFromUI(): void {
     const result = beginMissileProduction(
       this.services.state.getMissileState(),
-      this.gameMode,
       this.militaryTier,
       this.battleSystem.isActive(),
     );
@@ -14202,11 +14443,7 @@ export class ThreeGame {
 
   private launchMissileFromUI(): void {
     const state = this.services.state.getMissileState();
-    if (!missileModeAvailable(this.gameMode)) {
-      this.setStatus('Missiles are available in Modern and Sandbox modes only');
-      return;
-    }
-    if (!missilesUnlocked(this.gameMode, this.militaryTier)) {
+    if (!missilesUnlocked(this.militaryTier)) {
       this.setStatus(`Missiles unlock at Military Tier ${MISSILE_CONFIG.unlockTier}`);
       return;
     }
@@ -14253,7 +14490,7 @@ export class ThreeGame {
 
   private updateMissileCapability(deltaMs: number): void {
     const current = this.services.state.getMissileState();
-    const available = missileModeAvailable(this.gameMode) && missilesUnlocked(this.gameMode, this.militaryTier);
+    const available = missilesUnlocked(this.militaryTier);
     const timersEnabled = !this.battleSystem.isUnderAttack() || this.battleSystem.isRunning();
     const tick = tickMissileState(
       current,
@@ -14281,9 +14518,8 @@ export class ThreeGame {
     if (!section) return;
 
     const state = this.services.state.getMissileState();
-    const modeAvailable = missileModeAvailable(this.gameMode);
-    const unlocked = missilesUnlocked(this.gameMode, this.militaryTier);
-    section.hidden = !modeAvailable;
+    const unlocked = missilesUnlocked(this.militaryTier);
+    section.hidden = false;
 
     const lock = document.getElementById('military-missile-lock');
     const stock = document.getElementById('military-missile-stock');
@@ -14367,7 +14603,7 @@ export class ThreeGame {
     if (hint) {
       hint.textContent = unlocked
         ? `Range ${MISSILE_CONFIG.range}m · radius ${MISSILE_CONFIG.impactRadius}m · ${MISSILE_CONFIG.cooldownMs / 1000}s cooldown. Production is disabled during battles; supply recharges over time.`
-        : `Modern missiles unlock at Military Tier ${MISSILE_CONFIG.unlockTier}. Sandbox bypasses the tier requirement.`;
+        : `Missiles are available in the unified game.`;
     }
   }
 
@@ -14388,6 +14624,13 @@ export class ThreeGame {
   }
 
   private stopBattleFromUI(): void {
+    if (this.endlessDefenseActive) {
+      this.endlessDefensePaused = true;
+      this.battleSystem.stop();
+      this.updateBattleUI(this.battleSystem.status());
+      this.setStatus('Endless Defense paused');
+      return;
+    }
     if (this.settingsStore.get().gameplay.combatFeedback) {
       audioEvents.emit({ action: 'play_sfx', assetId: 'combat.battle-stop' });
     }
@@ -14396,6 +14639,11 @@ export class ThreeGame {
   }
 
   private resetBattleFromUI(): void {
+    this.endlessDefenseActive = false;
+    this.endlessDefensePaused = false;
+    this.endlessDefenseWave = 0;
+    this.endlessDefenseIntermissionMs = 0;
+    this.endlessDefenseAwaitingNextWave = false;
     if (this.settingsStore.get().gameplay.combatFeedback) {
       audioEvents.emit({ action: 'play_sfx', assetId: 'combat.battle-reset' });
     }
@@ -14464,6 +14712,7 @@ export class ThreeGame {
     const result = document.getElementById('battle-result');
     const startButton = document.getElementById('battle-start') as HTMLButtonElement | null;
     const stopButton = document.getElementById('battle-stop') as HTMLButtonElement | null;
+    const endlessButton = document.getElementById('battle-endless') as HTMLButtonElement | null;
     const battleSpeedLabel = document.getElementById('battle-speed-value');
     const battleSpeedDown = document.getElementById('battle-speed-down') as HTMLButtonElement | null;
     const battleSpeedUp = document.getElementById('battle-speed-up') as HTMLButtonElement | null;
@@ -14484,6 +14733,9 @@ export class ThreeGame {
     if (defenderAlive) defenderAlive.textContent = String(status.defendersAlive);
     if (status.mode === 'finished') this.commitPopulationBattleOutcome(status);
     this.updatePopulationUI();
+    const missionPopulation = this.services.populationSystem.snapshot();
+    const missionBattleChanged = this.missionSystem.observeBattle(status, missionPopulation.deadCivilians);
+    if (missionBattleChanged || status.mode === 'finished') this.updateMissions(0, true, status);
     this.syncMilitaryMissileUI();
 
     if (captureLabel) {
@@ -14498,12 +14750,21 @@ export class ThreeGame {
     }
 
     if (startButton) {
-      startButton.textContent = status.mode === 'paused' ? 'Resume Battle' : 'Start Battle';
-      startButton.disabled = status.mode === 'running' || status.mode === 'finished';
+      startButton.textContent = this.endlessDefensePaused ? 'Resume Endless Defense'
+        : status.mode === 'paused' ? 'Resume Battle' : 'Start Battle';
+      startButton.disabled = this.endlessDefenseActive ? !this.endlessDefensePaused
+        : status.mode === 'running' || status.mode === 'finished';
     }
 
     if (stopButton) {
-      stopButton.disabled = status.mode !== 'running';
+      stopButton.disabled = this.endlessDefenseActive ? this.endlessDefensePaused : status.mode !== 'running';
+    }
+
+    if (endlessButton) {
+      endlessButton.textContent = this.endlessDefenseActive
+        ? `Endless Defense · Wave ${Math.max(1, this.endlessDefenseWave)}`
+        : 'Start Endless Defense';
+      endlessButton.disabled = this.endlessDefenseActive || status.mode === 'running' || status.mode === 'paused';
     }
 
     if (battleSpeedLabel) battleSpeedLabel.textContent = `${status.battleSpeed}×`;
@@ -14512,7 +14773,8 @@ export class ThreeGame {
     if (battleSpeedUp) battleSpeedUp.disabled = !speedControlsEnabled;
     if (battleSpeedReset) battleSpeedReset.disabled = !speedControlsEnabled || status.battleSpeed === 1;
 
-    if (panel && status.mode !== 'idle') panel.removeAttribute('hidden');
+    // Battle status updates must never force the panel back open after the player dismisses it.
+    // The panel is opened explicitly from the Battle/Military controls instead.
 
     if (!result) return;
 
@@ -14547,7 +14809,7 @@ export class ThreeGame {
 
   private selectTool(tool: ToolKind | null): void {
     if (tool !== null && !this.isToolAvailable(tool)) {
-      this.setStatus('Tool unavailable in ' + getGameModeDefinition(this.gameMode).label);
+      this.setStatus('Tool unavailable');
       return;
     }
     if (this.battleSystem.isActive()) {
@@ -14586,7 +14848,7 @@ export class ThreeGame {
     noneButton?.setAttribute('aria-pressed', String(tool === null));
 
     if (tool !== null) {
-      const category = getGameModeDefinition(this.gameMode).toolGroups.find((group) => group.toolIds.includes(tool));
+      const category = GAME_DEFINITION.toolGroups.find((group) => group.toolIds.includes(tool));
       if (category) this.activeBuildCategory = category.label;
     }
 
@@ -14634,10 +14896,11 @@ export class ThreeGame {
       for (const extension of this.extensions) extension.updateSettlement?.(deltaMs);
     }
     this.battleSystem.update(deltaMs, time);
+    this.updateEndlessDefense(deltaMs);
     this.updateEconomy(deltaMs);
     this.updateEnvironment(deltaMs);
     this.updateMissileCapability(deltaMs);
-    this.services.session.update(deltaMs, time);
+    this.updateMissions(deltaMs);
     this.updateLongPress(time);
     this.updateGodModeEffects(deltaMs);
     this.ambientFauna.update(deltaMs, time, {

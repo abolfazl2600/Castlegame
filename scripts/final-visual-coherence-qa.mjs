@@ -203,7 +203,7 @@ async function captureScenario(browser, {
       },
       graphics: {
         quality: graphicsQuality,
-        performanceMode: 'balanced',
+        performanceMode: touchMode ? 'performance' : 'balanced',
         environmentDetail: graphicsQuality,
         shadowsEnabled: true,
         effectsEnabled: true,

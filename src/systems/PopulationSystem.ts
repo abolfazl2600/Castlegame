@@ -573,6 +573,10 @@ export class PopulationSystem {
         assign(cell, 'sailor', 6);
         assign(cell, 'merchant', 6);
       } else if (cell.kind === 'windmill') assign(cell, 'worker', 4);
+      else if (cell.kind === 'carpenter') {
+        const level = Math.max(1, Math.min(3, Math.floor(cell.level ?? 1)));
+        assign(cell, 'worker', level * 2);
+      }
       else if (cell.kind === 'basilica') assign(cell, 'worker', 3);
     }
 

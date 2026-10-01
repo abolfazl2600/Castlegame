@@ -3,9 +3,6 @@ import type { GridCell, KeepState, TerrainKind, TileKind, TowerBridgeState, Wall
 import { BattleNavigation, type NavPoint, type WallNavNode } from './BattleNavigation';
 import { WallSystem } from '../building/WallSystem';
 import { FactionRelations } from './FactionRelations';
-import { BattleObjectiveSystem } from './objectives/BattleObjectiveSystem';
-import { DEFAULT_BATTLE_SCENARIO } from './objectives/BattleObjectiveDefinitions';
-import type { BattleScenario, ObjectiveBuildingSnapshot, ObjectivePositionSnapshot } from './objectives/BattleObjectiveTypes';
 import type {
   BattleMissileLaunchOptions,
   BattleMissileLaunchResult,
@@ -41,8 +38,6 @@ export interface BattleWorldContext {
   gatePassable?: (x: number, y: number) => boolean;
   wallWeaponVisuals?: () => THREE.Object3D[];
   effectsEnabled?: () => boolean;
-  objectiveBuildings?: () => ObjectiveBuildingSnapshot[];
-  objectivePositions?: () => ObjectivePositionSnapshot[];
 }
 
 interface UnitRuntime {
@@ -200,7 +195,6 @@ interface UnitVisualRefs {
 export interface BattleStartOptions {
   readonly attackerSpawnInterval?: number;
   readonly attackerSpawnBatchSize?: number;
-  readonly scenario?: BattleScenario;
   /**
    * Keeps battle-only wall damage across consecutive BattleSystem.start() calls.
    * Intended for multi-wave sessions such as Survival; never writes to GameState.
@@ -470,7 +464,6 @@ export class BattleSystem {
   private battleSpeed = DEFAULT_BATTLE_SPEED;
   private militaryTier: MilitaryTier = 1;
   private preparedDefenderSignature = '';
-  private readonly objectiveSystem = new BattleObjectiveSystem();
 
   constructor(
     private readonly layer: THREE.Group,
@@ -582,7 +575,6 @@ export class BattleSystem {
     if (!reusePreparedGarrison) this.spawnDefenders(normalized);
     this.preparedDefenderSignature = '';
     this.refreshSiegePlan(true);
-    this.objectiveSystem.start(options.scenario ?? DEFAULT_BATTLE_SCENARIO, this.battleSeconds);
     this.emitStatus();
   }
 
@@ -711,7 +703,6 @@ export class BattleSystem {
     }
 
     this.clearSiegeState();
-    this.objectiveSystem.reset();
     this.pendingAttackerSpawns = [];
     this.attackerSpawnCells = [];
     this.attackerSpawnCursor = 0;
@@ -754,7 +745,6 @@ export class BattleSystem {
     }
 
     this.clearSiegeState();
-    this.objectiveSystem.reset();
 
     this.mode = 'idle';
     this.battleSpeed = DEFAULT_BATTLE_SPEED;
@@ -828,7 +818,6 @@ export class BattleSystem {
     this.animateObjective(timeMs);
 
     if (this.statusTimer <= 0) {
-      this.objectiveSystem.update(this.createObjectiveContext(delta));
       this.statusTimer = 0.22;
       this.emitStatus();
     }
@@ -930,7 +919,7 @@ export class BattleSystem {
       defendersAlive,
       defenderAliveByType,
       result: this.finalResult,
-      objectives: this.objectiveSystem.getState().runtime,
+      objectives: [],
     };
   }
 
@@ -1729,9 +1718,12 @@ export class BattleSystem {
     }
 
     if (
-      (runtime.surface === 'ground' || runtime.surface === 'wall') &&
-      runtime.moving
+      runtime.surface === 'ground' ||
+      (runtime.surface === 'wall' && runtime.moving)
     ) {
+      // Ground units keep personal space even while idling or attacking.
+      // Without this, units that converge on the same melee/pathing point can
+      // remain perfectly overlapped and visually orbit as their facing updates.
       this.applySeparation(runtime, delta, buckets);
     }
 
@@ -3369,7 +3361,6 @@ export class BattleSystem {
     this.wallNodes.delete(this.gridKey(wall.x, wall.y));
     this.world.setWallBattleVisibility(wall.x, wall.y, false);
     this.navigation.invalidate();
-    this.objectiveSystem.emit({ type: 'WALL_BREACHED', entityId: this.gridKey(wall.x, wall.y) });
     this.reactDefendersToBreach(wall);
     this.refreshSiegePlan(true);
   }
@@ -4058,7 +4049,26 @@ export class BattleSystem {
           const dx = runtime.position.x - other.position.x;
           const dz = runtime.position.z - other.position.z;
           const distanceSq = dx * dx + dz * dz;
-          if (distanceSq <= 0.0001 || distanceSq > personalSpace * personalSpace) continue;
+          if (distanceSq > personalSpace * personalSpace) continue;
+
+          if (distanceSq <= 0.0001) {
+            // Two units can occasionally land on exactly the same coordinates.
+            // A normalized delta cannot be derived in that case, so use a stable
+            // pair-based direction and opposite signs for the two participants.
+            // This makes perfect overlaps self-resolving without frame-to-frame
+            // random jitter.
+            const firstId =
+              runtime.data.id < other.data.id ? runtime.data.id : other.data.id;
+            const secondId =
+              runtime.data.id < other.data.id ? other.data.id : runtime.data.id;
+            const pairHash = Math.abs(this.hashString(`${firstId}|${secondId}`));
+            const angle = (pairHash % 6283) / 1000;
+            const sign = runtime.data.id === firstId ? 1 : -1;
+            push.x += Math.cos(angle) * sign;
+            push.z += Math.sin(angle) * sign;
+            neighbors += 1;
+            continue;
+          }
 
           const distance = Math.sqrt(distanceSq);
           const pressure = (personalSpace - distance) / personalSpace;
@@ -4071,9 +4081,44 @@ export class BattleSystem {
 
     if (push.lengthSq() > 0.0001) {
       const recoveryScale = runtime.recoveryTime > 0 ? 0.32 : 1;
-      const strength = Math.min(0.92, 0.32 + neighbors * 0.08) * recoveryScale;
-      push.normalize().multiplyScalar(delta * strength);
-      runtime.position.add(push);
+      const stationaryScale = runtime.moving ? 1 : 0.72;
+      const strength =
+        Math.min(1.05, 0.36 + neighbors * 0.1) *
+        recoveryScale *
+        stationaryScale;
+      const displacement = push.normalize().multiplyScalar(delta * strength);
+
+      if (runtime.surface === 'ground') {
+        // Separation must never shove a unit through a wall, gate, building, or
+        // other non-walkable cell. Prefer the full displacement, then axis-only
+        // fallbacks so units can still slide apart along tight corridors.
+        const candidates = [
+          runtime.position.clone().add(displacement),
+          runtime.position.clone().add(new THREE.Vector3(displacement.x, 0, 0)),
+          runtime.position.clone().add(new THREE.Vector3(0, 0, displacement.z)),
+        ];
+
+        for (const candidate of candidates) {
+          const candidateGrid = this.worldToGrid(candidate);
+          if (
+            this.navigation.isGroundWalkable(candidateGrid.x, candidateGrid.y) &&
+            this.canTraverseGroundTransition(
+              runtime.gridX,
+              runtime.gridY,
+              candidateGrid,
+            )
+          ) {
+            runtime.position.copy(candidate);
+            runtime.gridX = candidateGrid.x;
+            runtime.gridY = candidateGrid.y;
+            runtime.position.y =
+              2.22 + this.world.elevationAt(candidateGrid.x, candidateGrid.y);
+            break;
+          }
+        }
+      } else {
+        runtime.position.add(displacement);
+      }
     }
   }
 
@@ -4588,16 +4633,6 @@ export class BattleSystem {
 
     const attackersAlive = this.countAlive('attacker');
 
-    if (this.objectiveSystem.hasFailedPrimaryObjective()) {
-      this.finishBattle('defender', 'objective_failed');
-      return;
-    }
-
-    if (this.objectiveSystem.isVictorySatisfied()) {
-      this.finishBattle('attacker', 'objective_completed');
-      return;
-    }
-
     if (
       attackersAlive === 0 &&
       this.attackerStartCount > 0 &&
@@ -4630,11 +4665,10 @@ export class BattleSystem {
       defendersKilled: Math.max(0, this.defenderStartCount - defendersRemaining),
       durationSeconds: Math.round(this.battleSeconds * 10) / 10,
       reason,
-      completedObjectives: this.objectiveSystem.getState().runtime.filter((objective) => objective.status === 'completed').map((objective) => objective.id),
-      failedObjectives: this.objectiveSystem.getState().runtime.filter((objective) => objective.status === 'failed').map((objective) => objective.id),
+      completedObjectives: [],
+      failedObjectives: [],
     };
 
-    this.objectiveSystem.stop();
     this.clearSiegeState();
     this.clearMissiles();
     for (const effect of this.impactEffects) this.layer.remove(effect.view);
@@ -4659,7 +4693,6 @@ export class BattleSystem {
     runtime.data.health = 0;
     runtime.data.state = 'dead';
     runtime.data.targetId = undefined;
-    this.objectiveSystem.emit({ type: 'UNIT_KILLED', entityId: runtime.data.id, faction: runtime.data.faction });
     runtime.deathTime = 0;
 
     for (const other of this.units.values()) {
@@ -4896,43 +4929,6 @@ export class BattleSystem {
       }
     }
     return counts;
-  }
-
-  private createObjectiveContext(deltaSeconds: number) {
-    const units = Array.from(this.units.values()).map((runtime) => ({
-      id: runtime.data.id,
-      faction: runtime.data.faction,
-      unitType: runtime.data.unitType,
-      health: runtime.data.health,
-      maxHealth: runtime.data.maxHealth,
-      state: runtime.data.state,
-      x: runtime.position.x,
-      y: runtime.position.y,
-      z: runtime.position.z,
-    }));
-    const walls = Array.from(this.wallStates.values()).map((wall) => ({
-      id: this.gridKey(wall.x, wall.y),
-      health: wall.health,
-      maxHealth: wall.maxHealth,
-      breached: wall.stage === 'breached',
-      x: wall.x,
-      y: wall.y,
-    }));
-    const buildings = this.world.objectiveBuildings?.() ?? [];
-    const positions = [
-      ...(this.world.objectivePositions?.() ?? []),
-      { id: 'castle-objective', x: this.objectiveWorld.x, y: this.objectiveWorld.y, z: this.objectiveWorld.z, controlledBy: this.captureSeconds >= this.captureRequiredSeconds ? 'attacker' as Faction : undefined },
-    ];
-    return {
-      battleTime: this.battleSeconds,
-      deltaSeconds,
-      units,
-      walls,
-      buildings,
-      positions,
-      captureProgress: THREE.MathUtils.clamp(this.captureSeconds / this.captureRequiredSeconds, 0, 1),
-      battleFinished: this.mode === 'finished',
-    };
   }
 
   private emitStatus(): void {

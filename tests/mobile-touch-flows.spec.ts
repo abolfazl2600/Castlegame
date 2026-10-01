@@ -6,10 +6,12 @@ test.beforeEach(async ({ page }) => {
   await page.addInitScript(({ autosaveKey, markerKey, version }) => {
     const now = Date.now();
     localStorage.setItem(markerKey, '1');
+    // Keep baseline interaction assertions in English; Persian UI has its own RTL suite.
+    localStorage.setItem('castle-role.settings.v2', JSON.stringify({ schemaVersion: 2, interface: { language: 'en' } }));
     localStorage.setItem(autosaveKey, JSON.stringify({
       metadata: { id: 'mobile-touch', slot: 'autosave', name: 'Mobile touch', createdAt: now, updatedAt: now,
-        schemaVersion: version, gameMode: 'sandbox', summary: { buildings: 0, keeps: 0, terrainChanges: 0, elevations: 0 } },
-      data: { version, gameMode: 'sandbox', updatedAt: now, cells: [], keeps: [], stoneStyle: 'limestone',
+        schemaVersion: version, gameMode: 'unified', summary: { buildings: 0, keeps: 0, terrainChanges: 0, elevations: 0 } },
+      data: { version, gameMode: 'unified', updatedAt: now, cells: [], keeps: [], stoneStyle: 'limestone',
         towerBridges: [], terrain: [], elevations: [], worldSeeded: true },
     }));
   }, { autosaveKey: SAVE_AUTOSAVE_KEY, markerKey: SAVE_KEY, version: SAVE_VERSION });
@@ -20,7 +22,7 @@ test.beforeEach(async ({ page }) => {
 test('touch controls reach management, templates, and save/load without stacked panels', async ({ page }) => {
   const mobile = page.locator('.mobile-header');
   await expect(mobile.locator('[data-mobile-proxy="god-mode-button"]')).toBeVisible();
-  await mobile.locator('[data-mobile-proxy="military-button"]').click();
+  await mobile.locator('[data-mobile-proxy="battle-button"]').click();
   await expect(page.locator('#battle-panel')).toBeVisible();
 
   await mobile.locator('[data-mobile-proxy="god-mode-button"]').click();
@@ -44,13 +46,12 @@ test('touch controls reach management, templates, and save/load without stacked 
 });
 
 
-test('phone layout keeps 3D but omits Plan, 45°, Top and Fullscreen actions', async ({ page }) => {
+test('phone header exposes Build while omitting redundant 3D and desktop-only actions', async ({ page }) => {
   await expect(page.locator('html')).toHaveClass(/mobile-ui-active/);
-  const dock = page.locator('.mobile-bottom-dock');
-  await expect(dock.locator('button')).toHaveCount(2);
-  await expect(dock.locator('[data-mobile-proxy="toolbar-open"]')).toBeVisible();
-  await expect(dock.locator('[data-mobile-proxy="view-3d-button"]')).toBeVisible();
-  await expect(dock.locator('[data-mobile-proxy="settings-button"]')).toHaveCount(0);
+  await expect(page.locator('.mobile-bottom-dock')).toHaveCount(0);
+  await expect(page.locator('.mobile-header [data-mobile-proxy="toolbar-open"]')).toBeVisible();
+  await expect(page.locator('[data-mobile-proxy="view-3d-button"]')).toHaveCount(0);
+  await expect(page.locator('.mobile-bottom-dock [data-mobile-proxy="settings-button"]')).toHaveCount(0);
   await expect(page.locator('.mobile-header [data-mobile-proxy="settings-button"]')).toBeVisible();
 
   await page.locator('.mobile-header [data-mobile-proxy="settings-button"]').click();
@@ -77,14 +78,37 @@ test('desktop retains its original camera and fullscreen controls', async ({ pag
 test.describe('Android landscape', () => {
   test.use({ hasTouch: true, isMobile: true });
 
-  test('wide short touch screen hides four desktop-only controls', async ({ page }) => {
+  test('landscape touch header keeps Build and hides four desktop-only controls', async ({ page }) => {
     await page.setViewportSize({ width: 915, height: 412 });
     await expect(page.locator('html')).toHaveClass(/mobile-ui-active/);
-    await expect(page.locator('.mobile-bottom-dock button')).toHaveCount(2);
-    await expect(page.locator('.mobile-bottom-dock [data-mobile-proxy="view-3d-button"]')).toBeVisible();
+    await expect(page.locator('.mobile-bottom-dock')).toHaveCount(0);
+    await expect(page.locator('.mobile-header [data-mobile-proxy="toolbar-open"]')).toBeVisible();
     for (const id of ['view-2d-button', 'camera-45-button', 'camera-top-button', 'fullscreen-button']) {
       await expect(page.locator(`#${id}`)).toBeHidden();
       await expect(page.locator(`[data-mobile-proxy="${id}"]`)).toHaveCount(0);
     }
+  });
+
+  test('active battle panel stays dismissible and compact in landscape', async ({ page }) => {
+    await page.setViewportSize({ width: 915, height: 412 });
+
+    const panel = page.locator('#battle-panel');
+    await page.locator('.mobile-header [data-mobile-proxy="battle-button"]').click();
+    await expect(panel).toBeVisible();
+
+    const panelBox = await panel.boundingBox();
+    expect(panelBox).not.toBeNull();
+    expect(panelBox!.width).toBeLessThan(420);
+
+    await page.locator('#battle-start').click();
+    await expect(panel).toHaveAttribute('data-battle-phase', /running|paused|finished/);
+    await expect(panel.locator('.battle-armies')).toBeHidden();
+
+    await page.locator('#battle-close').click();
+    await expect(panel).toBeHidden();
+
+    // Battle status callbacks continue while combat is active; they must not reopen the panel.
+    await page.waitForTimeout(250);
+    await expect(panel).toBeHidden();
   });
 });

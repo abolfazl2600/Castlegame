@@ -48,16 +48,16 @@ for (const removed of ['stoneStairs', 'woodenStairs', 'ramp', 'ladder']) {
   );
 }
 
-const medievalBuildings = between(
+const unifiedBuildings = between(
   gameMode,
-  'const MEDIEVAL_BUILDINGS: readonly TileKind[] = [',
-  'const COMMON_WORLD_TOOLS',
+  'const BUILDINGS: readonly TileKind[] = [',
+  'const WORLD_TOOLS',
 );
 for (const removed of ['stoneStairs', 'woodenStairs', 'ramp', 'ladder']) {
   assert.doesNotMatch(
-    medievalBuildings,
+    unifiedBuildings,
     new RegExp(`['"]${removed}['"]`),
-    `${removed} must not be exposed by game modes.`,
+    `${removed} must not be exposed by the unified game ruleset.`,
   );
 }
 

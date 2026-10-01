@@ -6,6 +6,7 @@ import {
 } from '../app/applicationActions';
 import type { SettingsStore } from './SettingsStore';
 import type { SettingsData } from './SettingsModel';
+import { resolveLocale, translate } from '../i18n/localization';
 
 type SettingsPane = 'overview' | 'general' | 'graphics' | 'audio' | 'gameplay' | 'accessibility' | 'controls' | 'data';
 
@@ -119,7 +120,7 @@ export class SettingsUI {
                 ${this.actionButton('load', '↓', 'Load Game', 'Choose autosave, quick save or a slot')}
                 ${this.actionButton('save', '↑', 'Save Game', 'Quick save or choose a manual slot')}
                 ${this.actionButton('templates', '▦', 'Templates', 'Choose a starting world')}
-                <button type="button" data-action="reset-world"><span class="settings-action-icon" aria-hidden="true">↻</span><span class="settings-action-copy"><strong>Reset World</strong><small>Start a new world and choose a game mode</small></span><span aria-hidden="true">›</span></button>
+                <button type="button" data-action="reset-world"><span class="settings-action-icon" aria-hidden="true">↻</span><span class="settings-action-copy"><strong>Reset World</strong><small>Start a new world and choose a map layout</small></span><span aria-hidden="true">›</span></button>
               </div>
               <div class="settings-info-strip" data-settings-action-status>
                 <span class="settings-info-dot"></span>
@@ -131,7 +132,7 @@ export class SettingsUI {
               ${this.paneHeading('GENERAL', 'Interface & Preferences', 'Tune the interface without changing your world.')}
               <div class="settings-control-card">
                 ${this.rangeRow('UI scale', 'Scale menus and HUD elements.', 'uiScale', 0.75, 1.5, 0.05)}
-                ${this.selectRow('Language', 'Choose the interface language source.', 'language', '<option value="system">System language</option><option value="en">English</option>')}
+                ${this.selectRow('Language', 'Choose the interface language source.', 'language', '<option value="system">System language</option><option value="en">English</option><option value="fa">فارسی</option>')}
                 ${this.toggleRow('Confirm destructive actions', 'Ask before reset and other destructive actions.', 'confirmDestructiveActions')}
                 ${this.toggleRow('Show help', 'Allow the in-game help dialog to open.', 'showHelp')}
               </div>
@@ -180,8 +181,11 @@ export class SettingsUI {
             </section>
 
             <section class="settings-pane" data-settings-pane="controls">
-              ${this.paneHeading('REFERENCE', 'Controls', 'A compact reference for desktop controls.')}
+              ${this.paneHeading('REFERENCE', 'Controls', 'A compact reference for touch and desktop controls.')}
               <div class="settings-control-reference">
+                <span><strong>Touch gestures</strong><small>Tap to select or place. With Wall, Road or Terrain selected, drag one finger to edit.</small></span>
+                <span><strong>Touch camera</strong><small>Use two fingers to pan and pinch to zoom, even while a build tool is selected. Adding a second finger cancels the unfinished edit.</small></span>
+                <span><strong>Single-finger navigation</strong><small>In Inspect, drag to rotate in 3D or pan in 2D. Battle uses camera navigation; in God Mode, tap to choose a target.</small></span>
                 <span><kbd>Esc</kbd><strong>Clear / Close</strong><small>Clear the active build tool or close help.</small></span>
                 <span><kbd>Ctrl/Cmd + Z</kbd><strong>Undo</strong><small>Undo the latest architectural change.</small></span>
                 <span><kbd>Ctrl/Cmd + Y</kbd><strong>Redo</strong><small>Restore the last undone change.</small></span>
@@ -193,7 +197,7 @@ export class SettingsUI {
             <section class="settings-pane" data-settings-pane="data">
               ${this.paneHeading('LOCAL DATA', 'Data & Privacy', 'Saves and settings are stored locally in this browser.')}
               <div class="settings-data-actions">
-                <button type="button" data-action="open-privacy" disabled aria-busy="true"><span>Privacy & Legal</span><small>Review local data and privacy information</small></button>
+                <button type="button" data-action="open-privacy" disabled aria-busy="true"><span>Data & Privacy</span><small>Review what the game stores and how to delete it</small></button>
                 <button type="button" data-action="defaults"><span>Restore defaults</span><small>Restore default settings without deleting saves</small></button>
                 <button type="button" data-action="reset-settings"><span>Reset settings</span><small>Clear saved preferences and return to defaults</small></button>
                 <button class="is-danger" type="button" data-action="reset-save"><span>Delete local saves</span><small>Remove all local save slots and autosaves</small></button>
@@ -283,11 +287,11 @@ export class SettingsUI {
       resetButton.click();
     });
     this.panel.querySelector('[data-action="reset-save"]')?.addEventListener('click', () => {
-      if (window.confirm('Delete all local game saves? Your settings will be kept. This cannot be undone.')) this.onResetSave();
+      if (window.confirm(translate('Delete all local game saves? Your settings will be kept. This cannot be undone.', resolveLocale(this.store.get().interface.language)))) this.onResetSave();
     });
     this.panel.querySelector('[data-action="defaults"]')?.addEventListener('click', () => this.store.restoreDefaults());
     this.panel.querySelector('[data-action="reset-settings"]')?.addEventListener('click', () => {
-      if (window.confirm('Reset all game settings to their initial defaults? Your game saves will not be deleted.')) this.store.resetSettings();
+      if (window.confirm(translate('Reset all game settings to their initial defaults? Your game saves will not be deleted.', resolveLocale(this.store.get().interface.language)))) this.store.resetSettings();
     });
 
     this.panel.querySelectorAll<HTMLButtonElement>('[data-system-action]').forEach((button) => {
@@ -328,11 +332,11 @@ export class SettingsUI {
         });
       }
     } catch (error) {
-      console.error('Optional Privacy & Legal Settings section failed to initialize', error);
+      console.error('Optional Data & Privacy Settings section failed to initialize', error);
       if (privacyButton) {
         privacyButton.disabled = true;
         privacyButton.removeAttribute('aria-busy');
-        privacyButton.title = 'Privacy & Legal is unavailable';
+        privacyButton.title = 'Data & Privacy is unavailable';
       }
     }
   }
@@ -412,7 +416,7 @@ export class SettingsUI {
         this.store.setInterface({ uiScale: Number(value) });
         break;
       case 'language':
-        this.store.setInterface({ language: value === 'en' ? 'en' : 'system' });
+        this.store.setInterface({ language: value === 'fa' ? 'fa' : value === 'en' ? 'en' : 'system' });
         break;
       case 'reducedMotion':
         this.store.setInterface({ reducedMotion: Boolean(value) });

@@ -13,7 +13,7 @@ const docs = await readFile(new URL('../docs/templates/arg-e-bam.md', import.met
 
 assert.equal(html.split('data-template="arg-e-bam"').length - 1, 1, 'Arg-e Bam must appear once in the template picker.');
 assert.ok(html.includes('Arg-e Bam · Iran'), 'Template card must name Arg-e Bam and Iran.');
-assert.ok(html.includes('Pre-2003 earthen citadel'), 'Template card must state the selected historical reference period.');
+assert.ok(html.includes('Historic Iran · earthen citadel'), 'Template card must preserve the concise historic Iranian earthen-citadel identity.');
 
 assert.ok(
   threeGame.includes("'arg-e-bam': { layoutId: 'mainland', seed: 5701 }"),

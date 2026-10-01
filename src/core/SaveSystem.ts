@@ -9,16 +9,18 @@ import {
   WORLD_COLS,
 } from './constants';
 import type { GameMode } from './GameMode';
-import { isGameMode } from './GameMode';
+import { normalizeGameMode } from './GameMode';
 import type { GameState } from '../state/GameState';
 import type { KeepSystem } from '../building/KeepSystem';
 import { APPLICATION_METADATA } from '../app/applicationMetadata';
+import { getCurrentLocale, t } from '../i18n/localization';
 import type {
   EconomyResourceState,
   EnvironmentSimulationState,
   PopulationSimulationState,
   KeepState,
   MapLayoutId,
+  MissionProgressState,
   SavedBattleSetup,
   SavedGame,
   SaveMetadata,
@@ -36,6 +38,7 @@ export interface SaveLoadHost {
   readonly keepSystem: KeepSystem;
   readonly terrainOverrides: Map<string, TerrainOverrideKind>;
   readonly elevationOverrides: Map<string, number>;
+  getCommittedElevationOverrides?(): ReadonlyMap<string, number>;
   readonly towerBridges: Map<number, TowerBridgeState>;
   getGameMode(): GameMode;
   getMapLayoutId(): MapLayoutId;
@@ -54,13 +57,15 @@ export interface SaveLoadHost {
   setPopulationState?(value?: Partial<PopulationSimulationState> | null): void;
   getEnvironmentState?(): EnvironmentSimulationState;
   setEnvironmentState?(value?: Partial<EnvironmentSimulationState> | null): void;
+  getMissionState?(): MissionProgressState;
+  setMissionState?(value?: Partial<MissionProgressState> | null): void;
   setWorldSeeded(value: boolean): void;
   setLoadedSaveVersion(value: number): void;
   setStoneStyle(value: StoneStyle): void;
   migrateKind(kind: string, level: number, saveVersion: number): { kind: string; level: number } | null;
-  isBuildingAvailableForMode(mode: GameMode, kind: string): boolean;
+  isBuildingAvailable(kind: string): boolean;
   key(x: number, y: number): string;
-  syncModeDependentUI(): void;
+  syncLoadedWorldUI(): void;
   setStatus(message: string): void;
   prepareForLoad?(): void;
   afterLoad?(): void;
@@ -87,6 +92,7 @@ interface RawSave {
   economy?: EconomyResourceState;
   population?: PopulationSimulationState;
   environment?: EnvironmentSimulationState;
+  missions?: MissionProgressState;
 }
 
 export class SaveSystem {
@@ -328,18 +334,20 @@ export class SaveSystem {
   }
 
   private metadataText(meta: SaveMetadata): string {
-    const date = new Date(meta.updatedAt).toLocaleString();
+    const date = new Date(meta.updatedAt).toLocaleString(getCurrentLocale() === 'fa' ? 'fa-IR' : 'en-US');
+    // Display localized defaults without ever rewriting user-provided names or save metadata.
+    const displayName = /^(?:Save Slot \d+|Quick Save|Auto Save)$/.test(meta.name) ? t(meta.name) : meta.name;
     return '<small>' +
-      escapeHtml(meta.name) + ' · ' + escapeHtml(date) + '<br>' +
-      escapeHtml(meta.gameMode ? meta.gameMode : 'Unknown mode') + ' · ' +
-      meta.summary.buildings + ' buildings · ' + meta.summary.keeps + ' keeps' +
+      '<bdi dir="auto">' + escapeHtml(displayName) + '</bdi> · <bdi dir="auto">' + escapeHtml(date) + '</bdi><br>' +
+      escapeHtml(t(`${meta.summary.buildings} buildings · ${meta.summary.keeps} keeps`)) +
       '</small>';
   }
 
   private handleManualSave(slot: number): void {
     const existing = this.readRecord(slot);
-    if (existing && !confirm(`Overwrite Save Slot ${slot}?`)) return;
-    const name = prompt('Save name', existing?.metadata.name || `Save Slot ${slot}`);
+    if (existing && !confirm(t(`Overwrite Save Slot ${slot}?`))) return;
+    const suggestedName = existing?.metadata.name || `Save Slot ${slot}`;
+    const name = prompt(t('Save name'), /^Save Slot \d+$/.test(suggestedName) ? t(suggestedName) : suggestedName);
     if (name === null) return;
     this.manualSave(slot, name);
     this.renderModal();
@@ -357,7 +365,8 @@ export class SaveSystem {
     const parsed: SaveTarget = Number(target);
     const record = this.readRecord(parsed);
     if (!record) return;
-    const name = prompt('Save name', record.metadata.name);
+    const previousName = record.metadata.name;
+    const name = prompt(t('Save name'), /^Save Slot \d+$/.test(previousName) ? t(previousName) : previousName);
     if (name === null) return;
     this.rename(parsed, name);
     this.renderModal();
@@ -365,16 +374,16 @@ export class SaveSystem {
 
   private handleDelete(target: string): void {
     const parsed: SaveTarget = Number(target);
-    if (!confirm(`Delete Save Slot ${parsed}? This cannot be undone.`)) return;
+    if (!confirm(t(`Delete Save Slot ${parsed}? This cannot be undone.`))) return;
     this.delete(parsed);
     this.renderModal();
   }
 
   private confirmDiscardForLoad(): boolean {
     if (!this.dirty) return true;
-    const saveBeforeLoad = confirm('There are changes since the last manual save. Press OK to Quick Save before loading, or Cancel to abort.');
+    const saveBeforeLoad = confirm(t('There are changes since the last manual save. Press OK to Quick Save before loading, or Cancel to abort.'));
     if (saveBeforeLoad) return this.quickSave();
-    return confirm('Discard the current changes and continue loading?');
+    return confirm(t('Discard the current changes and continue loading?'));
   }
 
   private writeRecord(
@@ -435,7 +444,9 @@ export class SaveSystem {
       const [x, y] = key.split(',').map(Number);
       return { x, y, kind };
     });
-    const elevations = Array.from(this.host.elevationOverrides.entries()).map(([key, value]) => {
+    // Rendering may expose a provisional terrain stroke. Background autosaves
+    // must persist the last committed elevation state until that stroke ends.
+    const elevations = Array.from((this.host.getCommittedElevationOverrides?.() ?? this.host.elevationOverrides).entries()).map(([key, value]) => {
       const [x, y] = key.split(',').map(Number);
       return { x, y, value };
     });
@@ -459,6 +470,7 @@ export class SaveSystem {
       economy: this.host.getEconomyState?.(),
       population: this.host.getPopulationState?.(),
       environment: this.host.getEnvironmentState?.(),
+      missions: this.host.getMissionState?.(),
     };
   }
 
@@ -491,7 +503,7 @@ export class SaveSystem {
   }
 
   private applyData(data: SavedGame): void {
-    const loadedMode: GameMode = isGameMode(data.gameMode) ? data.gameMode : 'medieval';
+    const loadedMode: GameMode = normalizeGameMode(data.gameMode);
     this.host.setMapLayoutId(validMapLayoutId(data.mapLayoutId) ? data.mapLayoutId : 'island');
     this.host.setWorldSeed(normalizeWorldSeed(data.worldSeed));
     const cells: Array<ReturnType<GameState['entries']>[number]> = [];
@@ -499,7 +511,7 @@ export class SaveSystem {
     for (const cell of data.cells ?? []) {
       if (!validGrid(cell.x, cell.y)) continue;
       const migration = this.host.migrateKind(cell.kind, cell.level ?? 1, Math.max(0, Math.floor(data.version ?? 0)));
-      if (!migration || !this.host.isBuildingAvailableForMode(loadedMode, migration.kind)) continue;
+      if (!migration || !this.host.isBuildingAvailable(migration.kind)) continue;
       cells.push({
         x: cell.x,
         y: cell.y,
@@ -564,7 +576,8 @@ export class SaveSystem {
     this.host.setEconomyState?.(data.economy);
     this.host.setPopulationState?.(data.population);
     this.host.setEnvironmentState?.(data.environment);
-    this.host.syncModeDependentUI();
+    this.host.setMissionState?.(data.missions);
+    this.host.syncLoadedWorldUI();
   }
 
   private validateRecord(record: SaveRecord): { ok: true } | { ok: false; message: string } {
@@ -612,7 +625,7 @@ export class SaveSystem {
       const parsed = JSON.parse(raw) as RawSave;
       const legacyData: SavedGame = {
         version: Number(parsed.version ?? 0),
-        gameMode: isGameMode(parsed.gameMode) ? parsed.gameMode : undefined,
+        gameMode: normalizeGameMode(parsed.gameMode),
         mapLayoutId: validMapLayoutId(parsed.mapLayoutId) ? parsed.mapLayoutId : 'island',
         worldSeed: normalizeWorldSeed(parsed.worldSeed),
         updatedAt: Number(parsed.updatedAt ?? Date.now()),
@@ -629,6 +642,7 @@ export class SaveSystem {
         economy: parsed.economy,
         population: parsed.population,
         environment: parsed.environment,
+        missions: parsed.missions,
       };
       const data: SavedGame = parsed.data ?? legacyData;
       if (!validMapLayoutId(data.mapLayoutId)) data.mapLayoutId = 'island';
@@ -660,7 +674,7 @@ function slotKey(slot: number): string {
 function normalizeRecord(raw: RawSave, target: SaveTarget): SaveRecord | null {
   const data = raw.data ?? (Array.isArray(raw.cells) ? {
     version: Number(raw.version ?? 0),
-    gameMode: isGameMode(raw.gameMode) ? raw.gameMode : undefined,
+    gameMode: normalizeGameMode(raw.gameMode),
     mapLayoutId: validMapLayoutId(raw.mapLayoutId) ? raw.mapLayoutId : 'island',
     worldSeed: normalizeWorldSeed(raw.worldSeed),
     updatedAt: Number(raw.updatedAt ?? Date.now()),
@@ -677,6 +691,7 @@ function normalizeRecord(raw: RawSave, target: SaveTarget): SaveRecord | null {
     economy: raw.economy,
     population: raw.population,
     environment: raw.environment,
+    missions: raw.missions,
   } : undefined);
   if (!data || !Array.isArray(data.cells)) return null;
 
@@ -689,7 +704,7 @@ function normalizeRecord(raw: RawSave, target: SaveTarget): SaveRecord | null {
     updatedAt: Number(raw.metadata?.updatedAt) || now,
     schemaVersion: Number(raw.metadata?.schemaVersion ?? data.version ?? 0),
     gameVersion: typeof raw.metadata?.gameVersion === 'string' ? raw.metadata.gameVersion : undefined,
-    gameMode: isGameMode(raw.metadata?.gameMode) ? raw.metadata.gameMode : data.gameMode,
+    gameMode: normalizeGameMode(raw.metadata?.gameMode ?? data.gameMode),
     summary: raw.metadata?.summary ?? {
       buildings: data.cells.length,
       keeps: data.keeps?.length ?? 0,

@@ -25,7 +25,7 @@ assert.match(advanced, /class="battle-hint"/);
 assert.match(mobile, /if \(advanced\) advanced\.open = !active/);
 
 // Core combat controls and live feedback must remain wired to the existing system.
-for (const id of ['battle-start', 'battle-stop', 'battle-reset', 'battle-speed-up', 'battle-speed-down', 'battle-speed-reset', 'battle-attacker-swordsmen', 'battle-attacker-spearmen', 'battle-attacker-archers', 'battle-attacker-crossbowmen', 'battle-attacker-modern-soldiers']) {
+for (const id of ['battle-start', 'battle-stop', 'battle-reset', 'battle-speed-up', 'battle-speed-down', 'battle-attacker-swordsmen', 'battle-attacker-spearmen', 'battle-attacker-archers', 'battle-attacker-crossbowmen', 'battle-attacker-modern-soldiers']) {
   assert.ok(html.includes(`id="${id}"`), `missing battle control: ${id}`);
 }
 assert.match(game, /panel\.dataset\.battlePhase = status\.mode/);

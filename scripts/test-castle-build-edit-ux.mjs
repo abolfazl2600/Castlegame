@@ -16,7 +16,7 @@ assert.match(game, /target height L\$\{heightTarget\}/);
 
 // Gate and tower replacement/upgrade previews must come from the same
 // authoritative CastleBlockSystem used by the final rendered castle.
-assert.match(game, /private previewCastlePlacementBlock\(point: GridPoint, decrease = false\): CastleBlockState \| null/);
+assert.match(game, /private previewCastlePlacementBlock\(point: GridPoint\): CastleBlockState \| null/);
 assert.match(game, /if \(tool !== 'gate' && tool !== 'tower'\) return null/);
 assert.match(game, /kind: 'tower'[\s\S]*?wallLinks: existing\?\.wallLinks/);
 assert.match(game, /kind: 'gate'[\s\S]*?rotationMode: 'auto'/);
@@ -35,13 +35,12 @@ assert.match(game, /selectedFortification && currentFortification[\s\S]*?wallLin
 // Touch interruption must never commit a half-finished castle edit. A second
 // finger suppresses the active build pointer(s); cancel/background restores a
 // clean gesture state and an unfinished terrain stroke is rolled back.
-assert.match(game, /private readonly activeTouchPointers = new Set<number>\(\)/);
-assert.match(game, /private readonly suppressedTouchPointers = new Set<number>\(\)/);
-assert.match(game, /this\.activeTouchPointers\.size > 1/);
-assert.match(game, /this\.suppressedTouchPointers\.add\(pointerId\)/);
-assert.match(game, /this\.cancelActiveTouchBuildGesture\(canvas\)/);
-assert.match(game, /const suppressed = this\.suppressedTouchPointers\.has\(event\.pointerId\)/);
-assert.match(game, /if \(terrainSnapshot\) \{[\s\S]*?this\.restoreSnapshot\(terrainSnapshot\)/);
+// Behavioral gesture transitions are exercised by test:touch-gestures.
+assert.match(game, /const touches = new TouchGestureSession\(/);
+assert.match(game, /this\.cancelActiveTouchBuildGesture\(\)/);
+assert.match(game, /const action = touches\.up\(event\)/);
+assert.match(game, /touches\.cancel\(event\.pointerId\)/);
+assert.match(game, /if \(terrainSnapshot\) \{[\s\S]*?this\.elevationOverrides\.clear\(\)/);
 assert.match(game, /window\.addEventListener\('blur', cancelInterruptedTouchGesture\)/);
 assert.match(game, /document\.addEventListener\('visibilitychange'/);
 

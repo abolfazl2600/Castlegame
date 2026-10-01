@@ -64,6 +64,7 @@ export type TileKind =
   | 'mosque'
   | 'windmill'
   | 'mine'
+  | 'carpenter'
   | 'mountain'
   | 'tree'
   | 'rock'
@@ -136,6 +137,7 @@ export interface MissileInventoryState {
 }
 
 export interface EconomyResourceState {
+  logs: number;
   wood: number;
   stone: number;
   grain: number;
@@ -195,6 +197,14 @@ export interface EnvironmentSimulationState {
   progress: number;
 }
 
+export interface MissionProgressState {
+  version: 1;
+  completedAt: Record<string, number>;
+  pinnedMissionId?: string;
+  defenseVictories: number;
+  flawlessDefenseVictories: number;
+}
+
 export interface SavedGame {
   version: number;
   gameMode?: GameMode;
@@ -231,6 +241,7 @@ export interface SavedGame {
   economy?: EconomyResourceState;
   population?: PopulationSimulationState;
   environment?: EnvironmentSimulationState;
+  missions?: MissionProgressState;
 }
 
 export interface SaveMetadata {

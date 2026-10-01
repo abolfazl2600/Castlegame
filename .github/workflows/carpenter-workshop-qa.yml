@@ -1,0 +1,62 @@
+name: Carpenter Workshop QA
+
+on:
+  pull_request:
+    paths:
+      - .github/workflows/carpenter-workshop-qa.yml
+      - package.json
+      - scripts/test-carpenter-workshop.mjs
+      - src/ThreeGame.ts
+      - src/core/GameMode.ts
+      - src/core/types.ts
+      - src/systems/EconomySystem.ts
+      - src/systems/PopulationSystem.ts
+      - src/rendering/CarpenterWorkshopRenderer.ts
+      - src/rendering/SettlementStyle.ts
+      - src/i18n/**
+      - src/style.css
+  push:
+    branches:
+      - main
+    paths:
+      - .github/workflows/carpenter-workshop-qa.yml
+      - scripts/test-carpenter-workshop.mjs
+      - src/ThreeGame.ts
+      - src/core/GameMode.ts
+      - src/core/types.ts
+      - src/systems/EconomySystem.ts
+      - src/systems/PopulationSystem.ts
+      - src/rendering/CarpenterWorkshopRenderer.ts
+
+permissions:
+  contents: read
+
+concurrency:
+  group: carpenter-workshop-qa-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  carpenter:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+
+      - name: Setup Node
+        uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Test carpenter production chain
+        run: npm run test:carpenter-workshop
+
+      - name: Typecheck
+        run: npx tsc --noEmit
+
+      - name: Build web bundle
+        run: npx vite build
