@@ -140,8 +140,8 @@ assert.match(
 
 const resetWorld = between(
   threeGame,
-  'private resetWorldForMode(',
-  'private startNewGameWithMode(',
+  'private resetWorld(): void {',
+  'private startNewGame(): void {',
 );
 assert.match(
   resetWorld,
