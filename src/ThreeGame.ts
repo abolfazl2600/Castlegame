@@ -1449,14 +1449,41 @@ export class ThreeGame {
     const grid = document.querySelector<HTMLElement>('#game-mode-modal .mode-grid');
     if (!grid) return;
 
+    const presentation = {
+      medieval: {
+        icon: '♜',
+        kicker: 'BUILD · GROW · DEFEND',
+        summary: 'Build a living medieval stronghold, grow the settlement, and defend it in siege battles.',
+      },
+      survival: {
+        icon: '⚔',
+        kicker: 'ENDLESS DEFENSE',
+        summary: 'Fortify the castle and hold out against escalating enemy waves.',
+      },
+      sandbox: {
+        icon: '✦',
+        kicker: 'FREE BUILD · EXPERIMENT',
+        summary: 'Build freely with every construction, terrain, and world-editing tool available.',
+      },
+    } as const;
+
     const modes = GAME_MODE_REGISTRY.getAll().filter((mode) => mode.available);
-    grid.innerHTML = modes.map((mode) =>
-      '<button class="mode-card" type="button" data-game-mode="' + mode.id + '">' +
-      '<span class="mode-card-icon">♜</span>' +
-      '<strong>' + mode.displayName + '</strong>' +
-      '<small>' + mode.description + '</small>' +
-      '</button>',
-    ).join('');
+    grid.innerHTML = modes.map((mode) => {
+      const card = presentation[mode.id as keyof typeof presentation] ?? {
+        icon: '♜',
+        kicker: 'GAME MODE',
+        summary: mode.description,
+      };
+      return '<button class="mode-card mode-card-' + mode.id + '" type="button" data-game-mode="' + mode.id + '">' +
+        '<span class="mode-card-topline">' +
+          '<span class="mode-card-icon" aria-hidden="true">' + card.icon + '</span>' +
+          '<span class="mode-card-kicker">' + card.kicker + '</span>' +
+        '</span>' +
+        '<strong>' + mode.displayName + '</strong>' +
+        '<small>' + card.summary + '</small>' +
+        '<span class="mode-card-action">Select mode <span class="mode-card-arrow" aria-hidden="true">→</span></span>' +
+      '</button>';
+    }).join('');
 
     grid.querySelectorAll<HTMLButtonElement>('[data-game-mode]').forEach((button) => {
       button.onclick = () => {
