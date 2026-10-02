@@ -83,6 +83,19 @@ The final tier gains a new architectural mass rather than relying on more apples
 
 Crop Farm, Cattle Farm, Army Camp, and Harbor continue to consume the shared `upgradeVisualProfile` at Levels 1–4. Their existing gameplay values, save semantics, worker assignment, and pathfinding remain unchanged by this visual pass.
 
+### Mosque progression
+
+The Mosque now follows one four-stage in-place architectural progression:
+
+**Basic Mosque → Improved Mosque → Grand Mosque → Monumental Mosque**
+
+- Level 1 stays deliberately low and modest with one shallow dome and an open courtyard.
+- Level 2 broadens the prayer hall, adds a three-dome roofline, strengthens the entrance, and introduces one short minaret.
+- Level 3 becomes a civic landmark with a larger central dome, formal courtyard enclosure, stronger entrance hierarchy, and paired minarets.
+- Level 4 is the maximum landmark tier: a larger central dome, taller paired minarets, enclosed ceremonial court, formal gateway, and corner pavilions create a clearly different silhouette at normal gameplay distance.
+
+The progression uses the shared `upgradeVisualProfile` and deliberately keeps dynamic lighting out of the structure. Mesh growth is bounded and concentrated in large silhouette elements so Level 4 remains compatible with the mobile rendering strategy.
+
 ### Fixed-role landmarks
 
 **Market, Basilica, and Windmill remain fixed-role landmarks** rather than receiving artificial four-level upgrade mechanics. They are explicitly tagged as settlement landmarks so readability/LOD systems can preserve their dominant silhouettes.

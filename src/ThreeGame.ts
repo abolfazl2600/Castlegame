@@ -169,6 +169,14 @@ const HARBOR_LEVELS = [
 ] as const;
 const HARBOR_MAX_LEVEL = HARBOR_LEVELS.length;
 
+const MOSQUE_LEVELS = [
+  { level: 1, name: 'Basic Mosque', description: 'A modest courtyard mosque with a low prayer hall, one shallow dome, and an open forecourt.' },
+  { level: 2, name: 'Improved Mosque', description: 'A broader prayer hall, three domes, a stronger entrance, and a short corner minaret establish a larger neighborhood mosque.' },
+  { level: 3, name: 'Grand Mosque', description: 'A taller central dome, twin secondary domes, formal courtyard walls, an iwan-like entrance, and two minarets create a major civic landmark.' },
+  { level: 4, name: 'Monumental Mosque', description: 'A commanding central dome, richer roofline, tall paired minarets, formal gateway, enclosed courtyard, and corner pavilions form the maximum landmark tier.' },
+] as const;
+const MOSQUE_MAX_LEVEL = MOSQUE_LEVELS.length;
+
 type FortificationUpgradeKind = 'tower' | 'gate' | 'towerBridge' | 'keep';
 interface FortificationUpgradeLevel {
   level: 1 | 2 | 3 | 4;
@@ -344,7 +352,7 @@ const TOOL_GROUPS: Array<{ label: string; tools: ToolDefinition[] }> = [
     tools: [
       { id: 'market', icon: '🏪', label: 'Market', detail: 'Large medieval marketplace · tents · stalls · shops', shortcut: '-' },
       { id: 'basilica', icon: '⛪', label: 'Basilica', detail: 'Large stone church landmark · nave · transept · tower', shortcut: '-' },
-      { id: 'mosque', icon: '◫', label: 'Courtyard Mosque', detail: 'Low-rise prayer hall · courtyard · domed bays', shortcut: '-' },
+      { id: 'mosque', icon: '◫', label: 'Courtyard Mosque', detail: 'Upgradeable landmark · 4 architectural levels', shortcut: '-' },
       { id: 'mine', icon: '⛏️', label: 'Mine', detail: 'Produces stone for construction', shortcut: '-' },
       { id: 'hut', icon: '🛖', label: 'Woodcutter Hut', detail: 'Produces logs from nearby trees', shortcut: '-' },
       { id: 'carpenter', icon: '🪚', label: 'Carpenter Workshop', detail: '3 levels · converts Logs into Wood', shortcut: '-' },
@@ -3408,7 +3416,12 @@ export class ThreeGame {
       group.userData.settlementReadabilityClass = 'landmark';
       group.add(this.basilicaRenderer.render(this.stoneStyle, cell.x, cell.y));
     }
-    else if (cell.kind === 'mosque') this.makeMosque(group, cell.x, cell.y);
+    else if (cell.kind === 'mosque') this.makeMosque(
+      group,
+      cell.x,
+      cell.y,
+      Math.max(1, Math.min(MOSQUE_MAX_LEVEL, cell.level ?? 1)),
+    );
     else if (cell.kind === 'windmill') this.services.windmillSystem.create(group);
     else if (cell.kind === 'mine') this.makeMine(group);
     else if (cell.kind === 'carpenter') group.add(
@@ -6481,49 +6494,159 @@ export class ThreeGame {
     return mesh;
   }
 
-  private makeMosque(group: THREE.Group, gx: number, gy: number): THREE.Group {
+  private makeMosque(group: THREE.Group, gx: number, gy: number, level = 1): THREE.Group {
+    const safeLevel = Math.max(1, Math.min(MOSQUE_MAX_LEVEL, Math.floor(level)));
+    const visual = upgradeVisualProfile(safeLevel);
     const body = this.medievalMaterials.castleStone(this.stoneStyle, 'body', gx, gy);
     const alt = this.medievalMaterials.castleStone(this.stoneStyle, 'alt', gx + 1, gy);
     const dark = this.medievalMaterials.castleStone(this.stoneStyle, 'dark', gx, gy + 1);
     const foundation = this.medievalMaterials.castleStone(this.stoneStyle, 'foundation', gx, gy);
+    const accent = this.environmentMaterial(
+      `mosque-accent-${this.stoneStyle}-${safeLevel}`,
+      this.stoneStyle === 'earthen' ? 0x8f633f : 0x806e55,
+      1,
+    );
 
-    // Reusable low-rise courtyard mosque language. It deliberately avoids a
-    // generic tall minaret so earthen fortified settlements keep their skyline.
-    this.addSettlementBox(group, 3.78, 0.12, 3.78, foundation, 0, 2.22, 0);
-    this.addSettlementBox(group, 3.18, 0.08, 2.2, alt, 0, 2.31, 0.62);
+    group.userData.upgradeVisualProfile = visual;
+    group.userData.mosqueLevel = safeLevel;
+    group.userData.settlementFamily = 'mosque';
+    group.userData.settlementReadabilityClass = 'landmark';
 
-    // Prayer hall and thick qibla wall occupy the northern edge of the court.
-    this.addSettlementBox(group, 3.55, 1.42, 1.0, body, 0, 3.02, -1.28);
-    this.addSettlementBox(group, 3.64, 0.22, 1.08, dark, 0, 3.79, -1.28);
-    this.addSettlementBox(group, 0.76, 1.58, 0.42, body, 0, 3.1, -1.86);
-
-    // Courtyard arcades keep the centre open and readable from gameplay zoom.
-    for (const x of [-1.62, 1.62]) {
-      this.addSettlementBox(group, 0.2, 1.0, 2.22, body, x, 2.78, 0.54);
-      for (const z of [-0.18, 0.58, 1.34]) {
-        this.addSettlementBox(group, 0.34, 1.08, 0.34, dark, x, 2.82, z);
-      }
-    }
-    this.addSettlementBox(group, 3.45, 0.2, 0.3, body, 0, 3.15, 1.72);
-
-    // Three shallow domes preserve a low earthen silhouette.
-    for (const x of [-1.02, 0, 1.02]) {
+    const addDome = (
+      x: number,
+      z: number,
+      radius: number,
+      y: number,
+      heightScale: number,
+      material: THREE.Material = alt,
+    ): void => {
       const dome = new THREE.Mesh(
-        new THREE.SphereGeometry(0.5, 12, 7, 0, Math.PI * 2, 0, Math.PI / 2),
-        alt,
+        new THREE.SphereGeometry(radius, safeLevel >= 4 ? 14 : 10, 7, 0, Math.PI * 2, 0, Math.PI / 2),
+        material,
       );
-      dome.scale.y = 0.48;
-      dome.position.set(x, 3.92, -1.28);
+      dome.scale.y = heightScale;
+      dome.position.set(x, y, z);
       dome.castShadow = true;
       dome.receiveShadow = true;
       group.add(dome);
+    };
+
+    const addMinaret = (x: number, z: number, height: number, radius: number): void => {
+      const shaft = new THREE.Mesh(new THREE.CylinderGeometry(radius, radius * 1.12, height, 8), body);
+      shaft.position.set(x, 2.32 + height / 2, z);
+      shaft.castShadow = true;
+      shaft.receiveShadow = true;
+      group.add(shaft);
+
+      const balcony = new THREE.Mesh(new THREE.CylinderGeometry(radius * 1.48, radius * 1.48, 0.14, 8), dark);
+      balcony.position.set(x, 2.32 + height * 0.76, z);
+      balcony.castShadow = true;
+      group.add(balcony);
+
+      const cap = new THREE.Mesh(new THREE.ConeGeometry(radius * 1.2, 0.7 + safeLevel * 0.08, 8), alt);
+      cap.position.set(x, 2.32 + height + 0.35, z);
+      cap.castShadow = true;
+      group.add(cap);
+    };
+
+    const footprint = 3.55 + safeLevel * 0.14;
+    const courtDepth = 3.45 + safeLevel * 0.12;
+    this.addSettlementBox(group, footprint, 0.12, courtDepth, foundation, 0, 2.22, 0.08);
+
+    // The prayer hall grows in both height and depth at each tier so the
+    // progression stays readable from the normal isometric gameplay camera.
+    const hallWidth = 3.0 + safeLevel * 0.2;
+    const hallHeight = 1.12 + safeLevel * 0.2;
+    const hallDepth = 0.8 + safeLevel * 0.14;
+    const hallZ = -1.18;
+    this.addSettlementBox(group, hallWidth, hallHeight, hallDepth, body, 0, 2.32 + hallHeight / 2, hallZ);
+    this.addSettlementBox(group, hallWidth + 0.12, 0.17 + safeLevel * 0.035, hallDepth + 0.08, dark, 0, 2.32 + hallHeight + 0.11, hallZ);
+
+    // A central mihrab/entrance projection remains through all levels.
+    const centralProjectionHeight = hallHeight + 0.18 + safeLevel * 0.1;
+    this.addSettlementBox(
+      group,
+      0.7 + safeLevel * 0.08,
+      centralProjectionHeight,
+      0.36 + safeLevel * 0.03,
+      body,
+      0,
+      2.32 + centralProjectionHeight / 2,
+      hallZ - hallDepth / 2 - 0.14,
+    );
+
+    // Side arcades become denser instead of multiplying tiny decorative props.
+    const arcadePosts = safeLevel <= 1 ? 2 : safeLevel === 2 ? 3 : 4;
+    for (const x of [-footprint / 2 + 0.22, footprint / 2 - 0.22]) {
+      this.addSettlementBox(group, 0.17, 0.9 + safeLevel * 0.08, 2.15 + safeLevel * 0.12, body, x, 2.68 + safeLevel * 0.04, 0.48);
+      for (let i = 0; i < arcadePosts; i += 1) {
+        const z = -0.08 + (i * (1.72 / Math.max(1, arcadePosts - 1)));
+        this.addSettlementBox(group, 0.26, 0.96 + safeLevel * 0.08, 0.26, dark, x, 2.72 + safeLevel * 0.04, z);
+      }
     }
 
-    const doorway = this.addSettlementBox(group, 0.52, 0.86, 0.06, dark, 0, 2.87, -1.82);
+    // Roofline: Level 1 is intentionally modest; Levels 2–4 gain successively
+    // stronger central massing rather than relying on texture changes.
+    if (safeLevel === 1) {
+      addDome(0, hallZ, 0.55, 3.72, 0.46);
+    } else if (safeLevel === 2) {
+      addDome(-1.0, hallZ, 0.46, 3.9, 0.48);
+      addDome(0, hallZ, 0.62, 4.04, 0.58);
+      addDome(1.0, hallZ, 0.46, 3.9, 0.48);
+    } else {
+      addDome(-1.08, hallZ, 0.5 + safeLevel * 0.015, 4.02 + safeLevel * 0.08, 0.5);
+      addDome(1.08, hallZ, 0.5 + safeLevel * 0.015, 4.02 + safeLevel * 0.08, 0.5);
+      addDome(0, hallZ, safeLevel === 3 ? 0.78 : 0.98, safeLevel === 3 ? 4.42 : 4.78, safeLevel === 3 ? 0.74 : 0.88);
+    }
+
+    // Entrance hierarchy and enclosure arrive at the upper tiers.
+    if (safeLevel >= 2) {
+      const gateHeight = safeLevel === 2 ? 1.25 : safeLevel === 3 ? 1.62 : 1.88;
+      const gateZ = courtDepth / 2 - 0.12;
+      this.addSettlementBox(group, 0.18, gateHeight, 0.22, accent, -0.62, 2.32 + gateHeight / 2, gateZ);
+      this.addSettlementBox(group, 0.18, gateHeight, 0.22, accent, 0.62, 2.32 + gateHeight / 2, gateZ);
+      this.addSettlementBox(group, 1.42, 0.16, 0.24, accent, 0, 2.32 + gateHeight, gateZ);
+    }
+
+    if (safeLevel >= 3) {
+      for (const x of [-footprint / 2 + 0.06, footprint / 2 - 0.06]) {
+        this.addSettlementBox(group, 0.12, 0.54, courtDepth - 0.12, dark, x, 2.52, 0.08);
+      }
+      this.addSettlementBox(group, footprint - 1.6, 0.5, 0.12, dark, 0, 2.5, courtDepth / 2 - 0.06);
+      group.userData.mosqueEnclosure = 'formal-courtyard';
+    }
+
+    if (safeLevel === 2) {
+      addMinaret(footprint / 2 - 0.34, courtDepth / 2 - 0.38, 2.0, 0.18);
+    } else if (safeLevel >= 3) {
+      const minaretHeight = safeLevel === 3 ? 2.75 : 3.45;
+      const radius = safeLevel === 3 ? 0.18 : 0.2;
+      addMinaret(-footprint / 2 + 0.34, courtDepth / 2 - 0.4, minaretHeight, radius);
+      addMinaret(footprint / 2 - 0.34, courtDepth / 2 - 0.4, minaretHeight, radius);
+    }
+
+    // Level 4 receives two corner pavilions and a restrained lantern accent.
+    // These are bounded secondary forms; the central dome and paired minarets
+    // remain the primary silhouette signal for mobile performance.
+    if (safeLevel >= 4) {
+      for (const x of [-1.28, 1.28]) {
+        this.addSettlementBox(group, 0.58, 0.78, 0.58, body, x, 2.75, 0.95);
+        addDome(x, 0.95, 0.38, 3.25, 0.56, alt);
+      }
+      const lanternMaterial = this.environmentMaterial('mosque-lantern', 0xe9c77a, 0.96);
+      for (const x of [-0.72, 0.72]) {
+        this.addSettlementBox(group, 0.07, 0.38, 0.07, lanternMaterial, x, 2.64, courtDepth / 2 - 0.28);
+      }
+      group.userData.landmark = 'monumental-mosque';
+    } else {
+      group.userData.landmark =
+        safeLevel === 3 ? 'grand-mosque' :
+        safeLevel === 2 ? 'improved-mosque' :
+        'basic-courtyard-mosque';
+    }
+
+    const doorway = this.addSettlementBox(group, 0.48 + safeLevel * 0.04, 0.74 + safeLevel * 0.1, 0.06, dark, 0, 2.66 + safeLevel * 0.05, hallZ - hallDepth / 2 - 0.34);
     doorway.userData.opening = true;
-    group.userData.settlementFamily = 'mosque';
-    group.userData.settlementReadabilityClass = 'landmark';
-    group.userData.landmark = 'courtyard-mosque';
     return group;
   }
 
@@ -10955,6 +11078,12 @@ export class ThreeGame {
       '<small id="agriculture-upgrade-description">Select a Farm or Cow Barn to inspect its level.</small>' +
       '<button id="agriculture-upgrade-button" class="agriculture-upgrade-button" type="button">Upgrade to Level 2</button>' +
       '</section>' +
+      '<section id="mosque-upgrade-card" class="agriculture-upgrade-card mosque-upgrade-card" aria-label="Selected Mosque upgrade" hidden>' +
+      '<div class="agriculture-upgrade-heading"><div><span class="eyebrow">SELECTED MOSQUE</span><strong id="mosque-upgrade-name">Basic Mosque · Level 1</strong></div><span id="mosque-upgrade-badge">1 / 4</span></div>' +
+      '<div class="agriculture-level-track" aria-hidden="true"><span data-mosque-level="1"></span><span data-mosque-level="2"></span><span data-mosque-level="3"></span><span data-mosque-level="4"></span></div>' +
+      '<small id="mosque-upgrade-description">Upgrade the Mosque in place through four architectural levels.</small>' +
+      '<button id="mosque-upgrade-button" class="agriculture-upgrade-button mosque-upgrade-button" type="button">Upgrade to Level 2 · Improved Mosque</button>' +
+      '</section>' +
       '<section id="carpenter-upgrade-card" class="carpenter-upgrade-card" aria-label="Selected Carpenter Workshop upgrade" hidden>' +
       '<div class="carpenter-upgrade-heading"><div><span class="eyebrow">SELECTED CARPENTER</span><strong id="carpenter-upgrade-name">Timber Yard · Level 1</strong></div><span id="carpenter-upgrade-badge">1 / 3</span></div>' +
       '<div class="carpenter-level-track" aria-hidden="true"><span data-carpenter-level="1"></span><span data-carpenter-level="2"></span><span data-carpenter-level="3"></span></div>' +
@@ -11310,6 +11439,7 @@ export class ThreeGame {
     get<HTMLButtonElement>('fortification-remove-bridge-button').onclick = () => this.removeSelectedTowerBridge();
     get<HTMLButtonElement>('army-camp-upgrade-button').onclick = () => this.upgradeSelectedArmyCamp();
     get<HTMLButtonElement>('residential-upgrade-button').onclick = () => this.upgradeSelectedResidence();
+    get<HTMLButtonElement>('mosque-upgrade-button').onclick = () => this.upgradeSelectedMosque();
     get<HTMLButtonElement>('agriculture-upgrade-button').onclick = () => this.upgradeSelectedAgricultureBuilding();
     get<HTMLButtonElement>('carpenter-upgrade-button').onclick = () => this.upgradeSelectedCarpenter();
     get<HTMLButtonElement>('harbor-upgrade-button').onclick = () => this.upgradeSelectedHarbor();
@@ -11609,7 +11739,9 @@ export class ThreeGame {
               ? `Gate · Level ${Math.max(1, Math.floor(cell.level ?? 1))}`
               : residentialLevel !== null
                 ? `${this.residentialLevelDefinition(residentialLevel).name} · Level ${residentialLevel}`
-                : 'Selected Building';
+                : cell?.kind === 'mosque'
+                  ? `${this.mosqueLevelDefinition(cell.level ?? 1).name} · Level ${Math.max(1, Math.min(MOSQUE_MAX_LEVEL, cell.level ?? 1))}`
+                  : 'Selected Building';
     }
 
     const rotate = document.getElementById('rotate-selected') as HTMLButtonElement | null;
@@ -12195,6 +12327,87 @@ export class ThreeGame {
     this.setStatus('Tower Bridge removed · Undo available');
   }
 
+  private mosqueLevelDefinition(level: number): (typeof MOSQUE_LEVELS)[number] {
+    const normalized = Math.max(1, Math.min(MOSQUE_MAX_LEVEL, Math.floor(level)));
+    return MOSQUE_LEVELS[normalized - 1];
+  }
+
+  private syncMosqueUpgradeUI(): void {
+    const card = document.getElementById('mosque-upgrade-card');
+    if (!card) return;
+
+    const cell = this.selectedCell
+      ? this.services.state.getCell(this.selectedCell.x, this.selectedCell.y)
+      : undefined;
+    const selected = cell?.kind === 'mosque' ? cell : undefined;
+    card.hidden = !selected;
+    if (!selected) return;
+
+    const level = Math.max(1, Math.min(MOSQUE_MAX_LEVEL, selected.level ?? 1));
+    const definition = this.mosqueLevelDefinition(level);
+    const next = level < MOSQUE_MAX_LEVEL ? this.mosqueLevelDefinition(level + 1) : undefined;
+    const name = document.getElementById('mosque-upgrade-name');
+    const badge = document.getElementById('mosque-upgrade-badge');
+    const description = document.getElementById('mosque-upgrade-description');
+    const button = document.getElementById('mosque-upgrade-button') as HTMLButtonElement | null;
+
+    if (name) name.textContent = `${definition.name} · Level ${level}`;
+    if (badge) badge.textContent = `${level} / ${MOSQUE_MAX_LEVEL}`;
+    if (description) {
+      description.textContent = next
+        ? `${definition.description} Next: ${next.name}.`
+        : `${definition.description} Maximum building level reached.`;
+    }
+
+    card.querySelectorAll<HTMLElement>('[data-mosque-level]').forEach((step) => {
+      const stepLevel = Number(step.dataset.mosqueLevel ?? 0);
+      step.classList.toggle('is-complete', stepLevel <= level);
+      step.classList.toggle('is-current', stepLevel === level);
+    });
+
+    if (button) {
+      button.disabled = !next || this.battleSystem.isActive();
+      button.textContent = next
+        ? `Upgrade to Level ${next.level} · ${next.name}`
+        : 'Maximum Level';
+    }
+  }
+
+  private upgradeSelectedMosque(): void {
+    if (this.battleSystem.isActive()) {
+      this.setStatus('Finish or reset the battle before upgrading the Mosque');
+      return;
+    }
+    if (!this.selectedCell) {
+      this.setStatus('Select a Mosque first');
+      return;
+    }
+
+    const point = { ...this.selectedCell };
+    const cell = this.services.state.getCell(point.x, point.y);
+    if (!cell || cell.kind !== 'mosque') {
+      this.setStatus('Select a Mosque first');
+      this.syncMosqueUpgradeUI();
+      return;
+    }
+
+    const currentLevel = Math.max(1, Math.min(MOSQUE_MAX_LEVEL, cell.level ?? 1));
+    if (currentLevel >= MOSQUE_MAX_LEVEL) {
+      this.setStatus('Mosque is already at Level 4 · Monumental Mosque');
+      this.syncMosqueUpgradeUI();
+      return;
+    }
+
+    const nextLevel = currentLevel + 1;
+    this.recordHistory();
+    this.services.state.setLevel(point.x, point.y, nextLevel);
+    this.redraw();
+    this.startConstruction(`cell:${point.x},${point.y}`, 1050);
+    this.scheduleSave();
+    audioEvents.emit({ action: 'play_sfx', assetId: 'building.upgrade' });
+    this.setStatus(`Mosque upgraded to Level ${nextLevel} · ${this.mosqueLevelDefinition(nextLevel).name}`);
+  }
+
   private carpenterLevelDefinition(level: number): (typeof CARPENTER_LEVELS)[number] {
     const normalized = Math.max(1, Math.min(CARPENTER_MAX_LEVEL, Math.floor(level)));
     return CARPENTER_LEVELS[normalized - 1];
@@ -12543,6 +12756,7 @@ export class ThreeGame {
     this.syncFortificationUpgradeUI();
     this.syncSelectionActionUI();
     this.syncResidentialUpgradeUI();
+    this.syncMosqueUpgradeUI();
     this.syncAgricultureUpgradeUI();
     this.syncCarpenterUpgradeUI();
     this.syncHarborUpgradeUI();
@@ -12637,6 +12851,8 @@ export class ThreeGame {
           ? 'Use the Army Camp Upgrade button in Build Settings'
           : cell && this.residentialLevelForCell(cell) !== null
             ? 'Use the Residential Upgrade button in Build Settings'
+          : cell?.kind === 'mosque'
+            ? 'Use the Mosque Upgrade button in Build Settings'
           : cell?.kind === 'farm' || cell?.kind === 'cowBarn'
             ? 'Use the agriculture Upgrade button in Build Settings'
             : cell?.kind === 'harbor'
