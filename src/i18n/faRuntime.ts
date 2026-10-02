@@ -61,6 +61,7 @@ export const RUNTIME_TRANSLATIONS: Readonly<Record<string, string>> = {
   "Residential District is already at Level 4 · Villa District": "بخش مسکونی هم‌اکنون در سطح ۴ · محله ویلاها است",
   "Select a Carpenter Workshop first": "ابتدا یک کارگاه نجاری انتخاب کنید",
   "Carpenter Workshop is already at Level 3 · Master Carpenter Guild": "کارگاه نجاری هم‌اکنون در سطح ۳ · کارگاه استاد نجار است",
+  "Carpenter Workshop is already at Level 4 · Master Carpenter Workshop": "کارگاه نجاری هم‌اکنون در سطح ۴ · کارگاه استاد نجار است",
   "Tower Bridge: select a main tower platform": "پل برج‌ها: سکوی برج اول را انتخاب کنید",
   "Tower Bridge: select the second tower · an existing connection will be selected for upgrades": "پل برج‌ها: برج دوم را انتخاب کنید · اتصال موجود برای ارتقا انتخاب خواهد شد",
   "Tower Bridge selection cancelled": "انتخاب پل برج‌ها لغو شد",
