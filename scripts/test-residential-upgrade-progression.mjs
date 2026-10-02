@@ -42,7 +42,7 @@ assert.match(migration, /kind === 'cottage'.*kind: 'cottage'.*RESIDENTIAL_MAX_LE
 assert.match(migration, /kind === 'house'.*kind: 'cottage', level: 2/s);
 assert.match(migration, /kind === 'manor'.*kind: 'cottage', level: 3/s);
 assert.match(migration, /kind === 'villa'.*kind: 'cottage', level: 4/s);
-assert.match(state, /kind === 'tower' \|\| kind === 'gate' \|\| kind === 'cottage'\) return Math\.min\(4, level\)/,
+assert.match(state, /kind === 'tower' \|\| kind === 'gate' \|\| kind === 'cottage' \|\| kind === 'mosque'\) return Math\.min\(4, level\)/,
   'Canonical residence levels must be clamped to the four-level progression.');
 
 assert.match(game, /id="residential-upgrade-card"/);
