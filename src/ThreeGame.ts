@@ -502,6 +502,8 @@ export class ThreeGame {
   private readonly settlementAgents: SettlementAgent[] = [];
   private nextSettlementAgentId = 1;
   private settlementNavigationSignature = '';
+  private readonly skyTexture: THREE.CanvasTexture;
+  private skyPaletteKey = '';
   private readonly riverTexture: THREE.CanvasTexture;
   private readonly riverWaterMaterial: THREE.MeshStandardMaterial;
   private readonly oceanTexture: THREE.CanvasTexture;
@@ -676,6 +678,7 @@ export class ThreeGame {
       },
       setStatus: (message) => this.setStatus(message),
     }, storage);
+    this.skyTexture = this.createSkyTexture();
     this.riverTexture = this.createRiverTexture();
     this.oceanTexture = this.createOceanTexture();
     this.riverWaterMaterial = new THREE.MeshStandardMaterial({
@@ -689,22 +692,22 @@ export class ThreeGame {
       emissiveIntensity: 0.16,
     });
     this.oceanWaterMaterial = new THREE.MeshStandardMaterial({
-      color: WORLD_STYLE.palette.deepWater,
+      color: this.environmentSystem.visualState().deepWater,
       map: this.oceanTexture,
-      roughness: 0.25,
-      metalness: 0.08,
+      roughness: 0.38,
+      metalness: 0.05,
       transparent: true,
-      opacity: 0.95,
+      opacity: 0.96,
       emissive: 0x062d42,
-      emissiveIntensity: 0.12,
+      emissiveIntensity: 0.1,
     });
     this.shallowWaterMaterial = new THREE.MeshStandardMaterial({
-      color: WORLD_STYLE.palette.shallowWater,
+      color: this.environmentSystem.visualState().shallowWater,
       map: this.oceanTexture,
-      roughness: 0.34,
-      metalness: 0.02,
+      roughness: 0.3,
+      metalness: 0.03,
       transparent: true,
-      opacity: 0.78,
+      opacity: 0.82,
       emissive: 0x123b43,
       emissiveIntensity: 0.08,
     });
@@ -780,7 +783,7 @@ export class ThreeGame {
       };
     }
 
-    this.scene.background = new THREE.Color(WORLD_STYLE.lighting.fog);
+    this.scene.background = this.skyTexture;
     this.scene.fog = new THREE.Fog(WORLD_STYLE.lighting.fog, WORLD_STYLE.lighting.fogNear, WORLD_STYLE.lighting.fogFar);
     applySceneGraphicsSettings(this.scene, initialSettings);
     this.camera.position.copy(WORLD_STYLE.camera.position);
@@ -1561,6 +1564,84 @@ export class ThreeGame {
     this.setStatus('New game · ' + (layout?.label ?? 'Classic Island'));
   }
 
+  private atmospherePaletteKey(state: ReturnType<EnvironmentSystem['visualState']>): string {
+    return `${state.sky}:${state.horizon}:${state.fog}`;
+  }
+
+  private paintSkyTexture(
+    texture: THREE.CanvasTexture,
+    state: ReturnType<EnvironmentSystem['visualState']>,
+  ): void {
+    const canvas = texture.image as HTMLCanvasElement;
+    const context = canvas.getContext('2d');
+    if (!context) return;
+
+    const sky = new THREE.Color(state.sky);
+    const horizon = new THREE.Color(state.horizon);
+    const fog = new THREE.Color(state.fog);
+    const zenith = sky.clone().lerp(new THREE.Color(0x6f9fb8), 0.22);
+
+    const gradient = context.createLinearGradient(0, 0, 0, canvas.height);
+    gradient.addColorStop(0, zenith.getStyle());
+    gradient.addColorStop(0.5, sky.getStyle());
+    gradient.addColorStop(0.78, horizon.getStyle());
+    gradient.addColorStop(1, fog.getStyle());
+    context.fillStyle = gradient;
+    context.fillRect(0, 0, canvas.width, canvas.height);
+
+    // Two diffuse cloud wisps add depth without extra scene geometry, draw calls,
+    // render targets, or runtime texture allocations.
+    context.save();
+    context.globalAlpha = 0.1;
+    const cloud = horizon.clone().lerp(new THREE.Color(0xffffff), 0.62).getStyle();
+    for (const [cx, cy, rx, ry] of [
+      [70, 68, 68, 18],
+      [195, 104, 82, 22],
+    ] as const) {
+      context.save();
+      context.translate(cx, cy);
+      context.scale(1, ry / rx);
+      const wisp = context.createRadialGradient(0, 0, 4, 0, 0, rx);
+      wisp.addColorStop(0, cloud);
+      wisp.addColorStop(0.58, cloud);
+      wisp.addColorStop(1, 'rgba(255,255,255,0)');
+      context.fillStyle = wisp;
+      context.beginPath();
+      context.arc(0, 0, rx, 0, Math.PI * 2);
+      context.fill();
+      context.restore();
+    }
+    context.restore();
+
+    texture.needsUpdate = true;
+  }
+
+  private createSkyTexture(): THREE.CanvasTexture {
+    const canvas = document.createElement('canvas');
+    canvas.width = 256;
+    canvas.height = 256;
+    const texture = new THREE.CanvasTexture(canvas);
+    texture.colorSpace = THREE.SRGBColorSpace;
+    texture.wrapS = THREE.ClampToEdgeWrapping;
+    texture.wrapT = THREE.ClampToEdgeWrapping;
+    texture.minFilter = THREE.LinearFilter;
+    texture.magFilter = THREE.LinearFilter;
+    const state = this.environmentSystem.visualState();
+    this.paintSkyTexture(texture, state);
+    this.skyPaletteKey = this.atmospherePaletteKey(state);
+    return texture;
+  }
+
+  private updateSkyTexture(
+    state: ReturnType<EnvironmentSystem['visualState']>,
+    force = false,
+  ): void {
+    const key = this.atmospherePaletteKey(state);
+    if (!force && key === this.skyPaletteKey) return;
+    this.paintSkyTexture(this.skyTexture, state);
+    this.skyPaletteKey = key;
+  }
+
   private createRiverTexture(): THREE.CanvasTexture {
     const canvas = document.createElement('canvas');
     canvas.width = 128;
@@ -1613,13 +1694,25 @@ export class ThreeGame {
 
     if (context) {
       const gradient = context.createLinearGradient(0, 0, 256, 256);
-      gradient.addColorStop(0, '#0d667f');
-      gradient.addColorStop(0.42, '#167f96');
-      gradient.addColorStop(1, '#084f6b');
+      gradient.addColorStop(0, '#0a526f');
+      gradient.addColorStop(0.32, '#14768c');
+      gradient.addColorStop(0.68, '#116a82');
+      gradient.addColorStop(1, '#073f5d');
       context.fillStyle = gradient;
       context.fillRect(0, 0, 256, 256);
 
-      context.globalAlpha = 0.18;
+      context.globalAlpha = 0.11;
+      for (let i = 0; i < 10; i += 1) {
+        const y = i * 29 - 10;
+        context.strokeStyle = i % 2 === 0 ? '#6eb9c8' : '#063b55';
+        context.lineWidth = 5 + (i % 3) * 2;
+        context.beginPath();
+        context.moveTo(-30, y);
+        context.bezierCurveTo(48, y + 12, 152, y - 16, 292, y + 4);
+        context.stroke();
+      }
+
+      context.globalAlpha = 0.16;
       for (let i = 0; i < 16; i += 1) {
         const y = i * 18 - 8;
         context.strokeStyle = i % 3 === 0 ? '#d7fbff' : '#78d8e0';
@@ -1630,8 +1723,8 @@ export class ThreeGame {
         context.stroke();
       }
 
-      context.globalAlpha = 0.12;
-      for (let i = 0; i < 40; i += 1) {
+      context.globalAlpha = 0.09;
+      for (let i = 0; i < 32; i += 1) {
         const x = (i * 67) % 256;
         const y = (i * 103) % 256;
         context.fillStyle = i % 2 === 0 ? '#ffffff' : '#022c42';
@@ -1682,7 +1775,7 @@ export class ThreeGame {
 
   private createWorld(): void {
     const deepWater = new THREE.Mesh(
-      new THREE.CircleGeometry(WORLD * 0.86, 112),
+      new THREE.CircleGeometry(WORLD * 3, 128),
       this.oceanWaterMaterial,
     );
     deepWater.rotation.x = -Math.PI / 2;
@@ -2409,9 +2502,21 @@ export class ThreeGame {
 
   private applyEnvironmentVisuals(force = false): void {
     const state = this.environmentSystem.visualState();
-    const background = new THREE.Color(state.sky);
-    if (this.scene.background instanceof THREE.Color) this.scene.background.lerp(background, force ? 1 : 0.08);
-    if (this.scene.fog instanceof THREE.Fog) this.scene.fog.color.lerp(new THREE.Color(state.fog), force ? 1 : 0.08);
+    const blend = force ? 1 : 0.08;
+    this.updateSkyTexture(state, force);
+    if (this.scene.fog instanceof THREE.Fog) this.scene.fog.color.lerp(new THREE.Color(state.fog), blend);
+
+    const deepWater = new THREE.Color(state.deepWater);
+    const shallowWater = new THREE.Color(state.shallowWater);
+    const horizon = new THREE.Color(state.horizon);
+    this.oceanWaterMaterial.color.lerp(deepWater, blend);
+    this.oceanWaterMaterial.emissive.lerp(deepWater.clone().lerp(horizon, 0.42).multiplyScalar(0.2), blend);
+    this.shallowWaterMaterial.color.lerp(shallowWater, blend);
+    this.shallowWaterMaterial.emissive.lerp(shallowWater.clone().lerp(horizon, 0.35).multiplyScalar(0.18), blend);
+    this.riverWaterMaterial.color.lerp(
+      new THREE.Color(WORLD_STYLE.palette.riverWater).lerp(shallowWater, 0.3),
+      blend,
+    );
 
     this.scene.traverse((object) => {
       if (object instanceof THREE.DirectionalLight && object.castShadow) {
