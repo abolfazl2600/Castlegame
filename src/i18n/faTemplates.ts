@@ -1,5 +1,8 @@
 /** Descriptions and grouping labels for starting worlds and editable terrain presets. */
 export const TEMPLATE_TRANSLATIONS: Readonly<Record<string, string>> = {
+  "Choose a Map": "نقشه را انتخاب کنید",
+  "Choose a terrain layout or a prepared starting world. Every option remains fully editable after loading.": "یک چیدمان زمین یا جهان آغازین آماده انتخاب کنید. همه گزینه‌ها پس از بارگذاری کاملاً قابل ویرایش می‌مانند.",
+  "Prepared Starting Worlds": "جهان‌های آغازین آماده",
   "Choose a Starting World": "جهان آغازین را انتخاب کنید",
   "Choose a starting world. Every world remains fully editable after loading.": "یک جهان آغازین انتخاب کنید. همه جهان‌ها پس از بارگذاری کاملاً قابل ویرایش می‌مانند.",
   "Urban City 60×80": "شهر ۶۰×۸۰",
