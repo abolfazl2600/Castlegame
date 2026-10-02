@@ -36,6 +36,7 @@ export class MobileUI {
         <div class="mobile-header-actions" role="toolbar" aria-label="Game actions">
           <button type="button" data-mobile-proxy="toolbar-open" class="mobile-action mobile-build-action" aria-label="Build tools" aria-controls="toolbar" aria-expanded="false"><span aria-hidden="true">🧱</span></button>
           <button type="button" data-mobile-proxy="header-undo-button" class="mobile-action" aria-label="Undo" title="Undo" disabled><span aria-hidden="true">↶</span></button>
+          <button type="button" data-mobile-proxy="screenshot-button" class="mobile-action" aria-label="Take screenshot" title="Take screenshot"><span aria-hidden="true">📷</span></button>
           <button type="button" data-mobile-proxy="battle-button" class="mobile-action" aria-label="Battle and military">⚔️</button>
           <button type="button" data-mobile-proxy="god-mode-button" class="mobile-action" aria-label="God Mode">⚡</button>
           <button type="button" data-mobile-action="templates" class="mobile-action" aria-label="Templates">▧</button>
