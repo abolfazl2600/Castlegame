@@ -40,13 +40,26 @@ export interface PopulationRenderAssignment {
   seed: number;
 }
 
-const RESIDENTIAL_CAPACITY: Partial<Record<TileKind, number>> = {
-  hut: 4,
-  cottage: 18,
-  house: 30,
-  manor: 42,
-  villa: 36,
-};
+const RESIDENTIAL_LEVEL_CAPACITY = [0, 18, 30, 42, 36] as const;
+
+function residentialCapacity(cell: Pick<CellEntry, 'kind' | 'level'>): number {
+  if (cell.kind === 'hut') return 4;
+
+  // Cottage is the canonical runtime state. Legacy kinds remain readable for
+  // direct old-state fixtures and are mapped to their historic progression tier.
+  const level =
+    cell.kind === 'cottage'
+      ? Math.max(1, Math.min(4, Math.floor(cell.level ?? 1)))
+      : cell.kind === 'house'
+        ? 2
+        : cell.kind === 'manor'
+          ? 3
+          : cell.kind === 'villa'
+            ? 4
+            : 0;
+
+  return RESIDENTIAL_LEVEL_CAPACITY[level] ?? 0;
+}
 
 const ARMY_CAMP_CAPACITY = [0, 6, 12, 20, 32] as const;
 const MILITIA_TYPES: MilitiaUnitType[] = ['swordsman', 'archer', 'spearman', 'crossbowman'];
@@ -100,7 +113,7 @@ export class PopulationSystem {
     this.lastCells = cells.map((cell) => ({ ...cell }));
     const homes = this.homeCells(cells);
     const currentCapacity = homes.reduce(
-      (sum, cell) => sum + (RESIDENTIAL_CAPACITY[cell.kind] ?? 0),
+      (sum, cell) => sum + residentialCapacity(cell),
       0,
     );
 
@@ -489,7 +502,7 @@ export class PopulationSystem {
     if (count <= 0 || homes.length === 0) return;
     const homeSlots: PopulationGridRef[] = [];
     for (const home of homes) {
-      const capacity = RESIDENTIAL_CAPACITY[home.kind] ?? 0;
+      const capacity = residentialCapacity(home);
       for (let i = 0; i < capacity; i += 1) homeSlots.push({ x: home.x, y: home.y });
     }
     if (homeSlots.length === 0) return;
@@ -508,7 +521,7 @@ export class PopulationSystem {
 
   private homeCells(cells: CellEntry[]): CellEntry[] {
     return cells
-      .filter((cell) => (RESIDENTIAL_CAPACITY[cell.kind] ?? 0) > 0)
+      .filter((cell) => residentialCapacity(cell) > 0)
       .sort((a, b) => a.x - b.x || a.y - b.y);
   }
 
@@ -523,7 +536,7 @@ export class PopulationSystem {
 
     const homeSlots: PopulationGridRef[] = [];
     for (const home of homes) {
-      const capacity = RESIDENTIAL_CAPACITY[home.kind] ?? 0;
+      const capacity = residentialCapacity(home);
       for (let i = 0; i < capacity; i += 1) homeSlots.push({ x: home.x, y: home.y });
     }
 
