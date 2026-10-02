@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { audioEvents } from '../audio/AudioEventBus';
 import type { GridCell, KeepState, TerrainKind, TileKind, TowerBridgeState, WallDirection } from '../core/types';
 import { BattleNavigation, type NavPoint, type WallNavNode } from './BattleNavigation';
 import { WallSystem } from '../building/WallSystem';
@@ -3323,6 +3324,7 @@ export class BattleSystem {
     if (wall.stage === 'breached') return;
 
     wall.health = Math.max(0, wall.health - amount);
+    audioEvents.emit({ action: 'play_sfx', assetId: 'combat.wall-hit' });
     const ratio = wall.health / wall.maxHealth;
     const nextStage: WallDamageStage =
       wall.health <= 0
@@ -3357,6 +3359,7 @@ export class BattleSystem {
 
     if (nextStage !== 'breached') return;
 
+    audioEvents.emit({ action: 'play_sfx', assetId: 'combat.wall-destroyed', force: true });
     this.breachedWalls.add(this.gridKey(wall.x, wall.y));
     this.wallNodes.delete(this.gridKey(wall.x, wall.y));
     this.world.setWallBattleVisibility(wall.x, wall.y, false);
@@ -4377,6 +4380,7 @@ export class BattleSystem {
     attacker.attackApplied = false;
 
     // Damage remains on the existing combat cadence; the visual attack begins here.
+    audioEvents.emit({ action: 'play_sfx', assetId: 'combat.melee-hit' });
     this.applyDamage(target, attacker.stats.attack);
   }
 
@@ -4406,6 +4410,7 @@ export class BattleSystem {
       speed: attacker.data.unitType === 'crossbowman' ? 23 : 18,
       life: 3.2,
     });
+    audioEvents.emit({ action: 'play_sfx', assetId: 'combat.ranged-shot' });
 
     const refs = attacker.view.userData.visualRefs as UnitVisualRefs | undefined;
     if (refs) refs.weapon.rotation.y += 0.22;
@@ -4510,6 +4515,7 @@ export class BattleSystem {
 
   private resolveMissileImpact(missile: MissileProjectile): void {
     const impact = missile.targetPoint.clone();
+    audioEvents.emit({ action: 'play_sfx', assetId: 'combat.projectile-impact', force: true });
 
     for (const runtime of this.units.values()) {
       if (runtime.data.faction !== 'attacker' || runtime.data.state === 'dead') continue;
@@ -4583,6 +4589,7 @@ export class BattleSystem {
       const distance = deltaVector.length();
 
       if (distance <= 0.48) {
+        audioEvents.emit({ action: 'play_sfx', assetId: 'combat.projectile-impact' });
         this.applyDamage(target, arrow.damage);
         this.layer.remove(arrow.view);
         this.arrows.splice(i, 1);
@@ -4692,6 +4699,7 @@ export class BattleSystem {
 
     runtime.data.health = 0;
     runtime.data.state = 'dead';
+    audioEvents.emit({ action: 'play_sfx', assetId: 'combat.unit-death' });
     runtime.data.targetId = undefined;
     runtime.deathTime = 0;
 
