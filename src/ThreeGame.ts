@@ -574,6 +574,9 @@ export class ThreeGame {
   private loadedSaveVersion = 0;
   private lastFrameTime = 0;
   private cameraTransitionFrame: number | null = null;
+  private audioAmbientAccumulatorMs = 0;
+  private audioBattleRunningMs = 0;
+  private lastAudioBattleMode: BattleStatus['mode'] = 'idle';
 
   constructor(root: HTMLElement, settingsStore: SettingsStore, storage: SaveStorage = localStorage) {
     const hadSave = storage.getItem(SAVE_KEY) !== null;
@@ -788,6 +791,7 @@ export class ThreeGame {
         settlementAgents: this.settlementAgents.length,
         battleObjects: this.battleLayer.children.length,
       }),
+      getAudioDiagnostics: () => this.audioManager.getDiagnostics(),
     });
     this.settingsStore.subscribe((settings) => {
       applyGraphicsSettings(this.renderer, settings);
@@ -797,6 +801,8 @@ export class ThreeGame {
       this.audioManager.setMasterVolume(settings.audio.masterVolume);
       this.audioManager.setMusicEnabled(settings.audio.musicEnabled);
       this.audioManager.setMusicVolume(settings.audio.musicVolume);
+      this.audioManager.setAmbientEnabled(settings.audio.ambientEnabled);
+      this.audioManager.setAmbientVolume(settings.audio.ambientVolume);
       this.audioManager.setSfxEnabled(settings.audio.sfxEnabled);
       this.audioManager.setSfxVolume(settings.audio.sfxVolume);
       this.audioManager.setMuted(settings.audio.muted);
@@ -2189,6 +2195,7 @@ export class ThreeGame {
     const object = this.constructionObjects.get(key);
     if (!object || this.viewMode === 'plan2d') return;
     this.constructionAnimation.start(key, object, performance.now(), duration);
+    audioEvents.emit({ action: 'play_sfx', assetId: 'building.started' });
   }
 
   private renderMinimap(): void {
@@ -14751,6 +14758,73 @@ export class ThreeGame {
     this.save(false);
   }
 
+
+  private updateAdaptiveAudio(status: BattleStatus, deltaMs: number): void {
+    if (status.mode === 'running') this.audioBattleRunningMs += Math.max(0, deltaMs);
+    else this.audioBattleRunningMs = 0;
+
+    const configuredDefenders = Math.max(
+      1,
+      this.battleSetup.defenderSwordsmen
+        + this.battleSetup.defenderArchers
+        + this.battleSetup.defenderSpearmen
+        + this.battleSetup.defenderCrossbowmen
+        + this.battleSetup.defenderModernSoldiers,
+    );
+    const defenderLossRatio = Math.min(
+      1,
+      Math.max(0, 1 - status.defendersAlive / configuredDefenders),
+    );
+    const directCombat =
+      defenderLossRatio > 0.01
+      || status.captureProgress > 0.01
+      || this.audioBattleRunningMs > 4500;
+
+    let intensity = 0;
+    if (status.mode === 'running') {
+      intensity = directCombat
+        ? Math.min(2, 1.45 + defenderLossRatio * 0.35 + status.captureProgress * 0.25)
+        : 0.78;
+    } else if (status.mode === 'paused') {
+      intensity = 0.48;
+    }
+    this.audioManager.setGameplayIntensity(intensity);
+
+    if (status.mode === 'finished' && this.lastAudioBattleMode !== 'finished') {
+      if (status.result?.winner === 'defender') {
+        audioEvents.emit({ action: 'play_sfx', assetId: 'combat.victory', force: true });
+      } else if (status.result?.winner === 'attacker') {
+        audioEvents.emit({ action: 'play_sfx', assetId: 'combat.defeat', force: true });
+      }
+    }
+    this.lastAudioBattleMode = status.mode;
+
+    this.audioAmbientAccumulatorMs += Math.max(0, deltaMs);
+    if (this.audioAmbientAccumulatorMs < 500) return;
+    this.audioAmbientAccumulatorMs %= 500;
+
+    const population = this.services.populationSystem.snapshot().totalPopulation;
+    const layoutId = String(this.mapLayoutId);
+    const water =
+      layoutId.includes('island') || layoutId.includes('isle')
+        ? 0.82
+        : layoutId.includes('peninsula') || layoutId.includes('coast')
+          ? 0.68
+          : 0.28;
+    const battleMix = status.mode === 'running'
+      ? Math.min(1, 0.35 + intensity * 0.32)
+      : 0;
+
+    this.audioManager.setAmbientContext({
+      wind: battleMix > 0 ? 0.62 : 0.48,
+      birds: battleMix > 0 ? 0.08 : 0.52,
+      water,
+      settlement: Math.min(1, Math.max(0.12, population / 80)),
+      fire: battleMix > 0 ? 0.08 : Math.min(0.45, 0.12 + population / 240),
+      battle: battleMix,
+    });
+  }
+
   private updateBattleUI(status: BattleStatus): void {
     const panel = document.getElementById('battle-panel');
     if (panel) panel.dataset.battlePhase = status.mode;
@@ -14946,6 +15020,7 @@ export class ThreeGame {
       for (const extension of this.extensions) extension.updateSettlement?.(deltaMs);
     }
     this.battleSystem.update(deltaMs, time);
+    this.updateAdaptiveAudio(this.battleSystem.status(), deltaMs);
     this.updateEndlessDefense(deltaMs);
     this.updateEconomy(deltaMs);
     this.updateEnvironment(deltaMs);
