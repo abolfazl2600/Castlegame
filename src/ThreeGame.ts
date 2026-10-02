@@ -9426,12 +9426,12 @@ export class ThreeGame {
         existing.damage = 0;
         existing.thickness = this.wallThickness;
         existing.battlement = this.wallBattlement;
-        existing.walkway = this.wallWalkway;
+        existing.walkway = true;
       } else if (WALL_KINDS.includes(existing.kind as WallKind)) {
         existing.kind = wallKind;
         existing.thickness = this.wallThickness;
         existing.battlement = this.wallBattlement;
-        existing.walkway = this.wallWalkway;
+        existing.walkway = true;
       }
     });
     for (let i = 1; i < path.length; i += 1) {
