@@ -59,7 +59,7 @@ assert.match(game, /data-mosque-level="4"/);
 assert.match(game, /id="mosque-upgrade-button"/);
 assert.match(game, /get<HTMLButtonElement>\('mosque-upgrade-button'\)\.onclick = \(\) => this\.upgradeSelectedMosque\(\);/);
 
-const upgrade = between(game, 'private upgradeSelectedMosque(): void {', 'private carpenterLevelDefinition');
+const upgrade = between(game, 'private upgradeSelectedMosque(): void {', 'private syncCarpenterUpgradeUI(): void {');
 assert.match(upgrade, /this\.recordHistory\(\)/,
   'Mosque upgrades must be undoable.');
 assert.match(upgrade, /this\.services\.state\.setLevel\(point\.x, point\.y, nextLevel\)/,
