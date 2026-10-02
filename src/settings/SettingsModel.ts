@@ -26,6 +26,8 @@ export interface AudioSettings {
   masterVolume: number;
   musicEnabled: boolean;
   musicVolume: number;
+  ambientEnabled: boolean;
+  ambientVolume: number;
   sfxEnabled: boolean;
   sfxVolume: number;
   muted: boolean;
@@ -69,6 +71,8 @@ export function createDefaultSettings(): SettingsData {
       masterVolume: 1,
       musicEnabled: true,
       musicVolume: 0.8,
+      ambientEnabled: true,
+      ambientVolume: 0.65,
       sfxEnabled: true,
       sfxVolume: 1,
       muted: false,
