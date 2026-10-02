@@ -32,11 +32,11 @@ function between(source, startMarker, endMarker) {
 
 assert.match(
   types,
-  /export type MapLayoutId = 'island' \| 'mainland' \| 'peninsula' \| 'twin-isles' \| 'urban-60x80';/,
-  'Map layouts must have a persisted finite ID type.',
+  /export type MapLayoutId = [^;]*'himeji-46x90';/,
+  'Map layouts must have a persisted finite ID type including the Himeji 46×90 footprint.',
 );
 
-for (const id of ['island', 'mainland', 'peninsula', 'twin-isles', 'urban-60x80', 'twin-fortresses-90x95']) {
+for (const id of ['island', 'mainland', 'peninsula', 'twin-isles', 'urban-60x80', 'twin-fortresses-90x95', 'himeji-46x90']) {
   assert.match(
     mapLayouts,
     new RegExp(`id: '${id}'`),
@@ -69,6 +69,10 @@ assert.match(
   /return isMapLayoutId\(value\) \? value : 'island';/,
   'Unknown/legacy layout IDs must fall back to Classic Island.',
 );
+
+assert.match(mapLayouts, /export const HIMEJI_LAND_WIDTH = 46;/);
+assert.match(mapLayouts, /export const HIMEJI_LAND_DEPTH = 90;/);
+assert.match(mapLayouts, /if \(layout === 'himeji-46x90'\) {[\s\S]*?himejiLandBounds\(size\)/);
 
 const baseTerrain = between(
   threeGame,
@@ -149,6 +153,7 @@ assert.match(
   /setMapLayoutId\(validMapLayoutId\(data\.mapLayoutId\) \? data\.mapLayoutId : 'island'\)/,
   'Loading must restore layout and default old saves to Classic Island.',
 );
+assert.match(saveSystem, /value === 'himeji-46x90'/, 'Himeji layout IDs must survive save/load validation.');
 
 const templateCompatibility = between(
   threeGame,

@@ -16,9 +16,29 @@ export const URBAN_LAND_DEPTH = 80;
 export const TWIN_FORTRESSES_LAND_WIDTH = 90;
 export const TWIN_FORTRESSES_LAND_DEPTH = 95;
 
+/** Authored Himeji Castle plot requested for the historic template. */
+export const HIMEJI_LAND_WIDTH = 46;
+export const HIMEJI_LAND_DEPTH = 90;
+
 export function urbanLandBounds(size: number) {
   const cols = URBAN_LAND_WIDTH / TILE_SIZE;
   const rows = URBAN_LAND_DEPTH / TILE_SIZE;
+  const minX = Math.floor((size - cols) / 2);
+  const minY = Math.floor((size - rows) / 2);
+  return { minX, minY, cols, rows, maxX: minX + cols - 1, maxY: minY + rows - 1 };
+}
+
+/**
+ * Raster bounds for the authored 46×90 Himeji plot.
+ *
+ * The engine currently uses a 22×22 grid with 4-unit cells (88×88 rendered units),
+ * so the authored dimensions are represented by the nearest complete-cell envelope:
+ * 12×22 cells. Keeping the 46×90 dimensions as first-class map metadata prevents
+ * the historic template from falling back to the old square mainland footprint.
+ */
+export function himejiLandBounds(size: number) {
+  const cols = Math.min(size, Math.ceil(HIMEJI_LAND_WIDTH / TILE_SIZE));
+  const rows = Math.min(size, Math.ceil(HIMEJI_LAND_DEPTH / TILE_SIZE));
   const minX = Math.floor((size - cols) / 2);
   const minY = Math.floor((size - rows) / 2);
   return { minX, minY, cols, rows, maxX: minX + cols - 1, maxY: minY + rows - 1 };
@@ -61,6 +81,12 @@ export const MAP_LAYOUTS: readonly MapLayoutDefinition[] = [
     description: 'A two-castle battlefield with twin gates, keeps, military camps, roads, and distributed resources.',
     preview: '♜⚔♜',
   },
+  {
+    id: 'himeji-46x90',
+    label: 'Himeji Castle Ground 46×90',
+    description: 'A narrow 46×90 authored historic-castle plot used by the Himeji Castle starting world.',
+    preview: '🏯',
+  },
 ] as const;
 
 export function isMapLayoutId(value: unknown): value is MapLayoutId {
@@ -69,7 +95,8 @@ export function isMapLayoutId(value: unknown): value is MapLayoutId {
     value === 'peninsula' ||
     value === 'twin-isles' ||
     value === 'urban-60x80' ||
-    value === 'twin-fortresses-90x95';
+    value === 'twin-fortresses-90x95' ||
+    value === 'himeji-46x90';
 }
 
 export function normalizeMapLayoutId(value: unknown): MapLayoutId {
@@ -238,6 +265,12 @@ export function terrainForMapLayout(
   size: number,
 ): TerrainKind {
   if (x < 0 || y < 0 || x >= size || y >= size) return 'water';
+
+  if (layout === 'himeji-46x90') {
+    const bounds = himejiLandBounds(size);
+    return x >= bounds.minX && x <= bounds.maxX && y >= bounds.minY && y <= bounds.maxY
+      ? 'plains' : 'water';
+  }
 
   if (layout === 'twin-fortresses-90x95') {
     const edgeMountain = (x <= 2 && y <= 4) || (x >= size - 3 && y >= size - 5);
