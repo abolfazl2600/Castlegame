@@ -12,6 +12,7 @@ const templates = [
   ['coastal-peninsula', 'peninsula', '5502', 'Narrow peninsula, cross-wall, town, farms, and harbors.'],
   ['split-isles', 'twin-isles', '5503', 'Castle island + village island with sea transport.'],
   ['arg-e-bam', 'mainland', '5701', 'Historic Iran · earthen citadel, bazaar axis, and raised governor keep.'],
+  ['himeji-castle', 'himeji-46x90', '5801', 'Historic Japan · 46×90 castle ground, white tiered keep, layered baileys, moats, and winding approach.'],
 ];
 
 for (const [id, layoutId, seed, description] of templates) {
