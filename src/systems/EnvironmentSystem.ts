@@ -15,6 +15,9 @@ export interface SeasonVisualState {
   crop: number;
   fog: number;
   sky: number;
+  horizon: number;
+  deepWater: number;
+  shallowWater: number;
   sunlight: number;
   sunIntensity: number;
 }
@@ -28,6 +31,9 @@ const PALETTES: Readonly<Record<SeasonName, Omit<SeasonVisualState, 'season' | '
     crop: 0x8fbd59,
     fog: 0xc6d8c8,
     sky: 0xb8d5d8,
+    horizon: 0xcbded7,
+    deepWater: 0x2f7792,
+    shallowWater: 0x72b8c6,
     sunlight: 0xffe8b7,
     sunIntensity: 1.2,
   },
@@ -37,6 +43,9 @@ const PALETTES: Readonly<Record<SeasonName, Omit<SeasonVisualState, 'season' | '
     crop: 0xc7b959,
     fog: 0xc9d3bd,
     sky: 0xb9ced0,
+    horizon: 0xcbd8c6,
+    deepWater: 0x286f8c,
+    shallowWater: 0x69b4c2,
     sunlight: 0xffdfa0,
     sunIntensity: 1.28,
   },
@@ -46,6 +55,9 @@ const PALETTES: Readonly<Record<SeasonName, Omit<SeasonVisualState, 'season' | '
     crop: 0xb9863f,
     fog: 0xc7b99e,
     sky: 0xbfae98,
+    horizon: 0xcabca4,
+    deepWater: 0x47727c,
+    shallowWater: 0x82aa9f,
     sunlight: 0xffcf8d,
     sunIntensity: 1.12,
   },
@@ -55,6 +67,9 @@ const PALETTES: Readonly<Record<SeasonName, Omit<SeasonVisualState, 'season' | '
     crop: 0x8e855d,
     fog: 0xc9d0cf,
     sky: 0xb8c4ca,
+    horizon: 0xcbd4d4,
+    deepWater: 0x466d7c,
+    shallowWater: 0x84aeb6,
     sunlight: 0xe8eef3,
     sunIntensity: 0.96,
   },
@@ -126,6 +141,9 @@ export class EnvironmentSystem {
       crop: lerpColor(a.crop, b.crop, t),
       fog: lerpColor(a.fog, b.fog, t),
       sky: lerpColor(a.sky, b.sky, t),
+      horizon: lerpColor(a.horizon, b.horizon, t),
+      deepWater: lerpColor(a.deepWater, b.deepWater, t),
+      shallowWater: lerpColor(a.shallowWater, b.shallowWater, t),
       sunlight: lerpColor(a.sunlight, b.sunlight, t),
       sunIntensity: a.sunIntensity + (b.sunIntensity - a.sunIntensity) * t,
     };
