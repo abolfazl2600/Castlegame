@@ -3814,23 +3814,45 @@ export class ThreeGame {
     roadWidth: number,
     material: THREE.Material,
   ): void {
-    const run = TILE / 2 + 0.12;
+    // Keep connector geometry out of the road center and stop exactly at the
+    // tile boundary. The previous arm started at the tile center and extended
+    // past the boundary, creating large coplanar overlaps with both the center
+    // slab and the neighboring road arm. Once stone roads gained a detailed
+    // texture, those overlaps became visible as z-fighting/flicker.
+    const centerHalfExtent = roadWidth / 2;
+    const horizontalRun = Math.max(0.01, TILE / 2 - centerHalfExtent);
+    const centerOffset = centerHalfExtent + horizontalRun / 2;
     const rise = elevationDelta / 2;
-    const length = Math.sqrt(run * run + rise * rise);
-    const arm = this.addBox(
-      group,
-      axis === 'x' ? length : roadWidth,
-      0.14,
-      axis === 'z' ? length : roadWidth,
-      material,
-      axis === 'x' ? sign * run / 2 : 0,
-      2.28 + rise / 2,
-      axis === 'z' ? sign * run / 2 : 0,
+    const height = 0.14;
+
+    const geometry = new THREE.BoxGeometry(
+      axis === 'x' ? horizontalRun : roadWidth,
+      height,
+      axis === 'z' ? horizontalRun : roadWidth,
     );
 
-    const angle = Math.atan2(rise, run);
-    if (axis === 'x') arm.rotation.z = sign * angle;
-    else arm.rotation.x = -sign * angle;
+    // Shear the connector instead of rotating a box. This preserves exact
+    // horizontal start/end bounds even on elevation changes, so adjacent road
+    // tiles meet at one seam without overlapping surfaces.
+    const positions = geometry.getAttribute('position');
+    for (let i = 0; i < positions.count; i += 1) {
+      const along = axis === 'x' ? positions.getX(i) : positions.getZ(i);
+      const normalized = THREE.MathUtils.clamp(along / horizontalRun + 0.5, 0, 1);
+      const outward = sign > 0 ? normalized : 1 - normalized;
+      positions.setY(i, positions.getY(i) + rise * outward);
+    }
+    positions.needsUpdate = true;
+    geometry.computeVertexNormals();
+
+    const arm = new THREE.Mesh(geometry, material);
+    arm.position.set(
+      axis === 'x' ? sign * centerOffset : 0,
+      2.28,
+      axis === 'z' ? sign * centerOffset : 0,
+    );
+    arm.castShadow = true;
+    arm.receiveShadow = true;
+    group.add(arm);
   }
 
   private makeHarbor(
