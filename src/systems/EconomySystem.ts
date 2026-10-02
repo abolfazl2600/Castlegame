@@ -1,7 +1,6 @@
 import type { ToolKind } from '../core/types';
 import type { EconomyResourceState } from '../core/types';
 import type { CellEntry } from '../state/GameState';
-import { carpenterLevelDefinition, normalizeCarpenterLevel } from '../building/CarpenterWorkshopProgression';
 
 export type EconomyResourceKey = keyof EconomyResourceState;
 
@@ -150,7 +149,7 @@ export class EconomySystem {
       else if (cell.kind === 'manor' || (cell.kind === 'cottage' && scaledLevel(cell) >= 3)) capacity += 45;
       else if (cell.kind === 'farm') capacity += 15 * scaledLevel(cell);
       else if (cell.kind === 'cowBarn') capacity += 12 * scaledLevel(cell);
-      else if (cell.kind === 'carpenter') capacity += 18 * normalizeCarpenterLevel(cell.level);
+      else if (cell.kind === 'carpenter') capacity += 18 * scaledLevel(cell, 4);
     }
     return Math.max(220, Math.round(capacity));
   }
@@ -250,11 +249,13 @@ export class EconomySystem {
     let woodProduced = 0;
     for (const cell of cells) {
       if (cell.kind !== 'carpenter') continue;
-      const definition = carpenterLevelDefinition(cell.level);
-      const input = Math.min(this.resources.logs, definition.inputPerSecond);
+      const level = scaledLevel(cell, 4);
+      const inputCapacity = [0, 0.30, 0.58, 0.90, 1.20][level];
+      const yieldRatio = [0, 0.80, 0.90, 1.00, 1.00][level];
+      const input = Math.min(this.resources.logs, inputCapacity);
       this.resources.logs -= input;
       logsProcessed += input;
-      woodProduced += input * definition.yieldRatio;
+      woodProduced += input * yieldRatio;
     }
     woodRate += woodProduced;
     this.resources.wood = Math.min(capacity, this.resources.wood + woodProduced);
