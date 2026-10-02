@@ -69,6 +69,24 @@ h1 { margin: 3px 0 0; font-size: 22px; line-height: 1; letter-spacing: -.035em; 
 }
 .secondary-button:hover, .danger-button:hover, .tool-button:hover { transform: translateY(-1px); }
 .secondary-button:hover { background: rgba(91,201,255,.12); border-color: rgba(120,226,255,.3); }
+.header-icon-button {
+  flex: 0 0 auto;
+  width: 36px;
+  height: 36px;
+  min-width: 36px;
+  padding: 0;
+  display: grid;
+  place-items: center;
+  font-size: 20px;
+  line-height: 1;
+}
+.header-icon-button:disabled,
+.build-global-actions button:disabled {
+  opacity: .38;
+  cursor: default;
+  transform: none;
+  filter: saturate(.45);
+}
 .danger-button { color: #ffdeda; background: rgba(176,65,55,.2); border-color: rgba(255,191,184,.16); }
 .danger-button:hover { background: rgba(176,65,55,.34); }
 
@@ -2429,6 +2447,7 @@ html[dir="rtl"] #templates-modal .starting-map-layout-grid .map-layout-card {
   .mobile-header-actions::-webkit-scrollbar { display:none; }
   .mobile-action,.mobile-dock-button { -webkit-tap-highlight-color:transparent; touch-action:manipulation; user-select:none; }
   .mobile-action { flex:0 0 auto; min-width:44px; min-height:44px; padding:7px 9px; border:1px solid rgba(255,255,255,.13); border-radius:12px; color:#f1fbff; background:rgba(7,25,39,.84); backdrop-filter:blur(14px); box-shadow:0 8px 24px rgba(0,0,0,.22); font-size:16px; font-weight:800; cursor:pointer; }
+  .mobile-action:disabled { opacity:.38; cursor:default; box-shadow:none; filter:saturate(.45); }
   .mobile-mode-action { width:44px; max-width:44px; padding:7px; overflow:visible; font-size:18px; line-height:1; }
   .mobile-danger { color:#ffd7d2; border-color:rgba(255,140,130,.22); }
   .mobile-bottom-dock { position:absolute; left:0; right:0; bottom:0; min-height:calc(var(--mobile-dock-height) + var(--mobile-safe-bottom)); padding:5px max(8px,var(--mobile-safe-right)) calc(5px + var(--mobile-safe-bottom)) max(8px,var(--mobile-safe-left)); display:grid; grid-template-columns:repeat(2,minmax(44px,160px)); justify-content:center; gap:5px; pointer-events:auto; background:linear-gradient(0deg,rgba(4,16,27,.97),rgba(4,16,27,.88) 72%,rgba(4,16,27,0)); backdrop-filter:blur(12px); }
