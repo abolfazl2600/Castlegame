@@ -12393,7 +12393,7 @@ export class ThreeGame {
     if (description) {
       description.textContent = next
         ? `${definition.description} Next: ${next.name}.`
-        : `${definition.description} Maximum residential level reached.`;
+        : `${definition.description} Maximum building level reached.`;
     }
     card.querySelectorAll<HTMLElement>('[data-residential-level]').forEach((step) => {
       const stepLevel = Number(step.dataset.residentialLevel ?? 0);
