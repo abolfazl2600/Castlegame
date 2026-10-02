@@ -36,7 +36,7 @@ assert.match(
   'Map layouts must have a persisted finite ID type.',
 );
 
-for (const id of ['island', 'mainland', 'peninsula', 'twin-isles', 'urban-60x80']) {
+for (const id of ['island', 'mainland', 'peninsula', 'twin-isles', 'urban-60x80', 'twin-fortresses-90x95']) {
   assert.match(
     mapLayouts,
     new RegExp(`id: '${id}'`),
@@ -118,15 +118,20 @@ assert.match(
   'Selecting a map layout must apply it before starting the new game.',
 );
 
-assert.match(
+assert.doesNotMatch(
   html,
   /id="map-layout-modal"/,
-  'New-game UI must expose a map-layout modal.',
+  'New-game UI must not expose a separate map-layout modal.',
 );
 assert.match(
   html,
-  /id="map-layout-grid"/,
-  'Map-layout modal needs a rendered selection grid.',
+  /id="starting-map-layout-grid"/,
+  'The unified starting-world modal must contain the map-layout grid.',
+);
+assert.match(
+  newGameFlow,
+  /document\.getElementById\('templates-modal'\)[\s\S]*?document\.getElementById\('starting-map-layout-grid'\)/,
+  'New-game map layouts and prepared worlds must share one picker.',
 );
 
 assert.match(

@@ -15,7 +15,7 @@ assert.equal(
   1,
   'Carcassonne must appear once in the template picker.',
 );
-assert.equal([...html.matchAll(/data-template=\"[^\"]+\"/g)].length, 35, 'Template picker must preserve all 35 complete starting worlds.');
+assert.equal([...html.matchAll(/data-template=\"[^\"]+\"/g)].length, 36, 'Template picker must preserve all 36 complete starting worlds.');
 assert.ok(threeGame.includes("'carcassonne': { layoutId: 'mainland', seed: 5601 }"));
 assert.ok(threeGame.includes("template === 'carcassonne'"));
 assert.ok(

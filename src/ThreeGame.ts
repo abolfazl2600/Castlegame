@@ -483,6 +483,7 @@ export class ThreeGame {
 
   private mapLayoutId: MapLayoutId = 'island';
   private worldSeed = 0;
+  private newGameSelectionPending = false;
   private selectedTool: ToolKind | null = 'wall1';
   private selectedCell: GridPoint | null = null;
   private minimapCursor: GridPoint = { x: Math.floor(SIZE / 2), y: Math.floor(SIZE / 2) };
@@ -1275,6 +1276,7 @@ export class ThreeGame {
 
       const authoredLayoutTemplate = PLAYABLE_LAYOUT_TEMPLATES[template ?? ''];
       const layoutRestricted =
+        !this.newGameSelectionPending &&
         this.mapLayoutId !== 'island' &&
         template !== 'empty-land' &&
         !authoredLayoutTemplate;
@@ -1442,13 +1444,15 @@ export class ThreeGame {
   }
 
   private openMapLayoutSelector(): void {
-    const modal = document.getElementById('map-layout-modal');
-    const grid = document.getElementById('map-layout-grid');
+    const modal = document.getElementById('templates-modal');
+    const grid = document.getElementById('starting-map-layout-grid');
     if (!modal || !grid) {
+      this.newGameSelectionPending = false;
       this.startNewGame();
       return;
     }
 
+    this.newGameSelectionPending = true;
     grid.innerHTML = MAP_LAYOUTS.map((layout) =>
       '<button class="map-layout-card' +
       (layout.id === this.mapLayoutId ? ' is-selected' : '') +
@@ -1462,11 +1466,13 @@ export class ThreeGame {
     grid.querySelectorAll<HTMLButtonElement>('[data-map-layout]').forEach((button) => {
       button.onclick = () => {
         const layoutId = normalizeMapLayoutId(button.dataset.mapLayout);
+        this.newGameSelectionPending = false;
         this.setMapLayoutId(layoutId);
         this.startNewGame();
       };
     });
 
+    this.syncTemplateAvailability();
     modal.hidden = false;
   }
 
@@ -1520,10 +1526,9 @@ export class ThreeGame {
   private startNewGame(): void {
     this.resetWorld();
     this.save(false);
-    const layoutModal = document.getElementById('map-layout-modal');
-    if (layoutModal) layoutModal.hidden = true;
+    this.newGameSelectionPending = false;
     const templates = document.getElementById('templates-modal');
-    if (templates) templates.hidden = false;
+    if (templates) templates.hidden = true;
     this.selectTool(null);
     const layout = MAP_LAYOUTS.find((item) => item.id === this.mapLayoutId);
     this.setStatus('New game · ' + (layout?.label ?? 'Classic Island'));
@@ -11299,6 +11304,7 @@ export class ThreeGame {
       help.hidden = false;
     };
     const openTemplates = (): void => {
+      this.newGameSelectionPending = false;
       this.syncTemplateAvailability();
       templates.hidden = false;
     };
@@ -11314,12 +11320,16 @@ export class ThreeGame {
     };
     get<HTMLButtonElement>('templates-button').onclick = openTemplates;
     get<HTMLButtonElement>('templates-close-button').onclick = () => {
+      this.newGameSelectionPending = false;
       templates.hidden = true;
+      this.syncTemplateAvailability();
     };
 
     templates.addEventListener('click', (event) => {
       if (event.target === templates) {
+        this.newGameSelectionPending = false;
         templates.hidden = true;
+        this.syncTemplateAvailability();
       }
     });
 
@@ -11327,6 +11337,12 @@ export class ThreeGame {
       button.onclick = () => {
         const template = button.dataset.template;
         if (!template) return;
+        if (this.newGameSelectionPending) {
+          this.newGameSelectionPending = false;
+          const authoredLayoutTemplate = PLAYABLE_LAYOUT_TEMPLATES[template];
+          this.setMapLayoutId(authoredLayoutTemplate?.layoutId ?? 'island');
+          this.resetWorld();
+        }
         this.applyTemplate(template);
         templates.hidden = true;
       };
@@ -11336,6 +11352,11 @@ export class ThreeGame {
       button.onclick = () => {
         const template = button.dataset.terrainTemplate;
         if (!template) return;
+        if (this.newGameSelectionPending) {
+          this.newGameSelectionPending = false;
+          this.setMapLayoutId('island');
+          this.resetWorld();
+        }
         this.applyTerrainTemplate(template);
         templates.hidden = true;
       };

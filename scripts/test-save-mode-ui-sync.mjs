@@ -17,7 +17,9 @@ assert.match(gameMode, /return 'unified'/);
 
 assert.doesNotMatch(html, /id="game-mode-modal"/);
 assert.doesNotMatch(html, /id="game-mode-button"/);
-assert.match(html, /id="map-layout-modal"/);
+assert.doesNotMatch(html, /id="map-layout-modal"/);
+assert.match(html, /id="templates-modal"/);
+assert.match(html, /id="starting-map-layout-grid"/);
 assert.match(html, /id="god-mode-button"/);
 assert.match(html, /id="battle-endless"/);
 
