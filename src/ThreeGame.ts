@@ -489,6 +489,7 @@ export class ThreeGame {
   private readonly godModeActions = new GodModeActionRegistry();
   private readonly planMaterials = new Map<string, THREE.MeshBasicMaterial>();
   private readonly environmentMaterials = new Map<string, THREE.MeshStandardMaterial>();
+  private readonly roadSurfaceTextures = new Map<RoadKind, THREE.CanvasTexture>();
   private readonly visualBenchmark = new URLSearchParams(window.location.search).has('visualBaseline');
   private lastRedrawMs = 0;
   private readonly settlementUnitBox = new THREE.BoxGeometry(1, 1, 1);
@@ -2325,6 +2326,85 @@ export class ThreeGame {
     return material;
   }
 
+  private roadSurfaceTexture(kind: RoadKind): THREE.CanvasTexture {
+    const existing = this.roadSurfaceTextures.get(kind);
+    if (existing) return existing;
+
+    const canvas = document.createElement('canvas');
+    canvas.width = 128;
+    canvas.height = 128;
+    const context = canvas.getContext('2d');
+    if (!context) {
+      throw new Error('Unable to create road surface texture');
+    }
+
+    if (kind === 'stoneRoad') {
+      // Large, high-contrast staggered pavers stay readable at normal gameplay distance.
+      context.fillStyle = '#6f6b63';
+      context.fillRect(0, 0, 128, 128);
+
+      const stoneWidth = 42;
+      const stoneHeight = 26;
+      const shades = ['#d8d5ca', '#c6c4bb', '#e0ddd2', '#bbb9b1', '#cfcdc3'];
+      for (let row = 0; row < 5; row += 1) {
+        const offset = row % 2 === 0 ? -stoneWidth / 2 : 0;
+        for (let col = -1; col < 4; col += 1) {
+          const x = offset + col * stoneWidth;
+          const y = row * stoneHeight;
+          context.fillStyle = shades[Math.abs(row * 3 + col) % shades.length];
+          context.fillRect(x + 2, y + 2, stoneWidth - 4, stoneHeight - 4);
+
+          context.strokeStyle = 'rgba(255,255,255,0.24)';
+          context.lineWidth = 1;
+          context.beginPath();
+          context.moveTo(x + 3, y + stoneHeight - 3);
+          context.lineTo(x + 3, y + 3);
+          context.lineTo(x + stoneWidth - 3, y + 3);
+          context.stroke();
+
+          context.strokeStyle = 'rgba(45,42,38,0.24)';
+          context.beginPath();
+          context.moveTo(x + stoneWidth - 3, y + 3);
+          context.lineTo(x + stoneWidth - 3, y + stoneHeight - 3);
+          context.lineTo(x + 3, y + stoneHeight - 3);
+          context.stroke();
+        }
+      }
+    } else {
+      // Packed roads receive inexpensive aggregate variation without extra geometry.
+      context.fillStyle = '#d7d1c8';
+      context.fillRect(0, 0, 128, 128);
+
+      const speckCount = kind === 'dirtRoad' ? 44 : 58;
+      for (let i = 0; i < speckCount; i += 1) {
+        const x = (i * 37 + 11) % 128;
+        const y = (i * 61 + 19) % 128;
+        const size = 1 + ((i * 7) % 4);
+        const shade = 145 + ((i * 23) % 65);
+        context.fillStyle = `rgb(${shade}, ${shade}, ${shade})`;
+        context.fillRect(x, y, size, Math.max(1, size - 1));
+      }
+
+      if (kind === 'dirtRoad') {
+        context.fillStyle = 'rgba(70,70,70,0.16)';
+        context.fillRect(35, 0, 8, 128);
+        context.fillRect(85, 0, 8, 128);
+        context.fillStyle = 'rgba(255,255,255,0.08)';
+        context.fillRect(44, 0, 2, 128);
+        context.fillRect(82, 0, 2, 128);
+      }
+    }
+
+    const texture = new THREE.CanvasTexture(canvas);
+    texture.colorSpace = THREE.SRGBColorSpace;
+    texture.wrapS = THREE.RepeatWrapping;
+    texture.wrapT = THREE.RepeatWrapping;
+    texture.anisotropy = Math.min(4, this.renderer.capabilities.getMaxAnisotropy());
+    texture.needsUpdate = true;
+    this.roadSurfaceTextures.set(kind, texture);
+    return texture;
+  }
+
   private seasonalColor(base: number, seasonal: number, strength: number): number {
     return new THREE.Color(base).lerp(new THREE.Color(seasonal), THREE.MathUtils.clamp(strength, 0, 1)).getHex();
   }
@@ -3508,6 +3588,11 @@ export class ThreeGame {
         ? this.environmentMaterial('road-stone-edge', 0x6e6961, 1)
         : this.environmentMaterial('road-edge', 0x70523f, 1);
 
+    if (!road.map) {
+      road.map = this.roadSurfaceTexture(kind);
+      road.needsUpdate = true;
+    }
+
     const left = this.isRoadFamily(this.kindAt(gx - 1, gy));
     const right = this.isRoadFamily(this.kindAt(gx + 1, gy));
     const up = this.isRoadFamily(this.kindAt(gx, gy - 1));
@@ -3523,6 +3608,11 @@ export class ThreeGame {
         kind === 'stoneRoad'
           ? this.environmentMaterial('bridge-stone-support', 0x625f58, 1)
           : this.environmentMaterial('bridge-timber-support', 0x4f3526, 1);
+
+      if (kind === 'stoneRoad' && !bridgeMaterial.map) {
+        bridgeMaterial.map = this.roadSurfaceTexture(kind);
+        bridgeMaterial.needsUpdate = true;
+      }
 
       const deck = this.addBox(
         group,
@@ -7721,30 +7811,95 @@ export class ThreeGame {
   }
 
   private makeTree(group: THREE.Group, level: number): THREE.Group {
-    const variant = Math.max(1, level);
+    // Tree level is used as a lightweight persisted visual variant. Existing
+    // saves already store levels 1–3 for trees, so this adds real model diversity
+    // without introducing a new TileKind or save-schema migration.
+    const variant = 1 + ((Math.max(1, Math.floor(level)) - 1) % 3);
+    const treeType = variant === 1 ? 'pine' : variant === 2 ? 'oak' : 'cypress';
     const trunk = this.environmentMaterial('tree-trunk', 0x75533c, 1);
+    const branch = this.environmentMaterial('tree-branch', 0x664630, 1);
     const foliage = this.environmentMaterial(
-      `tree-foliage-${(variant - 1) % 3}`,
-      [WORLD_STYLE.palette.foliageMid, WORLD_STYLE.palette.foliageLight, WORLD_STYLE.palette.grassForest][(variant - 1) % 3],
+      `tree-foliage-${treeType}`,
+      variant === 1
+        ? WORLD_STYLE.palette.foliageMid
+        : variant === 2
+          ? WORLD_STYLE.palette.foliageLight
+          : WORLD_STYLE.palette.grassForest,
       0.9,
     );
 
-    const trunkMesh = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.28, 1.6, 7), trunk);
-    trunkMesh.position.y = 3.0;
-    trunkMesh.castShadow = true;
-    group.add(trunkMesh);
-
     const crown = new THREE.Group();
     group.add(crown);
-    for (const [radius, y] of [[1.05, 4.25], [0.78, 5.3], [0.5, 6.05]] as Array<[number, number]>) {
-      const cone = new THREE.Mesh(new THREE.ConeGeometry(radius, radius * 1.95, 8), foliage);
-      cone.position.y = y;
-      cone.castShadow = true;
-      crown.add(cone);
+    group.userData.treeVariant = treeType;
+    group.userData.treeVariantLevel = variant;
+
+    if (variant === 1) {
+      // Existing conifer model: broad base and three stacked evergreen tiers.
+      const trunkMesh = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.28, 1.6, 7), trunk);
+      trunkMesh.position.y = 3.0;
+      trunkMesh.castShadow = true;
+      group.add(trunkMesh);
+
+      for (const [radius, y] of [[1.05, 4.25], [0.78, 5.3], [0.5, 6.05]] as Array<[number, number]>) {
+        const cone = new THREE.Mesh(new THREE.ConeGeometry(radius, radius * 1.95, 8), foliage);
+        cone.position.y = y;
+        cone.castShadow = true;
+        crown.add(cone);
+      }
+    } else if (variant === 2) {
+      // Broadleaf oak: heavier trunk, visible low branches, and an irregular
+      // rounded crown. Three low-poly foliage masses keep draw cost bounded.
+      const trunkMesh = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.34, 1.9, 7), trunk);
+      trunkMesh.position.y = 3.12;
+      trunkMesh.castShadow = true;
+      group.add(trunkMesh);
+
+      for (const [x, rotationZ, rotationY] of [
+        [-0.34, -0.72, -0.25],
+        [0.34, 0.72, 0.34],
+      ] as Array<[number, number, number]>) {
+        const limb = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.11, 1.05, 6), branch);
+        limb.position.set(x, 3.84, 0);
+        limb.rotation.z = rotationZ;
+        limb.rotation.y = rotationY;
+        limb.castShadow = true;
+        crown.add(limb);
+      }
+
+      for (const [x, y, z, sx, sy, sz] of [
+        [-0.58, 4.68, 0.05, 1.15, 0.82, 1.0],
+        [0.55, 4.72, -0.08, 1.1, 0.86, 1.06],
+        [0, 5.28, 0.08, 1.28, 0.92, 1.18],
+      ] as Array<[number, number, number, number, number, number]>) {
+        const leaves = new THREE.Mesh(new THREE.DodecahedronGeometry(0.82, 0), foliage);
+        leaves.position.set(x, y, z);
+        leaves.scale.set(sx, sy, sz);
+        leaves.castShadow = true;
+        crown.add(leaves);
+      }
+    } else {
+      // Tall cypress: narrow vertical silhouette that contrasts clearly with
+      // both the pine and broadleaf oak at normal gameplay zoom.
+      const trunkMesh = new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.22, 1.85, 7), trunk);
+      trunkMesh.position.y = 3.08;
+      trunkMesh.castShadow = true;
+      group.add(trunkMesh);
+
+      for (const [radius, height, y] of [
+        [0.72, 2.65, 4.25],
+        [0.56, 2.35, 5.12],
+        [0.38, 1.72, 5.95],
+      ] as Array<[number, number, number]>) {
+        const cone = new THREE.Mesh(new THREE.ConeGeometry(radius, height, 8), foliage);
+        cone.position.y = y;
+        cone.castShadow = true;
+        crown.add(cone);
+      }
     }
 
     const swayPhase = variant * 0.73 + group.position.x * 0.017 + group.position.z * 0.023;
-    this.ambientMotion.registerSway(crown, swayPhase, 0.032 + (variant % 3) * 0.004, 0.00115);
+    const swayAmplitude = variant === 2 ? 0.026 : variant === 3 ? 0.02 : 0.032;
+    this.ambientMotion.registerSway(crown, swayPhase, swayAmplitude, 0.00115);
     return group;
   }
 

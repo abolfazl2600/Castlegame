@@ -99,7 +99,12 @@ test('Urban city loads from the picker, supports undo/redo, and survives reload'
   await expect.poll(async () => (await saved()).mapLayoutId).toBe('urban-60x80');
   const before = await saved();
   expect(before.worldSeed).toBe(6001);
-  expect(before.cells.filter((cell: SavedCell) => cell.kind === 'house' || cell.kind === 'cottage')).toHaveLength(30);
+  const residences = before.cells.filter((cell: SavedCell) => cell.kind === 'cottage');
+  expect(residences).toHaveLength(32);
+  expect(residences.filter((cell: SavedCell) => cell.level === 1)).toHaveLength(20);
+  expect(residences.filter((cell: SavedCell) => cell.level === 2)).toHaveLength(10);
+  expect(residences.filter((cell: SavedCell) => cell.level === 3)).toHaveLength(2);
+  expect(before.cells.some((cell: SavedCell) => cell.kind === 'house' || cell.kind === 'manor')).toBe(false);
   for (const cell of before.cells as SavedCell[]) {
     expect(cell.x).toBeGreaterThanOrEqual(3);
     expect(cell.x).toBeLessThanOrEqual(17);
