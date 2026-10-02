@@ -257,11 +257,9 @@ export class AudioManager {
 
   playMusic(assetId: string): void {
     const asset = this.resolveAsset(assetId);
-    if (!asset?.src) {
-      this.adaptiveMusic?.start();
-      this.adaptiveMusic?.setIntensity(this.gameplayIntensity);
-      return;
-    }
+    // Never synthesize a persistent music bed as a fallback. If an authored
+    // music asset has not been registered yet, keep the game silent.
+    if (!asset?.src) return;
     if (asset.bus !== 'music') return;
 
     if (this.currentMusic?.assetId === assetId) {
@@ -615,22 +613,12 @@ export class AudioManager {
       if (this.canPlayMusicNow()) {
         if (this.currentMusic?.element.paused) {
           await this.currentMusic.element.play().catch(() => undefined);
-        } else if (!this.currentMusic) {
-          this.adaptiveMusic?.start();
-          this.adaptiveMusic?.setIntensity(this.gameplayIntensity);
         }
       }
 
-      if (
-        !this.settings.muted
-        && this.settings.ambientEnabled
-        && this.settings.masterVolume > 0
-        && this.settings.ambientVolume > 0
-      ) {
-        this.ambientEngine?.start();
-        this.ambientEngine?.setContext(this.ambientContext);
-      }
-
+      // Ambient and adaptive-music procedural beds intentionally do not
+      // auto-start. Until authored loop assets are available, startup should
+      // remain quiet and only short event-driven SFX may play.
       document.documentElement.dataset.audioLifecycle = 'active';
     })();
 
