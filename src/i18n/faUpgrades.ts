@@ -1,5 +1,13 @@
 /** Four-stage agricultural, harbor, fortification and army upgrade descriptions. */
 export const UPGRADE_TRANSLATIONS: Readonly<Record<string, string>> = {
+  "A loose group of low cottages with an open village yard and minimal enclosure.": "گروهی باز از کلبه‌های کوتاه با حیاط روستایی باز و حصار حداقلی.",
+  "A denser residential block with a taller central dwelling, organized paths, utility space, and partial fencing.": "بافت مسکونی متراکم‌تر با خانه مرکزی بلندتر، مسیرهای منظم، فضای خدماتی و حصار بخشی.",
+  "A dominant manor hall, symmetric service wings, formal courtyard, and gated grounds create a clearly wealthier compound.": "تالار اصلی برجسته، بال‌های خدماتی متقارن، حیاط رسمی و محوطه دروازه‌دار، مجموعه‌ای آشکارا مرفه‌تر می‌سازند.",
+  "A prestigious villa compound with an open court, landmark pavilion, cupola, masonry enclosure, garden, and formal entrance.": "مجموعه ویلایی باشکوه با حیاط باز، عمارت شاخص، گنبدک، حصار سنگی، باغ و ورودی رسمی.",
+  "Cottage Cluster": "مجموعه کلبه‌ها",
+  "House Cluster": "مجموعه خانه‌ها",
+  "Manor": "عمارت اربابی",
+  "Villa District": "محله ویلاها",
   "A small open carpenter yard that processes Logs into construction-ready Wood.": "محوطه‌ای کوچک و باز برای نجاری که الوار را به چوب آماده ساخت تبدیل می‌کند.",
   "A larger covered workshop with a dedicated cutting bay, better tools, and higher throughput.": "کارگاه سرپوشیده و بزرگ‌تر با بخش برش اختصاصی، ابزار بهتر و ظرفیت تولید بیشتر.",
   "A mature timber workshop with a loft, heavy saw frame, hoist, storage, and maximum conversion efficiency.": "کارگاه نجاری کامل با انبارک بالایی، قاب اره سنگین، بالابر، فضای ذخیره و بیشترین بازده تبدیل.",

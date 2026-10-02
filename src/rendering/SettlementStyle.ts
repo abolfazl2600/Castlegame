@@ -17,9 +17,10 @@ export type ResidenceKind = 'cottage' | 'house' | 'manor' | 'villa' | 'cowBarn';
 export type ResidentialProgressionKind = Exclude<ResidenceKind, 'cowBarn'>;
 
 /**
- * Residential buildings are separate build tools rather than in-place upgrades,
- * but together they follow the same four-level silhouette language used by
- * upgradeable settlement structures.
+ * The runtime now stores one canonical residential building kind (cottage)
+ * with Levels 1–4. The historic kind names remain as visual-layout keys and
+ * legacy-save aliases so older worlds migrate without losing their authored
+ * silhouette.
  */
 export const RESIDENCE_VISUAL_LEVELS: Readonly<Record<ResidentialProgressionKind, UpgradeVisualLevel>> = {
   cottage: 1,
@@ -27,6 +28,8 @@ export const RESIDENCE_VISUAL_LEVELS: Readonly<Record<ResidentialProgressionKind
   manor: 3,
   villa: 4,
 } as const;
+
+export const RESIDENTIAL_LEVEL_KINDS = ['cottage', 'house', 'manor', 'villa'] as const satisfies readonly ResidentialProgressionKind[];
 
 export const RESIDENCE_VISUAL_VARIANTS = {
   cottage: 'basic-hamlet',

@@ -57,16 +57,16 @@ The shared progression language is now applied across the settlement layer witho
 
 ### Residential progression
 
-The residential family intentionally reads as one four-step visual ladder:
+The residential family is one four-step **in-place gameplay upgrade line**:
 
-**Cottage → House → Manor → Villa**
+**Cottage Cluster → House Cluster → Manor → Villa District**
 
-- Cottage = Level 1 / Basic: low loose hamlet massing.
-- House = Level 2 / Established: denser block with a taller central dwelling.
-- Manor = Level 3 / Advanced: dominant hall, formal court, stronger vertical hierarchy.
-- Villa = Level 4 / Landmark: open court plus a crowned corner pavilion/cupola that stays recognizable at normal gameplay zoom.
+- Level 1 / Cottage Cluster / Basic: low loose hamlet massing, open yard, and minimal enclosure.
+- Level 2 / House Cluster / Established: denser roof block with a taller central dwelling, organized paths, and partial fencing.
+- Level 3 / Manor / Advanced: dominant hall, formal court, symmetric service wings, and a broad gated compound.
+- Level 4 / Villa District / Landmark: open villa court, masonry enclosure, formal entrance, garden, and a crowned corner pavilion/cupola recognizable at normal gameplay zoom.
 
-These remain separate build choices for compatibility; the mapping is a visual-language contract, not an economy rewrite.
+Only Level 1 is exposed as a normal residential build tool. Players upgrade the same placed cell sequentially through Levels 2–4; position, rotation, damage, undo history, and save state stay attached to that cell. The runtime stores the progression canonically as `cottage` plus `level`, while legacy saves/templates using `house`, `manor`, or `villa` migrate to Levels 2, 3, and 4 respectively. The old layout keys remain available internally so historic templates and visual regression fixtures keep their authored silhouettes without exposing duplicate build buttons.
 
 ### Apple Orchard progression
 
