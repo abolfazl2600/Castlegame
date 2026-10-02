@@ -35,6 +35,16 @@ assert.match(budget, /candidate\.mesh\.visible = false/, 'micro-detail budget mu
 assert.match(budget, /activeHighDetailMeshes/, 'active high-detail mesh diagnostics are required');
 assert.match(budget, /estimatedDrawCalls/, 'estimated draw-call diagnostics are required');
 assert.match(budget, /detailDrawAllowance/, 'detail draw allowance must keep normal and strategic LOD budgets distinct');
+assert.match(
+  budget,
+  /remainingDrawCalls = Math\.max\(0, budget\.drawCalls - protectedDrawCalls\)/,
+  'optional detail must be capped by the total remaining draw-call budget',
+);
+assert.match(
+  budget,
+  /Math\.min\([\s\S]*detailDrawAllowance\(budget, band, mobile\),[\s\S]*remainingDrawCalls/,
+  'band-specific detail allowance must never overrun the active draw-call cap',
+);
 assert.match(budget, /detailBudgetRoot/, 'distance governor must budget detail per logical structure or unit root');
 assert.match(budget, /current\.userData\.cellKey/, 'building roots must participate in per-structure LOD budgeting');
 assert.match(budget, /current\.userData\.visualRefs/, 'battle unit roots must participate in per-unit LOD budgeting');

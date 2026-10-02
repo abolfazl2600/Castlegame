@@ -579,7 +579,16 @@ export class DistanceDetailBudgetSystem {
 
     candidates.sort((a, b) => b.radius - a.radius || a.order - b.order);
 
-    const availableDrawCalls = detailDrawAllowance(budget, band, mobile);
+    // The band-specific detail allowance is a quality target, not permission
+    // to exceed the total draw-call cap. Protected silhouette geometry can consume
+    // most of the budget in dense strategic scenes, so clamp optional detail to
+    // the actual remaining headroom. This keeps the renderer at or below the
+    // active cap without hiding protected structure silhouettes.
+    const remainingDrawCalls = Math.max(0, budget.drawCalls - protectedDrawCalls);
+    const availableDrawCalls = Math.min(
+      detailDrawAllowance(budget, band, mobile),
+      remainingDrawCalls,
+    );
     const maxDetailMeshes = Math.min(
       Math.max(0, budget.highDetailMeshes),
       availableDrawCalls,

@@ -27,6 +27,7 @@ import { EnvironmentSystem } from './systems/EnvironmentSystem';
 import { DistanceDetailBudgetSystem } from './rendering/DistanceDetailBudget';
 import { AdaptiveRenderProfile } from './rendering/AdaptiveRenderProfile';
 import { PerformanceDebugOverlay } from './debug/PerformanceDebugOverlay';
+import { captureGameScreenshot } from './capture/ScreenshotCapture';
 import { instanceStaticCastleBoxes } from './rendering/StaticCastleBoxInstancing';
 import {
   RESIDENCE_LAYOUTS,
@@ -445,6 +446,8 @@ export class ThreeGame {
   private readonly distanceDetailBudget = new DistanceDetailBudgetSystem();
   private readonly adaptiveRenderProfile = new AdaptiveRenderProfile();
   private readonly performanceDebug: PerformanceDebugOverlay;
+  private screenshotCapturePending = false;
+  private screenshotFeedbackTimer: number | null = null;
   /** Domain state and gameplay services are composed here, away from rendering/UI concerns. */
   private readonly services = createGameDomainServices();
   private readonly missionSystem = new MissionSystem();
@@ -11777,6 +11780,9 @@ export class ThreeGame {
         this.openMapLayoutSelector();
       }
     };
+    get<HTMLButtonElement>('screenshot-button').onclick = () => {
+      void this.captureScreenshot();
+    };
     get<HTMLButtonElement>('fullscreen-button').onclick = async () => {
       if (document.fullscreenElement) await document.exitFullscreen();
       else await document.documentElement.requestFullscreen();
@@ -11810,6 +11816,12 @@ export class ThreeGame {
       if ((event.ctrlKey || event.metaKey) && key === 'y') {
         event.preventDefault();
         this.redo();
+        return;
+      }
+
+      if (key === 'f9') {
+        event.preventDefault();
+        void this.captureScreenshot();
         return;
       }
 
@@ -15595,6 +15607,58 @@ export class ThreeGame {
   private setStatus(text: string): void {
     const element = document.getElementById('save-status');
     if (element) element.textContent = text;
+  }
+
+  private showScreenshotFeedback(message: string, failed = false): void {
+    const feedback = document.getElementById('screenshot-feedback');
+    const shell = document.getElementById('game-shell');
+    if (!feedback) return;
+
+    const text = feedback.querySelector('strong');
+    if (text) text.textContent = message;
+    feedback.hidden = false;
+    feedback.classList.toggle('is-error', failed);
+    feedback.classList.remove('is-visible');
+    void feedback.offsetWidth;
+    feedback.classList.add('is-visible');
+
+    shell?.classList.remove('screenshot-capture-flash');
+    if (!failed) {
+      void shell?.offsetWidth;
+      shell?.classList.add('screenshot-capture-flash');
+    }
+
+    if (this.screenshotFeedbackTimer !== null) {
+      window.clearTimeout(this.screenshotFeedbackTimer);
+    }
+    this.screenshotFeedbackTimer = window.setTimeout(() => {
+      feedback.classList.remove('is-visible');
+      shell?.classList.remove('screenshot-capture-flash');
+      feedback.hidden = true;
+      this.screenshotFeedbackTimer = null;
+    }, failed ? 2400 : 1700);
+  }
+
+  private async captureScreenshot(): Promise<void> {
+    if (this.screenshotCapturePending) return;
+
+    const button = document.getElementById('screenshot-button') as HTMLButtonElement | null;
+    this.screenshotCapturePending = true;
+    if (button) button.disabled = true;
+
+    try {
+      const result = await captureGameScreenshot(this.renderer, this.scene, this.camera);
+      const message = result.destination === 'share' ? 'Screenshot ready to share' : 'Screenshot saved';
+      this.setStatus(message);
+      this.showScreenshotFeedback(message);
+    } catch (error) {
+      console.error('Screenshot capture failed', error);
+      this.setStatus('Screenshot capture failed');
+      this.showScreenshotFeedback('Screenshot capture failed', true);
+    } finally {
+      this.screenshotCapturePending = false;
+      if (button) button.disabled = false;
+    }
   }
 
   private resize(): void {
