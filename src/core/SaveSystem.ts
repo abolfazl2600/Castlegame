@@ -518,7 +518,7 @@ export class SaveSystem {
         kind: migration.kind as ReturnType<GameState['entries']>[number]['kind'],
         level: migration.level,
         thickness: cell.thickness,
-        battlement: cell.battlement,
+        battlement: migration.kind === 'wall1' || migration.kind === 'wall2' || migration.kind === 'wall3' ? true : cell.battlement,
         walkway: migration.kind === 'wall1' || migration.kind === 'wall2' || migration.kind === 'wall3' ? true : cell.walkway,
         towerShape: cell.towerShape,
         towerTop: cell.towerTop,

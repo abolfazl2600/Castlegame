@@ -89,7 +89,7 @@ export class GameState {
 
   private normalizeCellOptions(kind: TileKind, options: Partial<GridCell>): Partial<GridCell> {
     if (kind === 'wall1' || kind === 'wall2' || kind === 'wall3') {
-      return { ...options, walkway: true };
+      return { ...options, battlement: true, walkway: true };
     }
     return options;
   }

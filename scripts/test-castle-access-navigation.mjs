@@ -7,12 +7,18 @@ const [
   battleNavigation,
   gameMode,
   gameDomainServices,
+  gameState,
+  saveSystem,
+  constants,
 ] = await Promise.all([
   readFile(new URL('../src/ThreeGame.ts', import.meta.url), 'utf8'),
   readFile(new URL('../src/battle/BattleSystem.ts', import.meta.url), 'utf8'),
   readFile(new URL('../src/battle/BattleNavigation.ts', import.meta.url), 'utf8'),
   readFile(new URL('../src/core/GameMode.ts', import.meta.url), 'utf8'),
   readFile(new URL('../src/core/GameDomainServices.ts', import.meta.url), 'utf8'),
+  readFile(new URL('../src/state/GameState.ts', import.meta.url), 'utf8'),
+  readFile(new URL('../src/core/SaveSystem.ts', import.meta.url), 'utf8'),
+  readFile(new URL('../src/core/constants.ts', import.meta.url), 'utf8'),
 ]);
 
 function between(source, startMarker, endMarker) {
@@ -155,6 +161,37 @@ assert.match(
   threeGame,
   /const activeWalkway = !partial;/,
   'Intact and non-breached wall geometry must always render a top walkway.',
+);
+
+assert.doesNotMatch(
+  threeGame,
+  /wall-battlement|No Battlement|wallBattlement|const battlement = !partial && \(cell\.battlement \?\? true\);/,
+  'Wall battlements must no longer be player-configurable or rendered from a disabled legacy flag.',
+);
+assert.match(
+  threeGame,
+  /const battlement = !partial;/,
+  'Intact and non-breached wall geometry must always render battlements.',
+);
+assert.doesNotMatch(
+  threeGame,
+  /battlement\s*:\s*false/,
+  'Built-in wall templates must not create battlement-disabled wall cells.',
+);
+assert.match(
+  gameState,
+  /return \{ \.\.\.options, battlement: true, walkway: true \};/,
+  'Runtime wall state must canonicalize battlements and walkways to enabled.',
+);
+assert.match(
+  saveSystem,
+  /battlement: migration\.kind === 'wall1' \|\| migration\.kind === 'wall2' \|\| migration\.kind === 'wall3' \? true : cell\.battlement,/,
+  'Legacy saves with disabled battlements must normalize wall cells to enabled battlements.',
+);
+assert.match(
+  constants,
+  /export const SAVE_VERSION = 17;/,
+  'Battlement canonicalization must advance the persistent save schema.',
 );
 
 console.log('Wall-connected access removal/navigation regression checks passed.');

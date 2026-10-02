@@ -529,7 +529,6 @@ export class ThreeGame {
   private readonly saved3DCameraPosition = WORLD_STYLE.camera.position.clone();
   private readonly saved3DTarget = new THREE.Vector3(0, 0, 0);
   private wallThickness: WallThickness = 'medium';
-  private wallBattlement = true;
   private towerShape: TowerShape = 'round';
   private towerTop: TowerTop = 'openBattlement';
   private stoneStyle: StoneStyle = 'limestone';
@@ -4195,7 +4194,7 @@ export class ThreeGame {
     const thickness = this.wallThicknessValue(kind, thicknessChoice);
     const damageStage = castleDamageStage(cell.damage ?? 0);
     const partial = damageStage === 'partial-breach';
-    const battlement = !partial && (cell.battlement ?? true);
+    const battlement = !partial;
     const activeWalkway = !partial;
     const links = this.wallConnections(gx, gy, cell);
     group.userData.defenseSilhouette = WALL_SILHOUETTE_PROFILES[kind];
@@ -9415,7 +9414,7 @@ export class ThreeGame {
           kind: wallKind,
           level: 1,
           thickness: this.wallThickness,
-          battlement: this.wallBattlement,
+          battlement: true,
           walkway: true,
         });
       } else if (single && existing.kind === wallKind) {
@@ -9425,12 +9424,12 @@ export class ThreeGame {
           : Math.min(MAX_WALL_LEVEL, currentLevel + 1);
         existing.damage = 0;
         existing.thickness = this.wallThickness;
-        existing.battlement = this.wallBattlement;
+        existing.battlement = true;
         existing.walkway = true;
       } else if (WALL_KINDS.includes(existing.kind as WallKind)) {
         existing.kind = wallKind;
         existing.thickness = this.wallThickness;
-        existing.battlement = this.wallBattlement;
+        existing.battlement = true;
         existing.walkway = true;
       }
     });
@@ -9613,7 +9612,7 @@ export class ThreeGame {
           level: nextLevel,
           damage: 0,
           thickness: this.wallThickness,
-          battlement: this.wallBattlement,
+          battlement: true,
           walkway: true,
         });
         changed = true;
@@ -9630,7 +9629,7 @@ export class ThreeGame {
 
       this.services.state.setCell(point.x, point.y, wallKind, cell?.level ?? 1, {
         thickness: this.wallThickness,
-        battlement: this.wallBattlement,
+        battlement: true,
         walkway: true,
         wallLinks: cell?.wallLinks,
       });
@@ -11363,7 +11362,6 @@ export class ThreeGame {
       '<label class="settings-row"><span>Thickness</span><select id="wall-thickness">' +
       '<option value="thin">Thin</option><option value="medium" selected>Medium</option><option value="thick">Thick</option>' +
       '</select></label>' +
-      '<label class="settings-check"><input id="wall-battlement" type="checkbox" checked /><span>Battlement</span></label>' +
       '<div class="settings-actions"><button id="selected-down" type="button">− Height</button><button id="selected-up" type="button">+ Height</button></div>' +
       '<div class="settings-title">Castle Architecture</div>' +
       '<label class="settings-row"><span>Stone Style</span><select id="castle-stone-style">' +
@@ -11373,7 +11371,7 @@ export class ThreeGame {
       '<label class="settings-row"><span>Tower Bridge</span><select id="tower-bridge-kind">' +
       '<option value="stone" selected>Stone Bridge</option><option value="wood">Wooden Bridge</option>' +
       '</select></label>' +
-      '<div class="settings-hint">Foundations, buttresses and machicolations are generated automatically.</div>' +
+      '<div class="settings-hint">Battlements, walkways, foundations, buttresses and machicolations are generated automatically.</div>' +
       '<div class="settings-title">Tower</div>' +
       '<label class="settings-row"><span>Base</span><select id="tower-shape">' +
       '<option value="square">Square Tower</option><option value="round" selected>Round Tower</option>' +
@@ -11588,14 +11586,6 @@ export class ThreeGame {
     wallThickness.value = this.wallThickness;
     wallThickness.onchange = () => {
       this.wallThickness = wallThickness.value as WallThickness;
-      this.applyWallSettingsToSelected();
-      this.syncWallSettingsSummary();
-    };
-
-    const wallBattlement = get<HTMLInputElement>('wall-battlement');
-    wallBattlement.checked = this.wallBattlement;
-    wallBattlement.onchange = () => {
-      this.wallBattlement = wallBattlement.checked;
       this.applyWallSettingsToSelected();
       this.syncWallSettingsSummary();
     };
@@ -11954,8 +11944,7 @@ export class ThreeGame {
     const summary = document.getElementById('build-settings-summary');
     if (!summary) return;
     const thickness = this.wallThickness.charAt(0).toUpperCase() + this.wallThickness.slice(1);
-    const battlement = this.wallBattlement ? 'Battlement' : 'No Battlement';
-    summary.textContent = `${thickness} · ${battlement}`;
+    summary.textContent = thickness;
   }
 
   private syncSelectedGateButton(): void {
@@ -12036,7 +12025,7 @@ export class ThreeGame {
     this.recordHistory();
     this.services.state.updateCell(this.selectedCell.x, this.selectedCell.y, {
       thickness: this.wallThickness,
-      battlement: this.wallBattlement,
+      battlement: true,
       walkway: true,
     });
     this.redrawCastleNeighborhood([this.selectedCell]);
@@ -13376,7 +13365,7 @@ export class ThreeGame {
       prepareBuildableArea(8, 18, 10, 20, 0.04);
 
       placeWallRect(6, 7, 13, 14, 'wall2', 2, {
-        battlement: false,
+        battlement: true,
         walkway: true,
         thickness: 'medium',
       });
@@ -13499,12 +13488,12 @@ export class ThreeGame {
       const maxY = center + 5;
 
       for (let x = minX; x <= maxX; x += 1) {
-        place(x, minY, 'wall2', 1, { battlement: false, walkway: true, thickness: 'medium' });
-        place(x, maxY, 'wall2', 1, { battlement: false, walkway: true, thickness: 'medium' });
+        place(x, minY, 'wall2', 1, { battlement: true, walkway: true, thickness: 'medium' });
+        place(x, maxY, 'wall2', 1, { battlement: true, walkway: true, thickness: 'medium' });
       }
       for (let y = minY; y <= maxY; y += 1) {
-        place(minX, y, 'wall2', 1, { battlement: false, walkway: true, thickness: 'medium' });
-        place(maxX, y, 'wall2', 1, { battlement: false, walkway: true, thickness: 'medium' });
+        place(minX, y, 'wall2', 1, { battlement: true, walkway: true, thickness: 'medium' });
+        place(maxX, y, 'wall2', 1, { battlement: true, walkway: true, thickness: 'medium' });
       }
 
       place(center, maxY, 'gate');
@@ -13797,7 +13786,7 @@ export class ThreeGame {
       prepareArea(center - 10, center - 8, center + 10, center + 8, 0.12);
 
       placeWallRect(center - 7, center - 5, center + 7, center + 5, 'wall2', 2, {
-        battlement: false,
+        battlement: true,
         walkway: true,
         thickness: 'medium',
       });
@@ -14012,7 +14001,7 @@ export class ThreeGame {
         thickness: 'thin',
       });
       place(center - 10, center + 4, 'wall2', 2, {
-        battlement: false,
+        battlement: true,
         walkway: true,
         thickness: 'medium',
       });
@@ -14128,7 +14117,7 @@ export class ThreeGame {
 
       for (let y=center-8;y<=center+8;y+=1) {
         if(y===center+2) continue;
-        place(center-7,y,'wall2',2,{battlement:false,walkway:true,thickness:'medium'});
+        place(center-7,y,'wall2',2,{battlement:true,walkway:true,thickness:'medium'});
       }
       place(center-7,center+2,'gate');
       place(center-7,center-8,'tower',2,{towerShape:'watch',towerTop:'timberRoof'});
@@ -14228,7 +14217,7 @@ export class ThreeGame {
       prepareArea(center-11,center-9,center+11,center+9,0.08);
 
       placeWallRect(center-8,center-6,center+8,center+6,'wall2',2,{
-        battlement:false,walkway:true,thickness:'medium'
+        battlement:true,walkway:true,thickness:'medium'
       });
       place(center,center+6,'gate');
       place(center-7,center-5,'armyCamp');
@@ -14323,17 +14312,17 @@ export class ThreeGame {
       ];
 
       placeWallPath(outerDefense, 'wall1', 2, {
-        battlement: false,
+        battlement: true,
         walkway: true,
         thickness: 'thick',
       }, true);
       placeWallPath(innerKeepDefense, 'wall1', 3, {
-        battlement: false,
+        battlement: true,
         walkway: true,
         thickness: 'thick',
       }, true);
       placeWallPath(westBaileyDefense, 'wall1', 2, {
-        battlement: false,
+        battlement: true,
         walkway: true,
         thickness: 'medium',
       }, true);
@@ -14805,7 +14794,7 @@ export class ThreeGame {
       }
 
       placeWallRect(center-5,center-4,center+5,center+4,'wall1',1,{
-        battlement:false,walkway:true,thickness:'thin'
+        battlement:true,walkway:true,thickness:'thin'
       });
       place(center,center+4,'gate');
       placeKeepTemplate(center,center-1,3,3,3,'sloped',false,0,false);
