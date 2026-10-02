@@ -230,6 +230,7 @@ export class AmbientShipSystem {
     const hull = this.material(0x5a3526, 0.86);
     const hullDark = this.material(0x2d1d18, 0.93);
     const timber = this.material(0x805637, 0.82);
+    const timberDark = this.material(0x4a3024, 0.9);
     const timberLight = this.material(0xa77848, 0.8);
     const rope = this.material(0xb79b6d, 1);
     const sail = this.material(0xe4d7b7, 0.92, THREE.DoubleSide);
