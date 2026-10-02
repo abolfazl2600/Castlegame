@@ -15,6 +15,7 @@ import { WallSystem } from './building/WallSystem';
 import { CastleBlockSystem, MAX_WALL_LEVEL, castleDamageStage, castleHeightFor, type CastleBlockState } from './building/CastleBlockSystem';
 import { ConstructionAnimationSystem } from './rendering/ConstructionAnimationSystem';
 import { AmbientFaunaSystem } from './rendering/AmbientFaunaSystem';
+import { AmbientShipSystem } from './rendering/AmbientShipSystem';
 import { rasterizeWallPath } from './building/WallPath';
 import { KeepRenderer } from './rendering/KeepRenderer';
 import { BasilicaRenderer } from './rendering/BasilicaRenderer';
@@ -456,6 +457,12 @@ export class ThreeGame {
   private readonly castleBlockSystem = new CastleBlockSystem();
   private readonly constructionAnimation = new ConstructionAnimationSystem();
   private readonly ambientFauna = new AmbientFaunaSystem();
+  private readonly ambientShip = new AmbientShipSystem({
+    size: SIZE,
+    tileSize: TILE,
+    terrainAt: (x, y) => this.terrainAt(x, y),
+    gridToWorld: (x, y) => this.gridToWorld(x, y),
+  });
   private readonly constructionObjects = new Map<string, THREE.Object3D>();
   private castleBlocksByCell = new Map<string, CastleBlockState>();
   private readonly maritimeSystem = new MaritimeSystem({
@@ -808,6 +815,7 @@ export class ThreeGame {
         { name: 'Terrain', root: this.terrainLayer },
         { name: 'Buildings / Castle', root: this.buildLayer },
         { name: 'Fauna', root: this.ambientFauna.layer },
+        { name: 'Ambient ship', root: this.ambientShip.layer },
         { name: 'Workers', root: this.workerLayer },
         { name: 'NPCs', root: this.settlementLayer },
         { name: 'Battle', root: this.battleLayer },
@@ -819,6 +827,7 @@ export class ThreeGame {
       getRuntimeCounts: () => ({
         workers: this.workers.length,
         settlementAgents: this.settlementAgents.length,
+        ambientShips: this.ambientShip.count,
         battleObjects: this.battleLayer.children.length,
       }),
       getAudioDiagnostics: () => this.audioManager.getDiagnostics(),
@@ -851,6 +860,7 @@ export class ThreeGame {
     this.createWorld();
 
     this.scene.add(this.ambientFauna.layer);
+    this.scene.add(this.ambientShip.layer);
     this.scene.add(this.terrainLayer);
     this.scene.add(this.buildLayer);
     this.scene.add(this.planLayer);
@@ -2127,6 +2137,7 @@ export class ThreeGame {
     this.constructionObjects.clear();
     this.clearGroup(this.planLayer);
     this.renderTerrain();
+    this.ambientShip.rebuild(this.worldSeed);
 
     const floodedMoats = this.computeFloodedMoats();
     const cells = this.services.state.entries();
@@ -15786,6 +15797,14 @@ export class ThreeGame {
       animationScale: visualBudget.budget.animationScale,
       cameraDistance: this.viewMode === 'plan2d' ? Infinity : cameraDistance,
       normalDistance: WORLD_STYLE.camera.referenceDistances.normalGameplay,
+      strategicDistance: WORLD_STYLE.camera.referenceDistances.maximumStrategic,
+    });
+    this.ambientShip.update(deltaMs, time, {
+      effectsEnabled: settings.graphics.effectsEnabled,
+      reducedMotion: settings.interface.reducedMotion || this.visualBenchmark,
+      environmentDetail: settings.graphics.environmentDetail,
+      animationScale: visualBudget.budget.animationScale,
+      cameraDistance: this.viewMode === 'plan2d' ? Infinity : cameraDistance,
       strategicDistance: WORLD_STYLE.camera.referenceDistances.maximumStrategic,
     });
     const ambientScale = this.ambientMotion.update(deltaMs, time, {
