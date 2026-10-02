@@ -1,5 +1,13 @@
 /** Four-stage agricultural, harbor, fortification and army upgrade descriptions. */
 export const UPGRADE_TRANSLATIONS: Readonly<Record<string, string>> = {
+  "A modest courtyard mosque with a low prayer hall, one shallow dome, and an open forecourt.": "مسجد حیاط‌دار ساده با شبستان کوتاه، یک گنبد کم‌ارتفاع و پیش‌حیاط باز.",
+  "A broader prayer hall, three domes, a stronger entrance, and a short corner minaret establish a larger neighborhood mosque.": "شبستان پهن‌تر، سه گنبد، ورودی شاخص‌تر و یک مناره کوتاه گوشه‌ای، مسجد محله‌ای بزرگ‌تری شکل می‌دهند.",
+  "A taller central dome, twin secondary domes, formal courtyard walls, an iwan-like entrance, and two minarets create a major civic landmark.": "گنبد مرکزی بلندتر، دو گنبد فرعی، دیوارهای رسمی حیاط، ورودی ایوان‌مانند و دو مناره، بنایی شاخص در شهر می‌سازند.",
+  "A commanding central dome, richer roofline, tall paired minarets, formal gateway, enclosed courtyard, and corner pavilions form the maximum landmark tier.": "گنبد مرکزی باشکوه، خط بام غنی‌تر، مناره‌های دوقلوی بلند، ورودی رسمی، حیاط محصور و کوشک‌های گوشه‌ای بالاترین سطح بنا را می‌سازند.",
+  "Basic Mosque": "مسجد پایه",
+  "Improved Mosque": "مسجد بهبودیافته",
+  "Grand Mosque": "مسجد بزرگ",
+  "Monumental Mosque": "مسجد باشکوه",
   "A loose group of low cottages with an open village yard and minimal enclosure.": "گروهی باز از کلبه‌های کوتاه با حیاط روستایی باز و حصار حداقلی.",
   "A denser residential block with a taller central dwelling, organized paths, utility space, and partial fencing.": "بافت مسکونی متراکم‌تر با خانه مرکزی بلندتر، مسیرهای منظم، فضای خدماتی و حصار بخشی.",
   "A dominant manor hall, symmetric service wings, formal courtyard, and gated grounds create a clearly wealthier compound.": "تالار اصلی برجسته، بال‌های خدماتی متقارن، حیاط رسمی و محوطه دروازه‌دار، مجموعه‌ای آشکارا مرفه‌تر می‌سازند.",
