@@ -19,7 +19,7 @@ import { rasterizeWallPath } from './building/WallPath';
 import { KeepRenderer } from './rendering/KeepRenderer';
 import { BasilicaRenderer } from './rendering/BasilicaRenderer';
 import { CarpenterWorkshopRenderer } from './rendering/CarpenterWorkshopRenderer';
-import { CARPENTER_LEVELS, CARPENTER_MAX_LEVEL, carpenterLevelDefinition, normalizeCarpenterLevel } from './building/CarpenterWorkshopProgression';
+import { CARPENTER_MAX_LEVEL, carpenterLevelDefinition, normalizeCarpenterLevel } from './building/CarpenterWorkshopProgression';
 import { MedievalMaterials } from './rendering/MedievalMaterials';
 import { CASTLE_ARCHITECTURE_STYLE } from './rendering/CastleArchitectureStyle';
 import { WORLD_STYLE, styleTone } from './rendering/WorldStyle';
