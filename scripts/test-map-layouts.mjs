@@ -84,27 +84,27 @@ for (const id of ['island', 'mainland', 'peninsula']) {
 }
 assert.match(
   mapLayouts,
-  /function riverCenterline\\([\\s\\S]*?broadCycles[\\s\\S]*?secondaryCycles[\\s\\S]*?localCycles/,
+  /function riverCenterline\([\s\S]*?broadCycles[\s\S]*?secondaryCycles[\s\S]*?localCycles/,
   'River centerlines must combine broad, secondary, and local meander scales.',
 );
 assert.match(
   mapLayouts,
-  /function riverHalfWidth\\([\\s\\S]*?widthVariation[\\s\\S]*?bendWidening/,
+  /function riverHalfWidth\([\s\S]*?widthVariation[\s\S]*?bendWidening/,
   'River width must vary smoothly and widen around major bends.',
 );
 assert.match(
   mapLayouts,
-  /function riverBankVariation\\([\\s\\S]*?bankIrregularity/,
+  /function riverBankVariation\([\s\S]*?bankIrregularity/,
   'River banks must include controlled deterministic irregularity.',
 );
 assert.doesNotMatch(
   mapLayouts,
-  /Math\\.random\\(/,
+  /Math\.random\(/,
   'Map river generation must remain deterministic.',
 );
 assert.match(
   mapLayouts,
-  /Math\\.abs\\(signedDistance\\) <= halfWidth/,
+  /Math\.abs\(signedDistance\) <= halfWidth/,
   'River bank variation must preserve one contiguous channel span per row.',
 );
 
