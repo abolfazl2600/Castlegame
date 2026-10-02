@@ -39,25 +39,22 @@ export interface PopulationRenderAssignment {
   seed: number;
 }
 
-const RESIDENTIAL_LEVEL_CAPACITY = [0, 18, 30, 42, 36] as const;
+const RESIDENTIAL_LEVEL_CAPACITY = [0, 18, 30, 42, 42] as const;
 
 function residentialCapacity(cell: Pick<CellEntry, 'kind' | 'level'>): number {
   if (cell.kind === 'hut') return 4;
 
-  // Cottage is the canonical runtime state. Legacy kinds remain readable for
-  // direct old-state fixtures and are mapped to their historic progression tier.
-  const level =
-    cell.kind === 'cottage'
-      ? Math.max(1, Math.min(4, Math.floor(cell.level ?? 1)))
-      : cell.kind === 'house'
-        ? 2
-        : cell.kind === 'manor'
-          ? 3
-          : cell.kind === 'villa'
-            ? 4
-            : 0;
-
-  return RESIDENTIAL_LEVEL_CAPACITY[level] ?? 0;
+  // Canonical residential upgrades must never reduce housing capacity.
+  // Legacy aliases retain their historical direct-state values for compatibility;
+  // SaveSystem migrates real loaded worlds into cottage + level before simulation.
+  if (cell.kind === 'cottage') {
+    const level = Math.max(1, Math.min(4, Math.floor(cell.level ?? 1)));
+    return RESIDENTIAL_LEVEL_CAPACITY[level] ?? 0;
+  }
+  if (cell.kind === 'house') return 30;
+  if (cell.kind === 'manor') return 42;
+  if (cell.kind === 'villa') return 36;
+  return 0;
 }
 
 const ARMY_CAMP_CAPACITY = [0, 6, 12, 20, 32] as const;
