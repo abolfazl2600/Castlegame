@@ -23,6 +23,7 @@
           <button id="templates-button" class="secondary-button system-action-bridge" type="button" hidden>Templates</button>
           <button id="missions-button" class="secondary-button" type="button" aria-controls="mission-journal" aria-expanded="false">Mission Journal</button>
           <button id="settings-button" class="secondary-button" type="button">Settings</button>
+          <button id="screenshot-button" class="secondary-button header-icon-button" type="button" aria-label="Take screenshot" title="Take screenshot (F9)"><span aria-hidden="true">📷</span></button>
           <button id="fullscreen-button" class="secondary-button" type="button">Fullscreen</button>
           <button id="load-button" class="secondary-button system-action-bridge" type="button" hidden>Load</button>
           <button id="save-button" class="secondary-button system-action-bridge" type="button" hidden>Save</button>
@@ -32,6 +33,9 @@
 
       <main id="game-shell">
         <div id="game"></div>
+        <div id="screenshot-feedback" class="screenshot-feedback" role="status" aria-live="polite" hidden>
+          <span aria-hidden="true">✓</span><strong>Screenshot saved</strong>
+        </div>
 
         <div class="view-mode-switch" role="group" aria-label="Castle view mode">
           <button id="view-2d-button" class="view-mode-button" type="button" aria-pressed="false">2D Plan</button>
