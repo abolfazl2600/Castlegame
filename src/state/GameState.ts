@@ -38,8 +38,9 @@ export class GameState {
   }
 
   setCell(x: number, y: number, kind: TileKind, level = 1, options: Partial<GridCell> = {}): void {
+    const normalizedOptions = this.normalizeCellOptions(kind, options);
     this.cells.set(this.key(x, y), {
-      ...options,
+      ...normalizedOptions,
       kind,
       level: this.normalizeLevel(kind, level),
     });
@@ -51,7 +52,8 @@ export class GameState {
 
     const next: GridCell = { ...cell, ...changes };
     if (next.level !== undefined) next.level = this.normalizeLevel(next.kind, next.level);
-    this.cells.set(this.key(x, y), next);
+    const normalized = this.normalizeCellOptions(next.kind, next);
+    this.cells.set(this.key(x, y), { ...normalized, kind: next.kind, level: next.level });
   }
 
   setLevel(x: number, y: number, level: number): void {
@@ -83,6 +85,13 @@ export class GameState {
     }
 
     return result;
+  }
+
+  private normalizeCellOptions(kind: TileKind, options: Partial<GridCell>): Partial<GridCell> {
+    if (kind === 'wall1' || kind === 'wall2' || kind === 'wall3') {
+      return { ...options, walkway: true };
+    }
+    return options;
   }
 
   private normalizeLevel(kind: TileKind, value: number): number {
