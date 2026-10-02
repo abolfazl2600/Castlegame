@@ -519,7 +519,7 @@ export class SaveSystem {
         level: migration.level,
         thickness: cell.thickness,
         battlement: cell.battlement,
-        walkway: cell.walkway,
+        walkway: migration.kind === 'wall1' || migration.kind === 'wall2' || migration.kind === 'wall3' ? true : cell.walkway,
         towerShape: cell.towerShape,
         towerTop: cell.towerTop,
         rotation: cell.rotation,

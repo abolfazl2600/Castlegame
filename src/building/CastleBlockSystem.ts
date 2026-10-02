@@ -238,7 +238,7 @@ export class CastleBlockSystem {
         corner: kind === 'wall' && isCorner(links),
         stoneStyle,
         traversal: {
-          walkableTop: !collapsed && damageStage !== 'partial-breach' && (kind !== 'gate' ? Boolean(cell.walkway) : true),
+          walkableTop: !collapsed && damageStage !== 'partial-breach',
           blocksGround: !collapsed && (kind !== 'gate' || cell.gateOpen === false),
           isCrossing: kind === 'gate' || (collapsed && kind === 'wall'),
           passable: collapsed && kind === 'wall' || kind === 'gate' && (collapsed || cell.gateOpen !== false),

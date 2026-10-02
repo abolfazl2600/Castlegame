@@ -146,10 +146,15 @@ assert.match(
   'Removing wall architecture stairs must not remove siege ladder attacks.',
 );
 
+assert.doesNotMatch(
+  threeGame,
+  /wall-walkway|No Walkway|wallWalkway|const walkway = cell\.walkway \?\? false;/,
+  'Wall walkway must no longer be player-configurable or rendered from a disabled legacy flag.',
+);
 assert.match(
   threeGame,
-  /const walkway = cell\.walkway \?\? false;/,
-  'Wall walkway visuals must remain independently selectable on wall cells.',
+  /const activeWalkway = !partial;/,
+  'Intact and non-breached wall geometry must always render a top walkway.',
 );
 
 console.log('Wall-connected access removal/navigation regression checks passed.');

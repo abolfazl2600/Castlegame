@@ -530,7 +530,6 @@ export class ThreeGame {
   private readonly saved3DTarget = new THREE.Vector3(0, 0, 0);
   private wallThickness: WallThickness = 'medium';
   private wallBattlement = true;
-  private wallWalkway = false;
   private towerShape: TowerShape = 'round';
   private towerTop: TowerTop = 'openBattlement';
   private stoneStyle: StoneStyle = 'limestone';
@@ -4197,8 +4196,7 @@ export class ThreeGame {
     const damageStage = castleDamageStage(cell.damage ?? 0);
     const partial = damageStage === 'partial-breach';
     const battlement = !partial && (cell.battlement ?? true);
-    const walkway = cell.walkway ?? false;
-    const activeWalkway = walkway && !partial;
+    const activeWalkway = !partial;
     const links = this.wallConnections(gx, gy, cell);
     group.userData.defenseSilhouette = WALL_SILHOUETTE_PROFILES[kind];
 
@@ -9418,7 +9416,7 @@ export class ThreeGame {
           level: 1,
           thickness: this.wallThickness,
           battlement: this.wallBattlement,
-          walkway: this.wallWalkway,
+          walkway: true,
         });
       } else if (single && existing.kind === wallKind) {
         const currentLevel = Math.max(1, Math.floor(existing.level ?? 1));
@@ -9428,12 +9426,12 @@ export class ThreeGame {
         existing.damage = 0;
         existing.thickness = this.wallThickness;
         existing.battlement = this.wallBattlement;
-        existing.walkway = this.wallWalkway;
+        existing.walkway = true;
       } else if (WALL_KINDS.includes(existing.kind as WallKind)) {
         existing.kind = wallKind;
         existing.thickness = this.wallThickness;
         existing.battlement = this.wallBattlement;
-        existing.walkway = this.wallWalkway;
+        existing.walkway = true;
       }
     });
     for (let i = 1; i < path.length; i += 1) {
@@ -9616,7 +9614,7 @@ export class ThreeGame {
           damage: 0,
           thickness: this.wallThickness,
           battlement: this.wallBattlement,
-          walkway: this.wallWalkway,
+          walkway: true,
         });
         changed = true;
         continue;
@@ -9633,7 +9631,7 @@ export class ThreeGame {
       this.services.state.setCell(point.x, point.y, wallKind, cell?.level ?? 1, {
         thickness: this.wallThickness,
         battlement: this.wallBattlement,
-        walkway: this.wallWalkway,
+        walkway: true,
         wallLinks: cell?.wallLinks,
       });
       changed = true;
@@ -11366,7 +11364,6 @@ export class ThreeGame {
       '<option value="thin">Thin</option><option value="medium" selected>Medium</option><option value="thick">Thick</option>' +
       '</select></label>' +
       '<label class="settings-check"><input id="wall-battlement" type="checkbox" checked /><span>Battlement</span></label>' +
-      '<label class="settings-check"><input id="wall-walkway" type="checkbox" /><span>Top Walkway</span></label>' +
       '<div class="settings-actions"><button id="selected-down" type="button">− Height</button><button id="selected-up" type="button">+ Height</button></div>' +
       '<div class="settings-title">Castle Architecture</div>' +
       '<label class="settings-row"><span>Stone Style</span><select id="castle-stone-style">' +
@@ -11599,14 +11596,6 @@ export class ThreeGame {
     wallBattlement.checked = this.wallBattlement;
     wallBattlement.onchange = () => {
       this.wallBattlement = wallBattlement.checked;
-      this.applyWallSettingsToSelected();
-      this.syncWallSettingsSummary();
-    };
-
-    const wallWalkway = get<HTMLInputElement>('wall-walkway');
-    wallWalkway.checked = this.wallWalkway;
-    wallWalkway.onchange = () => {
-      this.wallWalkway = wallWalkway.checked;
       this.applyWallSettingsToSelected();
       this.syncWallSettingsSummary();
     };
@@ -11966,8 +11955,7 @@ export class ThreeGame {
     if (!summary) return;
     const thickness = this.wallThickness.charAt(0).toUpperCase() + this.wallThickness.slice(1);
     const battlement = this.wallBattlement ? 'Battlement' : 'No Battlement';
-    const walkway = this.wallWalkway ? 'Walkway' : 'No Walkway';
-    summary.textContent = `${thickness} · ${battlement} · ${walkway}`;
+    summary.textContent = `${thickness} · ${battlement}`;
   }
 
   private syncSelectedGateButton(): void {
@@ -12049,7 +12037,7 @@ export class ThreeGame {
     this.services.state.updateCell(this.selectedCell.x, this.selectedCell.y, {
       thickness: this.wallThickness,
       battlement: this.wallBattlement,
-      walkway: this.wallWalkway,
+      walkway: true,
     });
     this.redrawCastleNeighborhood([this.selectedCell]);
     this.scheduleSave();
@@ -13957,7 +13945,7 @@ export class ThreeGame {
 
       placeWallRect(center - 9, center - 7, center + 9, center + 7, 'wall1', 2, {
         battlement: true,
-        walkway: false,
+        walkway: true,
         thickness: 'medium',
       });
       place(center, center + 7, 'gate');
@@ -14093,7 +14081,7 @@ export class ThreeGame {
 
       placeWallRect(center - 6, center - 4, center + 6, center + 4, 'wall1', 1, {
         battlement: true,
-        walkway: false,
+        walkway: true,
         thickness: 'thin',
       });
       place(center, center + 4, 'gate');
@@ -14221,7 +14209,7 @@ export class ThreeGame {
       prepareArea(center-11,center-9,center+11,center+9,0.04);
 
       placeWallRect(center-9,center-7,center+9,center+7,'wall1',2,{
-        battlement:true,walkway:false,thickness:'medium'
+        battlement:true,walkway:true,thickness:'medium'
       });
       place(center,center+7,'gate');
       placeKeepTemplate(center,center-4,3,2,3,'sloped',false);
@@ -14817,7 +14805,7 @@ export class ThreeGame {
       }
 
       placeWallRect(center-5,center-4,center+5,center+4,'wall1',1,{
-        battlement:false,walkway:false,thickness:'thin'
+        battlement:false,walkway:true,thickness:'thin'
       });
       place(center,center+4,'gate');
       placeKeepTemplate(center,center-1,3,3,3,'sloped',false,0,false);
