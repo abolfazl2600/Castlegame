@@ -4568,3 +4568,127 @@ html.mobile-ui-active #templates-modal .icon-button {
     line-height: 1.35;
   }
 }
+
+
+/* Issue #251 — lightweight floating top HUD
+   Keep the game canvas full-viewport and render only local, translucent HUD controls.
+   Unused top-screen space stays transparent so the world remains visible. */
+@media (min-width: 761px) {
+  #app {
+    position: relative;
+    display: block;
+    padding: 0;
+  }
+
+  #game-shell {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    min-height: 0;
+    border: 0;
+    border-radius: 0;
+  }
+
+  .topbar {
+    position: absolute;
+    top: max(12px, var(--safe-area-top));
+    left: max(12px, var(--safe-area-left));
+    right: max(12px, var(--safe-area-right));
+    z-index: 1000;
+    min-height: 0;
+    height: auto;
+    padding: 0;
+    gap: 0;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
+    backdrop-filter: none;
+    pointer-events: none;
+  }
+
+  .topbar > div:first-child {
+    display: none;
+  }
+
+  .status-group {
+    margin-left: auto;
+    margin-right: 0;
+    max-width: min(
+      780px,
+      calc(
+        100vw
+        - max(12px, var(--safe-area-left))
+        - max(12px, var(--safe-area-right))
+        - 176px
+      )
+    );
+    flex-wrap: wrap;
+    padding: 6px;
+    border: 1px solid rgba(140, 230, 255, .18);
+    border-radius: 14px;
+    background: rgba(5, 18, 29, .68);
+    box-shadow: 0 12px 30px rgba(0, 0, 0, .24), inset 0 1px rgba(255,255,255,.04);
+    backdrop-filter: blur(14px) saturate(1.05);
+    pointer-events: auto;
+  }
+
+  .status-group .secondary-button,
+  .status-group .danger-button {
+    background: rgba(7, 25, 39, .7);
+  }
+
+  .minimap {
+    top: max(16px, var(--safe-area-top));
+    left: max(16px, var(--safe-area-left));
+    background: rgba(8, 28, 42, .78);
+    backdrop-filter: blur(12px) saturate(1.04);
+  }
+
+  .view-mode-switch {
+    top: 76px;
+    right: max(16px, var(--safe-area-right));
+  }
+
+  .camera-view-controls {
+    top: 124px;
+    right: max(16px, var(--safe-area-right));
+  }
+}
+
+@media (min-width: 761px) and (max-width: 840px) {
+  .view-mode-switch {
+    top: 112px;
+  }
+
+  .camera-view-controls {
+    top: 160px;
+  }
+}
+
+/* The mobile header remains a hit-target container, but no longer paints a
+   full-width strip. Its left padding permanently reserves the minimap lane. */
+html.mobile-ui-active .mobile-header {
+  padding-left: max(112px, calc(var(--mobile-safe-left) + 104px));
+  background: transparent;
+  pointer-events: none;
+}
+
+html.mobile-ui-active .mobile-header-actions {
+  flex: 0 1 auto;
+  width: 100%;
+  max-width: 100%;
+  margin-left: auto;
+  pointer-events: auto;
+}
+
+html.mobile-ui-active .mobile-action {
+  background: rgba(7, 25, 39, .82);
+  box-shadow: 0 8px 22px rgba(0, 0, 0, .24);
+}
+
+html.mobile-ui-active .minimap {
+  background: rgba(8, 28, 42, .78);
+  backdrop-filter: blur(12px) saturate(1.04);
+}
