@@ -69,11 +69,12 @@ assert.match(templatePlace, /kind === 'villa' \? 4/);
 assert.match(templatePlace, /authoredResidentialLevel === null \? kind : 'cottage'/,
   'Authored templates must normalize old residential aliases into canonical state.');
 
-assert.match(population, /RESIDENTIAL_LEVEL_CAPACITY = \[0, 18, 30, 42, 36\]/);
+assert.match(population, /RESIDENTIAL_LEVEL_CAPACITY = \[0, 18, 30, 42, 42\]/);
+assert.match(population, /Canonical residential upgrades must never reduce housing capacity/);
 assert.match(population, /cell\.kind === 'cottage'[\s\S]*?cell\.level/,
   'Housing capacity must read the canonical residential level.');
-assert.match(economy, /cell\.kind === 'cottage' && scaledLevel\(cell\) === 3/,
-  'Level 3 must preserve the former Manor storage behavior.');
+assert.match(economy, /cell\.kind === 'cottage' && scaledLevel\(cell\) >= 3/,
+  'Levels 3–4 must retain the Manor storage benefit so upgrades never reduce storage.');
 
 for (const [kind, marker] of [
   ['cottage', 'loose-low-hamlet'],
