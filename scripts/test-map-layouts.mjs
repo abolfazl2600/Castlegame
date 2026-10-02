@@ -153,6 +153,7 @@ assert.match(
   /setMapLayoutId\(validMapLayoutId\(data\.mapLayoutId\) \? data\.mapLayoutId : 'island'\)/,
   'Loading must restore layout and default old saves to Classic Island.',
 );
+assert.match(saveSystem, /value === 'himeji-46x90'/, 'Himeji layout IDs must survive save/load validation.');
 
 const templateCompatibility = between(
   threeGame,
