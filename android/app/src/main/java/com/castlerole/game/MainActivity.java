@@ -18,6 +18,7 @@ public class MainActivity extends BridgeActivity {
     @Override
     public void onCreate(Bundle savedInstanceState) {
         registerPlugin(GameUpdaterPlugin.class);
+        registerPlugin(GameScreenshotPlugin.class);
         registerPlugin(SafeAreaPlugin.class);
         super.onCreate(savedInstanceState);
         WindowCompat.setDecorFitsSystemWindows(getWindow(), false);
