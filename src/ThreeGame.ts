@@ -6654,7 +6654,7 @@ export class ThreeGame {
         }
       }
       this.addSettlementBox(group, 0.92, 0.82, 0.62, fenceMaterial, 1.22, 2.7, 1.13);
-    } else {
+    } else if (kind === 'manor' || kind === 'villa') {
       const boundaryMaterial = kind === 'villa'
         ? this.environmentMaterial('villa-boundary-stone', SETTLEMENT_STYLE.stone, 0.98)
         : fenceMaterial;
@@ -6671,6 +6671,15 @@ export class ThreeGame {
       this.addSettlementBox(group, 0.16, kind === 'villa' ? 1.15 : 0.88, 0.16, boundaryMaterial, 0.72, 2.75, 1.72);
       this.addSettlementBox(group, 1.58, 0.14, 0.18, boundaryMaterial, 0, kind === 'villa' ? 3.3 : 3.12, 1.72);
       group.userData.residenceLandmark = kind === 'villa' ? 'corner-cupola-and-stone-court' : 'formal-manor-gate';
+    } else {
+      // Cow Barn reuses the base residential courtyard helper but keeps its
+      // original stockyard fencing instead of inheriting manor/villa treatment.
+      for (const z of [-1.76, 1.76]) {
+        this.addSettlementBox(group, 3.55, 0.07, 0.07, fenceMaterial, 0, 2.5, z);
+        for (const x of [-1.62, -0.54, 0.54, 1.62]) {
+          this.addSettlementBox(group, 0.075, 0.58, 0.075, fenceMaterial, x, 2.48, z);
+        }
+      }
     }
 
     this.addSettlementBox(group, 0.52, 0.16, 0.22, pathDark, 1.18, 2.37, -0.08);
@@ -12626,7 +12635,7 @@ export class ThreeGame {
       this.setStatus(
         cell?.kind === 'armyCamp'
           ? 'Use the Army Camp Upgrade button in Build Settings'
-          : this.residentialLevelForCell(cell) !== null
+          : cell && this.residentialLevelForCell(cell) !== null
             ? 'Use the Residential Upgrade button in Build Settings'
           : cell?.kind === 'farm' || cell?.kind === 'cowBarn'
             ? 'Use the agriculture Upgrade button in Build Settings'
