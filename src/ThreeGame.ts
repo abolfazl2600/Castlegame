@@ -1511,6 +1511,7 @@ export class ThreeGame {
     this.economySaveAccumulatorMs = 0;
     this.undoStack.length = 0;
     this.redoStack.length = 0;
+    this.syncHistoryActions();
     this.worldSeeded = false;
     this.worldSeed = 0;
     this.rebuildWorldLayoutSurface();
@@ -7716,10 +7717,24 @@ export class ThreeGame {
     };
   }
 
+  private syncHistoryActions(): void {
+    const syncButton = (id: string, disabled: boolean): void => {
+      const button = document.getElementById(id);
+      if (!(button instanceof HTMLButtonElement)) return;
+      button.disabled = disabled;
+      button.setAttribute('aria-disabled', String(disabled));
+    };
+
+    syncButton('header-undo-button', this.undoStack.length === 0);
+    syncButton('undo-button', this.undoStack.length === 0);
+    syncButton('redo-button', this.redoStack.length === 0);
+  }
+
   private pushUndoSnapshot(snapshot: HistorySnapshot): void {
     this.undoStack.push(snapshot);
     if (this.undoStack.length > 60) this.undoStack.shift();
     this.redoStack.length = 0;
+    this.syncHistoryActions();
   }
 
   private recordHistory(): void {
@@ -7767,24 +7782,28 @@ export class ThreeGame {
   private undo(): void {
     const snapshot = this.undoStack.pop();
     if (!snapshot) {
+      this.syncHistoryActions();
       this.setStatus('Nothing to undo');
       return;
     }
 
     this.redoStack.push(this.captureSnapshot());
     this.restoreSnapshot(snapshot);
+    this.syncHistoryActions();
     this.setStatus('Undo');
   }
 
   private redo(): void {
     const snapshot = this.redoStack.pop();
     if (!snapshot) {
+      this.syncHistoryActions();
       this.setStatus('Nothing to redo');
       return;
     }
 
     this.undoStack.push(this.captureSnapshot());
     this.restoreSnapshot(snapshot);
+    this.syncHistoryActions();
     this.setStatus('Redo');
   }
 
@@ -10846,7 +10865,7 @@ export class ThreeGame {
       '<div id="build-search-empty" class="build-search-empty" hidden>No tools match that search.</div>' +
       '<div class="build-tool-sections"></div>' +
       '<div class="builder-settings">' +
-      '<div class="settings-actions build-global-actions" role="group" aria-label="Build history actions"><button id="undo-button" type="button">↶ Undo</button><button id="redo-button" type="button">↷ Redo</button></div>' +
+      '<div class="settings-actions build-global-actions" role="group" aria-label="Build history actions"><button id="undo-button" type="button" disabled>↶ Undo</button><button id="redo-button" type="button" disabled>↷ Redo</button></div>' +
       '<section id="selection-action-card" class="fortification-upgrade-card" aria-label="Selected building actions" hidden>' +
       '<div class="fortification-upgrade-heading"><div><span class="eyebrow">SELECTED BUILDING</span><strong id="selection-action-name">Building</strong></div></div>' +
       '<div class="settings-actions"><button id="rotate-selected" type="button" hidden>↻ Rotate</button><button id="remove-selected" type="button">Remove</button></div>' +
@@ -11229,6 +11248,8 @@ export class ThreeGame {
     get<HTMLButtonElement>('harbor-upgrade-button').onclick = () => this.upgradeSelectedHarbor();
     get<HTMLButtonElement>('undo-button').onclick = () => this.undo();
     get<HTMLButtonElement>('redo-button').onclick = () => this.redo();
+    get<HTMLButtonElement>('header-undo-button').onclick = () => this.undo();
+    this.syncHistoryActions();
     const help = get<HTMLElement>('help-modal');
     const templates = get<HTMLElement>('templates-modal');
     const battlePanel = get<HTMLElement>('battle-panel');
@@ -11383,6 +11404,7 @@ export class ThreeGame {
       this.selectedTowerBridgeId = null;
       this.undoStack.length = 0;
       this.redoStack.length = 0;
+      this.syncHistoryActions();
       this.resetGameplayCameraReference();
       this.redraw();
     };
