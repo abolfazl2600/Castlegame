@@ -7718,30 +7718,95 @@ export class ThreeGame {
   }
 
   private makeTree(group: THREE.Group, level: number): THREE.Group {
-    const variant = Math.max(1, level);
+    // Tree level is used as a lightweight persisted visual variant. Existing
+    // saves already store levels 1–3 for trees, so this adds real model diversity
+    // without introducing a new TileKind or save-schema migration.
+    const variant = 1 + ((Math.max(1, Math.floor(level)) - 1) % 3);
+    const treeType = variant === 1 ? 'pine' : variant === 2 ? 'oak' : 'cypress';
     const trunk = this.environmentMaterial('tree-trunk', 0x75533c, 1);
+    const branch = this.environmentMaterial('tree-branch', 0x664630, 1);
     const foliage = this.environmentMaterial(
-      `tree-foliage-${(variant - 1) % 3}`,
-      [WORLD_STYLE.palette.foliageMid, WORLD_STYLE.palette.foliageLight, WORLD_STYLE.palette.grassForest][(variant - 1) % 3],
+      `tree-foliage-${treeType}`,
+      variant === 1
+        ? WORLD_STYLE.palette.foliageMid
+        : variant === 2
+          ? WORLD_STYLE.palette.foliageLight
+          : WORLD_STYLE.palette.grassForest,
       0.9,
     );
 
-    const trunkMesh = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.28, 1.6, 7), trunk);
-    trunkMesh.position.y = 3.0;
-    trunkMesh.castShadow = true;
-    group.add(trunkMesh);
-
     const crown = new THREE.Group();
     group.add(crown);
-    for (const [radius, y] of [[1.05, 4.25], [0.78, 5.3], [0.5, 6.05]] as Array<[number, number]>) {
-      const cone = new THREE.Mesh(new THREE.ConeGeometry(radius, radius * 1.95, 8), foliage);
-      cone.position.y = y;
-      cone.castShadow = true;
-      crown.add(cone);
+    group.userData.treeVariant = treeType;
+    group.userData.treeVariantLevel = variant;
+
+    if (variant === 1) {
+      // Existing conifer model: broad base and three stacked evergreen tiers.
+      const trunkMesh = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.28, 1.6, 7), trunk);
+      trunkMesh.position.y = 3.0;
+      trunkMesh.castShadow = true;
+      group.add(trunkMesh);
+
+      for (const [radius, y] of [[1.05, 4.25], [0.78, 5.3], [0.5, 6.05]] as Array<[number, number]>) {
+        const cone = new THREE.Mesh(new THREE.ConeGeometry(radius, radius * 1.95, 8), foliage);
+        cone.position.y = y;
+        cone.castShadow = true;
+        crown.add(cone);
+      }
+    } else if (variant === 2) {
+      // Broadleaf oak: heavier trunk, visible low branches, and an irregular
+      // rounded crown. Three low-poly foliage masses keep draw cost bounded.
+      const trunkMesh = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.34, 1.9, 7), trunk);
+      trunkMesh.position.y = 3.12;
+      trunkMesh.castShadow = true;
+      group.add(trunkMesh);
+
+      for (const [x, rotationZ, rotationY] of [
+        [-0.34, -0.72, -0.25],
+        [0.34, 0.72, 0.34],
+      ] as Array<[number, number, number]>) {
+        const limb = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.11, 1.05, 6), branch);
+        limb.position.set(x, 3.84, 0);
+        limb.rotation.z = rotationZ;
+        limb.rotation.y = rotationY;
+        limb.castShadow = true;
+        crown.add(limb);
+      }
+
+      for (const [x, y, z, sx, sy, sz] of [
+        [-0.58, 4.68, 0.05, 1.15, 0.82, 1.0],
+        [0.55, 4.72, -0.08, 1.1, 0.86, 1.06],
+        [0, 5.28, 0.08, 1.28, 0.92, 1.18],
+      ] as Array<[number, number, number, number, number, number]>) {
+        const leaves = new THREE.Mesh(new THREE.DodecahedronGeometry(0.82, 0), foliage);
+        leaves.position.set(x, y, z);
+        leaves.scale.set(sx, sy, sz);
+        leaves.castShadow = true;
+        crown.add(leaves);
+      }
+    } else {
+      // Tall cypress: narrow vertical silhouette that contrasts clearly with
+      // both the pine and broadleaf oak at normal gameplay zoom.
+      const trunkMesh = new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.22, 1.85, 7), trunk);
+      trunkMesh.position.y = 3.08;
+      trunkMesh.castShadow = true;
+      group.add(trunkMesh);
+
+      for (const [radius, height, y] of [
+        [0.72, 2.65, 4.25],
+        [0.56, 2.35, 5.12],
+        [0.38, 1.72, 5.95],
+      ] as Array<[number, number, number]>) {
+        const cone = new THREE.Mesh(new THREE.ConeGeometry(radius, height, 8), foliage);
+        cone.position.y = y;
+        cone.castShadow = true;
+        crown.add(cone);
+      }
     }
 
     const swayPhase = variant * 0.73 + group.position.x * 0.017 + group.position.z * 0.023;
-    this.ambientMotion.registerSway(crown, swayPhase, 0.032 + (variant % 3) * 0.004, 0.00115);
+    const swayAmplitude = variant === 2 ? 0.026 : variant === 3 ? 0.02 : 0.032;
+    this.ambientMotion.registerSway(crown, swayPhase, swayAmplitude, 0.00115);
     return group;
   }
 
