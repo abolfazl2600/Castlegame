@@ -32,6 +32,7 @@ import {
   RESIDENCE_LAYOUTS,
   RESIDENCE_VISUAL_LEVELS,
   RESIDENCE_VISUAL_VARIANTS,
+  RESIDENTIAL_LEVEL_KINDS,
   SETTLEMENT_STYLE,
   settlementVariant,
   type ResidenceKind,
@@ -122,6 +123,14 @@ const ARMY_CAMP_LEVELS = [
   { level: 4, name: 'Royal War Camp', description: 'A fortified semi-permanent base with a command hall, guard posts, medical support, and logistics.' },
 ] as const;
 const ARMY_CAMP_MAX_LEVEL = ARMY_CAMP_LEVELS.length;
+
+const RESIDENTIAL_LEVELS = [
+  { level: 1, name: 'Cottage Cluster', description: 'A loose group of low cottages with an open village yard and minimal enclosure.' },
+  { level: 2, name: 'House Cluster', description: 'A denser residential block with a taller central dwelling, organized paths, utility space, and partial fencing.' },
+  { level: 3, name: 'Manor', description: 'A dominant manor hall, symmetric service wings, formal courtyard, and gated grounds create a clearly wealthier compound.' },
+  { level: 4, name: 'Villa District', description: 'A prestigious villa compound with an open court, landmark pavilion, cupola, masonry enclosure, garden, and formal entrance.' },
+] as const;
+const RESIDENTIAL_MAX_LEVEL = RESIDENTIAL_LEVELS.length;
 
 type AgricultureUpgradeKind = 'farm' | 'cowBarn';
 interface AgricultureUpgradeLevel {
@@ -327,10 +336,7 @@ const TOOL_GROUPS: Array<{ label: string; tools: ToolDefinition[] }> = [
   {
     label: 'Residential',
     tools: [
-      { id: 'cottage', icon: '🏠', label: 'Cottage Cluster', detail: '3 small cottages + village props', shortcut: '7' },
-      { id: 'house', icon: '🏡', label: 'House Cluster', detail: '4 connected village homes', shortcut: '8' },
-      { id: 'manor', icon: '🏯', label: 'Manor Court', detail: 'Main hall + service houses', shortcut: '9' },
-      { id: 'villa', icon: '🏘️', label: 'Villa Quarter', detail: '3 detailed homes + courtyard', shortcut: '0' },
+      { id: 'cottage', icon: '🏠', label: 'Residential District', detail: 'Upgradeable housing · Cottage → House → Manor → Villa', shortcut: '7' },
     ],
   },
   {
@@ -3418,7 +3424,11 @@ export class ThreeGame {
     else if (cell.kind === 'moat') this.makeMoat(group, floodedMoats.has(this.key(cell.x, cell.y)));
     else if (cell.kind === 'cottage' || cell.kind === 'house' ||
       cell.kind === 'manor' || cell.kind === 'villa') {
-      this.makeHouse(group, cell.kind, cell.x, cell.y);
+      const residentialLevel = this.residentialLevelForCell(cell) ?? 1;
+      const residenceKind = RESIDENTIAL_LEVEL_KINDS[residentialLevel - 1] ?? 'cottage';
+      this.makeHouse(group, residenceKind, cell.x, cell.y);
+      group.userData.residentialCanonicalKind = 'cottage';
+      group.userData.residentialLevel = residentialLevel;
     }
 
     if (!this.isWallFamily(cell.kind) && !ROAD_KINDS.includes(cell.kind as RoadKind) && cell.kind !== 'moat') {
@@ -6517,6 +6527,16 @@ export class ThreeGame {
     return group;
   }
 
+  private residentialLevelForCell(cell: Pick<GridCell, 'kind' | 'level'>): number | null {
+    if (cell.kind === 'cottage') {
+      return Math.max(1, Math.min(RESIDENTIAL_MAX_LEVEL, Math.floor(cell.level ?? 1)));
+    }
+    if (cell.kind === 'house') return 2;
+    if (cell.kind === 'manor') return 3;
+    if (cell.kind === 'villa') return 4;
+    return null;
+  }
+
   private makeHouse(
     group: THREE.Group,
     kind: ResidenceKind,
@@ -6619,18 +6639,45 @@ export class ThreeGame {
       group.userData.residenceLandmark = 'corner-cupola';
     }
 
-    // Edge fences, benches, barrels and market-like clutter give the block a
-    // believable inhabited scale without overwhelming the single cell.
-    for (const z of [-1.76, 1.76]) {
-      this.addSettlementBox(group, 3.55, 0.07, 0.07, fenceMaterial, 0, 2.5, z);
-      for (const x of [-1.62, -0.54, 0.54, 1.62]) {
-        this.addSettlementBox(group, 0.075, 0.58, 0.075, fenceMaterial, x, 2.48, z);
+    // Enclosure language grows with the residential tier. Level 1 stays open;
+    // Level 2 is partially organized; Levels 3–4 gain formal compound edges.
+    if (kind === 'cottage') {
+      this.addSettlementBox(group, 1.45, 0.07, 0.07, fenceMaterial, -1.05, 2.5, 1.76);
+      for (const x of [-1.72, -0.38]) {
+        this.addSettlementBox(group, 0.075, 0.54, 0.075, fenceMaterial, x, 2.47, 1.76);
       }
+    } else if (kind === 'house') {
+      for (const z of [-1.76, 1.76]) {
+        this.addSettlementBox(group, 2.55, 0.07, 0.07, fenceMaterial, -0.45, 2.5, z);
+        for (const x of [-1.7, -0.45, 0.8]) {
+          this.addSettlementBox(group, 0.075, 0.58, 0.075, fenceMaterial, x, 2.48, z);
+        }
+      }
+      this.addSettlementBox(group, 0.92, 0.82, 0.62, fenceMaterial, 1.22, 2.7, 1.13);
+    } else {
+      const boundaryMaterial = kind === 'villa'
+        ? this.environmentMaterial('villa-boundary-stone', SETTLEMENT_STYLE.stone, 0.98)
+        : fenceMaterial;
+      for (const z of [-1.76, 1.76]) {
+        this.addSettlementBox(group, 3.55, kind === 'villa' ? 0.22 : 0.08, 0.09, boundaryMaterial, 0, kind === 'villa' ? 2.38 : 2.5, z);
+      }
+      for (const x of [-1.76, 1.76]) {
+        this.addSettlementBox(group, 0.09, kind === 'villa' ? 0.22 : 0.08, 3.5, boundaryMaterial, x, kind === 'villa' ? 2.38 : 2.5, 0);
+      }
+
+      // A broad gate reads at normal gameplay distance and differentiates the
+      // formal Manor/Villa compounds from the lower residential tiers.
+      this.addSettlementBox(group, 0.16, kind === 'villa' ? 1.15 : 0.88, 0.16, boundaryMaterial, -0.72, 2.75, 1.72);
+      this.addSettlementBox(group, 0.16, kind === 'villa' ? 1.15 : 0.88, 0.16, boundaryMaterial, 0.72, 2.75, 1.72);
+      this.addSettlementBox(group, 1.58, 0.14, 0.18, boundaryMaterial, 0, kind === 'villa' ? 3.3 : 3.12, 1.72);
+      group.userData.residenceLandmark = kind === 'villa' ? 'corner-cupola-and-stone-court' : 'formal-manor-gate';
     }
 
     this.addSettlementBox(group, 0.52, 0.16, 0.22, pathDark, 1.18, 2.37, -0.08);
-    this.addSettlementBox(group, 0.08, 0.42, 0.08, fenceMaterial, 1.38, 2.55, -0.08);
-    this.addSettlementBox(group, 0.08, 0.42, 0.08, fenceMaterial, 0.98, 2.55, -0.08);
+    if (kind !== 'cottage') {
+      this.addSettlementBox(group, 0.08, 0.42, 0.08, fenceMaterial, 1.38, 2.55, -0.08);
+      this.addSettlementBox(group, 0.08, 0.42, 0.08, fenceMaterial, 0.98, 2.55, -0.08);
+    }
 
     return group;
   }
@@ -10797,6 +10844,10 @@ export class ThreeGame {
     if (kind === 'mountain1') return { kind: 'mountain', level: 1 };
     if (kind === 'mountain2') return { kind: 'mountain', level: 2 };
     if (kind === 'mountain3') return { kind: 'mountain', level: 3 };
+    if (kind === 'cottage') return { kind: 'cottage', level: Math.max(1, Math.min(RESIDENTIAL_MAX_LEVEL, level)) };
+    if (kind === 'house') return { kind: 'cottage', level: 2 };
+    if (kind === 'manor') return { kind: 'cottage', level: 3 };
+    if (kind === 'villa') return { kind: 'cottage', level: 4 };
     if (saveVersion < 13) {
       if (kind === 'smallDock') return { kind: 'harbor', level: 1 };
       if (kind === 'fishingDock') return { kind: 'harbor', level: 2 };
@@ -10882,6 +10933,12 @@ export class ThreeGame {
       '<div class="army-camp-level-track" aria-hidden="true"><span data-camp-level="1"></span><span data-camp-level="2"></span><span data-camp-level="3"></span><span data-camp-level="4"></span></div>' +
       '<small id="army-camp-upgrade-description">Select an Army Camp to inspect its level.</small>' +
       '<button id="army-camp-upgrade-button" class="army-camp-upgrade-button" type="button">Upgrade to Level 2</button>' +
+      '</section>' +
+      '<section id="residential-upgrade-card" class="agriculture-upgrade-card residential-upgrade-card" aria-label="Selected residential upgrade" hidden>' +
+      '<div class="agriculture-upgrade-heading"><div><span class="eyebrow">SELECTED RESIDENCE</span><strong id="residential-upgrade-name">Cottage Cluster · Level 1</strong></div><span id="residential-upgrade-badge">1 / 4</span></div>' +
+      '<div class="agriculture-level-track" aria-hidden="true"><span data-residential-level="1"></span><span data-residential-level="2"></span><span data-residential-level="3"></span><span data-residential-level="4"></span></div>' +
+      '<small id="residential-upgrade-description">Upgrade this residential district in place through four distinct settlement tiers.</small>' +
+      '<button id="residential-upgrade-button" class="agriculture-upgrade-button residential-upgrade-button" type="button">Upgrade to Level 2 · House Cluster</button>' +
       '</section>' +
       '<section id="agriculture-upgrade-card" class="agriculture-upgrade-card" aria-label="Selected agriculture building upgrade" hidden>' +
       '<div class="agriculture-upgrade-heading"><div><span id="agriculture-upgrade-type" class="eyebrow">SELECTED AGRICULTURE BUILDING</span><strong id="agriculture-upgrade-name">Farm · Level 1</strong></div><span id="agriculture-upgrade-badge">1 / 4</span></div>' +
@@ -11243,6 +11300,7 @@ export class ThreeGame {
     get<HTMLButtonElement>('fortification-upgrade-button').onclick = () => this.upgradeSelectedFortification();
     get<HTMLButtonElement>('fortification-remove-bridge-button').onclick = () => this.removeSelectedTowerBridge();
     get<HTMLButtonElement>('army-camp-upgrade-button').onclick = () => this.upgradeSelectedArmyCamp();
+    get<HTMLButtonElement>('residential-upgrade-button').onclick = () => this.upgradeSelectedResidence();
     get<HTMLButtonElement>('agriculture-upgrade-button').onclick = () => this.upgradeSelectedAgricultureBuilding();
     get<HTMLButtonElement>('carpenter-upgrade-button').onclick = () => this.upgradeSelectedCarpenter();
     get<HTMLButtonElement>('harbor-upgrade-button').onclick = () => this.upgradeSelectedHarbor();
@@ -11458,9 +11516,6 @@ export class ThreeGame {
         '5': 'tower',
         '6': 'road',
         '7': 'cottage',
-        '8': 'house',
-        '9': 'manor',
-        '0': 'villa',
         f: 'farm',
         w: 'windmill',
         y: 'appleOrchard',
@@ -11530,6 +11585,7 @@ export class ThreeGame {
       : undefined;
     const bridgeSelected = this.selectedTowerBridgeId !== null && this.towerBridges.has(this.selectedTowerBridgeId);
     const hasSelection = Boolean(keep || cell || bridgeSelected);
+    const residentialLevel = cell ? this.residentialLevelForCell(cell) : null;
     card.hidden = !hasSelection;
 
     const name = document.getElementById('selection-action-name');
@@ -11542,7 +11598,9 @@ export class ThreeGame {
             ? `Tower · Level ${Math.max(1, Math.floor(cell.level ?? 1))}`
             : cell?.kind === 'gate'
               ? `Gate · Level ${Math.max(1, Math.floor(cell.level ?? 1))}`
-              : 'Selected Building';
+              : residentialLevel !== null
+                ? `${this.residentialLevelDefinition(residentialLevel).name} · Level ${residentialLevel}`
+                : 'Selected Building';
     }
 
     const rotate = document.getElementById('rotate-selected') as HTMLButtonElement | null;
@@ -12296,6 +12354,92 @@ export class ThreeGame {
     return AGRICULTURE_UPGRADE_LEVELS[kind][normalized - 1];
   }
 
+  private residentialLevelDefinition(level: number): (typeof RESIDENTIAL_LEVELS)[number] {
+    const normalized = Math.max(1, Math.min(RESIDENTIAL_MAX_LEVEL, Math.floor(level)));
+    return RESIDENTIAL_LEVELS[normalized - 1];
+  }
+
+  private syncResidentialUpgradeUI(): void {
+    const card = document.getElementById('residential-upgrade-card');
+    if (!card) return;
+
+    const cell = this.selectedCell
+      ? this.services.state.getCell(this.selectedCell.x, this.selectedCell.y)
+      : undefined;
+    const level = cell ? this.residentialLevelForCell(cell) : null;
+    card.hidden = level === null;
+    if (!cell || level === null) return;
+
+    const definition = this.residentialLevelDefinition(level);
+    const next = level < RESIDENTIAL_MAX_LEVEL
+      ? this.residentialLevelDefinition(level + 1)
+      : undefined;
+    const name = document.getElementById('residential-upgrade-name');
+    const badge = document.getElementById('residential-upgrade-badge');
+    const description = document.getElementById('residential-upgrade-description');
+    const button = document.getElementById('residential-upgrade-button') as HTMLButtonElement | null;
+
+    if (name) name.textContent = `${definition.name} · Level ${level}`;
+    if (badge) badge.textContent = `${level} / ${RESIDENTIAL_MAX_LEVEL}`;
+    if (description) {
+      description.textContent = next
+        ? `${definition.description} Next: ${next.name}.`
+        : `${definition.description} Maximum residential level reached.`;
+    }
+    card.querySelectorAll<HTMLElement>('[data-residential-level]').forEach((step) => {
+      const stepLevel = Number(step.dataset.residentialLevel ?? 0);
+      step.classList.toggle('is-complete', stepLevel <= level);
+      step.classList.toggle('is-current', stepLevel === level);
+    });
+    if (button) {
+      button.disabled = !next || this.battleSystem.isActive();
+      button.textContent = next
+        ? `Upgrade to Level ${next.level} · ${next.name}`
+        : 'Maximum Level';
+    }
+  }
+
+  private upgradeSelectedResidence(): void {
+    if (this.battleSystem.isActive()) {
+      this.setStatus('Finish or reset the battle before upgrading residences');
+      return;
+    }
+    if (!this.selectedCell) {
+      this.setStatus('Select a Residential District first');
+      return;
+    }
+
+    const point = { ...this.selectedCell };
+    const cell = this.services.state.getCell(point.x, point.y);
+    const currentLevel = cell ? this.residentialLevelForCell(cell) : null;
+    if (!cell || currentLevel === null) {
+      this.setStatus('Select a Residential District first');
+      this.syncResidentialUpgradeUI();
+      return;
+    }
+    if (currentLevel >= RESIDENTIAL_MAX_LEVEL) {
+      this.setStatus('Residential District is already at Level 4 · Villa District');
+      this.syncResidentialUpgradeUI();
+      return;
+    }
+
+    const nextLevel = currentLevel + 1;
+    this.recordHistory();
+    // Changing the legacy alias to the canonical kind preserves all other cell
+    // fields (rotation, damage, ownership-compatible state) while upgrading in place.
+    this.services.state.updateCell(point.x, point.y, {
+      kind: 'cottage',
+      level: nextLevel,
+    });
+    this.redraw();
+    this.startConstruction(`cell:${point.x},${point.y}`, 950);
+    this.scheduleSave();
+    audioEvents.emit({ action: 'play_sfx', assetId: 'building.upgrade' });
+    this.setStatus(
+      `Residential District upgraded to Level ${nextLevel} · ${this.residentialLevelDefinition(nextLevel).name}`,
+    );
+  }
+
   private syncAgricultureUpgradeUI(): void {
     const card = document.getElementById('agriculture-upgrade-card');
     if (!card) return;
@@ -12389,6 +12533,7 @@ export class ThreeGame {
   private syncArmyCampUpgradeUI(): void {
     this.syncFortificationUpgradeUI();
     this.syncSelectionActionUI();
+    this.syncResidentialUpgradeUI();
     this.syncAgricultureUpgradeUI();
     this.syncCarpenterUpgradeUI();
     this.syncHarborUpgradeUI();
@@ -12481,6 +12626,8 @@ export class ThreeGame {
       this.setStatus(
         cell?.kind === 'armyCamp'
           ? 'Use the Army Camp Upgrade button in Build Settings'
+          : this.residentialLevelForCell(cell) !== null
+            ? 'Use the Residential Upgrade button in Build Settings'
           : cell?.kind === 'farm' || cell?.kind === 'cowBarn'
             ? 'Use the agriculture Upgrade button in Build Settings'
             : cell?.kind === 'harbor'
@@ -12552,7 +12699,19 @@ export class ThreeGame {
       level = 1,
       options: Partial<GridCell> = {},
     ): void => {
-      this.services.state.setCell(x, y, kind, level, options);
+      const authoredResidentialLevel =
+        kind === 'house' ? 2 :
+        kind === 'manor' ? 3 :
+        kind === 'villa' ? 4 :
+        kind === 'cottage' ? Math.max(1, Math.min(RESIDENTIAL_MAX_LEVEL, level)) :
+        null;
+      this.services.state.setCell(
+        x,
+        y,
+        authoredResidentialLevel === null ? kind : 'cottage',
+        authoredResidentialLevel === null ? level : authoredResidentialLevel,
+        options,
+      );
     };
 
     const placeKeepTemplate = (
