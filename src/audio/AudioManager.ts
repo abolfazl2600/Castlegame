@@ -29,6 +29,7 @@ const DEFAULT_AMBIENT_CONTEXT: AmbientContext = {
   birds: 0.45,
   water: 0.2,
   settlement: 0.15,
+  fire: 0.12,
   battle: 0,
 };
 
@@ -211,6 +212,7 @@ export class AudioManager {
       birds: clamp01(context.birds ?? this.ambientContext.birds),
       water: clamp01(context.water ?? this.ambientContext.water),
       settlement: clamp01(context.settlement ?? this.ambientContext.settlement),
+      fire: clamp01(context.fire ?? this.ambientContext.fire),
       battle: clamp01(context.battle ?? this.ambientContext.battle),
     };
     this.ambientEngine?.setContext(this.ambientContext);
