@@ -103,6 +103,46 @@ h1 { margin: 3px 0 0; font-size: 22px; line-height: 1; letter-spacing: -.035em; 
 }
 #game, #game canvas { width: 100% !important; height: 100% !important; display: block; }
 
+.screenshot-feedback {
+  position: absolute;
+  top: 16px;
+  left: 50%;
+  z-index: 61;
+  min-height: 38px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 13px;
+  border: 1px solid rgba(140,230,255,.35);
+  border-radius: 999px;
+  color: #f3fbff;
+  background: rgba(7,25,39,.92);
+  box-shadow: 0 12px 34px rgba(0,0,0,.34);
+  pointer-events: none;
+  opacity: 0;
+  transform: translate(-50%, -7px) scale(.98);
+  transition: opacity .16s ease, transform .16s ease;
+}
+.screenshot-feedback[hidden] { display: none; }
+.screenshot-feedback.is-visible { opacity: 1; transform: translate(-50%, 0) scale(1); }
+.screenshot-feedback.is-error { border-color: rgba(255,154,145,.5); color: #ffe4df; }
+.screenshot-feedback > span { font-size: 15px; font-weight: 900; }
+.screenshot-feedback > strong { font-size: 11px; letter-spacing: .01em; }
+
+#game-shell.screenshot-capture-flash::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 60;
+  pointer-events: none;
+  background: rgba(255,255,255,.18);
+  animation: screenshot-capture-flash .24s ease-out both;
+}
+@keyframes screenshot-capture-flash {
+  0% { opacity: .92; }
+  100% { opacity: 0; }
+}
+
 .toolbar {
   position: absolute;
   left: 14px;
@@ -3554,6 +3594,10 @@ html.mobile-ui-active .mobile-header-actions {
   overscroll-behavior-x: contain;
 }
 html.mobile-ui-active .mobile-header-actions::-webkit-scrollbar { display: none; }
+html.mobile-ui-active .screenshot-feedback {
+  top: calc(var(--mobile-safe-top) + var(--mobile-header-height) + 8px);
+  max-width: min(88vw, 340px);
+}
 
 html.mobile-ui-active .mobile-action,
 html.mobile-ui-active .mobile-dock-button {
