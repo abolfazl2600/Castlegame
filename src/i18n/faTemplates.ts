@@ -9,6 +9,8 @@ export const TEMPLATE_TRANSLATIONS: Readonly<Record<string, string>> = {
   "Twin Fortresses 90×95": "دو دژ ۹۰×۹۵",
   "Two opposing castles with gates, keeps, military tent camps, roads, farms, orchards, mines, and wood resources.": "دو قلعهٔ روبه‌روی هم با دروازه، برج مرکزی، اردوگاه‌های نظامی، جاده، مزرعه، باغ، معدن و منابع چوب.",
   "Urban Land 60×80": "زمین شهری ۶۰×۸۰",
+  "Himeji Castle Ground 46×90": "زمین قلعه هیمه‌جی ۴۶×۹۰",
+  "A narrow 46×90 authored historic-castle plot used by the Himeji Castle starting world.": "یک زمین باریک ۴۶×۹۰ برای قلعه تاریخی که در جهان آغازین هیمه‌جی استفاده می‌شود.",
   "60×80 world units: connected streets, central square, homes, market, parks, and farms.": "زمین ۶۰×۸۰ واحد بازی با خیابان‌های متصل، میدان مرکزی، خانه، بازار، پارک و مزرعه.",
   "A flat rectangular plot, 60×80 world units (15×20 building tiles), with ocean outside its boundaries.": "زمین مسطح مستطیلی ۶۰×۸۰ واحد بازی (۱۵×۲۰ خانهٔ ساخت)، با آب در بیرون مرزهای زمین.",
   "World Layouts": "چیدمان زمین",
@@ -51,7 +53,8 @@ export const TEMPLATE_TRANSLATIONS: Readonly<Record<string, string>> = {
   "Quiet island enclosure with cottages, farms, and landing harbor.": "جزیره آرام با کلبه، مزرعه و بندر کوچک.",
   "Historic France · double ramparts, round towers, and fortified gates.": "فرانسه تاریخی؛ دو بارو، برج‌های گرد و دروازه‌های مستحکم.",
   "Historic Syria · concentric defenses, inner ward, and round towers.": "سوریه تاریخی؛ دفاع متحدالمرکز، محوطه داخلی و برج‌های گرد.",
-  "Historic Japan · white keep, layered baileys, moats, and winding approach.": "ژاپن تاریخی؛ ارگ سفید، حیاط‌های لایه‌ای، خندق و مسیر پیچان.",
+  "Himeji Castle · Japan · 46×90": "قلعه هیمه‌جی · ژاپن · ۴۶×۹۰",
+  "Historic Japan · 46×90 castle ground, white tiered keep, layered baileys, moats, and winding approach.": "ژاپن تاریخی؛ زمین ۴۶×۹۰ قلعه، ارگ سفید چندسقفی، حیاط‌های لایه‌ای، خندق و مسیر پیچان.",
   "Historic Iran · earthen citadel, bazaar axis, and raised governor keep.": "ایران تاریخی؛ ارگ خشتی، محور بازار و حاکم‌نشین مرتفع.",
 
   "Open land with gentle hills and scattered trees.": "زمین باز با تپه‌های ملایم و درختان پراکنده.",
