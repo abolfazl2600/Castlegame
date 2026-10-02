@@ -49,6 +49,23 @@ assert.match(game, /mobileOpener\?\.setAttribute\('aria-expanded', String\(open\
 assert.match(css, /html\.mobile-ui-active \.mobile-build-action \{/,
   'Build must use touch-friendly mobile header styling.');
 
+const floatingHud = css.slice(css.indexOf('/* Issue #251 — lightweight floating top HUD'));
+assert.ok(floatingHud.length > 0, 'Issue #251 floating HUD overrides must exist.');
+assert.match(floatingHud, /@media \(min-width: 761px\)[\s\S]*?\.topbar \{[\s\S]*?background:\s*transparent;/,
+  'Desktop topbar must stop painting a full-width background.');
+assert.match(floatingHud, /@media \(min-width: 761px\)[\s\S]*?#game-shell \{[\s\S]*?inset:\s*0;/,
+  'Desktop game shell must extend behind the floating HUD.');
+assert.match(floatingHud, /\.topbar > div:first-child \{[\s\S]*?display:\s*none;/,
+  'Decorative desktop branding must not consume top HUD space.');
+assert.match(floatingHud, /\.status-group \{[\s\S]*?background:\s*rgba\(5, 18, 29, \.68\);/,
+  'Desktop actions must retain a compact local translucent panel.');
+assert.match(floatingHud, /html\.mobile-ui-active \.mobile-header \{[\s\S]*?padding-left:\s*max\(112px,[\s\S]*?background:\s*transparent;[\s\S]*?pointer-events:\s*none;/,
+  'Mobile header must be transparent and reserve a separate minimap lane.');
+assert.match(floatingHud, /html\.mobile-ui-active \.mobile-header-actions \{[\s\S]*?pointer-events:\s*auto;/,
+  'Mobile action buttons must remain interactive through the transparent header.');
+assert.match(floatingHud, /html\.mobile-ui-active \.minimap \{[\s\S]*?backdrop-filter:\s*blur\(12px\)/,
+  'Mobile minimap must keep its own readable local HUD treatment.');
+
 const dockHeights = [...css.matchAll(/--mobile-dock-height:\s*(\d+)px/g)].map((match) => Number(match[1]));
 assert.ok(dockHeights.length >= 2, 'Mobile viewport rules must define dock spacing.');
 assert.ok(dockHeights.every((height) => height === 0),
