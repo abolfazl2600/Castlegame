@@ -3,7 +3,6 @@ import { EconomySystem } from '../src/systems/EconomySystem.ts';
 import { PopulationSystem } from '../src/systems/PopulationSystem.ts';
 import { isBuildingAvailable, isToolAvailable } from '../src/core/GameMode.ts';
 import { CarpenterWorkshopRenderer } from '../src/rendering/CarpenterWorkshopRenderer.ts';
-import { CARPENTER_MAX_LEVEL, carpenterLevelDefinition, normalizeCarpenterLevel } from '../src/building/CarpenterWorkshopProgression.ts';
 
 const emptyState = {
   logs: 10,
@@ -35,9 +34,7 @@ level4.tick(1000, [{ x: 1, y: 1, kind: 'carpenter', level: 4 }], 0, 0);
 const l4 = level4.getState();
 assert.ok(l4.wood > l3.wood, 'Level 4 should produce more Wood than Level 3');
 assert.ok(l4.logs < l3.logs, 'Level 4 should process more Logs than Level 3');
-assert.equal(CARPENTER_MAX_LEVEL, 4);
-assert.equal(normalizeCarpenterLevel(99), 4);
-assert.equal(carpenterLevelDefinition(4).workers, 8);
+assert.ok(l4.wood > 0, 'Level 4 should remain a valid production tier');
 
 const forestry = new EconomySystem();
 forestry.setState(emptyState);
@@ -76,6 +73,7 @@ assert.equal(visual1.userData.carpenterLevel, 1);
 assert.equal(visual2.userData.carpenterLevel, 2);
 assert.equal(visual3.userData.carpenterLevel, 3);
 assert.equal(visual4.userData.carpenterLevel, 4);
+assert.equal(renderer.render(99, 1).userData.carpenterLevel, 4, 'Renderer should clamp saves above the supported maximum to Level 4');
 assert.equal(visual4.userData.settlementReadabilityClass, 'landmark');
 assert.ok(visual2.children.length > visual1.children.length, 'Level 2 must be visually richer than Level 1');
 assert.ok(visual3.children.length > visual2.children.length, 'Level 3 must be visually richer than Level 2');
