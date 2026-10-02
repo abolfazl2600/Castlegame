@@ -668,12 +668,9 @@ export class AudioManager {
 
   private evictVoice(incomingPriority: AudioPriority): boolean {
     const incomingWeight = PRIORITY_WEIGHT[incomingPriority];
-    let victim: { weight: number; startedAt: number; stop: () => void } | null = null;
+    const candidates: Array<{ weight: number; startedAt: number; stop: () => void }> = [];
     const consider = (weight: number, startedAt: number, stop: () => void): void => {
-      if (weight > incomingWeight) return;
-      if (!victim || weight < victim.weight || (weight === victim.weight && startedAt < victim.startedAt)) {
-        victim = { weight, startedAt, stop };
-      }
+      if (weight <= incomingWeight) candidates.push({ weight, startedAt, stop });
     };
 
     for (const [node, voice] of this.proceduralNodes) {
@@ -697,6 +694,8 @@ export class AudioManager {
       }
     }
 
+    candidates.sort((a, b) => a.weight - b.weight || a.startedAt - b.startedAt);
+    const victim = candidates[0];
     if (!victim) return false;
     victim.stop();
     return true;
