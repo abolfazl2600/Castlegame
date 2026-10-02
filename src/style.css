@@ -2319,6 +2319,18 @@ kbd {
   gap: 14px;
   margin-top: 18px;
 }
+.starting-map-layout-grid {
+  grid-column: 1 / -1;
+  margin-top: 0;
+  margin-bottom: 4px;
+}
+#templates-modal .starting-map-layout-grid .map-layout-card {
+  min-width: 0;
+}
+html[dir="rtl"] #templates-modal .starting-map-layout-grid .map-layout-card {
+  direction: rtl;
+  text-align: right;
+}
 .map-layout-card {
   display: grid;
   grid-template-columns: 104px minmax(0, 1fr);
