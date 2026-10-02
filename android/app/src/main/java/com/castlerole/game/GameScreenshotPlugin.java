@@ -25,7 +25,10 @@ public class GameScreenshotPlugin extends Plugin {
     @PluginMethod
     public void shareImage(PluginCall call) {
         String data = call.getString("data");
-        String requestedFilename = call.getString("filename", "castle-role.png");
+        String requestedFilename = call.getString("filename");
+        if (requestedFilename == null || requestedFilename.trim().isEmpty()) {
+            requestedFilename = "castle-role.png";
+        }
 
         if (data == null || data.isEmpty()) {
             call.reject("Screenshot image data is missing.");
@@ -43,7 +46,7 @@ public class GameScreenshotPlugin extends Plugin {
         try {
             png = Base64.decode(data, Base64.DEFAULT);
         } catch (IllegalArgumentException error) {
-            call.reject("Screenshot image data is invalid.", error);
+            call.reject("Screenshot image data is invalid: " + error.getMessage());
             return;
         }
 
@@ -64,7 +67,7 @@ public class GameScreenshotPlugin extends Plugin {
             stream.write(png);
             stream.flush();
         } catch (Exception error) {
-            call.reject("Unable to prepare screenshot for sharing.", error);
+            call.reject("Unable to prepare screenshot for sharing: " + error.getMessage());
             return;
         }
 
@@ -77,7 +80,7 @@ public class GameScreenshotPlugin extends Plugin {
             );
         } catch (Exception error) {
             output.delete();
-            call.reject("Unable to expose screenshot to Android sharing.", error);
+            call.reject("Unable to expose screenshot to Android sharing: " + error.getMessage());
             return;
         }
 
@@ -95,7 +98,7 @@ public class GameScreenshotPlugin extends Plugin {
                 call.resolve(result);
             } catch (Exception error) {
                 output.delete();
-                call.reject("Unable to open Android share sheet.", error);
+                call.reject("Unable to open Android share sheet: " + error.getMessage());
             }
         });
     }
