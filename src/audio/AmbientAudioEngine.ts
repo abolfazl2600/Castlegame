@@ -3,6 +3,7 @@ export interface AmbientContext {
   birds: number;
   water: number;
   settlement: number;
+  fire: number;
   battle: number;
 }
 
@@ -26,6 +27,7 @@ export class AmbientAudioEngine {
     birds: 0.45,
     water: 0.2,
     settlement: 0.15,
+    fire: 0.12,
     battle: 0,
   };
   private started = false;
@@ -43,6 +45,7 @@ export class AmbientAudioEngine {
     this.createNoiseLayer('water', 'bandpass', 650);
     this.createToneLayer('birds', 1760, 'triangle');
     this.createToneLayer('settlement', 146.83, 'sine');
+    this.createNoiseLayer('fire', 'highpass', 1800);
     this.createToneLayer('battle', 55, 'sawtooth');
     this.applyContext(0.9);
   }
@@ -53,6 +56,7 @@ export class AmbientAudioEngine {
       birds: clamp01(next.birds ?? this.contextValues.birds),
       water: clamp01(next.water ?? this.contextValues.water),
       settlement: clamp01(next.settlement ?? this.contextValues.settlement),
+      fire: clamp01(next.fire ?? this.contextValues.fire),
       battle: clamp01(next.battle ?? this.contextValues.battle),
     };
     if (this.started) this.applyContext(1.2);
@@ -135,6 +139,7 @@ export class AmbientAudioEngine {
       birds: 0.0045,
       water: 0.022,
       settlement: 0.006,
+      fire: 0.009,
       battle: 0.012,
     };
     for (const [name, gain] of this.gains) {
