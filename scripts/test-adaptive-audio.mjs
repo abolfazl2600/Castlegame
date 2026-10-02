@@ -33,6 +33,9 @@ assert.match(manager, /cooldownUntil/);
 assert.match(manager, /AdaptiveMusicEngine/);
 assert.match(manager, /AmbientAudioEngine/);
 assert.match(manager, /AndroidAudioLifecycleBridge/);
+assert.match(manager, /If an authored[\s\S]*music asset has not been registered yet, keep the game silent/);
+assert.doesNotMatch(manager, /else if \(!this\.currentMusic\) \{\s*this\.adaptiveMusic\?\.start\(\)/);
+assert.doesNotMatch(manager, /this\.ambientEngine\?\.start\(\)/);
 
 assert.match(adaptive, /type MusicIntensityState = 'calm' \| 'tension' \| 'combat'/);
 assert.match(adaptive, /private nextBarBoundary/);
