@@ -109,6 +109,7 @@ scripts/       Validation, regression, and visual QA scripts
 - [Visual Style Guide](VISUAL_STYLE_GUIDE.md)
 - [Visual Reference & Baseline Workflow](docs/visual-reference.md)
 - [Google Play Release Requirements](docs/store-release/GOOGLE_PLAY_REQUIREMENTS.md)
+- [Android OTA Web Updates](docs/android-ota-updates.md)
 - [Store Release Roadmap](docs/store-release/ROADMAP.md)
 
 ---

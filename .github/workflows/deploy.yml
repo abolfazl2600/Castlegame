@@ -17,6 +17,7 @@ concurrency:
 
 jobs:
   verify:
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-24.04
     steps:
       - name: Checkout repository
@@ -34,24 +35,57 @@ jobs:
       - name: Run core checks
         run: npm run test:ci
 
-      - name: Typecheck and build
+      - name: Typecheck and build GitHub Pages
         run: npm run build
 
-      - name: Upload verified build
+      - name: Build dedicated Android OTA bundle
+        run: npm run build:android-update
+
+      - name: Validate Android OTA asset paths
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -s dist-android-update/index.html
+          if grep -q '/Castlegame/assets/' dist-android-update/index.html; then
+            echo "::error::Android OTA bundle contains GitHub Pages asset paths."
+            exit 1
+          fi
+          grep -q './assets/' dist-android-update/index.html || {
+            echo "::error::Android OTA bundle does not use relative asset paths."
+            exit 1
+          }
+
+      - name: Package Android OTA bundle
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p dist/android-updates
+          OTA_ZIP="castlegame-web-update-${GITHUB_SHA}.zip"
+          (cd dist-android-update && zip -qr "${GITHUB_WORKSPACE}/dist/android-updates/${OTA_ZIP}" .)
+          echo "OTA_ZIP=${OTA_ZIP}" >> "${GITHUB_ENV}"
+
+      - name: Generate public Android OTA manifest
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/create-android-update-manifest.mjs \
+            --zip "dist/android-updates/${OTA_ZIP}" \
+            --build-id "${GITHUB_SHA}" \
+            --url "https://abolfazl2600.github.io/Castlegame/android-updates/${OTA_ZIP}" \
+            --output "dist/android-updates/android-update.json"
+
+      - name: Verify Android OTA package and manifest integrity
+        env:
+          ANDROID_OTA_ARTIFACT_DIR: dist/android-updates
+        run: npm run test:android-ota-contract
+
+      - name: Upload verified Pages and Android OTA build
         uses: actions/upload-pages-artifact@v4
         with:
           path: ./dist
 
-      - name: Publish Android live-update bundle
-        uses: actions/upload-artifact@v4
-        with:
-          name: castlegame-web-update
-          path: ./dist
-          overwrite: true
-          retention-days: 30
-
   deploy:
-    if: github.event_name != 'pull_request'
+    if: github.ref == 'refs/heads/main'
     needs: verify
     permissions:
       contents: read
