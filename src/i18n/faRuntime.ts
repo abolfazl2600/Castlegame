@@ -98,8 +98,6 @@ export const RUNTIME_TRANSLATIONS: Readonly<Record<string, string>> = {
   "Harbor placement requires a clear coastal land tile next to ocean water": "بندر باید روی زمین ساحلی خالی و کنار آب دریا ساخته شود",
   "Landing Dock placed · upgrade it from Build Settings": "اسکله فرود ساخته شد · از تنظیمات ساخت‌وساز آن را ارتقا دهید",
   "Workers assigned to dig moat": "کارگران مأمور حفر خندق شدند",
-  "Apple Orchard is already at Level 1": "باغ سیب هم‌اکنون سطح ۱ است",
-  "Apple Orchard is already at Level 4 · Estate Orchard": "باغ سیب در بالاترین سطح ۴ قرار دارد · باغ اربابی",
   "Tower is already at Level 1": "برج هم‌اکنون سطح ۱ است",
   "Tower is already at Level 4 · Royal Bastion": "برج در بالاترین سطح ۴ قرار دارد · دژ سلطنتی",
   "Cow Barn requires an empty tile": "گاوداری به خانه خالی نیاز دارد",
