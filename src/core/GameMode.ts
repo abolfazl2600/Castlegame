@@ -22,11 +22,19 @@ export interface GameDefinition {
   availableWeapons: readonly string[];
 }
 
-const BUILDINGS: readonly TileKind[] = [
+const BUILD_TOOL_KINDS: readonly ToolKind[] = [
   'wall1','wall2','wall3','gate','tower',
   'road','dirtRoad','stoneRoad','harbor',
   'cottage','farm','cowBarn','appleOrchard','armyCamp',
   'market','basilica','mosque','windmill','mine','carpenter','mountain','tree','rock','hut','moat',
+];
+
+// Legacy residential aliases stay loadable/building-valid so authored templates
+// and older saves can be migrated safely, but they are deliberately excluded
+// from normal tool availability and from the build-panel groups.
+const BUILDINGS: readonly TileKind[] = [
+  ...BUILD_TOOL_KINDS as readonly TileKind[],
+  'house','manor','villa',
 ];
 
 const WORLD_TOOLS: readonly ToolKind[] = [
@@ -34,7 +42,7 @@ const WORLD_TOOLS: readonly ToolKind[] = [
 ];
 
 const ALL_TOOLS: readonly ToolKind[] = [...new Set<ToolKind>([
-  ...BUILDINGS,
+  ...BUILD_TOOL_KINDS,
   'keep',
   'towerBridge',
   'mountainRange',
