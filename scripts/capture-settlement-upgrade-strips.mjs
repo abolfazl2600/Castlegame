@@ -22,7 +22,9 @@ const now = 1_700_000_000_000;
 const cells = [];
 const add = (x, y, kind, level = 1) => cells.push({ x, y, kind, level });
 
-['cottage', 'house', 'manor', 'villa'].forEach((kind, index) => add(7 + index * 3, 5, kind, 1));
+for (let level = 1; level <= 4; level += 1) {
+  add(7 + (level - 1) * 3, 5, 'cottage', level);
+}
 for (let level = 1; level <= 4; level += 1) {
   const x = 7 + (level - 1) * 3;
   add(x, 8, 'farm', level);
@@ -112,7 +114,7 @@ try {
     await page.evaluate(() => {
       const legend = document.createElement('div');
       legend.id = 'issue-132-legend';
-      legend.textContent = 'Top: Residence 1→4   |   Rows: Farm · Cattle · Orchard · Army · Harbor   |   Left landmarks: Market · Windmill · Basilica';
+      legend.textContent = 'Top: Residential District Level 1→4   |   Rows: Farm · Cattle · Orchard · Army · Harbor   |   Left landmarks: Market · Windmill · Basilica';
       Object.assign(legend.style, {
         position: 'fixed',
         left: '16px',
