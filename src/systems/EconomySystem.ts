@@ -146,7 +146,7 @@ export class EconomySystem {
     let capacity = 220 + Math.max(0, keepCount) * 180;
     for (const cell of cells) {
       if (cell.kind === 'market') capacity += 90;
-      else if (cell.kind === 'manor' || (cell.kind === 'cottage' && scaledLevel(cell) === 3)) capacity += 45;
+      else if (cell.kind === 'manor' || (cell.kind === 'cottage' && scaledLevel(cell) >= 3)) capacity += 45;
       else if (cell.kind === 'farm') capacity += 15 * scaledLevel(cell);
       else if (cell.kind === 'cowBarn') capacity += 12 * scaledLevel(cell);
       else if (cell.kind === 'carpenter') capacity += 18 * scaledLevel(cell, 3);
