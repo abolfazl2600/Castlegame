@@ -1279,19 +1279,12 @@ export class ThreeGame {
     document.querySelectorAll<HTMLButtonElement>('[data-template]').forEach((button) => {
       const template = button.dataset.template;
       button.hidden = false;
+      button.disabled = false;
 
       const authoredLayoutTemplate = PLAYABLE_LAYOUT_TEMPLATES[template ?? ''];
-      const layoutRestricted =
-        !this.newGameSelectionPending &&
-        this.mapLayoutId !== 'island' &&
-        template !== 'empty-land' &&
-        !authoredLayoutTemplate;
-      button.disabled = layoutRestricted;
-      button.title = layoutRestricted
-        ? 'This complete castle template currently requires Classic Island. Terrain-only templates work with every map layout.'
-        : authoredLayoutTemplate
-          ? `Authored for ${MAP_LAYOUTS.find((layout) => layout.id === authoredLayoutTemplate.layoutId)?.label ?? authoredLayoutTemplate.layoutId}.`
-          : '';
+      const targetLayoutId = authoredLayoutTemplate?.layoutId ?? 'island';
+      const targetLayout = MAP_LAYOUTS.find((layout) => layout.id === targetLayoutId);
+      button.title = `Uses ${targetLayout?.label ?? targetLayoutId}.`;
     });
   }
 
@@ -12497,10 +12490,6 @@ export class ThreeGame {
   private applyTemplate(template: string): void {
     const authoredLayoutTemplate = PLAYABLE_LAYOUT_TEMPLATES[template];
     const visualPreset = getTemplateVisualPreset(template);
-    if (this.mapLayoutId !== 'island' && template !== 'empty-land' && !authoredLayoutTemplate) {
-      this.setStatus('Castle templates currently require Classic Island. Terrain templates remain available on this layout.');
-      return;
-    }
     this.recordHistory();
     this.stoneStyle = visualPreset.stoneStyle;
     this.towerBridgeKind = visualPreset.towerBridgeKind;
@@ -12509,6 +12498,7 @@ export class ThreeGame {
       this.setMapLayoutId(authoredLayoutTemplate.layoutId);
     } else {
       this.worldSeed = 0;
+      this.setMapLayoutId('island');
     }
     this.clearSettlementAgents();
     this.services.state.clear();

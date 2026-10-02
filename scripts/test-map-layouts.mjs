@@ -160,10 +160,20 @@ const templateCompatibility = between(
   'private applyTemplate(template: string): void {',
   'private applyTerrainTemplate(',
 );
-assert.match(
+assert.doesNotMatch(
   templateCompatibility,
   /this\.mapLayoutId !== 'island' && template !== 'empty-land'/,
-  'Complete legacy templates must be explicitly restricted when a non-island layout is active.',
+  'Unified map selection must not reject legacy templates because of the currently loaded layout.',
+);
+assert.match(
+  templateCompatibility,
+  /else \{[\s\S]*?this\.worldSeed = 0;[\s\S]*?this\.setMapLayoutId\('island'\);/,
+  'Legacy starting worlds must select Classic Island automatically.',
+);
+assert.match(
+  threeGame,
+  /private syncTemplateAvailability\(\): void \{[\s\S]*?button\.disabled = false;/,
+  'Every starting-world card must remain selectable in the unified picker.',
 );
 
 const snapshot = between(
