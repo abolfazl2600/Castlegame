@@ -155,11 +155,22 @@ const AGRICULTURE_UPGRADE_LEVELS: Record<AgricultureUpgradeKind, readonly Agricu
 const AGRICULTURE_MAX_LEVEL = 4;
 
 const CARPENTER_LEVELS = [
-  { level: 1, name: 'Timber Yard', description: 'A small open carpenter yard that processes Logs into construction-ready Wood.', workers: 2, inputPerSecond: 0.30, yieldRatio: 0.80 },
-  { level: 2, name: 'Carpenter Workshop', description: 'A larger covered workshop with a dedicated cutting bay, better tools, and higher throughput.', workers: 4, inputPerSecond: 0.58, yieldRatio: 0.90 },
-  { level: 3, name: 'Master Carpenter Guild', description: 'A mature timber workshop with a loft, heavy saw frame, hoist, storage, and maximum conversion efficiency.', workers: 6, inputPerSecond: 0.90, yieldRatio: 1.00 },
+  { level: 1, name: 'Basic Carpenter Shed', description: 'A compact starter shed with a simple workbench, small lumber pile, and basic hand-tool storage.', workers: 2, inputPerSecond: 0.30, yieldRatio: 0.80 },
+  { level: 2, name: 'Established Workshop', description: 'A larger covered workshop with an extended cutting bay, organized lumber racks, and stronger framing.', workers: 4, inputPerSecond: 0.58, yieldRatio: 0.90 },
+  { level: 3, name: 'Advanced Woodworking Yard', description: 'An expanded production yard with stone-backed storage, a drying loft, timber hoist, carts, and dedicated work areas.', workers: 6, inputPerSecond: 0.90, yieldRatio: 1.00 },
+  { level: 4, name: 'Master Carpenter Workshop', description: 'A prestigious master workshop with a reinforced hall, production wing, formal lumber racks, upgraded roofline, and maximum throughput.', workers: 8, inputPerSecond: 1.20, yieldRatio: 1.00 },
 ] as const;
 const CARPENTER_MAX_LEVEL = CARPENTER_LEVELS.length;
+
+function normalizeCarpenterLevel(levelValue?: number | null): number {
+  const numeric = Number(levelValue ?? 1);
+  const normalized = Number.isFinite(numeric) ? Math.floor(numeric) : 1;
+  return Math.max(1, Math.min(CARPENTER_MAX_LEVEL, normalized));
+}
+
+function carpenterLevelDefinition(levelValue?: number | null): (typeof CARPENTER_LEVELS)[number] {
+  return CARPENTER_LEVELS[normalizeCarpenterLevel(levelValue) - 1];
+}
 
 const HARBOR_LEVELS = [
   { level: 1, name: 'Landing Dock', description: 'A compact timber landing with simple mooring posts, basic cargo, and a fishing boat.' },
@@ -355,7 +366,7 @@ const TOOL_GROUPS: Array<{ label: string; tools: ToolDefinition[] }> = [
       { id: 'mosque', icon: '◫', label: 'Courtyard Mosque', detail: 'Upgradeable landmark · 4 architectural levels', shortcut: '-' },
       { id: 'mine', icon: '⛏️', label: 'Mine', detail: 'Produces stone for construction', shortcut: '-' },
       { id: 'hut', icon: '🛖', label: 'Woodcutter Hut', detail: 'Produces logs from nearby trees', shortcut: '-' },
-      { id: 'carpenter', icon: '🪚', label: 'Carpenter Workshop', detail: '3 levels · converts Logs into Wood', shortcut: '-' },
+      { id: 'carpenter', icon: '🪚', label: 'Carpenter Workshop', detail: '4 levels · converts Logs into Wood', shortcut: '-' },
     ],
   },
   {
@@ -3426,7 +3437,7 @@ export class ThreeGame {
     else if (cell.kind === 'mine') this.makeMine(group);
     else if (cell.kind === 'carpenter') group.add(
       this.carpenterRenderer.render(
-        Math.max(1, Math.min(CARPENTER_MAX_LEVEL, cell.level ?? 1)),
+        normalizeCarpenterLevel(cell.level),
         cell.x * 97 + cell.y * 53,
       ),
     );
@@ -11085,8 +11096,8 @@ export class ThreeGame {
       '<button id="mosque-upgrade-button" class="agriculture-upgrade-button mosque-upgrade-button" type="button">Upgrade to Level 2 · Improved Mosque</button>' +
       '</section>' +
       '<section id="carpenter-upgrade-card" class="carpenter-upgrade-card" aria-label="Selected Carpenter Workshop upgrade" hidden>' +
-      '<div class="carpenter-upgrade-heading"><div><span class="eyebrow">SELECTED CARPENTER</span><strong id="carpenter-upgrade-name">Timber Yard · Level 1</strong></div><span id="carpenter-upgrade-badge">1 / 3</span></div>' +
-      '<div class="carpenter-level-track" aria-hidden="true"><span data-carpenter-level="1"></span><span data-carpenter-level="2"></span><span data-carpenter-level="3"></span></div>' +
+      '<div class="carpenter-upgrade-heading"><div><span class="eyebrow">SELECTED CARPENTER</span><strong id="carpenter-upgrade-name">Basic Carpenter Shed · Level 1</strong></div><span id="carpenter-upgrade-badge">1 / 4</span></div>' +
+      '<div class="carpenter-level-track" aria-hidden="true"><span data-carpenter-level="1"></span><span data-carpenter-level="2"></span><span data-carpenter-level="3"></span><span data-carpenter-level="4"></span></div>' +
       '<small id="carpenter-upgrade-description">Converts Logs into construction-ready Wood.</small>' +
       '<button id="carpenter-upgrade-button" class="carpenter-upgrade-button" type="button">Upgrade to Level 2</button>' +
       '</section>' +
@@ -12408,11 +12419,6 @@ export class ThreeGame {
     this.setStatus(`Mosque upgraded to Level ${nextLevel} · ${this.mosqueLevelDefinition(nextLevel).name}`);
   }
 
-  private carpenterLevelDefinition(level: number): (typeof CARPENTER_LEVELS)[number] {
-    const normalized = Math.max(1, Math.min(CARPENTER_MAX_LEVEL, Math.floor(level)));
-    return CARPENTER_LEVELS[normalized - 1];
-  }
-
   private syncCarpenterUpgradeUI(): void {
     const card = document.getElementById('carpenter-upgrade-card');
     if (!card) return;
@@ -12424,9 +12430,9 @@ export class ThreeGame {
     card.hidden = !selected;
     if (!selected) return;
 
-    const level = Math.max(1, Math.min(CARPENTER_MAX_LEVEL, selected.level ?? 1));
-    const definition = this.carpenterLevelDefinition(level);
-    const next = level < CARPENTER_MAX_LEVEL ? this.carpenterLevelDefinition(level + 1) : undefined;
+    const level = normalizeCarpenterLevel(selected.level);
+    const definition = carpenterLevelDefinition(level);
+    const next = level < CARPENTER_MAX_LEVEL ? carpenterLevelDefinition(level + 1) : undefined;
     const name = document.getElementById('carpenter-upgrade-name');
     const badge = document.getElementById('carpenter-upgrade-badge');
     const description = document.getElementById('carpenter-upgrade-description');
@@ -12470,9 +12476,9 @@ export class ThreeGame {
       return;
     }
 
-    const currentLevel = Math.max(1, Math.min(CARPENTER_MAX_LEVEL, cell.level ?? 1));
+    const currentLevel = normalizeCarpenterLevel(cell.level);
     if (currentLevel >= CARPENTER_MAX_LEVEL) {
-      this.setStatus('Carpenter Workshop is already at Level 3 · Master Carpenter Guild');
+      this.setStatus('Carpenter Workshop is already at Level 4 · Master Carpenter Workshop');
       this.syncCarpenterUpgradeUI();
       return;
     }
@@ -12486,7 +12492,7 @@ export class ThreeGame {
     this.updatePopulationUI();
     this.scheduleSave();
     audioEvents.emit({ action: 'play_sfx', assetId: 'building.upgrade' });
-      this.setStatus(`Carpenter Workshop upgraded to Level ${nextLevel} · ${this.carpenterLevelDefinition(nextLevel).name}`);
+      this.setStatus(`Carpenter Workshop upgraded to Level ${nextLevel} · ${carpenterLevelDefinition(nextLevel).name}`);
   }
 
   private harborLevelDefinition(level: number): (typeof HARBOR_LEVELS)[number] {
