@@ -19,7 +19,6 @@ import { rasterizeWallPath } from './building/WallPath';
 import { KeepRenderer } from './rendering/KeepRenderer';
 import { BasilicaRenderer } from './rendering/BasilicaRenderer';
 import { CarpenterWorkshopRenderer } from './rendering/CarpenterWorkshopRenderer';
-import { CARPENTER_MAX_LEVEL, carpenterLevelDefinition, normalizeCarpenterLevel } from './building/CarpenterWorkshopProgression';
 import { MedievalMaterials } from './rendering/MedievalMaterials';
 import { CASTLE_ARCHITECTURE_STYLE } from './rendering/CastleArchitectureStyle';
 import { WORLD_STYLE, styleTone } from './rendering/WorldStyle';
@@ -154,6 +153,24 @@ const AGRICULTURE_UPGRADE_LEVELS: Record<AgricultureUpgradeKind, readonly Agricu
   ],
 };
 const AGRICULTURE_MAX_LEVEL = 4;
+
+const CARPENTER_LEVELS = [
+  { level: 1, name: 'Basic Carpenter Shed', description: 'A compact starter shed with a simple workbench, small lumber pile, and basic hand-tool storage.', workers: 2, inputPerSecond: 0.30, yieldRatio: 0.80 },
+  { level: 2, name: 'Established Workshop', description: 'A larger covered workshop with an extended cutting bay, organized lumber racks, and stronger framing.', workers: 4, inputPerSecond: 0.58, yieldRatio: 0.90 },
+  { level: 3, name: 'Advanced Woodworking Yard', description: 'An expanded production yard with stone-backed storage, a drying loft, timber hoist, carts, and dedicated work areas.', workers: 6, inputPerSecond: 0.90, yieldRatio: 1.00 },
+  { level: 4, name: 'Master Carpenter Workshop', description: 'A prestigious master workshop with a reinforced hall, production wing, formal lumber racks, upgraded roofline, and maximum throughput.', workers: 8, inputPerSecond: 1.20, yieldRatio: 1.00 },
+] as const;
+const CARPENTER_MAX_LEVEL = CARPENTER_LEVELS.length;
+
+function normalizeCarpenterLevel(levelValue?: number | null): number {
+  const numeric = Number(levelValue ?? 1);
+  const normalized = Number.isFinite(numeric) ? Math.floor(numeric) : 1;
+  return Math.max(1, Math.min(CARPENTER_MAX_LEVEL, normalized));
+}
+
+function carpenterLevelDefinition(levelValue?: number | null): (typeof CARPENTER_LEVELS)[number] {
+  return CARPENTER_LEVELS[normalizeCarpenterLevel(levelValue) - 1];
+}
 
 const HARBOR_LEVELS = [
   { level: 1, name: 'Landing Dock', description: 'A compact timber landing with simple mooring posts, basic cargo, and a fishing boat.' },
