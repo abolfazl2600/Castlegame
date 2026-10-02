@@ -70,6 +70,44 @@ assert.match(
   'Unknown/legacy layout IDs must fall back to Classic Island.',
 );
 
+assert.match(
+  mapLayouts,
+  /const RIVER_PROFILES: Partial<Record<MapLayoutId, RiverProfile>>/,
+  'River generation must use layout-specific profiles.',
+);
+for (const id of ['island', 'mainland', 'peninsula']) {
+  assert.match(
+    mapLayouts,
+    new RegExp(`\\b${id}: \\{`),
+    `Missing layout-specific river profile: ${id}`,
+  );
+}
+assert.match(
+  mapLayouts,
+  /function riverCenterline\\([\\s\\S]*?broadCycles[\\s\\S]*?secondaryCycles[\\s\\S]*?localCycles/,
+  'River centerlines must combine broad, secondary, and local meander scales.',
+);
+assert.match(
+  mapLayouts,
+  /function riverHalfWidth\\([\\s\\S]*?widthVariation[\\s\\S]*?bendWidening/,
+  'River width must vary smoothly and widen around major bends.',
+);
+assert.match(
+  mapLayouts,
+  /function riverBankVariation\\([\\s\\S]*?bankIrregularity/,
+  'River banks must include controlled deterministic irregularity.',
+);
+assert.doesNotMatch(
+  mapLayouts,
+  /Math\\.random\\(/,
+  'Map river generation must remain deterministic.',
+);
+assert.match(
+  mapLayouts,
+  /Math\\.abs\\(signedDistance\\) <= halfWidth/,
+  'River bank variation must preserve one contiguous channel span per row.',
+);
+
 assert.match(mapLayouts, /export const HIMEJI_LAND_WIDTH = 46;/);
 assert.match(mapLayouts, /export const HIMEJI_LAND_DEPTH = 90;/);
 assert.match(mapLayouts, /if \(layout === 'himeji-46x90'\) {[\s\S]*?himejiLandBounds\(size\)/);
