@@ -51,7 +51,8 @@ assert.match(windmill, /settlementFamily = 'windmill'/);
 assert.match(windmill, /settlementReadabilityClass = 'landmark'/);
 
 assert.match(docs, /Settlement application \(#132\)/);
-assert.match(docs, /Cottage → House → Manor → Villa/);
+assert.match(docs, /Cottage Cluster → House Cluster → Manor → Villa District/);
+assert.match(docs, /Only Level 1 is exposed as a normal residential build tool/);
 assert.match(docs, /Estate Orchard/);
 assert.match(docs, /Market, Basilica, and Windmill remain fixed-role landmarks/);
 
