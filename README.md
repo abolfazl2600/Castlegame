@@ -110,6 +110,7 @@ scripts/       Validation, regression, and visual QA scripts
 - [Visual Reference & Baseline Workflow](docs/visual-reference.md)
 - [Google Play Release Requirements](docs/store-release/GOOGLE_PLAY_REQUIREMENTS.md)
 - [Android OTA Web Updates](docs/android-ota-updates.md)
+- [Screenshot / Photo Capture](docs/screenshot-capture.md)
 - [Store Release Roadmap](docs/store-release/ROADMAP.md)
 
 ---
