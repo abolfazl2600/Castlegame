@@ -740,7 +740,9 @@ function validMapLayoutId(value: unknown): value is MapLayoutId {
     value === 'mainland' ||
     value === 'peninsula' ||
     value === 'twin-isles' ||
-    value === 'urban-60x80';
+    value === 'urban-60x80' ||
+    value === 'twin-fortresses-90x95' ||
+    value === 'himeji-46x90';
 }
 
 function validStoneStyle(value: unknown): value is StoneStyle {
