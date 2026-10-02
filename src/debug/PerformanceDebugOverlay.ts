@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import type { VisualBudgetSnapshot } from '../rendering/DistanceDetailBudget';
 import type { SettingsStore } from '../settings/SettingsStore';
+import type { AudioDiagnostics } from '../audio/types';
 
 interface PerformanceMemorySnapshot {
   usedJSHeapSize?: number;
@@ -20,6 +21,7 @@ interface PerformanceDebugOverlayOptions {
     settlementAgents?: number;
     battleObjects?: number;
   };
+  getAudioDiagnostics?: () => AudioDiagnostics;
 }
 
 interface SceneCounts {
@@ -219,6 +221,7 @@ export class PerformanceDebugOverlay {
     const memoryInfo = renderer.info.memory;
     const budget = this.options.getVisualBudget();
     const runtime = this.options.getRuntimeCounts?.() ?? {};
+    const audio = this.options.getAudioDiagnostics?.();
     const sceneCounts = this.countScene(scene);
     const layers = this.options.getRenderLayers?.() ?? [];
     const layerCounts = layers.map(({ name, root }) => ({
@@ -294,6 +297,17 @@ export class PerformanceDebugOverlay {
         this.row('JS heap limit', heapLimit === null ? 'Unavailable' : this.formatBytes(heapLimit)),
         this.row('JS heap budget (not RAM)', this.formatBytes(budget.memoryBudgetBytes)),
         this.row('Full RAM / VRAM', 'Unavailable via WebGL'),
+      ]),
+      this.section('Audio', [
+        this.row('AudioContext', audio?.contextState ?? 'Unavailable'),
+        this.row('Audio unlocked', audio ? (audio.unlocked ? 'YES' : 'NO') : 'Unavailable'),
+        this.row('Music state', audio?.musicState.toUpperCase() ?? 'Unavailable'),
+        this.row('Music intensity', audio ? audio.intensity.toFixed(2) : 'Unavailable'),
+        this.row('Active section', audio?.activeSection ?? 'Unavailable'),
+        this.row('Active stems', audio ? String(audio.activeStemCount) : 'Unavailable'),
+        this.row('Pending music state', audio?.pendingMusicState?.toUpperCase() ?? 'None'),
+        this.row('SFX voices', audio ? `${audio.activeSfxVoices} / ${audio.voiceLimit}` : 'Unavailable'),
+        this.row('Ambient layers', audio ? (audio.activeAmbientLayers.join(', ') || 'None') : 'Unavailable'),
       ]),
       this.section('Runtime & System', [
         this.row('Workers', runtime.workers === undefined ? '—' : this.formatInteger(runtime.workers)),

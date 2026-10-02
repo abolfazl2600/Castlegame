@@ -238,6 +238,11 @@ function validateSettings(input: SettingsData): SettingsData {
           ? input.audio.musicEnabled
           : defaults.audio.musicEnabled,
       musicVolume: numberInRange(input.audio.musicVolume, defaults.audio.musicVolume),
+      ambientEnabled:
+        typeof input.audio.ambientEnabled === 'boolean'
+          ? input.audio.ambientEnabled
+          : defaults.audio.ambientEnabled,
+      ambientVolume: numberInRange(input.audio.ambientVolume, defaults.audio.ambientVolume),
       sfxEnabled:
         typeof input.audio.sfxEnabled === 'boolean'
           ? input.audio.sfxEnabled
