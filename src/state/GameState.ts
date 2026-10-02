@@ -88,7 +88,7 @@ export class GameState {
   private normalizeLevel(kind: TileKind, value: number): number {
     const level = Number.isFinite(value) ? Math.max(1, Math.floor(value)) : 1;
     if (kind === 'wall1' || kind === 'wall2' || kind === 'wall3') return Math.min(MAX_WALL_LEVEL, level);
-    if (kind === 'tower' || kind === 'gate' || kind === 'cottage') return Math.min(4, level);
+    if (kind === 'tower' || kind === 'gate' || kind === 'cottage' || kind === 'mosque') return Math.min(4, level);
     return level;
   }
 }
