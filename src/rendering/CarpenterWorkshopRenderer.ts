@@ -1,8 +1,11 @@
 import * as THREE from 'three';
-import {
-  normalizeCarpenterLevel,
-  type CarpenterWorkshopLevel,
-} from '../building/CarpenterWorkshopProgression';
+export type CarpenterWorkshopLevel = 1 | 2 | 3 | 4;
+
+function normalizeCarpenterLevel(levelValue?: number | null): CarpenterWorkshopLevel {
+  const numeric = Number(levelValue ?? 1);
+  const normalized = Number.isFinite(numeric) ? Math.floor(numeric) : 1;
+  return Math.max(1, Math.min(4, normalized)) as CarpenterWorkshopLevel;
+}
 
 const UNIT_BOX = new THREE.BoxGeometry(1, 1, 1);
 const LOG_GEOMETRY = new THREE.CylinderGeometry(0.12, 0.14, 1.18, 8);
@@ -295,4 +298,3 @@ export class CarpenterWorkshopRenderer {
   }
 }
 
-export type { CarpenterWorkshopLevel };
