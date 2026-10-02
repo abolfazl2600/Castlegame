@@ -3606,6 +3606,11 @@ export class ThreeGame {
           ? this.environmentMaterial('bridge-stone-support', 0x625f58, 1)
           : this.environmentMaterial('bridge-timber-support', 0x4f3526, 1);
 
+      if (kind === 'stoneRoad' && !bridgeMaterial.map) {
+        bridgeMaterial.map = this.roadSurfaceTexture(kind);
+        bridgeMaterial.needsUpdate = true;
+      }
+
       const deck = this.addBox(
         group,
         horizontal ? TILE + 0.3 : 1.95,
