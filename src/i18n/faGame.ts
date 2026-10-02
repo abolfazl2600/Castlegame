@@ -24,7 +24,6 @@ export const GAME_TRANSLATIONS: Readonly<Record<string, string>> = {
   "House Cluster": "مجموعه خانه‌ها",
   "Manor": "عمارت اربابی",
   "Villa District": "محله ویلاها",
-  "House Cluster": "مجموعه خانه‌ها",
   "Manor Court": "عمارت اربابی",
   "Villa Quarter": "محله ویلاها",
   "3 small cottages + village props": "۳ کلبه کوچک و وسایل روستا",
