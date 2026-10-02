@@ -7,7 +7,6 @@ import type {
   SavedProfessionalSoldierState,
 } from '../core/types';
 import type { CellEntry } from '../state/GameState';
-import { carpenterLevelDefinition } from '../building/CarpenterWorkshopProgression';
 
 export interface PopulationGroups {
   civilians: number;
@@ -584,7 +583,8 @@ export class PopulationSystem {
         assign(cell, 'merchant', 6);
       } else if (cell.kind === 'windmill') assign(cell, 'worker', 4);
       else if (cell.kind === 'carpenter') {
-        assign(cell, 'worker', carpenterLevelDefinition(cell.level).workers);
+        const level = Math.max(1, Math.min(4, Math.floor(cell.level ?? 1)));
+        assign(cell, 'worker', level * 2);
       }
       else if (cell.kind === 'basilica') assign(cell, 'worker', 3);
     }
