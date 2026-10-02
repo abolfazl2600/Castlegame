@@ -8451,10 +8451,12 @@ export class ThreeGame {
     if (keep) {
       this.services.keepSystem.remove(keep.id);
       if (this.selectedKeepId === keep.id) this.selectedKeepId = null;
+      audioEvents.emit({ action: 'play_sfx', assetId: 'building.destroyed' });
       this.setStatus('Long-press removal · Keep removed · Undo available');
     } else if (cell) {
       if (cell.kind === 'tower') this.removeTowerBridgesAt(point.x, point.y);
       this.services.state.removeCell(point.x, point.y);
+      audioEvents.emit({ action: 'play_sfx', assetId: 'building.destroyed' });
       this.setStatus('Long-press removal · object removed · Undo available');
     }
 
@@ -9630,7 +9632,8 @@ export class ThreeGame {
         this.services.keepSystem.remove(keepAtPoint.id);
         if (this.selectedKeepId === keepAtPoint.id) this.selectedKeepId = null;
         this.finishBuild();
-        this.setStatus('Keep removed');
+        audioEvents.emit({ action: 'play_sfx', assetId: 'building.destroyed' });
+    this.setStatus('Keep removed');
         return;
       }
       if (current) {
@@ -9680,6 +9683,7 @@ export class ThreeGame {
       !current &&
       this.isStructureFootprintReserved(gx, gy)
     ) {
+      audioEvents.emit({ action: 'play_sfx', assetId: 'building.invalid' });
       this.setStatus('Placement blocked by an existing structure footprint');
       return;
     }
@@ -9731,6 +9735,7 @@ export class ThreeGame {
 
       const direction = this.maritimeSystem.canPlace(this.selectedTool, gx, gy);
       if (!direction) {
+        audioEvents.emit({ action: 'play_sfx', assetId: 'building.invalid' });
         this.setStatus('Harbor placement requires a clear coastal land tile next to ocean water');
         return;
       }
@@ -9806,6 +9811,7 @@ export class ThreeGame {
           ? Math.max(1, (cell?.level ?? 1) - 1)
           : Math.min(4, (cell?.level ?? 1) + 1);
         if (nextSize === (cell?.level ?? 1)) {
+          audioEvents.emit({ action: 'play_sfx', assetId: 'building.invalid' });
           this.setStatus(event.shiftKey ? 'Apple Orchard is already at Level 1' : 'Apple Orchard is already at Level 4 · Estate Orchard');
           return;
         }
@@ -9866,10 +9872,12 @@ export class ThreeGame {
     const selectedTile = this.selectedTool as TileKind;
     if (selectedTile === 'cowBarn') {
       if (current) {
+        audioEvents.emit({ action: 'play_sfx', assetId: 'building.invalid' });
         this.setStatus('Cow Barn requires an empty tile');
         return;
       }
       if (terrain !== 'plains') {
+        audioEvents.emit({ action: 'play_sfx', assetId: 'building.invalid' });
         this.setStatus('Cow Barn requires open plains');
         return;
       }
@@ -9882,6 +9890,7 @@ export class ThreeGame {
       return;
     }
     if (!this.isBuildingAvailable(selectedTile)) {
+      audioEvents.emit({ action: 'play_sfx', assetId: 'building.invalid' });
       this.setStatus('This building is unavailable');
       return;
     }
@@ -9891,6 +9900,7 @@ export class ThreeGame {
     if (selectedTile === 'market') {
       if (current || keepAtPoint) return;
       if (!this.canBuildMarketAt(gx, gy)) {
+        audioEvents.emit({ action: 'play_sfx', assetId: 'building.invalid' });
         this.setStatus('Market needs a clear 3×3 land area');
         return;
       }
@@ -9963,10 +9973,10 @@ export class ThreeGame {
     const point = this.selectedCell;
     const previous = point && this.undoStack.at(-1)?.cells.find((cell) => cell.x === point.x && cell.y === point.y);
     const current = point && this.services.state.getCell(point.x, point.y);
-    const newlyPlaced = point && current && CONSTRUCTION_VISUAL_KINDS.has(current.kind) &&
-      (!previous || previous.kind !== current.kind);
+    const placementChanged = Boolean(point && current && (!previous || previous.kind !== current.kind));
+    const newlyPlaced = point && current && CONSTRUCTION_VISUAL_KINDS.has(current.kind) && placementChanged;
     this.buildPreviewKey = '';
-    audioEvents.emit({ action: 'play_sfx', assetId: 'building.place' });
+    if (placementChanged) audioEvents.emit({ action: 'play_sfx', assetId: 'building.place' });
     this.redraw();
     if (newlyPlaced && point) this.startConstruction(`cell:${point.x},${point.y}`,
       current.kind === 'gate' || current.kind === 'tower' || current.kind === 'harbor' ? 1150 : 800);
@@ -11803,6 +11813,7 @@ export class ThreeGame {
     this.redraw();
     this.scheduleSave();
     this.syncArmyCampUpgradeUI();
+    audioEvents.emit({ action: 'play_sfx', assetId: 'building.destroyed' });
     this.setStatus('Building removed · Undo available');
   }
 
@@ -12000,6 +12011,7 @@ export class ThreeGame {
       this.towerBridges.set(bridge.id, { ...bridge, level: nextLevel });
       this.redraw();
       this.scheduleSave();
+      audioEvents.emit({ action: 'play_sfx', assetId: 'building.upgrade' });
       this.setStatus(`Tower Bridge upgraded to Level ${nextLevel} · ${this.fortificationLevelDefinition('towerBridge', nextLevel).name}`);
       return;
     }
@@ -12034,7 +12046,8 @@ export class ThreeGame {
         this.selectKeep(updated);
         this.redraw();
         this.scheduleSave();
-        this.setStatus(`Keep upgraded to Level ${nextLevel} · ${this.fortificationLevelDefinition('keep', nextLevel).name}`);
+        audioEvents.emit({ action: 'play_sfx', assetId: 'building.upgrade' });
+      this.setStatus(`Keep upgraded to Level ${nextLevel} · ${this.fortificationLevelDefinition('keep', nextLevel).name}`);
       }
       return;
     }
@@ -12073,6 +12086,7 @@ export class ThreeGame {
     }
     this.redraw();
     this.scheduleSave();
+    audioEvents.emit({ action: 'play_sfx', assetId: 'building.upgrade' });
     this.setStatus(
       `${kind === 'tower' ? 'Tower' : 'Gate'} upgraded to Level ${nextLevel} · ${this.fortificationLevelDefinition(kind, nextLevel).name}`,
     );
@@ -12095,6 +12109,7 @@ export class ThreeGame {
     this.selectedTowerBridgeId = null;
     this.redraw();
     this.scheduleSave();
+    audioEvents.emit({ action: 'play_sfx', assetId: 'building.destroyed' });
     this.setStatus('Tower Bridge removed · Undo available');
   }
 
@@ -12175,7 +12190,8 @@ export class ThreeGame {
     this.syncEconomyUI();
     this.updatePopulationUI();
     this.scheduleSave();
-    this.setStatus(`Carpenter Workshop upgraded to Level ${nextLevel} · ${this.carpenterLevelDefinition(nextLevel).name}`);
+    audioEvents.emit({ action: 'play_sfx', assetId: 'building.upgrade' });
+      this.setStatus(`Carpenter Workshop upgraded to Level ${nextLevel} · ${this.carpenterLevelDefinition(nextLevel).name}`);
   }
 
   private harborLevelDefinition(level: number): (typeof HARBOR_LEVELS)[number] {
@@ -12256,7 +12272,8 @@ export class ThreeGame {
     });
     this.redraw();
     this.scheduleSave();
-    this.setStatus(`Harbor upgraded to Level ${nextLevel} · ${this.harborLevelDefinition(nextLevel).name}`);
+    audioEvents.emit({ action: 'play_sfx', assetId: 'building.upgrade' });
+      this.setStatus(`Harbor upgraded to Level ${nextLevel} · ${this.harborLevelDefinition(nextLevel).name}`);
   }
 
   private agricultureLevelDefinition(kind: AgricultureUpgradeKind, level: number): AgricultureUpgradeLevel {
@@ -12343,6 +12360,7 @@ export class ThreeGame {
     this.services.state.setLevel(this.selectedCell.x, this.selectedCell.y, nextLevel);
     this.redraw();
     this.scheduleSave();
+    audioEvents.emit({ action: 'play_sfx', assetId: 'building.upgrade' });
     this.setStatus(
       `${kind === 'farm' ? 'Farm' : 'Cow Barn'} upgraded to Level ${nextLevel} · ${this.agricultureLevelDefinition(kind, nextLevel).name}`,
     );
@@ -12428,7 +12446,8 @@ export class ThreeGame {
     }
     this.redraw();
     this.scheduleSave();
-    this.setStatus(`Army Camp upgraded to Level ${nextLevel} · ${this.armyCampLevelDefinition(nextLevel).name}`);
+    audioEvents.emit({ action: 'play_sfx', assetId: 'building.upgrade' });
+      this.setStatus(`Army Camp upgraded to Level ${nextLevel} · ${this.armyCampLevelDefinition(nextLevel).name}`);
   }
 
   private adjustSelectedHeight(delta: number): void {
@@ -15004,7 +15023,10 @@ export class ThreeGame {
 
     const settings = this.settingsStore.get();
     const cameraDistance = this.camera.position.distanceTo(this.controls.target);
-    this.constructionAnimation.update(time, settings.interface.reducedMotion);
+    const completedConstruction = this.constructionAnimation.update(time, settings.interface.reducedMotion);
+    if (completedConstruction.length > 0) {
+      audioEvents.emit({ action: 'play_sfx', assetId: 'building.complete' });
+    }
     const selectedProfile = this.adaptiveRenderProfile.resolve(settings.graphics.performanceMode);
     const renderProfile = this.performanceDebug.mobileBudgetEmulation ? 'performance' : selectedProfile;
     const visualBudget = this.distanceDetailBudget.update(
