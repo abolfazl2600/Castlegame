@@ -28,6 +28,7 @@ assert.match(visualStyle, /'himeji-castle': { stoneStyle: 'whitePlaster', towerB
 assert.match(types, /\| 'japaneseTiered'/);
 assert.match(types, /\| 'whitePlaster'/);
 assert.match(saveSystem, /value === 'whitePlaster'/);
+assert.match(saveSystem, /value === 'himeji-46x90'/);
 assert.match(threeGame, /<option value="whitePlaster">White Plaster<\/option>/);
 assert.match(threeGame, /<option value="japaneseTiered">Japanese Tiered<\/option>/);
 assert.match(materials, /japaneseRoofTile/);
