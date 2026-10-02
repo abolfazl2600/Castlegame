@@ -6,6 +6,8 @@ export const TEMPLATE_TRANSLATIONS: Readonly<Record<string, string>> = {
   "Choose a Starting World": "جهان آغازین را انتخاب کنید",
   "Choose a starting world. Every world remains fully editable after loading.": "یک جهان آغازین انتخاب کنید. همه جهان‌ها پس از بارگذاری کاملاً قابل ویرایش می‌مانند.",
   "Urban City 60×80": "شهر ۶۰×۸۰",
+  "Twin Fortresses 90×95": "دو دژ ۹۰×۹۵",
+  "Two opposing castles with gates, keeps, military tent camps, roads, farms, orchards, mines, and wood resources.": "دو قلعهٔ روبه‌روی هم با دروازه، برج مرکزی، اردوگاه‌های نظامی، جاده، مزرعه، باغ، معدن و منابع چوب.",
   "Urban Land 60×80": "زمین شهری ۶۰×۸۰",
   "60×80 world units: connected streets, central square, homes, market, parks, and farms.": "زمین ۶۰×۸۰ واحد بازی با خیابان‌های متصل، میدان مرکزی، خانه، بازار، پارک و مزرعه.",
   "A flat rectangular plot, 60×80 world units (15×20 building tiles), with ocean outside its boundaries.": "زمین مسطح مستطیلی ۶۰×۸۰ واحد بازی (۱۵×۲۰ خانهٔ ساخت)، با آب در بیرون مرزهای زمین.",
