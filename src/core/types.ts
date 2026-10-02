@@ -57,7 +57,6 @@ export type TileKind =
   | 'villa'
   | 'farm'
   | 'cowBarn'
-  | 'appleOrchard'
   | 'armyCamp'
   | 'market'
   | 'basilica'
@@ -141,7 +140,6 @@ export interface EconomyResourceState {
   wood: number;
   stone: number;
   grain: number;
-  apples: number;
   flour: number;
   food: number;
 }
