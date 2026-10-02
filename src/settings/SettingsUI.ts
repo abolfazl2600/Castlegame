@@ -156,7 +156,9 @@ export class SettingsUI {
               <div class="settings-control-card">
                 ${this.rangeRow('Master volume', 'Overall game volume.', 'masterVolume', 0, 1, 0.01)}
                 ${this.toggleRow('Music enabled', 'Allow ambient background music and ambience.', 'musicEnabled')}
-                ${this.rangeRow('Music volume', 'Ambient background sound level.', 'musicVolume', 0, 1, 0.01)}
+                ${this.rangeRow('Music volume', 'Adaptive score level.', 'musicVolume', 0, 1, 0.01)}
+                ${this.toggleRow('Ambient enabled', 'Allow wind, birds, water, settlement and battle ambience.', 'ambientEnabled')}
+                ${this.rangeRow('Ambient volume', 'Environmental world sound level.', 'ambientVolume', 0, 1, 0.01)}
                 ${this.toggleRow('Sound effects enabled', 'Allow building, UI and battle feedback sounds.', 'sfxEnabled')}
                 ${this.rangeRow('Sound effects volume', 'Building, UI and battle feedback level.', 'sfxVolume', 0, 1, 0.01)}
                 ${this.toggleRow('Mute all', 'Silence all game audio immediately.', 'muted')}
@@ -461,6 +463,12 @@ export class SettingsUI {
       case 'musicVolume':
         this.store.setAudio({ musicVolume: Number(value) });
         break;
+      case 'ambientEnabled':
+        this.store.setAudio({ ambientEnabled: Boolean(value) });
+        break;
+      case 'ambientVolume':
+        this.store.setAudio({ ambientVolume: Number(value) });
+        break;
       case 'sfxEnabled':
         this.store.setAudio({ sfxEnabled: Boolean(value) });
         break;
@@ -514,6 +522,8 @@ export class SettingsUI {
     set('masterVolume', settings.audio.masterVolume);
     set('musicEnabled', settings.audio.musicEnabled);
     set('musicVolume', settings.audio.musicVolume);
+    set('ambientEnabled', settings.audio.ambientEnabled);
+    set('ambientVolume', settings.audio.ambientVolume);
     set('sfxEnabled', settings.audio.sfxEnabled);
     set('sfxVolume', settings.audio.sfxVolume);
     set('muted', settings.audio.muted);
@@ -530,7 +540,7 @@ export class SettingsUI {
 
   private formatOutput(key: string, value: number): string {
     if (key === 'cameraSensitivity') return value.toFixed(2) + '×';
-    if (key === 'uiScale' || key === 'masterVolume' || key === 'musicVolume' || key === 'sfxVolume') {
+    if (key === 'uiScale' || key === 'masterVolume' || key === 'musicVolume' || key === 'ambientVolume' || key === 'sfxVolume') {
       return Math.round(value * 100) + '%';
     }
     return String(value);
