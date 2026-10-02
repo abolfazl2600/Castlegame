@@ -1,4 +1,3 @@
-import type { TileKind } from '../core/types';
 import type {
   CivilianOccupation,
   MilitiaUnitType,
