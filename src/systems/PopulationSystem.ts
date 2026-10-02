@@ -572,7 +572,7 @@ export class PopulationSystem {
 
     const workplaces = [...cells].sort((a, b) => a.x - b.x || a.y - b.y);
     for (const cell of workplaces) {
-      if (cell.kind === 'farm' || cell.kind === 'appleOrchard') assign(cell, 'farmer', 8);
+      if (cell.kind === 'farm') assign(cell, 'farmer', 8);
       else if (cell.kind === 'cowBarn') assign(cell, 'farmer', 6);
       else if (cell.kind === 'mine') assign(cell, 'miner', 5);
       else if (cell.kind === 'smallDock' || cell.kind === 'woodenPier') assign(cell, 'sailor', 2);

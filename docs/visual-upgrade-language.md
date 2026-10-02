@@ -68,17 +68,6 @@ The residential family is one four-step **in-place gameplay upgrade line**:
 
 Only Level 1 is exposed as a normal residential build tool. Players upgrade the same placed cell sequentially through Levels 2–4; position, rotation, damage, undo history, and save state stay attached to that cell. The runtime stores the progression canonically as `cottage` plus `level`, while legacy saves/templates using `house`, `manor`, or `villa` migrate to Levels 2, 3, and 4 respectively. The old layout keys remain available internally so historic templates and visual regression fixtures keep their authored silhouettes without exposing duplicate build buttons.
 
-### Apple Orchard progression
-
-Apple Orchard now supports four visual maturity levels:
-
-1. **Young Grove** — smaller 3×3 planting language with a deliberately open entrance.
-2. **Working Orchard** — broader 4×3 rows plus visible produce handling.
-3. **Mature Orchard** — 4×4 canopy mass plus a taller entrance trellis.
-4. **Estate Orchard** — 5×4 mature planting mass with a dedicated packing shed landmark.
-
-The final tier gains a new architectural mass rather than relying on more apples, crates, or color changes.
-
 ### Existing upgradeable settlement families
 
 Crop Farm, Cattle Farm, Army Camp, and Harbor continue to consume the shared `upgradeVisualProfile` at Levels 1–4. Their existing gameplay values, save semantics, worker assignment, and pathfinding remain unchanged by this visual pass.

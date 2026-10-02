@@ -1,10 +1,9 @@
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 
-const [ambient, game, orchard, docs] = await Promise.all([
+const [ambient, game, docs] = await Promise.all([
   readFile(new URL('../src/rendering/AmbientMotionSystem.ts', import.meta.url), 'utf8'),
   readFile(new URL('../src/ThreeGame.ts', import.meta.url), 'utf8'),
-  readFile(new URL('../src/systems/OrchardSystem.ts', import.meta.url), 'utf8'),
   readFile(new URL('../docs/ambient-world-motion.md', import.meta.url), 'utf8'),
 ]);
 
@@ -46,7 +45,6 @@ assert.match(redraw, /ambientMotion\.registerFlag/);
 assert.match(redraw, /ambientMotion\.registerSway/);
 
 assert.match(game, /ambientMotion\.registerSway\(crown/);
-assert.match(orchard, /tree\.userData\.ambientSway/);
 assert.match(game, /ambient-chimney-smoke/);
 assert.match(game, /ambientMotion\.registerSmoke\(smoke/);
 assert.match(game, /ambientMotion\.registerBob\(/);

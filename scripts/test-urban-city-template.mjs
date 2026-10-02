@@ -59,7 +59,7 @@ assert.equal(visited.size, roads.size, 'All avenues, cross streets, and plaza ar
 for (const cell of cells.filter(c => c.kind !== 'tree' && c.kind !== 'stoneRoad')) {
   assert.ok(neighbors(cell.x, cell.y).some(([x, y]) => roads.has(key(x, y))), `${cell.kind} has street access`);
 }
-for (const kind of ['house', 'cottage', 'manor', 'basilica', 'market', 'carpenter', 'farm', 'cowBarn', 'windmill', 'appleOrchard', 'tree']) {
+for (const kind of ['house', 'cottage', 'manor', 'basilica', 'market', 'carpenter', 'farm', 'cowBarn', 'windmill', 'tree']) {
   assert.ok(cells.some(c => c.kind === kind), `Missing city district: ${kind}`);
 }
 // The same normal cells survive real save serialization and loading.

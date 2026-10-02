@@ -88,7 +88,7 @@ export function createTwinFortressesTemplate(): TwinFortressesTemplate {
 
   // Western logistics and resources.
   place(1, 17, 'farm', 2);
-  place(3, 18, 'appleOrchard', 2);
+  place(3, 18, 'farm', 2);
   place(7, 17, 'farm', 2);
   place(1, 19, 'hut', 1);
   place(8, 19, 'tree', 2);
@@ -96,7 +96,7 @@ export function createTwinFortressesTemplate(): TwinFortressesTemplate {
 
   // Eastern logistics and resources.
   place(14, 17, 'farm', 2);
-  place(18, 17, 'appleOrchard', 2);
+  place(18, 17, 'farm', 2);
   place(20, 18, 'farm', 2);
   place(19, 20, 'hut', 1);
   place(13, 19, 'tree', 2);
@@ -104,7 +104,7 @@ export function createTwinFortressesTemplate(): TwinFortressesTemplate {
 
   // Neutral resources between the armies.
   place(10, 3, 'farm', 2);
-  place(11, 4, 'appleOrchard', 2);
+  place(11, 4, 'farm', 2);
   place(10, 20, 'hut', 1);
   place(11, 20, 'tree', 2);
   place(12, 20, 'rock', 2);

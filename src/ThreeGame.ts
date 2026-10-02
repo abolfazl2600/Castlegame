@@ -245,7 +245,6 @@ const BUILDING_KINDS: TileKind[] = [
   'villa',
   'farm',
   'cowBarn',
-  'appleOrchard',
   'armyCamp',
   'market',
   'basilica',
@@ -261,7 +260,7 @@ const BUILDING_KINDS: TileKind[] = [
 ];
 const CONSTRUCTION_VISUAL_KINDS = new Set<TileKind>([
   'wall1', 'wall2', 'wall3', 'gate', 'tower', 'cottage', 'house', 'manor', 'villa',
-  'hut', 'farm', 'cowBarn', 'appleOrchard', 'market', 'windmill', 'mine', 'carpenter',
+  'hut', 'farm', 'cowBarn', 'market', 'windmill', 'mine', 'carpenter',
   'armyCamp', 'harbor', 'basilica', 'mosque',
 ]);
 
@@ -375,7 +374,6 @@ const TOOL_GROUPS: Array<{ label: string; tools: ToolDefinition[] }> = [
     tools: [
       { id: 'farm', icon: '🌾', label: 'Farm', detail: 'Upgradeable crop farm · 4 visual levels', shortcut: 'F' },
       { id: 'cowBarn', icon: '🐄', label: 'Cow Barn', detail: 'Upgradeable cattle farm · 4 visual levels', shortcut: '-' },
-      { id: 'appleOrchard', icon: '🍎', label: 'Apple Orchard', detail: 'Four visual maturity levels · procedural apple trees', shortcut: 'Y' },
       { id: 'windmill', icon: '⚙️', label: 'Medieval Windmill', detail: 'Four-sail working mill · continuous rotation', shortcut: 'W' },
     ],
   },
@@ -2336,7 +2334,7 @@ export class ThreeGame {
         const kind = cell?.kind;
         let tileColor = terrainColors[this.terrainAt(x, y)];
         if (kind === 'tree') tileColor = palette.foliageDark;
-        else if (kind === 'farm' || kind === 'appleOrchard') tileColor = palette.soil;
+        else if (kind === 'farm') tileColor = palette.soil;
         else if (kind === 'basilica') tileColor = SETTLEMENT_STYLE.stone;
         else if (kind && ROAD_KINDS.includes(kind as RoadKind)) tileColor = kind === 'stoneRoad' ? 0xc8c9b2 : 0x8f7151;
         else if (kind === 'gate' || kind === 'tower' || WALL_KINDS.includes(kind as WallKind)) tileColor = 0xc8c9b2;
@@ -2672,7 +2670,6 @@ export class ThreeGame {
       manor: 0xc97888,
       villa: 0x70b4ac,
       farm: 0xc2ad54,
-      appleOrchard: 0x9c6d3e,
       armyCamp: 0x8f6b4d,
       basilica: 0xd8d2bd,
       mosque: 0xb98a5b,
@@ -2753,7 +2750,7 @@ export class ThreeGame {
       const size =
         cell.kind === 'road' ? 2.0 :
         cell.kind === 'tree' || cell.kind === 'rock' ? 1.25 :
-        cell.kind === 'farm' || cell.kind === 'appleOrchard' || cell.kind === 'armyCamp' ? 3.5 :
+        cell.kind === 'farm' || cell.kind === 'armyCamp' ? 3.5 :
         cell.kind === 'basilica' || cell.kind === 'mosque' ? 3.4 :
         cell.kind === 'moat' ? 3.65 :
         2.7;
@@ -3607,7 +3604,6 @@ export class ThreeGame {
 
     else if (cell.kind === 'farm') this.makeFarm(group, Math.max(1, Math.min(AGRICULTURE_MAX_LEVEL, cell.level ?? 1)));
     else if (cell.kind === 'cowBarn') this.makeCowBarn(group, Math.max(1, Math.min(AGRICULTURE_MAX_LEVEL, cell.level ?? 1)), cell.x, cell.y);
-    else if (cell.kind === 'appleOrchard') this.services.orchardSystem.create(group, cell.level ?? 1, cell.x * 97 + cell.y * 53);
     else if (cell.kind === 'armyCamp') this.makeArmyCamp(group, Math.max(1, Math.min(ARMY_CAMP_MAX_LEVEL, cell.level ?? 1)));
     else if (cell.kind === 'market') this.makeMarketBuilding(group, cell.x, cell.y);
     else if (cell.kind === 'basilica') {
@@ -9765,21 +9761,6 @@ export class ThreeGame {
       return { valid, cells, reason: valid ? undefined : 'Mine requires a mountain and sufficient resources' };
     }
 
-    if (tool === 'appleOrchard') {
-      const existingCanChange = current === 'appleOrchard' && (cell?.level ?? 1) < 3;
-      const newCanBuild =
-        !current &&
-        !keepAtPoint &&
-        !reserved &&
-        terrain === 'plains' &&
-        this.isConstructionAffordable('appleOrchard');
-      return {
-        valid: existingCanChange || newCanBuild,
-        cells,
-        reason: existingCanChange || newCanBuild ? undefined : 'Apple Orchard placement is blocked here',
-      };
-    }
-
     if (tool === 'tree') {
       const valid =
         !current &&
@@ -10270,34 +10251,6 @@ export class ThreeGame {
       return;
     }
 
-    if (this.selectedTool === 'appleOrchard') {
-      if (current === 'appleOrchard') {
-        const nextSize = event.shiftKey
-          ? Math.max(1, (cell?.level ?? 1) - 1)
-          : Math.min(4, (cell?.level ?? 1) + 1);
-        if (nextSize === (cell?.level ?? 1)) {
-          audioEvents.emit({ action: 'play_sfx', assetId: 'building.invalid' });
-          this.setStatus(event.shiftKey ? 'Apple Orchard is already at Level 1' : 'Apple Orchard is already at Level 4 · Estate Orchard');
-          return;
-        }
-        this.recordHistory();
-        this.services.state.setCell(gx, gy, 'appleOrchard', nextSize);
-        this.finishBuild();
-        this.setStatus(`Apple Orchard visual level: ${nextSize}`);
-        return;
-      }
-      if (!current && terrain === 'plains') {
-        if (!this.ensureConstructionAffordable('appleOrchard')) return;
-        this.recordHistory();
-        const size = 1 + ((gx * 7 + gy * 11) % 4);
-        this.services.state.setCell(gx, gy, 'appleOrchard', size);
-        this.spendConstructionCost('appleOrchard');
-        this.finishBuild();
-        this.setStatus(`Apple Orchard placed · size ${size}`);
-      }
-      return;
-    }
-
     if (this.selectedTool === 'tree') {
       if (!current && (terrain === 'plains' || terrain === 'shore' || terrain === 'forest')) {
         this.recordHistory();
@@ -10429,7 +10382,7 @@ export class ThreeGame {
     if (terrain === 'water' || terrain === 'river') return false;
     if (terrain === 'mountain') return tool === 'mine';
     if (terrain === 'forest') return tool === 'tree';
-    if (tool === 'farm' || tool === 'cowBarn' || tool === 'appleOrchard') return terrain === 'plains';
+    if (tool === 'farm' || tool === 'cowBarn') return terrain === 'plains';
     if (tool === 'windmill') return terrain === 'plains' || terrain === 'shore';
     return terrain === 'plains' || terrain === 'shore';
   }
@@ -11004,14 +10957,12 @@ export class ThreeGame {
     setText('economy-wood', `Wood ${formatAmount(resources.wood)}`);
     setText('economy-stone', `Stone ${formatAmount(resources.stone)}`);
     setText('economy-grain', `Grain ${formatAmount(resources.grain)}`);
-    setText('economy-apples', `Apples ${formatAmount(resources.apples)}`);
     setText('economy-flour', `Flour ${formatAmount(resources.flour)}`);
     setText('economy-food', `Food ${formatAmount(resources.food)}`);
     setText('economy-logs-rate', formatRate(rates.logsPerSecond));
     setText('economy-wood-rate', formatRate(rates.woodPerSecond));
     setText('economy-stone-rate', formatRate(rates.stonePerSecond));
     setText('economy-grain-rate', formatRate(rates.grainPerSecond));
-    setText('economy-apples-rate', formatRate(rates.applesPerSecond));
     setText('economy-flour-rate', formatRate(rates.flourPerSecond));
     setText('economy-food-rate', formatRate(rates.foodPerSecond - rates.foodConsumptionPerSecond));
 
@@ -11042,7 +10993,7 @@ export class ThreeGame {
     if (result.shortageChanged) {
       this.setStatus(
         result.shortage
-          ? 'Food shortage · build Farms, Orchards, Windmills, Cow Barns, or Markets'
+          ? 'Food shortage · build Farms, Windmills, Cow Barns, or Markets'
           : 'Food supply recovered',
       );
     }
@@ -11254,6 +11205,7 @@ export class ThreeGame {
     if (kind === 'house') return { kind: 'cottage', level: 2 };
     if (kind === 'manor') return { kind: 'cottage', level: 3 };
     if (kind === 'villa') return { kind: 'cottage', level: 4 };
+    if (kind === 'appleOrchard') return { kind: 'farm', level: Math.max(1, Math.min(AGRICULTURE_MAX_LEVEL, level)) };
     if (saveVersion < 13) {
       if (kind === 'smallDock') return { kind: 'harbor', level: 1 };
       if (kind === 'fishingDock') return { kind: 'harbor', level: 2 };
@@ -11312,7 +11264,6 @@ export class ThreeGame {
       '<span class="build-resource-stat"><b id="economy-wood">Wood 0</b><small id="economy-wood-rate">+0/s</small></span>' +
       '<span class="build-resource-stat"><b id="economy-stone">Stone 0</b><small id="economy-stone-rate">+0/s</small></span>' +
       '<span class="build-resource-stat"><b id="economy-grain">Grain 0</b><small id="economy-grain-rate">+0/s</small></span>' +
-      '<span class="build-resource-stat"><b id="economy-apples">Apples 0</b><small id="economy-apples-rate">+0/s</small></span>' +
       '<span class="build-resource-stat"><b id="economy-flour">Flour 0</b><small id="economy-flour-rate">+0/s</small></span>' +
       '<span class="build-resource-stat"><b id="economy-food">Food 0</b><small id="economy-food-rate">+0/s</small></span>' +
       '<span class="build-economy-storage" id="economy-storage">Storage 0 / 0</span>' +
@@ -11940,7 +11891,6 @@ export class ThreeGame {
         '7': 'cottage',
         f: 'farm',
         w: 'windmill',
-        y: 'appleOrchard',
         a: 'armyCamp',
         t: 'tree',
         n: 'mountain',
@@ -13381,7 +13331,7 @@ export class ThreeGame {
       }
     } else if (template === 'twin-fortresses-90x95') {
       // Two complete, editable fortresses with gates, keeps, roads, camps, and
-      // dedicated food, wood, stone, and orchard resources.
+      // dedicated food, wood, and stone resources.
       for (let y = 0; y < SIZE; y += 1) {
         for (let x = 0; x < SIZE; x += 1) {
           this.services.state.removeCell(x, y);

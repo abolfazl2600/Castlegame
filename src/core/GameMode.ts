@@ -25,7 +25,7 @@ export interface GameDefinition {
 const BUILD_TOOL_KINDS: readonly ToolKind[] = [
   'wall1','wall2','wall3','gate','tower',
   'road','dirtRoad','stoneRoad','harbor',
-  'cottage','farm','cowBarn','appleOrchard','armyCamp',
+  'cottage','farm','cowBarn','armyCamp',
   'market','basilica','mosque','windmill','mine','carpenter','mountain','tree','rock','hut','moat',
 ];
 
@@ -55,7 +55,7 @@ export const GAME_DEFINITION: GameDefinition = {
   description: 'The complete castle-building, economy, battle, endless-defense, world-editing, and God Mode experience.',
   toolGroups: [
     { label: 'Castle & Defense', toolIds: ['wall1','wall2','wall3','gate','tower','towerBridge','keep','moat'] },
-    { label: 'Buildings', toolIds: ['cottage','market','basilica','mosque','carpenter','farm','cowBarn','appleOrchard','windmill','mine','hut'] },
+    { label: 'Buildings', toolIds: ['cottage','market','basilica','mosque','carpenter','farm','cowBarn','windmill','mine','hut'] },
     { label: 'Roads & Harbor', toolIds: ['road','dirtRoad','stoneRoad','harbor'] },
     { label: 'Military', toolIds: ['armyCamp'] },
     { label: 'Environment', toolIds: ['tree','rock','mountain'] },

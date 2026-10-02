@@ -46,10 +46,10 @@ export function createUrbanCityTemplate(size: number): UrbanCityCell[] {
   place(4, 17, 'farm');
   place(6, 17, 'windmill');
   place(8, 17, 'farm');
-  place(10, 17, 'appleOrchard');
+  place(10, 17, 'farm');
   place(12, 17, 'farm');
   place(4, 19, 'farm');
-  place(10, 19, 'appleOrchard');
+  place(10, 19, 'farm');
 
   // Pocket parks and a green coastal buffer keep the street plan readable.
   for (const x of [2, 4, 10, 12]) place(x, 11, 'tree', 2);
