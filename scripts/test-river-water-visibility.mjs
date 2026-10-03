@@ -52,6 +52,38 @@ assert.match(
   'River rendering must keep water above the island surface even for stale negative elevation state.',
 );
 
+const worldLayoutSurface = between(
+  threeGame,
+  'private currentWorldLayoutSurfaceSignature(): string {',
+  'private baseTerrainAt(',
+);
+assert.match(
+  worldLayoutSurface,
+  /const terrain = this\.terrainAt\(x, y\);/,
+  'The world layout surface must use effective terrain so carved rivers remove the original grass slab.',
+);
+assert.doesNotMatch(
+  worldLayoutSurface,
+  /const terrain = this\.baseTerrainAt\(x, y\);/,
+  'The world layout surface must not ignore terrain overrides.',
+);
+assert.match(
+  worldLayoutSurface,
+  /signature === this\.worldLayoutSurfaceSignature/,
+  'World layout surface rebuilding should be cached when terrain has not changed.',
+);
+
+const redraw = between(
+  threeGame,
+  'private redraw(): void {',
+  '/** Replace only wall meshes',
+);
+assert.match(
+  redraw,
+  /this\.rebuildWorldLayoutSurface\(\);[\s\S]*?this\.renderTerrain\(\);/,
+  'Redraw must synchronize the world layout surface before rendering river tiles.',
+);
+
 const eraseBlock = between(
   threeGame,
   "if (this.selectedTool === 'erase') {",
