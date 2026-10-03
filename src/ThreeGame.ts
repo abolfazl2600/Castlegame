@@ -13531,7 +13531,10 @@ export class ThreeGame {
     this.economySaveAccumulatorMs = 0;
     this.worldSeeded = true;
 
-    const center = Math.floor(SIZE / 2);
+    const centerX = Math.floor(this.worldCols / 2);
+    const centerY = Math.floor(this.worldRows / 2);
+    // Legacy prepared worlds are square; retain their existing coordinate shorthand.
+    const center = centerX;
     const place = (
       x: number,
       y: number,
@@ -13591,8 +13594,8 @@ export class ThreeGame {
       maxY: number,
       elevation = 0,
     ): void => {
-      for (let y = Math.max(0, minY); y <= Math.min(SIZE - 1, maxY); y += 1) {
-        for (let x = Math.max(0, minX); x <= Math.min(SIZE - 1, maxX); x += 1) {
+      for (let y = Math.max(0, minY); y <= Math.min(this.worldRows - 1, maxY); y += 1) {
+        for (let x = Math.max(0, minX); x <= Math.min(this.worldCols - 1, maxX); x += 1) {
           this.services.state.removeCell(x, y);
           this.terrainOverrides.set(this.key(x, y), 'plains');
           this.setAbsoluteElevation(x, y, elevation);
@@ -13607,8 +13610,8 @@ export class ThreeGame {
       maxY: number,
       elevation = 0,
     ): void => {
-      for (let y = Math.max(0, minY); y <= Math.min(SIZE - 1, maxY); y += 1) {
-        for (let x = Math.max(0, minX); x <= Math.min(SIZE - 1, maxX); x += 1) {
+      for (let y = Math.max(0, minY); y <= Math.min(this.worldRows - 1, maxY); y += 1) {
+        for (let x = Math.max(0, minX); x <= Math.min(this.worldCols - 1, maxX); x += 1) {
           const baseTerrain = this.baseTerrainAt(x, y);
           if (baseTerrain === 'water' || baseTerrain === 'shore') continue;
           this.services.state.removeCell(x, y);
@@ -13646,7 +13649,7 @@ export class ThreeGame {
     ): GridPoint[] => {
       const path = rasterizeWallPath(vertices, closed);
       for (const point of path) {
-        if (point.x < 0 || point.y < 0 || point.x >= SIZE || point.y >= SIZE) continue;
+        if (!this.isInsideWorld(point.x, point.y)) continue;
         place(point.x, point.y, kind, level, options);
       }
       return path;
@@ -13678,8 +13681,8 @@ export class ThreeGame {
     ): GridPoint | null => {
       const normalizedLevel = Math.max(1, Math.min(HARBOR_MAX_LEVEL, Math.floor(level)));
       const candidates: Array<{ point: GridPoint; rotation: number; score: number }> = [];
-      for (let y = 1; y < SIZE - 1; y += 1) {
-        for (let x = 1; x < SIZE - 1; x += 1) {
+      for (let y = 1; y < this.worldRows - 1; y += 1) {
+        for (let x = 1; x < this.worldCols - 1; x += 1) {
           if (this.services.state.getCell(x, y) || this.services.keepSystem.findAtCell(x, y)) continue;
           const coast = this.maritimeSystem.canPlace('harbor', x, y);
           if (!coast) continue;
@@ -13713,7 +13716,7 @@ export class ThreeGame {
         }
       }
     } else if (template === 'urban-city-60x80') {
-      for (const { x, y, kind, level, ...options } of createUrbanCityTemplate(SIZE)) {
+      for (const { x, y, kind, level, ...options } of createUrbanCityTemplate(this.worldCols)) {
         place(x, y, kind, level, options);
       }
     } else if (template === 'twin-fortresses-90x95') {
@@ -13738,80 +13741,128 @@ export class ThreeGame {
         this.services.keepSystem.add(keep);
       }
     } else if (template === 'royal-valley-50x89') {
-      // Handcrafted 50×89 world-unit kingdom using the complete medieval gameplay stack.
-      // The authored ground is 13×23 cells inside the 23×23 ocean-backed world.
-      // Natural generation supplies forests, rocks and ridge resources first; the
-      // prepared areas below deliberately preserve the surrounding wilderness.
-      prepareBuildableArea(8, 6, 13, 13, 0.14);
-      prepareBuildableArea(8, 14, 13, 20, 0.08);
-      prepareBuildableArea(15, 14, 16, 19, 0.06);
+      // True 50×89-tile kingdom. The map is intentionally zoned so the player
+      // can read the fortress, civic core, farms, wilderness and maritime edge
+      // as separate districts at normal gameplay zoom.
+      const castle = { minX: 15, minY: 31, maxX: 30, maxY: 46 };
+      const town = { minX: 13, minY: 48, maxX: 31, maxY: 63 };
+      const farms = { minX: 11, minY: 65, maxX: 31, maxY: 78 };
+      const northVillage = { minX: 14, minY: 16, maxX: 29, maxY: 27 };
 
-      // Central royal fortress: layered walls, four towers, two gates, and a keep.
-      placeWallRect(8, 7, 13, 12, 'wall2', 3, {
+      prepareBuildableArea(castle.minX - 2, castle.minY - 2, castle.maxX + 3, castle.maxY + 4, 0.18);
+      prepareBuildableArea(town.minX, town.minY, town.maxX, town.maxY, 0.08);
+      prepareBuildableArea(farms.minX, farms.minY, farms.maxX, farms.maxY, 0.04);
+      prepareBuildableArea(northVillage.minX, northVillage.minY, northVillage.maxX, northVillage.maxY, 0.1);
+
+      // Royal fortress with a broad wall walk, two controlled entrances and
+      // strong corner silhouettes visible from strategic zoom.
+      placeWallRect(castle.minX, castle.minY, castle.maxX, castle.maxY, 'wall2', 4, {
         battlement: true,
         walkway: true,
       });
-      place(10, 12, 'gate', 3, { rotationMode: 'auto' });
-      place(13, 9, 'gate', 3, { rotationMode: 'auto' });
-      place(8, 7, 'tower', 4, { towerShape: 'round', towerTop: 'conical' });
-      place(13, 7, 'tower', 4, { towerShape: 'round', towerTop: 'conical' });
-      place(8, 12, 'tower', 3, { towerShape: 'square', towerTop: 'openBattlement' });
-      place(13, 12, 'tower', 3, { towerShape: 'square', towerTop: 'openBattlement' });
-      placeKeepTemplate(10, 9, 2, 3, 4, 'towered', true);
+      place(22, castle.maxY, 'gate', 4, { rotationMode: 'auto' });
+      place(castle.maxX, 39, 'gate', 4, { rotationMode: 'auto' });
+      for (const [x, y, shape] of [
+        [castle.minX, castle.minY, 'round'],
+        [castle.maxX, castle.minY, 'round'],
+        [castle.minX, castle.maxY, 'square'],
+        [castle.maxX, castle.maxY, 'square'],
+      ] as Array<[number, number, TowerShape]>) {
+        place(x, y, 'tower', 4, {
+          towerShape: shape,
+          towerTop: shape === 'round' ? 'conical' : 'openBattlement',
+        });
+      }
+      placeKeepTemplate(22, 37, 5, 5, 5, 'towered', true);
+      place(18, 41, 'armyCamp', 4, { rotation: 1 });
+      place(27, 42, 'basilica', 1, { rotation: 0 });
+      place(18, 35, 'manor', 3, { rotation: 1 });
 
-      // Main processional road links the gate to the civic and agricultural quarter.
-      for (let y = 13; y <= 20; y += 1) {
-        if (!this.services.state.getCell(10, y) && this.terrainAt(10, y) !== 'river') {
-          place(10, y, 'stoneRoad');
+      // Main avenue from the royal gate through the city to the agricultural belt.
+      for (let y = castle.maxY + 1; y <= farms.maxY; y += 1) {
+        if (!this.services.state.getCell(22, y) && this.terrainAt(22, y) !== 'river') {
+          place(22, y, 'stoneRoad');
+        }
+      }
+      for (let x = town.minX; x <= town.maxX; x += 1) {
+        if (!this.services.state.getCell(x, 54)) place(x, 54, 'stoneRoad');
+        if (!this.services.state.getCell(x, 60)) place(x, 60, 'dirtRoad');
+      }
+
+      // Civic/residential quarter. Multiple residence levels make the prepared
+      // map exercise the complete settlement progression immediately.
+      place(17, 50, 'cottage', 1, { rotation: 1 });
+      place(20, 50, 'house', 2, { rotation: 1 });
+      place(24, 50, 'manor', 3, { rotation: 3 });
+      place(28, 50, 'villa', 4, { rotation: 3 });
+      place(17, 57, 'house', 2, { rotation: 1 });
+      place(20, 57, 'cottage', 1, { rotation: 0 });
+      place(26, 57, 'manor', 3, { rotation: 2 });
+      place(29, 57, 'cottage', 1, { rotation: 3 });
+      place(24, 53, 'market', 2, { rotation: 0 });
+      place(15, 60, 'mosque', 4, { rotation: 1 });
+      place(29, 61, 'carpenter', 2, { rotation: 3 });
+
+      // Northern satellite village makes the long map useful rather than leaving
+      // its upper half as decorative empty space.
+      for (let x = 16; x <= 27; x += 2) place(x, 22, 'dirtRoad');
+      place(16, 19, 'cottage', 1);
+      place(20, 19, 'house', 2);
+      place(24, 19, 'cottage', 1);
+      place(28, 19, 'market', 1);
+      place(17, 25, 'farm', 2);
+      place(22, 25, 'farm', 2);
+      place(27, 25, 'cowBarn', 2);
+
+      // Productive southern duchy.
+      place(13, 68, 'farm', 3);
+      place(17, 68, 'farm', 2);
+      place(21, 68, 'windmill', 4);
+      place(26, 68, 'farm', 3);
+      place(30, 68, 'cowBarn', 4);
+      place(14, 74, 'farm', 2);
+      place(19, 74, 'farm', 3);
+      place(25, 74, 'farm', 3);
+      place(30, 74, 'farm', 2);
+
+      // Western ridge resources and military support.
+      place(7, 26, 'mine', 3);
+      place(6, 58, 'mine', 2);
+      place(32, 49, 'armyCamp', 3, { rotation: 1 });
+      place(32, 63, 'armyCamp', 2, { rotation: 1 });
+
+      // Fortified river crossing. TowerBridge validation guarantees the path
+      // stays clear and connects real defensive nodes.
+      prepareBuildableArea(32, 50, 41, 54, 0.05);
+      place(33, 52, 'tower', 3, { towerShape: 'round', towerTop: 'openBattlement' });
+      place(40, 52, 'tower', 3, { towerShape: 'round', towerTop: 'openBattlement' });
+      addTemplateBridge({ x: 33, y: 52 }, { x: 40, y: 52 }, 'stone');
+      for (let x = 31; x <= 44; x += 1) {
+        if (this.terrainAt(x, 55) !== 'water' && !this.services.state.getCell(x, 55)) {
+          place(x, 55, 'stoneRoad');
         }
       }
 
-      // Compact but complete settlement progression around a central market.
-      place(8, 14, 'cottage', 1, { rotation: 1 });
-      place(11, 14, 'villa', 4, { rotation: 3 });
-      place(8, 16, 'manor', 3, { rotation: 1 });
-      place(12, 16, 'market', 1, { rotation: 0 });
-      place(8, 18, 'mosque', 3, { rotation: 1 });
-      place(12, 18, 'carpenter', 1, { rotation: 3 });
-      place(9, 15, 'basilica', 1, { rotation: 0 });
+      // Two ports on distant parts of the eastern coastline ensure maritime
+      // gameplay remains relevant across the full 89-tile north/south span.
+      placeHarborTemplate(4, 'tradingBoat', 45, 59);
+      placeHarborTemplate(3, 'transportShip', 45, 23);
+      placeHarborTemplate(2, 'fishingBoat', 45, 75);
 
-      // Food and production district.
-      place(8, 20, 'farm', 3);
-      place(11, 20, 'farm', 2);
-      place(12, 20, 'cowBarn', 3);
-      place(9, 20, 'windmill', 3);
-      place(7, 4, 'mine', 2);
-      place(12, 14, 'armyCamp', 3);
-
-      // A fortified bridge crosses the river to the eastern harbor quarter.
-      place(13, 16, 'tower', 2, { towerShape: 'round', towerTop: 'openBattlement' });
-      place(16, 16, 'tower', 2, { towerShape: 'round', towerTop: 'openBattlement' });
-      addTemplateBridge({ x: 13, y: 16 }, { x: 16, y: 16 }, 'stone');
-      if (!this.services.state.getCell(16, 17)) place(16, 17, 'stoneRoad');
-      if (!this.services.state.getCell(16, 18)) place(16, 18, 'stoneRoad');
-
-      // Two complementary ports exercise the unified harbor upgrade/ship system.
-      placeHarborTemplate(4, 'tradingBoat', 17, 18);
-      placeHarborTemplate(2, 'fishingBoat', 17, 5);
-
-      // A second military post keeps defenders present near the exposed river crossing.
-      if (!this.services.state.getCell(15, 18)) {
-        place(15, 18, 'armyCamp', 2, { rotation: 1 });
-      }
-
-      // Add a readable elevation gradient: high western ridge, gentle castle shelf,
-      // and low eastern river/harbor plain.
-      for (let y = 1; y < SIZE - 1; y += 1) {
-        for (let x = 5; x <= 17; x += 1) {
+      // Deliberate terrain relief: high west, low river/coast, soft rolling valley.
+      for (let y = 2; y < this.worldRows - 2; y += 1) {
+        for (let x = 3; x < this.worldCols - 4; x += 1) {
           const terrain = this.terrainAt(x, y);
           if (terrain === 'water' || terrain === 'river') continue;
-          const westRise = Math.max(0, (9 - x) * 0.14);
-          const northSouthRoll = Math.sin(y * 0.42) * 0.08;
+          const westRise = Math.max(0, (12 - x) * 0.11);
+          const valleyRoll =
+            Math.sin(y * 0.16) * 0.11 +
+            Math.cos((x + y) * 0.13) * 0.07;
           const authored = this.elevationOverrides.get(this.key(x, y)) ?? 0;
           this.setAbsoluteElevation(
             x,
             y,
-            Math.max(authored, Math.max(0.03, 0.08 + westRise + northSouthRoll)),
+            Math.max(authored, Math.max(0.02, 0.07 + westRise + valleyRoll)),
           );
         }
       }
@@ -13845,7 +13896,7 @@ export class ThreeGame {
           place(x, 10, 'dirtRoad');
         }
       }
-      placeHarborTemplate(3, 'transportShip', SIZE - 4, center);
+      placeHarborTemplate(3, 'transportShip', this.worldCols - 4, center);
     } else if (template === 'coastal-peninsula') {
       prepareBuildableArea(7, 7, 16, 8, 0.16);
       prepareBuildableArea(8, 9, 14, 17, 0.12);
@@ -13869,7 +13920,7 @@ export class ThreeGame {
         }
       }
       placeHarborTemplate(2, 'fishingBoat', 5, center + 2);
-      placeHarborTemplate(4, 'tradingBoat', SIZE - 5, center + 2);
+      placeHarborTemplate(4, 'tradingBoat', this.worldCols - 5, center + 2);
     } else if (template === 'split-isles') {
       prepareBuildableArea(4, 8, 9, 12, 0.18);
       prepareBuildableArea(13, 10, 18, 15, 0.1);
@@ -13897,7 +13948,7 @@ export class ThreeGame {
         if (!this.services.state.getCell(x, 13)) place(x, 13, 'dirtRoad');
       }
       placeHarborTemplate(3, 'transportShip', 2, center);
-      placeHarborTemplate(4, 'transportShip', SIZE - 3, center + 2);
+      placeHarborTemplate(4, 'transportShip', this.worldCols - 3, center + 2);
     } else if (template === 'small-castle') {
       const min = center - 3;
       const max = center + 3;
@@ -13955,10 +14006,10 @@ export class ThreeGame {
       place(center + 3, center + 2, 'farm');
       place(center - 3, center - 2, 'farm');
     } else if (template === 'river-castle') {
-      for (let y = 1; y < SIZE - 1; y += 1) {
+      for (let y = 1; y < this.worldCols - 1; y += 1) {
         const x = center + Math.round(Math.sin(y * 0.45) * 1.15);
         this.terrainOverrides.set(this.key(x, y), 'river');
-        if (x + 1 < SIZE) this.terrainOverrides.set(this.key(x + 1, y), 'river');
+        if (x + 1 < this.worldCols) this.terrainOverrides.set(this.key(x + 1, y), 'river');
       }
 
       const left = center - 6;
@@ -13985,16 +14036,16 @@ export class ThreeGame {
     } else if (template === 'mountain-valley') {
       this.applyMountainRange(
         { x: 3, y: 3 },
-        { x: 5, y: SIZE - 4 },
+        { x: 5, y: this.worldCols - 4 },
         true,
       );
       this.applyMountainRange(
-        { x: SIZE - 4, y: 3 },
-        { x: SIZE - 6, y: SIZE - 4 },
+        { x: this.worldCols - 4, y: 3 },
+        { x: this.worldCols - 6, y: this.worldCols - 4 },
         true,
       );
 
-      for (let y = 4; y < SIZE - 3; y += 1) {
+      for (let y = 4; y < this.worldCols - 3; y += 1) {
         for (let x = center - 3; x <= center + 3; x += 1) {
           const existing = this.services.state.getCell(x, y);
           if (
@@ -14011,14 +14062,14 @@ export class ThreeGame {
         }
       }
 
-      for (let y = 3; y < SIZE - 2; y += 1) {
+      for (let y = 3; y < this.worldCols - 2; y += 1) {
         const x = center + Math.round(Math.sin(y * 0.52) * 0.7);
         this.services.state.removeCell(x, y);
         this.terrainOverrides.set(this.key(x, y), 'river');
         this.setAbsoluteElevation(x, y, Math.max(0, 0.55 - y * 0.018));
       }
 
-      for (let y = 5; y < SIZE - 4; y += 2) {
+      for (let y = 5; y < this.worldCols - 4; y += 2) {
         for (const x of [center - 5, center + 5]) {
           if (!this.services.state.getCell(x, y) && this.terrainAt(x, y) !== 'river') {
             place(x, y, 'tree', 1 + ((x + y) % 3));
@@ -14045,8 +14096,8 @@ export class ThreeGame {
         }
       }
 
-      for (let y = 3; y < SIZE - 3; y += 1) {
-        for (let x = center + 5; x < SIZE; x += 1) {
+      for (let y = 3; y < this.worldCols - 3; y += 1) {
+        for (let x = center + 5; x < this.worldCols; x += 1) {
           if (this.baseTerrainAt(x, y) !== 'shore') continue;
           const existing = this.services.state.getCell(x, y);
           if (
@@ -14090,12 +14141,12 @@ export class ThreeGame {
     } else if (template === 'highland-river') {
       this.applyMountainRange(
         { x: 3, y: 4 },
-        { x: SIZE - 4, y: 6 },
+        { x: this.worldCols - 4, y: 6 },
         true,
       );
 
-      for (let y = 4; y < SIZE - 1; y += 1) {
-        const t = (y - 4) / Math.max(1, SIZE - 6);
+      for (let y = 4; y < this.worldCols - 1; y += 1) {
+        const t = (y - 4) / Math.max(1, this.worldCols - 6);
         const x =
           center +
           2 +
@@ -14109,7 +14160,7 @@ export class ThreeGame {
           Math.max(0, 2.45 * (1 - t) + Math.sin(y * 0.35) * 0.08),
         );
 
-        if (x + 1 < SIZE && y < center + 1 && y % 3 === 0) {
+        if (x + 1 < this.worldCols && y < center + 1 && y % 3 === 0) {
           this.services.state.removeCell(x + 1, y);
           this.terrainOverrides.set(this.key(x + 1, y), 'river');
           this.setAbsoluteElevation(x + 1, y, Math.max(0, 2.3 * (1 - t)));
@@ -14133,8 +14184,8 @@ export class ThreeGame {
         }
       }
 
-      for (let y = 8; y < SIZE - 4; y += 2) {
-        for (const x of [4, 6, SIZE - 6, SIZE - 4]) {
+      for (let y = 8; y < this.worldCols - 4; y += 2) {
+        for (const x of [4, 6, this.worldCols - 6, this.worldCols - 4]) {
           if (
             !this.services.state.getCell(x, y) &&
             this.terrainAt(x, y) !== 'water' &&
@@ -14310,9 +14361,9 @@ export class ThreeGame {
       for (let y = center + 6; y <= center + 9; y += 1) place(center, y, 'road');
     } else if (template === 'harbor-capital') {
 
-      const harbor = placeHarborTemplate(4, 'tradingBoat', SIZE - 5, center);
-      const pier = placeHarborTemplate(3, 'transportShip', SIZE - 6, center - 6);
-      const fishing = placeHarborTemplate(2, 'fishingBoat', SIZE - 6, center + 6);
+      const harbor = placeHarborTemplate(4, 'tradingBoat', this.worldCols - 5, center);
+      const pier = placeHarborTemplate(3, 'transportShip', this.worldCols - 6, center - 6);
+      const fishing = placeHarborTemplate(2, 'fishingBoat', this.worldCols - 6, center + 6);
       const landingDock = placeHarborTemplate(1, 'fishingBoat', 5, center);
 
       const portPoints = [harbor, pier, fishing, landingDock].filter(
@@ -14456,7 +14507,7 @@ export class ThreeGame {
       const diagonal = WallSystem.createSnappedPath(
         { x: center + 5, y: center + 4 },
         { x: center + 9, y: center + 8 },
-        SIZE,
+        this.worldCols,
       );
       for (const point of diagonal) {
         place(point.x, point.y, 'wall1', 3, {
@@ -14478,7 +14529,7 @@ export class ThreeGame {
     } else if (template === 'river-port-fort') {
       prepareArea(center - 9, center - 8, center + 8, center + 8, 0.08);
 
-      for (let y = 2; y < SIZE - 2; y += 1) {
+      for (let y = 2; y < this.worldCols - 2; y += 1) {
         const x = center + 4 + Math.round(Math.sin(y * 0.48) * 0.8);
         this.services.state.removeCell(x, y);
         this.terrainOverrides.set(this.key(x, y), 'river');
@@ -14503,8 +14554,8 @@ export class ThreeGame {
       place(center - 5, center - 3, 'farm');
       for (let y = center + 1; y < center + 5; y += 1) place(center - 3, y, 'stoneRoad');
 
-      placeHarborTemplate(1, 'fishingBoat', SIZE - 4, center + 4);
-      placeHarborTemplate(2, 'fishingBoat', SIZE - 5, center - 3);
+      placeHarborTemplate(1, 'fishingBoat', this.worldCols - 4, center + 4);
+      placeHarborTemplate(2, 'fishingBoat', this.worldCols - 5, center - 3);
     } else if (template === 'farming-duchy') {
       prepareArea(center - 11, center - 9, center + 11, center + 9, 0);
 
@@ -14573,8 +14624,8 @@ export class ThreeGame {
     } else if (template === 'forest-citadel') {
       prepareArea(center - 9, center - 8, center + 9, center + 8, 0.12);
 
-      for(let y=2;y<SIZE-2;y+=1){
-        for(let x=2;x<SIZE-2;x+=1){
+      for(let y=2;y<this.worldCols-2;y+=1){
+        for(let x=2;x<this.worldCols-2;x+=1){
           const d=Math.hypot(x-center,y-center);
           if(d>7.5 && (x*17+y*29)%4!==0 && !this.services.state.getCell(x,y)) place(x,y,'tree',1+Math.abs((x+y)%3));
         }
@@ -14650,7 +14701,7 @@ export class ThreeGame {
       place(center+7,center+5,'farm');
       for(let x=center-8;x<=center+8;x+=1) if(!this.services.state.getCell(x,center+1)) place(x,center+1,'stoneRoad');
       for(let y=center-6;y<=center+6;y+=1) if(!this.services.state.getCell(center,y)) place(center,y,'road');
-      placeHarborTemplate(1,'fishingBoat',SIZE-5,center+5);
+      placeHarborTemplate(1,'fishingBoat',this.worldCols-5,center+5);
     } else if (template === 'war-camp') {
       prepareArea(center-11,center-9,center+11,center+9,0.08);
 
@@ -14675,7 +14726,7 @@ export class ThreeGame {
       // Present-day preserved Himeji core on the requested 46×90 authored plot.
       // The renderer uses the closest complete-cell raster for that footprint,
       // while the castle itself remains native, editable Castle Role state.
-      const himejiBounds = himejiLandBounds(SIZE);
+      const himejiBounds = himejiLandBounds(this.worldCols);
       const hx = (localX: number): number => himejiBounds.minX + localX;
       const hy = (localY: number): number => himejiBounds.minY + localY;
       const hp = (localX: number, localY: number): GridPoint => ({ x: hx(localX), y: hy(localY) });
