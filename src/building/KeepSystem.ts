@@ -128,7 +128,7 @@ export class KeepSystem {
 
   validate(
     draft: KeepState | KeepDraft,
-    size: number,
+    size: number | { cols: number; rows: number },
     terrainAt: (x: number, y: number) => TerrainKind,
     elevationAt: (x: number, y: number) => number,
     isOccupied: (x: number, y: number) => boolean,
@@ -137,8 +137,11 @@ export class KeepSystem {
     let minElevation = Number.POSITIVE_INFINITY;
     let maxElevation = Number.NEGATIVE_INFINITY;
 
+    const cols = typeof size === 'number' ? size : size.cols;
+    const rows = typeof size === 'number' ? size : size.rows;
+
     for (const cell of this.footprint(draft)) {
-      if (cell.x < 0 || cell.y < 0 || cell.x >= size || cell.y >= size) {
+      if (cell.x < 0 || cell.y < 0 || cell.x >= cols || cell.y >= rows) {
         return { valid: false, reason: 'Keep foundation extends outside the buildable world.', minElevation: 0, maxElevation: 0 };
       }
 
