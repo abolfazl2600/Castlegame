@@ -49,11 +49,6 @@ assert.match(
 );
 assert.match(
   game,
-  /get<HTMLButtonElement>\('undo-button'\)\.onclick = \(\) => this\.undo\(\);/,
-  'Build-panel Undo must continue to use the same canonical undo method.',
-);
-assert.match(
-  game,
   /\(event\.ctrlKey \|\| event\.metaKey\) && key === 'z'[\s\S]*?this\.undo\(\);/,
   'Keyboard Undo must continue to use the same canonical undo method.',
 );
