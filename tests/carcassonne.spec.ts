@@ -1,5 +1,6 @@
 import { expect, test, type Page } from '@playwright/test';
 import { SAVE_AUTOSAVE_KEY, SAVE_KEY, SAVE_VERSION } from '../src/core/constants';
+import { BattleNavigation } from '../src/battle/BattleNavigation';
 
 type SavedCell = {
   x: number;
@@ -18,6 +19,7 @@ type SavedRecord = {
     cells: SavedCell[];
     keeps?: Array<{ x: number; y: number; width: number; depth: number; floors: number }>;
     terrain?: Array<{ x: number; y: number; kind: string }>;
+    elevations?: Array<{ x: number; y: number; value: number }>;
   };
 };
 
@@ -171,6 +173,24 @@ function cellAt(record: SavedRecord, x: number, y: number): SavedCell | undefine
   return record.data.cells.find((cell) => cell.x === x && cell.y === y);
 }
 
+function navigationFor(record: SavedRecord): BattleNavigation {
+  const key = (x: number, y: number) => `${x},${y}`;
+  const cells = new Map(record.data.cells.map((cell) => [key(cell.x, cell.y), cell]));
+  const terrain = new Map((record.data.terrain ?? []).map((cell) => [key(cell.x, cell.y), cell.kind]));
+  const elevations = new Map((record.data.elevations ?? []).map((cell) => [key(cell.x, cell.y), cell.value]));
+
+  return new BattleNavigation({
+    size: 22,
+    terrainAt: (x, y) => (terrain.get(key(x, y)) ?? 'plains') as any,
+    elevationAt: (x, y) => elevations.get(key(x, y)) ?? 0,
+    kindAt: (x, y) => cells.get(key(x, y))?.kind as any,
+    cellAt: (x, y) => cells.get(key(x, y)) as any,
+    fortificationTopAt: () => 0,
+    keeps: () => (record.data.keeps ?? []) as any,
+    gatePassable: (x, y) => cells.get(key(x, y))?.gateOpen !== false,
+  });
+}
+
 test('Carcassonne template serializes its documented landmark plan', async ({ page }) => {
   await loadQaRuntime(page);
   await applyCarcassonne(page);
@@ -194,6 +214,26 @@ test('Carcassonne template serializes its documented landmark plan', async ({ pa
   const riverCount = (record.data.terrain ?? []).filter((cell) => cell.kind === 'river').length;
   expect(towerCount).toBeGreaterThanOrEqual(24);
   expect(riverCount).toBeGreaterThanOrEqual(22);
+});
+
+test('Carcassonne Narbonnaise and Aude gate routes remain traversable in production navigation', async ({ page }) => {
+  await loadQaRuntime(page);
+  await applyCarcassonne(page);
+
+  const record = await readAutosave(page);
+  const navigation = navigationFor(record);
+
+  const narbonnaise = navigation.findPath({ x: 20, y: 9 }, { x: 16, y: 9 }, false);
+  expect(narbonnaise.at(-1)).toEqual({ x: 16, y: 9 });
+  const eastCells = new Set(narbonnaise.map((point) => `${point.x},${point.y}`));
+  expect(eastCells.has('19,9')).toBe(true);
+  expect(eastCells.has('17,9')).toBe(true);
+
+  const aude = navigation.findPath({ x: 3, y: 13 }, { x: 7, y: 13 }, false);
+  expect(aude.at(-1)).toEqual({ x: 7, y: 13 });
+  const westCells = new Set(aude.map((point) => `${point.x},${point.y}`));
+  expect(westCells.has('3,13')).toBe(true);
+  expect(westCells.has('6,13')).toBe(true);
 });
 
 test('Carcassonne remains editable and gate state survives the normal autosave/reload path', async ({ page }) => {
