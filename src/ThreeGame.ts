@@ -13532,7 +13532,6 @@ export class ThreeGame {
     this.worldSeeded = true;
 
     const centerX = Math.floor(this.worldCols / 2);
-    const centerY = Math.floor(this.worldRows / 2);
     // Legacy prepared worlds are square; retain their existing coordinate shorthand.
     const center = centerX;
     const place = (
@@ -13831,9 +13830,10 @@ export class ThreeGame {
       place(32, 49, 'armyCamp', 3, { rotation: 1 });
       place(32, 63, 'armyCamp', 2, { rotation: 1 });
 
-      // Fortified river crossing. TowerBridge validation guarantees the path
-      // stays clear and connects real defensive nodes.
-      prepareBuildableArea(32, 50, 41, 54, 0.05);
+      // Fortified river crossing. Prepare only the two bridgeheads so the
+      // authored river remains intact beneath the elevated crossing.
+      prepareBuildableArea(31, 50, 33, 54, 0.05);
+      prepareBuildableArea(40, 50, 42, 54, 0.05);
       place(33, 52, 'tower', 3, { towerShape: 'round', towerTop: 'openBattlement' });
       place(40, 52, 'tower', 3, { towerShape: 'round', towerTop: 'openBattlement' });
       addTemplateBridge({ x: 33, y: 52 }, { x: 40, y: 52 }, 'stone');
