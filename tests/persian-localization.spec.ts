@@ -153,7 +153,7 @@ test('Privacy panel and native Save prompt are localized; values remain separate
   await expect(page.locator('#settings-modal')).toBeHidden();
   await expect(page.locator('.save-load-backdrop')).toBeVisible();
   await expect(page.locator('#save-load-title')).toHaveText('ذخیره بازی');
-  await expect(page.locator('.save-load-backdrop .template-card').first()).toContainText('جایگاه ذخیره ۱');
+  await expect(page.locator('.save-load-backdrop .save-load-card').first()).toContainText('جایگاه ذخیره ۱');
 
   const dialogText: string[] = [];
   page.once('dialog', async dialog => {
