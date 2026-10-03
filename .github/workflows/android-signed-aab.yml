@@ -99,6 +99,22 @@ jobs:
             exit 1
           }
 
+      - name: Generate unique Android version code
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Seconds since 2020-01-01 UTC. Monotonic across release builds and
+          # independent from workflow-specific run counters.
+          EPOCH_2020=1577836800
+          NOW="$(date +%s)"
+          VERSION_CODE=$((NOW - EPOCH_2020))
+          if (( VERSION_CODE < 1 || VERSION_CODE > 2100000000 )); then
+            echo "::error::Generated Android versionCode is outside the valid range: $VERSION_CODE"
+            exit 1
+          fi
+          echo "ANDROID_VERSION_CODE=$VERSION_CODE" >> "$GITHUB_ENV"
+          echo "Android versionCode: $VERSION_CODE"
+
       # Only this and the Gradle/verification steps receive signing secrets.
       - name: Decode temporary upload keystore
         shell: bash
@@ -141,7 +157,7 @@ jobs:
           ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
           ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
           ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
-        run: ./gradlew --no-daemon --no-build-cache --no-configuration-cache bundleRelease
+        run: ./gradlew --no-daemon --no-build-cache --no-configuration-cache -PandroidVersionCode="$ANDROID_VERSION_CODE" bundleRelease
 
       - name: Verify AAB signature and pinned upload certificate
         shell: bash
@@ -159,9 +175,9 @@ jobs:
           set -euo pipefail
           AAB="android/app/build/outputs/bundle/release/app-release.aab"
           VERSION_NAME="$(sed -nE 's/^[[:space:]]*versionName "([^"]+)".*/\1/p' android/app/build.gradle | head -n 1)"
-          VERSION_CODE="$(sed -nE 's/^[[:space:]]*versionCode ([0-9]+).*/\1/p' android/app/build.gradle | head -n 1)"
+          VERSION_CODE="${ANDROID_VERSION_CODE:-}"
           if [[ -z "$VERSION_NAME" || -z "$VERSION_CODE" ]]; then
-            echo "::error::versionName/versionCode are missing in android/app/build.gradle."
+            echo "::error::versionName or generated versionCode is missing."
             exit 1
           fi
           SAFE_NAME="$(printf '%s' "$VERSION_NAME" | tr -cs 'A-Za-z0-9._-' '-')"
