@@ -12,6 +12,7 @@ import type { GameExtension } from './core/GameExtension';
 import type { GameState } from './state/GameState';
 import { SAVE_KEY, SAVE_VERSION, TILE_SIZE, WORLD_COLS } from './core/constants';
 import { WallSystem } from './building/WallSystem';
+import type { AutomaticWallAccess } from './building/CastleDetailGenerator';
 import { AUTOMATIC_WALL_LEVEL, CastleBlockSystem, castleDamageStage, castleHeightFor, type CastleBlockState } from './building/CastleBlockSystem';
 import { ConstructionAnimationSystem } from './rendering/ConstructionAnimationSystem';
 import { AmbientFaunaSystem } from './rendering/AmbientFaunaSystem';
@@ -464,6 +465,7 @@ export class ThreeGame {
   });
   private readonly constructionObjects = new Map<string, THREE.Object3D>();
   private castleBlocksByCell = new Map<string, CastleBlockState>();
+  private automaticWallAccessCache: AutomaticWallAccess[] | null = null;
   private readonly maritimeSystem = new MaritimeSystem({
     size: SIZE,
     terrainAt: (x, y) => this.terrainAt(x, y),
@@ -882,6 +884,7 @@ export class ThreeGame {
         castleLinksAt: (x, y) => this.castleBlocksByCell.get(this.key(x, y))?.links,
         keeps: () => this.services.keepSystem.entries(),
         towerBridges: () => Array.from(this.towerBridges.values()).map((bridge) => ({ ...bridge })),
+        automaticWallAccess: () => this.getAutomaticWallAccess(),
         setWallBattleVisibility: (x, y, visible) => this.setBattleWallVisibility(x, y, visible),
         buildingDamageAt: (x, y) => this.services.state.getCell(x, y)?.damage ?? 0,
         onWallDamage: (x, y, damage) => {
@@ -2116,6 +2119,88 @@ export class ThreeGame {
   }
 
 
+  private getAutomaticWallAccess(): AutomaticWallAccess[] {
+    if (this.automaticWallAccessCache) return this.automaticWallAccessCache;
+
+    this.automaticWallAccessCache = this.services.detailGenerator.wallAccessPlan(
+      this.services.state.entries(),
+      {
+        size: SIZE,
+        terrainBuildable: (x, y) => {
+          const terrain = this.terrainAt(x, y);
+          return terrain !== 'water' && terrain !== 'river' && terrain !== 'mountain';
+        },
+        isOccupied: (x, y) =>
+          Boolean(this.services.state.getCell(x, y)) ||
+          Boolean(this.services.keepSystem.findAtCell(x, y)),
+        linksAt: (x, y) => this.castleBlocksByCell.get(this.key(x, y))?.links,
+      },
+    );
+
+    return this.automaticWallAccessCache;
+  }
+
+  private makeAutomaticWallStairs(access: AutomaticWallAccess): THREE.Group {
+    const group = new THREE.Group();
+    const position = this.gridToWorld(access.groundX, access.groundY);
+    group.position.set(
+      position.x,
+      this.terrainElevation(access.groundX, access.groundY),
+      position.z,
+    );
+    group.rotation.y = access.rotation * Math.PI / 2;
+    group.userData.automaticWallAccess = true;
+    group.userData.targetCell = { x: access.targetX, y: access.targetY };
+
+    const target = this.services.state.getCell(access.targetX, access.targetY);
+    if (!target || !this.isWallFamily(target.kind)) return group;
+
+    const stone = this.medievalMaterials.castleStone(
+      this.stoneStyle,
+      'walkway',
+      access.targetX,
+      access.targetY,
+    );
+    const base = this.medievalMaterials.castleStone(
+      this.stoneStyle,
+      'foundation',
+      access.targetX,
+      access.targetY,
+    );
+    const stepMaterial = target.kind === 'wall2' ? this.medievalMaterials.timber : stone;
+    const groundLocalY = 2.18;
+    const targetTopWorld =
+      this.terrainElevation(access.targetX, access.targetY) +
+      this.fortificationTopLocal(target);
+    const landingY = Math.max(
+      groundLocalY + 1.4,
+      targetTopWorld - this.terrainElevation(access.groundX, access.groundY),
+    );
+    const rise = landingY - groundLocalY;
+    const run = 3.2;
+    const steps = THREE.MathUtils.clamp(Math.ceil(rise / 0.38), 7, 18);
+    const stepDepth = run / steps + 0.055;
+
+    this.addBox(group, 1.52, 0.24, 3.36, base, 0, 2.08, -0.14);
+
+    for (let i = 0; i < steps; i += 1) {
+      const t = (i + 1) / steps;
+      const z = 1.42 - t * run;
+      const y = groundLocalY + t * rise - 0.11;
+      this.addBox(group, 1.28, 0.22, stepDepth, stepMaterial, 0, y, z);
+    }
+
+    // A short landing overlaps the standardized wall face without becoming a
+    // separate buildable structure. Navigation uses this same derived access.
+    this.addBox(group, 1.34, 0.2, 1.34, stone, 0, landingY - 0.1, -2.48);
+    for (const x of [-0.7, 0.7]) {
+      this.addBox(group, 0.11, Math.max(0.7, rise * 0.42), 0.11, base, x, 2.22 + rise * 0.21, -0.34);
+    }
+
+    instanceStaticCastleBoxes(group);
+    return group;
+  }
+
   private syncIdleDefenderGarrison(force = false): void {
     const battleSystem = (this as unknown as { battleSystem?: BattleSystem }).battleSystem;
     if (!battleSystem || battleSystem.isActive()) return;
@@ -2124,6 +2209,7 @@ export class ThreeGame {
 
   private redraw(): void {
     const redrawStart = this.visualBenchmark ? performance.now() : 0;
+    this.automaticWallAccessCache = null;
     this.ambientMotion.clearSceneBound();
     this.clearGroup(this.terrainLayer);
     this.clearGroup(this.buildLayer);
@@ -2152,6 +2238,10 @@ export class ThreeGame {
       this.buildObjectsByCell.set(this.key(cell.x, cell.y), building);
       this.constructionObjects.set(`cell:${cell.x},${cell.y}`, building);
       this.buildLayer.add(building);
+    }
+
+    for (const access of this.getAutomaticWallAccess()) {
+      this.buildLayer.add(this.makeAutomaticWallStairs(access));
     }
 
     for (const keep of this.services.keepSystem.entries()) {
@@ -4445,6 +4535,7 @@ export class ThreeGame {
         direction,
         TILE,
         links.length >= 2,
+        height,
       ).flag,
     );
 
@@ -4593,6 +4684,7 @@ export class ThreeGame {
       direction,
       run,
       importantConnection,
+      height,
     );
 
     const slitY = 2.58 + Math.min(height * 0.52, 2.55 + Math.max(0, level - 1) * 0.3);
@@ -4612,31 +4704,16 @@ export class ThreeGame {
       }
     }
 
-    const tall = height >= 7.1;
-    const buttressCount =
-      kind === 'wall3' ? 2 : tall && !importantConnection ? 1 : importantConnection && tall ? 1 : 0;
-
-    for (let i = 0; i < buttressCount; i += 1) {
-      const z = buttressCount === 1 ? run * 0.55 : run * (0.38 + i * 0.34);
-      for (const side of [-1, 1]) {
-        const style =
-          kind === 'wall3'
-            ? 'heavy'
-            : height >= 9.2
-              ? 'stepped'
-              : Math.abs(gx * 17 + gy * 29 + i) % 3 === 0
-                ? 'angled'
-                : 'simple';
-        this.addContextualButtress(
-          arm,
-          style,
-          side * (thickness / 2 + 0.28),
-          z,
-          Math.min(height * 0.5, 4.1),
-          accentMaterial,
-          side,
-        );
-      }
+    for (const buttress of detailPlan.buttresses) {
+      this.addContextualButtress(
+        arm,
+        buttress.style,
+        buttress.side * (thickness / 2 + 0.28),
+        buttress.z,
+        buttress.height,
+        accentMaterial,
+        buttress.side,
+      );
     }
 
     const shouldMachicolate =
@@ -11206,8 +11283,8 @@ export class ThreeGame {
   }
 
   private migrateKind(kind: string, level: number, saveVersion: number): { kind: TileKind; level: number } | null {
-    // Wall-connected stairs/ramps/ladders were removed from the visual language.
-    // Legacy saves discard them instead of recreating the old bulky wall attachments.
+    // Explicit legacy wall-access cells are no longer authoritative.
+    // They are discarded so the current procedural wall detail plan can regenerate safe access.
     if (
       kind === 'stairTower' ||
       kind === 'stoneStairs' ||
@@ -11343,7 +11420,7 @@ export class ThreeGame {
       '<section class="settings-section build-settings-section">' +
       '<button class="settings-section-header" type="button" aria-expanded="false">' +
       '<span class="settings-section-title">Advanced Editor</span>' +
-      '<span id="build-settings-summary" class="settings-section-summary">Manual architecture & terrain tuning</span>' +
+      '<span id="build-settings-summary" class="settings-section-summary">Architecture & terrain tuning</span>' +
       '<span class="settings-section-chevron" aria-hidden="true">▶</span>' +
       '</button>' +
       '<div class="settings-section-items">' +
@@ -11355,7 +11432,6 @@ export class ThreeGame {
       '<label class="settings-row"><span>Tower Bridge</span><select id="tower-bridge-kind">' +
       '<option value="stone" selected>Stone Bridge</option><option value="wood">Wooden Bridge</option>' +
       '</select></label>' +
-      '<div class="settings-hint">Battlements, walkways, foundations, buttresses and machicolations are generated automatically.</div>' +
       '<div class="settings-title">Tower</div>' +
       '<label class="settings-row"><span>Base</span><select id="tower-shape">' +
       '<option value="square">Square Tower</option><option value="round" selected>Round Tower</option>' +
