@@ -225,165 +225,243 @@
         <div id="help-modal" class="modal-backdrop" hidden>
           <section class="help-modal" role="dialog" aria-modal="true" aria-labelledby="help-title">
             <div class="help-modal-header">
-              <div>
+              <div class="help-modal-heading">
                 <div class="eyebrow">CASTLE ROLE · 3D</div>
                 <h2 id="help-title">Game Help</h2>
+                <p class="help-modal-intro">Start with the essentials, then open only the topic you need.</p>
               </div>
               <button id="help-close-button" class="icon-button" type="button" aria-label="Close help">×</button>
             </div>
 
-            <div class="help-grid">
-              <div class="help-section">
-                <strong>Castle Battle & Siege</strong>
-                <span>Army sizes can be typed directly or changed with ±. Swordsmen, Spearmen, Archers, and Crossbowmen have different health, reach, speed, damage, and firing cadence.</span>
-                <span>Attackers evaluate open entrances, breaches, ladders, wall height, and nearby defenders. Spearmen join melee assaults while Crossbowmen provide slower heavy ranged fire.</span>
-                <span>Wall damage now progresses through damaged, heavy, partially collapsed, and fully breached states before navigation opens through the wall.</span>
-                <span>Army Camps are upgradeable military buildings with four levels. Select a camp with no build tool active, open Build Settings, and upgrade it from Field Camp to Reinforced Camp, Command Camp, and finally Royal War Camp; every level changes the 3D design. Siege ladders, Wall Walk combat, breach response, and battle-only castle restoration remain active.</span>
-              </div>
+            <div class="help-modal-body">
+              <section class="help-quick-start" aria-labelledby="help-quick-title">
+                <div class="help-block-heading">
+                  <div>
+                    <span class="help-block-kicker">START HERE</span>
+                    <h3 id="help-quick-title">Quick Start</h3>
+                  </div>
+                  <span class="help-block-note">4 essentials</span>
+                </div>
 
-              <div class="help-section">
-                <strong>Living Settlement & Farms</strong>
-                <span>Residential cells contain denser medieval neighborhoods with 5–6 small homes, alleys, wells, fences, timber framing, windows, chimneys, and yard details.</span>
-                <span>Visible isometric-scale citizens are generated from housing and wander between homes, roads, farms, and village destinations.</span>
-                <span>Farmers are assigned to Farms, travel from nearby housing to their fields, work there for a period, then return home.</span>
-                <span>Farm and Cow Barn are now upgradeable agriculture buildings with four levels. Select one in Inspect mode and use its Upgrade card in Build Settings; each level changes the 3D structure from a simple working site into a larger, more developed farm complex.</span>
-                <span>Farms include crop beds, furrows, irrigation, shed, hay, scarecrow, field bridge, fencing, and progressively larger storage buildings. Cow Barn upgrades add more livestock, feeding infrastructure, larger barns, stone foundations, and a Level 4 stockyard with a silo and formal entrance.</span>
-              </div>
+                <div class="help-quick-grid">
+                  <article class="help-quick-card">
+                    <span class="help-step-number">01</span>
+                    <strong>Choose a view</strong>
+                    <span>Use 2D Plan for precise layout work and 3D View to inspect the finished castle and settlement.</span>
+                  </article>
+                  <article class="help-quick-card">
+                    <span class="help-step-number">02</span>
+                    <strong>Build and edit</strong>
+                    <span>Select a build tool, then place directly or drag A → B for walls, roads, and supported terrain tools.</span>
+                  </article>
+                  <article class="help-quick-card">
+                    <span class="help-step-number">03</span>
+                    <strong>Inspect and upgrade</strong>
+                    <span>Clear the active build tool, select a building, and use Build Settings when that structure supports upgrades.</span>
+                  </article>
+                  <article class="help-quick-card">
+                    <span class="help-step-number">04</span>
+                    <strong>Move the camera</strong>
+                    <span>In 3D, one finger or mouse drag orbits; two fingers pan/zoom. In 2D, drag to pan and pinch or wheel to zoom.</span>
+                  </article>
+                </div>
+              </section>
 
-              <div class="help-section">
-                <strong>Settlement Economy</strong>
-                <span>Farms produce Grain, Orchards produce Apples, Cow Barns produce Food, Mines produce Stone, and Huts/Trees contribute Wood.</span>
-                <span>Windmills consume Grain to make Flour; Markets convert part of that Flour into ready Food. Population consumes edible reserves every deterministic economy tick.</span>
-                <span>Construction costs Wood/Stone. Enable Free Build in God Mode to build without resource costs. Resource totals, net rates, storage capacity, and food-shortage state appear inside Build.</span>
-                <span>Economy inventory is saved with the world; older saves without economy data receive backward-compatible starter resources.</span>
-              </div>
+              <nav class="help-topic-nav" aria-label="Help topics">
+                <a href="#help-castle">Castle Building</a>
+                <a href="#help-world">World & Settlement</a>
+                <a href="#help-battle">Battle & Economy</a>
+                <a href="#help-controls">Controls & Recovery</a>
+              </nav>
 
-              <div class="help-section">
-                <strong>Water & Terrain Templates</strong>
-                <span>River tiles contain flowing water immediately wherever the River tool is used; they no longer require connection to another water source.</span>
-                <span>Natural trees, rocks, huts, and mountain props can be replaced directly by river water; constructed structures must still be removed first.</span>
-                <span>Terrain Templates provide editable Rolling Plains, Twin Rivers, Alpine Basin, Coastal Cliffs, Forest Highlands, Marsh Island, and Terraced Hills starts.</span>
-              </div>
+              <section class="help-topic-group" id="help-castle" aria-labelledby="help-castle-title">
+                <div class="help-topic-heading">
+                  <span class="help-topic-index">01</span>
+                  <div>
+                    <h3 id="help-castle-title">Castle Building</h3>
+                    <p>Planning, walls, keeps, bridges, and procedural castle systems.</p>
+                  </div>
+                </div>
 
-              <div class="help-section">
-                <strong>2D Plan → 3D Castle</strong>
-                <span>Use 2D Plan for a clean top-down layout of walls, towers, roads, terrain, houses, and the Keep.</span>
-                <span>All edits use the same game state, so switching to 3D View immediately shows the constructed result.</span>
-                <span>New saves open in 2D Plan; existing saves keep their normal 3D start.</span>
-              </div>
+                <div class="help-topic-grid">
+                  <details class="help-section" open>
+                    <summary><span>Walls, Towers & Diagonal Building</span></summary>
+                    <div class="help-section-body">
+                      <span>1 / 2 / 3 — Stone / Wooden / Reinforced Wall. Drag A → B to build a snapped straight or diagonal run.</span>
+                      <span>Wall drag snaps to the nearest 45° direction across all eight compass angles. The cyan ghost preview shows the final path before placement.</span>
+                      <span>Wall thickness, height, battlements, and walkway remain player-controlled. Tower bases and roof/platform styles remain modular.</span>
+                      <span>Wall junctions are analyzed automatically so straight-to-diagonal transitions receive continuous corners, ramparts, and terrain-aware foundations.</span>
+                    </div>
+                  </details>
 
-              <div class="help-section">
-                <strong>Castle Architecture Expansion</strong>
-                <span>Walls and towers stay upright on uneven terrain; stepped foundations extend downward automatically instead of tilting the structure.</span>
-                <span>Stone Style changes the complete stone language between Limestone, Dark Stone, Sandstone, and Rough Frontier without rebuilding geometry.</span>
-                <span>Tower roofs include compatible Conical, Hipped, Pyramidal, Open Battlement, and Timber Roof silhouettes.</span>
-                <span>Buttresses and machicolations are generated contextually from wall height, thickness, connections, tower importance, and terrain.</span>
-              </div>
+                  <details class="help-section">
+                    <summary><span>Modular Keep & Architecture</span></summary>
+                    <div class="help-section-body">
+                      <span>P — Modular Keep. Choose width, depth, floors, roof style, corner towers, battlements, position, and rotation.</span>
+                      <span>Each floor is built as its own architectural level. The Keep automatically generates its entrance, openings, upper windows, stairs, tower details, and flags.</span>
+                      <span>Stone Style changes the castle between Limestone, Dark Stone, Sandstone, and Rough Frontier without rebuilding geometry.</span>
+                      <span>Walls and towers stay upright on uneven terrain; stepped foundations extend downward instead of tilting the structure.</span>
+                    </div>
+                  </details>
 
-              <div class="help-section">
-                <strong>Tower Bridges & Automatic Wall Access</strong>
-                <span>D — Tower Bridge: select one main tower, then a compatible second tower. Hover shows a green/red bridge preview.</span>
-                <span>Choose Stone or Wooden bridge in Castle Architecture settings. Selecting an existing tower pair again removes its bridge.</span>
-                <span>Wall networks with Top Walkway automatically receive derived stairs, ramps, or ladders where vertical access is required.</span>
-                <span>Tower Bridges and generated access join the elevated battle navigation network, including movement after defenders gain wall access.</span>
-              </div>
+                  <details class="help-section">
+                    <summary><span>Tower Bridges & Automatic Wall Access</span></summary>
+                    <div class="help-section-body">
+                      <span>D — Tower Bridge: select one main tower, then a compatible second tower. Hover shows a green/red bridge preview.</span>
+                      <span>Choose Stone or Wooden bridge in Castle Architecture settings. Selecting an existing tower pair again removes its bridge.</span>
+                      <span>Wall networks with Top Walkway automatically receive stairs, ramps, or ladders where vertical access is required.</span>
+                      <span>Tower Bridges and generated access join the elevated battle navigation network, including movement after defenders gain wall access.</span>
+                    </div>
+                  </details>
 
-              <div class="help-section">
-                <strong>Design Philosophy</strong>
-                <span>You control major architecture: walls, towers, roof style, global stone style, and Tower Bridges. Wall access and defensive weapon positions are derived automatically.</span>
-                <span>Foundations, buttress style/spacing, machicolations, masonry variation, openings, and structural supports remain automatic.</span>
-              </div>
+                  <details class="help-section">
+                    <summary><span>2D Plan → 3D Castle</span></summary>
+                    <div class="help-section-body">
+                      <span>Use 2D Plan for a clean top-down layout of walls, towers, roads, terrain, houses, and the Keep.</span>
+                      <span>All edits use the same game state, so switching to 3D View immediately shows the constructed result.</span>
+                      <span>New saves open in 2D Plan; existing saves keep their normal 3D start.</span>
+                    </div>
+                  </details>
 
-              <div class="help-section">
-                <strong>Modular Keep Builder</strong>
-                <span>P — Modular Keep.</span>
-                <span>Choose width, depth, floors, roof style, corner towers, battlements, position, and rotation.</span>
-                <span>Each floor is built as its own architectural level instead of stretching one model.</span>
-                <span>The Keep automatically generates entrance, defensive openings, upper windows, stairs, tower details, and flags.</span>
-              </div>
+                  <details class="help-section">
+                    <summary><span>Procedural Castle Details</span></summary>
+                    <div class="help-section-body">
+                      <span>Lower Keep floors favor arrow slits; upper floors receive more windows. Wall arrow slits avoid important junctions and supports.</span>
+                      <span>Buttresses and machicolations are generated contextually from wall height, thickness, connections, tower importance, and terrain.</span>
+                      <span>Flags are intentionally rare and animate subtly. Generation is deterministic, so Save/Load reconstructs the same architectural details.</span>
+                    </div>
+                  </details>
 
-              <div class="help-section">
-                <strong>Diagonal Walls</strong>
-                <span>Wall drag now snaps to the nearest 45° direction.</span>
-                <span>Supported directions cover all eight compass angles.</span>
-                <span>The cyan ghost preview shows the actual final path before placement.</span>
-                <span>Diagonal foundations, walkways, battlements, arrow slits, and terrain adaptation are generated automatically.</span>
-              </div>
+                  <details class="help-section">
+                    <summary><span>What You Control vs. What Is Automatic</span></summary>
+                    <div class="help-section-body">
+                      <span>You control major architecture: walls, towers, roof style, global stone style, Tower Bridges, wall height, thickness, battlements, and walkways.</span>
+                      <span>Foundations, corner solutions, wall access, buttress spacing, machicolations, masonry variation, defensive openings, and structural supports are derived automatically.</span>
+                    </div>
+                  </details>
+                </div>
+              </section>
 
-              <div class="help-section">
-                <strong>Automatic Corners</strong>
-                <span>Wall junctions are analyzed automatically.</span>
-                <span>Square, rounded, reinforced, turret, and buttressed corner solutions are selected from wall height, thickness, angle, and importance.</span>
-                <span>Straight-to-diagonal transitions retain continuous ramparts without a manual corner tool.</span>
-              </div>
+              <section class="help-topic-group" id="help-world" aria-labelledby="help-world-title">
+                <div class="help-topic-heading">
+                  <span class="help-topic-index">02</span>
+                  <div>
+                    <h3 id="help-world-title">World & Settlement</h3>
+                    <p>Citizens, farms, terrain, rivers, roads, coasts, and harbor progression.</p>
+                  </div>
+                </div>
 
-              <div class="help-section">
-                <strong>Automatic Castle Access</strong>
-                <span>Stairs, ladders, and ramps are no longer primary build-menu tools.</span>
-                <span>Wall networks with walkways receive deterministic access points where required.</span>
-                <span>Towers and gates are preferred access anchors; longer isolated walls receive additional access automatically.</span>
-                <span>Access is recalculated whenever the castle or terrain redraws after an architectural change.</span>
-              </div>
+                <div class="help-topic-grid">
+                  <details class="help-section">
+                    <summary><span>Living Settlement & Farm Upgrades</span></summary>
+                    <div class="help-section-body">
+                      <span>Residential cells contain denser medieval neighborhoods with small homes, alleys, wells, fences, timber framing, windows, chimneys, and yard details.</span>
+                      <span>Visible citizens wander between homes, roads, farms, and village destinations. Farmers travel from nearby housing to their assigned fields, work, then return home.</span>
+                      <span>Farm and Cow Barn are four-level upgradeable agriculture buildings. Select one in Inspect mode and use its Upgrade card in Build Settings.</span>
+                      <span>Farm upgrades add crop beds, irrigation, storage and field details; Cow Barn upgrades add livestock, feeding infrastructure, larger barns, stone foundations, and a Level 4 stockyard.</span>
+                    </div>
+                  </details>
 
-              <div class="help-section">
-                <strong>Procedural Details</strong>
-                <span>Lower Keep floors favor arrow slits; upper floors receive more windows.</span>
-                <span>Wall arrow slits avoid important junctions and supports.</span>
-                <span>Flags are intentionally rare and animate subtly.</span>
-                <span>Generation is deterministic, so Save/Load reconstructs the same architectural details.</span>
-              </div>
+                  <details class="help-section">
+                    <summary><span>Terrain Editing & Mountains</span></summary>
+                    <div class="help-section-body">
+                      <span>Raise / Lower / Flatten / Smooth / Hill / Cliff remain available. Lower is the supported tool for decreasing terrain elevation.</span>
+                      <span>Mountain creates a broad multi-level formation; repeated clicks grow ridges and peaks instead of a square raised tile.</span>
+                      <span>Mountain Range (K) uses an A → B drag preview, then generates a varied ridge with secondary peaks, valleys, rocky slopes, foothills, and lower-slope trees.</span>
+                      <span>Keep foundations adapt to moderate elevation differences; excessively steep new Keep placements are rejected. Walls follow edited slopes and automatic access is regenerated.</span>
+                    </div>
+                  </details>
 
-              <div class="help-section">
-                <strong>Mountains & Ranges</strong>
-                <span>Mountain creates a broad multi-level formation; repeated clicks grow ridges and peaks instead of a square raised tile.</span>
-                <span>Mountain Range (K) uses an A → B drag preview, then generates a varied ridge with secondary peaks, valleys, rocky slopes, foothills, and lower-slope trees.</span>
-                <span>Mountain forests thin out automatically as elevation and slope increase.</span>
-              </div>
+                  <details class="help-section">
+                    <summary><span>Water & Terrain Templates</span></summary>
+                    <div class="help-section-body">
+                      <span>River tiles contain flowing water immediately wherever the River tool is used; they do not require connection to another water source.</span>
+                      <span>Natural trees, rocks, huts, and mountain props can be replaced directly by river water; constructed structures must still be removed first.</span>
+                      <span>Terrain Templates provide editable Rolling Plains, Twin Rivers, Alpine Basin, Coastal Cliffs, Forest Highlands, Marsh Island, and Terraced Hills starts.</span>
+                    </div>
+                  </details>
 
-              <div class="help-section">
-                <strong>Terrain Editing</strong>
-                <span>Raise / Lower / Flatten / Smooth / Hill / Cliff remain available. Lower is the supported tool for decreasing terrain elevation.</span>
-                <span>Keep foundations adapt to moderate elevation differences; excessively steep new Keep placements are rejected.</span>
-                <span>Walls follow edited slopes and automatic access is regenerated after terrain changes.</span>
-              </div>
+                  <details class="help-section">
+                    <summary><span>World, Roads & Harbor</span></summary>
+                    <div class="help-section-body">
+                      <span>The coast transitions through grass, coastal vegetation, beach/rock, wet shore, shallow water, and deep ocean with selective cliffs, stones, driftwood, shells, and foam.</span>
+                      <span>Road, Dirt Road, and Stone Road support A → B drag preview and automatic intersections; roads crossing rivers render as bridges.</span>
+                      <span>The unified Harbor validates coastline, automatically faces ocean water, and upgrades through four visually distinct levels from Landing Dock to Grand Harbor.</span>
+                    </div>
+                  </details>
+                </div>
+              </section>
 
-              <div class="help-section">
-                <strong>Walls & Towers</strong>
-                <span>1 / 2 / 3 — Stone / Wooden / Reinforced Wall.</span>
-                <span>Drag A → B to build a snapped straight or diagonal run.</span>
-                <span>Wall thickness, height, battlements, and walkway remain player-controlled.</span>
-                <span>Tower bases and roof/platform styles remain modular; defensive openings and occasional flags are automatic.</span>
-              </div>
+              <section class="help-topic-group" id="help-battle" aria-labelledby="help-battle-title">
+                <div class="help-topic-heading">
+                  <span class="help-topic-index">03</span>
+                  <div>
+                    <h3 id="help-battle-title">Battle & Economy</h3>
+                    <p>Siege behavior, army progression, resources, food, and population.</p>
+                  </div>
+                </div>
 
-              <div class="help-section">
-                <strong>Undo / Redo</strong>
-                <span>Ctrl + Z — Undo · Ctrl + Y — Redo.</span>
-                <span>Keep placement/configuration, wall placement, wall height, terrain editing, Move, Rotate, Delete, and other major state changes use architectural snapshots.</span>
-                <span>Generated windows, slits, flags, and automatic access are regenerated from the restored parent state instead of becoming separate Undo steps.</span>
-              </div>
+                <div class="help-topic-grid">
+                  <details class="help-section">
+                    <summary><span>Castle Battle & Siege</span></summary>
+                    <div class="help-section-body">
+                      <span>Army sizes can be typed directly or changed with ±. Swordsmen, Spearmen, Archers, and Crossbowmen have different health, reach, speed, damage, and firing cadence.</span>
+                      <span>Attackers evaluate open entrances, breaches, ladders, wall height, and nearby defenders. Spearmen join melee assaults while Crossbowmen provide slower heavy ranged fire.</span>
+                      <span>Wall damage progresses through damaged, heavy, partially collapsed, and fully breached states before navigation opens through the wall.</span>
+                      <span>Army Camps have four upgrade levels from Field Camp through Royal War Camp. Each level changes the 3D design while Siege ladders, Wall Walk combat, breach response, and battle-only castle restoration remain active.</span>
+                    </div>
+                  </details>
 
-              <div class="help-section">
-                <strong>World, Roads & Harbor</strong>
-                <span>The coast now reads as grass → coastal vegetation → beach/rock → wet shore → shallow water → deep ocean.</span>
-                <span>Beach width varies; rocky coast, small cliffs, driftwood, shells, stones, and foam are used selectively.</span>
-                <span>Road, Dirt Road, and Stone Road all support A → B drag preview and automatic intersections; roads crossing rivers render as bridges.</span>
-                <span>The unified Harbor validates coastline, automatically faces ocean water, and upgrades through four visually distinct levels from Landing Dock to Grand Harbor.</span>
-              </div>
+                  <details class="help-section">
+                    <summary><span>Settlement Economy</span></summary>
+                    <div class="help-section-body">
+                      <span>Farms produce Grain, Orchards produce Apples, Cow Barns produce Food, Mines produce Stone, and Huts/Trees contribute Wood.</span>
+                      <span>Windmills consume Grain to make Flour; Markets convert part of that Flour into ready Food. Population consumes edible reserves every deterministic economy tick.</span>
+                      <span>Construction costs Wood/Stone. Enable Free Build in God Mode to build without resource costs. Resource totals, net rates, storage capacity, and food-shortage state appear inside Build.</span>
+                      <span>Economy inventory is saved with the world; older saves without economy data receive backward-compatible starter resources.</span>
+                    </div>
+                  </details>
 
-              <div class="help-section">
-                <strong>Long-Press Remove & Population</strong>
-                <span>Hold directly on a removable object for about 3 seconds to remove it without selecting the Remove tool.</span>
-                <span>The circular red indicator shows hold progress; moving the pointer cancels it.</span>
-                <span>Population and Army are displayed separately. Army tracks the configured/living Defender force.</span>
-                <span>Long-press deletion is included in Undo history.</span>
-              </div>
+                  <details class="help-section">
+                    <summary><span>Population & Long-Press Remove</span></summary>
+                    <div class="help-section-body">
+                      <span>Population and Army are displayed separately. Army tracks the configured/living Defender force.</span>
+                      <span>Hold directly on a removable object for about 3 seconds to remove it without selecting the Remove tool.</span>
+                      <span>The circular red indicator shows hold progress; moving the pointer cancels it. Long-press deletion is included in Undo history.</span>
+                    </div>
+                  </details>
+                </div>
+              </section>
 
-              <div class="help-section">
-                <strong>Camera & Mobile UI</strong>
-                <span>2D Plan locks the camera overhead; drag to pan and pinch to zoom. On desktop, right drag pans and the wheel zooms.</span>
-                <span>3D View uses one finger to orbit and two fingers to pan or zoom.</span>
-                <span>The Build panel can be closed at any time and automatically collapses after choosing a tool on mobile.</span>
-              </div>
+              <section class="help-topic-group" id="help-controls" aria-labelledby="help-controls-title">
+                <div class="help-topic-heading">
+                  <span class="help-topic-index">04</span>
+                  <div>
+                    <h3 id="help-controls-title">Controls & Recovery</h3>
+                    <p>Camera behavior, mobile interaction, and ways to reverse mistakes.</p>
+                  </div>
+                </div>
+
+                <div class="help-topic-grid">
+                  <details class="help-section">
+                    <summary><span>Camera & Mobile UI</span></summary>
+                    <div class="help-section-body">
+                      <span>2D Plan locks the camera overhead; drag to pan and pinch to zoom. On desktop, right drag pans and the wheel zooms.</span>
+                      <span>3D View uses one finger to orbit and two fingers to pan or zoom.</span>
+                      <span>The Build panel can be closed at any time and automatically collapses after choosing a tool on mobile.</span>
+                    </div>
+                  </details>
+
+                  <details class="help-section">
+                    <summary><span>Undo / Redo</span></summary>
+                    <div class="help-section-body">
+                      <span>Ctrl + Z — Undo · Ctrl + Y — Redo.</span>
+                      <span>Keep placement/configuration, wall placement, wall height, terrain editing, Move, Rotate, Delete, and other major state changes use architectural snapshots.</span>
+                      <span>Generated windows, slits, flags, and automatic access are regenerated from the restored parent state instead of becoming separate Undo steps.</span>
+                    </div>
+                  </details>
+                </div>
+              </section>
             </div>
           </section>
         </div>
