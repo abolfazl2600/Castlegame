@@ -10,13 +10,14 @@ import { createGameDomainServices } from './core/GameDomainServices';
 import { SaveSystem, type SaveStorage } from './core/SaveSystem';
 import type { GameExtension } from './core/GameExtension';
 import type { GameState } from './state/GameState';
-import { SAVE_KEY, SAVE_VERSION, TILE_SIZE, WORLD_COLS } from './core/constants';
+import { SAVE_KEY, SAVE_VERSION, TILE_SIZE } from './core/constants';
 import { WallSystem } from './building/WallSystem';
 import type { AutomaticWallAccess } from './building/CastleDetailGenerator';
 import { AUTOMATIC_WALL_LEVEL, CastleBlockSystem, castleDamageStage, castleHeightFor, type CastleBlockState } from './building/CastleBlockSystem';
 import { ConstructionAnimationSystem } from './rendering/ConstructionAnimationSystem';
 import { AmbientFaunaSystem } from './rendering/AmbientFaunaSystem';
 import { AmbientShipSystem } from './rendering/AmbientShipSystem';
+import { TerrainChunkRenderer } from './rendering/TerrainChunkRenderer';
 import { rasterizeWallPath } from './building/WallPath';
 import { KeepRenderer } from './rendering/KeepRenderer';
 import { BasilicaRenderer } from './rendering/BasilicaRenderer';
@@ -65,6 +66,13 @@ import { resolveLocale, t } from './i18n/localization';
 import { applyGraphicsSettings, applyInputSettings, applySceneGraphicsSettings } from './settings/SettingsSubsystems';
 import { getStructureFootprint } from './building/StructureFootprints';
 import { MAP_LAYOUTS, himejiLandBounds, normalizeMapLayoutId, terrainForMapLayout } from './world/MapLayouts';
+import {
+  MAX_WORLD_COLS,
+  MAX_WORLD_ROWS,
+  gridContains,
+  worldGridForLayout,
+  type WorldGridDimensions,
+} from './world/WorldGrid';
 import { AudioManager } from './audio/AudioManager';
 import { audioEvents } from './audio/AudioEventBus';
 import { registerSystemAction } from './app/applicationActions';
@@ -101,9 +109,8 @@ import type {
   WallKind,
 } from './core/types';
 
-const SIZE = WORLD_COLS;
 const TILE = TILE_SIZE;
-const WORLD = SIZE * TILE;
+const MAX_WORLD_SPAN = Math.max(MAX_WORLD_COLS, MAX_WORLD_ROWS) * TILE;
 const WALL_KINDS: WallKind[] = ['wall1', 'wall2', 'wall3'];
 const ROAD_KINDS: RoadKind[] = ['road', 'dirtRoad', 'stoneRoad'];
 const HARBOR_KINDS: HarborKind[] = ['harbor'];
@@ -459,7 +466,8 @@ export class ThreeGame {
   private readonly constructionAnimation = new ConstructionAnimationSystem();
   private readonly ambientFauna = new AmbientFaunaSystem();
   private readonly ambientShip = new AmbientShipSystem({
-    size: SIZE,
+    cols: () => this.worldCols,
+    rows: () => this.worldRows,
     tileSize: TILE,
     terrainAt: (x, y) => this.terrainAt(x, y),
     gridToWorld: (x, y) => this.gridToWorld(x, y),
@@ -468,7 +476,8 @@ export class ThreeGame {
   private castleBlocksByCell = new Map<string, CastleBlockState>();
   private automaticWallAccessCache: AutomaticWallAccess[] | null = null;
   private readonly maritimeSystem = new MaritimeSystem({
-    size: SIZE,
+    cols: () => this.worldCols,
+    rows: () => this.worldRows,
     terrainAt: (x, y) => this.terrainAt(x, y),
   });
     private readonly medievalMaterials = new MedievalMaterials();
@@ -480,7 +489,9 @@ export class ThreeGame {
   private readonly elevationOverrides = new Map<string, number>();
   private readonly raycaster = new THREE.Raycaster();
   private readonly pointer = new THREE.Vector2();
-  private readonly worldLayoutLayer = new THREE.Group();
+  private readonly terrainChunks = new TerrainChunkRenderer(TILE);
+  private readonly worldLayoutLayer = this.terrainChunks.layer;
+  private readonly worldGridLayer = new THREE.Group();
   private worldLayoutSurfaceSignature = '';
   private readonly terrainLayer = new THREE.Group();
   private readonly buildLayer = new THREE.Group();
@@ -504,7 +515,7 @@ export class ThreeGame {
   private readonly buildObjectsByCell = new Map<string, THREE.Object3D>();
   private readonly battleSystem: BattleSystem;
   private readonly groundHit = new THREE.Mesh(
-    new THREE.PlaneGeometry(WORLD, WORLD),
+    new THREE.PlaneGeometry(1, 1),
     new THREE.MeshBasicMaterial({ visible: false }),
   );
   private readonly moatTasks = new Map<string, MoatTask>();
@@ -521,11 +532,15 @@ export class ThreeGame {
   private readonly shallowWaterMaterial: THREE.MeshStandardMaterial;
 
   private mapLayoutId: MapLayoutId = 'island';
+  private worldGrid: WorldGridDimensions = worldGridForLayout('island');
   private worldSeed = 0;
   private newGameSelectionPending = false;
   private selectedTool: ToolKind | null = 'wall1';
   private selectedCell: GridPoint | null = null;
-  private minimapCursor: GridPoint = { x: Math.floor(SIZE / 2), y: Math.floor(SIZE / 2) };
+  private minimapCursor: GridPoint = {
+    x: Math.floor(this.worldGrid.cols / 2),
+    y: Math.floor(this.worldGrid.rows / 2),
+  };
   private viewMode: ViewMode = 'world3d';
   private toolbarOpen = window.innerWidth > 760;
   private activeBuildCategory: string | null = null;
@@ -778,7 +793,7 @@ export class ThreeGame {
       (window as unknown as {
         __castleVisualGridPoint: (x: number, y: number) => { x: number; y: number };
       }).__castleVisualGridPoint = (x, y) => {
-        if (!Number.isInteger(x) || !Number.isInteger(y) || x < 0 || y < 0 || x >= SIZE || y >= SIZE) {
+        if (!this.isInsideWorld(x, y)) {
           throw new Error(`Visual QA grid point is outside the world: ${x},${y}`);
         }
         const world = this.gridToWorld(x, y);
@@ -876,7 +891,8 @@ export class ThreeGame {
     this.battleSystem = new BattleSystem(
       this.battleLayer,
       {
-        size: SIZE,
+        cols: () => this.worldCols,
+        rows: () => this.worldRows,
         tileSize: TILE,
         gridToWorld: (x, y) => this.gridToWorld(x, y),
         terrainAt: (x, y) => this.terrainAt(x, y),
