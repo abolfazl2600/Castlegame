@@ -43,9 +43,12 @@ export interface VisualBudgetSnapshot {
   detailSuppressionActive: boolean;
 }
 
+const QUALITY_DRAW_CALL_CAP = 1000;
+const PERFORMANCE_DRAW_CALL_CAP = 500;
+
 const DESKTOP_BUDGETS: Record<DistanceDetailBand, VisualPerformanceBudget> = {
   inspection: {
-    drawCalls: 950,
+    drawCalls: QUALITY_DRAW_CALL_CAP,
     animatedObjects: 180,
     particles: 160,
     shadowCasters: 128,
@@ -54,7 +57,7 @@ const DESKTOP_BUDGETS: Record<DistanceDetailBand, VisualPerformanceBudget> = {
     animationScale: 1,
   },
   gameplay: {
-    drawCalls: 760,
+    drawCalls: QUALITY_DRAW_CALL_CAP,
     animatedObjects: 120,
     particles: 96,
     shadowCasters: 72,
@@ -63,7 +66,7 @@ const DESKTOP_BUDGETS: Record<DistanceDetailBand, VisualPerformanceBudget> = {
     animationScale: 0.78,
   },
   strategic: {
-    drawCalls: 620,
+    drawCalls: QUALITY_DRAW_CALL_CAP,
     animatedObjects: 72,
     particles: 48,
     shadowCasters: 40,
@@ -75,7 +78,7 @@ const DESKTOP_BUDGETS: Record<DistanceDetailBand, VisualPerformanceBudget> = {
 
 const MOBILE_BUDGETS: Record<DistanceDetailBand, VisualPerformanceBudget> = {
   inspection: {
-    drawCalls: 620,
+    drawCalls: PERFORMANCE_DRAW_CALL_CAP,
     animatedObjects: 96,
     particles: 72,
     shadowCasters: 64,
@@ -84,7 +87,7 @@ const MOBILE_BUDGETS: Record<DistanceDetailBand, VisualPerformanceBudget> = {
     animationScale: 0.72,
   },
   gameplay: {
-    drawCalls: 520,
+    drawCalls: PERFORMANCE_DRAW_CALL_CAP,
     animatedObjects: 64,
     particles: 48,
     shadowCasters: 36,
@@ -93,7 +96,7 @@ const MOBILE_BUDGETS: Record<DistanceDetailBand, VisualPerformanceBudget> = {
     animationScale: 0.56,
   },
   strategic: {
-    drawCalls: 430,
+    drawCalls: PERFORMANCE_DRAW_CALL_CAP,
     animatedObjects: 40,
     particles: 24,
     shadowCasters: 20,
