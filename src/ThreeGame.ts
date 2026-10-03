@@ -3112,7 +3112,7 @@ export class ThreeGame {
         else if (terrain === 'forest' || terrain === 'plains') this.renderGroundVariation(group, x, y, terrain);
 
         if (edited && terrain !== 'mountain') {
-          this.renderElevationPatch(group, elevation);
+          this.renderElevationPatch(group, x, y, elevation);
         }
 
         const occupying = this.services.state.getCell(x, y)?.kind;
@@ -3467,12 +3467,253 @@ export class ThreeGame {
     }
   }
 
-  private renderElevationPatch(group: THREE.Group, elevation: number): void {
+  private terrainSurfaceYForCliff(x: number, y: number): number {
+    if (x < 0 || y < 0 || x >= SIZE || y >= SIZE) return 1.04;
+
+    const terrain = this.terrainAt(x, y);
+    const elevation = this.terrainElevation(x, y);
+    if (terrain === 'water') return 1.04;
+    if (terrain === 'river') return 2.08 + Math.max(0, elevation);
+
+    // Lower-terrain edits are rendered as hollows over the shared ground plane,
+    // so cliff faces should terminate at the visible land surface rather than
+    // extending below it.
+    return 2.2 + Math.max(0, elevation);
+  }
+
+  private isCliffLikeElevationPatch(gx: number, gy: number, elevation: number): boolean {
+    if (elevation < 0.55) return false;
+
+    const neighbors = [
+      [gx, gy - 1],
+      [gx + 1, gy],
+      [gx, gy + 1],
+      [gx - 1, gy],
+    ].map(([x, y]) => {
+      if (x < 0 || y < 0 || x >= SIZE || y >= SIZE) return 0;
+      const terrain = this.terrainAt(x, y);
+      if (terrain === 'water') return 0;
+      return this.terrainElevation(x, y);
+    });
+
+    const maxDrop = Math.max(...neighbors.map((neighbor) => elevation - neighbor));
+    const plateauNeighbors = neighbors.filter((neighbor) => Math.abs(neighbor - elevation) <= 0.16).length;
+
+    // The Cliff brush produces flat shelves with abrupt drops. This inference
+    // also upgrades any naturally steep edited terrain while leaving rounded
+    // Hill/Raise gradients on the softer mound renderer.
+    return maxDrop >= 0.42 || plateauNeighbors >= 2;
+  }
+
+  private addCliffRockFace(
+    group: THREE.Group,
+    direction: 'north' | 'east' | 'south' | 'west',
+    topY: number,
+    bottomY: number,
+    seed: number,
+  ): void {
+    const faceHeight = topY - bottomY;
+    if (faceHeight <= 0.14) return;
+
+    const segments = faceHeight > 2.6 ? 5 : 4;
+    const rows = faceHeight > 2.8 ? 4 : 3;
+    const half = TILE * 0.505;
+    const tangentHalf = TILE * 0.515;
+    const vertices: number[] = [];
+    const indices: number[] = [];
+
+    const outward = direction === 'north'
+      ? { x: 0, z: -1 }
+      : direction === 'east'
+        ? { x: 1, z: 0 }
+        : direction === 'south'
+          ? { x: 0, z: 1 }
+          : { x: -1, z: 0 };
+
+    const hash01 = (a: number, b: number): number => {
+      const value = Math.sin((seed + a * 17.17 + b * 31.91) * 12.9898) * 43758.5453;
+      return value - Math.floor(value);
+    };
+
+    for (let row = 0; row < rows; row += 1) {
+      const vertical = row / (rows - 1);
+      for (let column = 0; column <= segments; column += 1) {
+        const along = -tangentHalf + (column / segments) * tangentHalf * 2;
+        const noise = hash01(column, row);
+        const middleBulge = row > 0 && row < rows - 1 ? 0.08 + noise * 0.12 : noise * 0.035;
+        const yNoise = row > 0 && row < rows - 1
+          ? (noise - 0.5) * Math.min(0.2, faceHeight * 0.075)
+          : 0;
+        const y = THREE.MathUtils.lerp(bottomY, topY - 0.11, vertical) + yNoise;
+        const edgeX = direction === 'east' ? half : direction === 'west' ? -half : along;
+        const edgeZ = direction === 'south' ? half : direction === 'north' ? -half : along;
+
+        vertices.push(
+          edgeX + outward.x * middleBulge,
+          y,
+          edgeZ + outward.z * middleBulge,
+        );
+      }
+    }
+
+    const stride = segments + 1;
+    for (let row = 0; row < rows - 1; row += 1) {
+      for (let column = 0; column < segments; column += 1) {
+        const a = row * stride + column;
+        const b = a + 1;
+        const c = a + stride;
+        const d = c + 1;
+        indices.push(a, c, b, b, c, d);
+      }
+    }
+
+    const geometry = new THREE.BufferGeometry();
+    geometry.setAttribute('position', new THREE.Float32BufferAttribute(vertices, 3));
+    geometry.setIndex(indices);
+    geometry.computeVertexNormals();
+
+    const rockColors = [0x625b54, 0x6f675f, 0x5a5550];
+    const variant = Math.abs(seed) % rockColors.length;
+    const material = this.environmentMaterial(
+      `terrain-cliff-rock-face-${variant}`,
+      rockColors[variant],
+      1,
+    );
+    material.side = THREE.DoubleSide;
+
+    const face = new THREE.Mesh(geometry, material);
+    face.castShadow = faceHeight > 0.55;
+    face.receiveShadow = true;
+    face.userData.terrainCliffFace = true;
+    group.add(face);
+
+    const ledgeMaterial = this.environmentMaterial('terrain-cliff-rock-ledge', 0x81776d, 1);
+    const ledgeCount = faceHeight > 3 ? 2 : faceHeight > 1.35 ? 1 : 0;
+    for (let i = 0; i < ledgeCount; i += 1) {
+      const ratio = (i + 1) / (ledgeCount + 1);
+      const y = topY - faceHeight * ratio;
+      const offset = half + 0.08 + i * 0.025;
+      if (direction === 'north' || direction === 'south') {
+        this.addBox(
+          group,
+          TILE * (0.88 - i * 0.06),
+          0.075,
+          0.22,
+          ledgeMaterial,
+          0,
+          y,
+          direction === 'north' ? -offset : offset,
+        );
+      } else {
+        this.addBox(
+          group,
+          0.22,
+          0.075,
+          TILE * (0.88 - i * 0.06),
+          ledgeMaterial,
+          direction === 'west' ? -offset : offset,
+          y,
+          0,
+        );
+      }
+    }
+
+    if (faceHeight > 1.05 && Math.abs(seed) % 3 === 0) {
+      const debrisMaterial = this.environmentMaterial('terrain-cliff-rock-debris', 0x69635d, 1);
+      const debris = new THREE.Mesh(
+        new THREE.DodecahedronGeometry(0.22 + (Math.abs(seed) % 4) * 0.045, 0),
+        debrisMaterial,
+      );
+      const along = ((Math.abs(seed * 37) % 100) / 100 - 0.5) * TILE * 0.58;
+      const outwardOffset = half + 0.26;
+      debris.position.set(
+        direction === 'east' ? outwardOffset : direction === 'west' ? -outwardOffset : along,
+        bottomY + 0.18,
+        direction === 'south' ? outwardOffset : direction === 'north' ? -outwardOffset : along,
+      );
+      debris.scale.set(1.2, 0.72, 0.94);
+      debris.rotation.y = (Math.abs(seed) % 11) * 0.27;
+      debris.castShadow = true;
+      debris.receiveShadow = true;
+      group.add(debris);
+    }
+  }
+
+  private renderCliffPlateauPatch(
+    group: THREE.Group,
+    gx: number,
+    gy: number,
+    elevation: number,
+  ): void {
+    const topY = 2.2 + elevation;
+    const capGrass = this.environmentMaterial('terrain-cliff-cap-grass', 0x93aa58, 0.98);
+    const capEarth = this.environmentMaterial('terrain-cliff-cap-earth', 0x75634f, 1);
+
+    // Slight overlap removes the old "separate cylinders" look and lets
+    // neighboring cliff cells read as one continuous plateau.
+    const earthCap = this.addBox(
+      group,
+      TILE * 1.012,
+      0.18,
+      TILE * 1.012,
+      capEarth,
+      0,
+      topY - 0.17,
+      0,
+    );
+    earthCap.castShadow = elevation > 0.8;
+
+    const grassCap = this.addBox(
+      group,
+      TILE * 1.026,
+      0.105,
+      TILE * 1.026,
+      capGrass,
+      0,
+      topY - 0.045,
+      0,
+    );
+    grassCap.castShadow = false;
+    grassCap.receiveShadow = true;
+    grassCap.userData.terrainCliffCap = true;
+
+    const edges: Array<{
+      direction: 'north' | 'east' | 'south' | 'west';
+      dx: number;
+      dy: number;
+      salt: number;
+    }> = [
+      { direction: 'north', dx: 0, dy: -1, salt: 11 },
+      { direction: 'east', dx: 1, dy: 0, salt: 23 },
+      { direction: 'south', dx: 0, dy: 1, salt: 37 },
+      { direction: 'west', dx: -1, dy: 0, salt: 53 },
+    ];
+
+    for (const edge of edges) {
+      const neighborSurface = this.terrainSurfaceYForCliff(gx + edge.dx, gy + edge.dy);
+      const bottomY = Math.min(topY - 0.12, neighborSurface);
+      if (topY - bottomY <= 0.14) continue;
+      const seed = gx * 73856093 ^ gy * 19349663 ^ edge.salt * 83492791;
+      this.addCliffRockFace(group, edge.direction, topY, bottomY, seed);
+    }
+  }
+
+  private renderElevationPatch(
+    group: THREE.Group,
+    gx: number,
+    gy: number,
+    elevation: number,
+  ): void {
     const grass = this.environmentMaterial('terrain-elev-grass', 0x91aa57, 0.98);
     const dirt = this.environmentMaterial('terrain-elev-dirt', 0x76624d, 1);
     const rock = this.environmentMaterial('terrain-elev-rock', 0x746c63, 1);
 
     if (elevation > 0.03) {
+      if (this.isCliffLikeElevationPatch(gx, gy, elevation)) {
+        this.renderCliffPlateauPatch(group, gx, gy, elevation);
+        return;
+      }
+
       const material = elevation > 3.4 ? rock : elevation > 1.8 ? dirt : grass;
       const mound = new THREE.Mesh(
         new THREE.CylinderGeometry(
