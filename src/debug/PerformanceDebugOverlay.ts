@@ -13,7 +13,6 @@ interface PerformanceDebugOverlayOptions {
   renderer: THREE.WebGLRenderer;
   scene: THREE.Scene;
   getCameraDistance: () => number;
-  getViewMode: () => string;
   getVisualBudget: () => VisualBudgetSnapshot;
   getRenderLayers?: () => Array<{ name: string; root: THREE.Object3D }>;
   getRuntimeCounts?: () => {
@@ -261,7 +260,7 @@ export class PerformanceDebugOverlay {
         this.row('GPU frame time', this.gpuFrameMs === null ? 'Unavailable' : `${this.gpuFrameMs.toFixed(2)} ms (async)`),
         this.row('Graphics selection', this.settingsStore.get().graphics.performanceMode.toUpperCase()),
         this.row('Active render profile', budget.renderProfile.toUpperCase()),
-        this.row('View / LOD', `${this.options.getViewMode()} · ${budget.band}`),
+        this.row('LOD band', budget.band),
         this.row('Camera distance', `${this.options.getCameraDistance().toFixed(1)}`),
       ]),
       this.section('Rendering', [

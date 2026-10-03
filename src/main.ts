@@ -44,6 +44,6 @@ async function startGameRuntime(): Promise<void> {
   } catch (error) {
     console.error('Game initialization failed', error);
     const status = document.getElementById('save-status');
-    if (status) status.textContent = 'Game initialization failed · Settings available';
+    if (status) status.textContent = '3D renderer initialization failed · Reload or check WebGL support · Settings available';
   }
 }

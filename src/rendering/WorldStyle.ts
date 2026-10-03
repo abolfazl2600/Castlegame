@@ -30,7 +30,6 @@ export const WORLD_STYLE = {
       normalGameplay: 104,
       maximumStrategic: 148,
     },
-    planDistance: 118,
     maxPolarAngle: 1.34,
     targetPadding: 8,
     minTargetY: 0,

@@ -35,7 +35,6 @@ export class SelectionVisual {
 
   show(
     points: readonly SelectionGridPoint[],
-    planMode: boolean,
     mode: 'selected' | 'valid' | 'invalid' = 'selected',
   ): void {
     this.clear();
@@ -58,13 +57,13 @@ export class SelectionVisual {
     const width = (maxX - minX + 1) * this.tileSize + this.tileSize * 0.16;
     const depth = (maxY - minY + 1) * this.tileSize + this.tileSize * 0.16;
     const elevation = Math.max(...points.map((point) => this.elevationAt(point.x, point.y)));
-    const y = planMode ? 10.52 : elevation + 2.38;
+    const y = elevation + 2.38;
     const edge = Math.max(0.12, this.tileSize * 0.045);
 
     const fillMaterial = new THREE.MeshBasicMaterial({
       color: palette.fill,
       transparent: true,
-      opacity: planMode ? 0.12 : 0.09,
+      opacity: 0.09,
       depthTest: false,
       depthWrite: false,
       side: THREE.DoubleSide,
