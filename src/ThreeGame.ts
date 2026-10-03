@@ -13707,7 +13707,7 @@ export class ThreeGame {
 
       // Compact but complete settlement progression around a central market.
       place(8, 14, 'cottage', 1, { rotation: 1 });
-      place(12, 14, 'house', 2, { rotation: 3 });
+      place(11, 14, 'villa', 4, { rotation: 3 });
       place(8, 16, 'manor', 3, { rotation: 1 });
       place(12, 16, 'market', 1, { rotation: 0 });
       place(8, 18, 'mosque', 3, { rotation: 1 });
