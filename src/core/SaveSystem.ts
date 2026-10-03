@@ -221,7 +221,12 @@ export class SaveSystem {
     this.dialogMode = mode;
     this.ensureModal();
     this.renderModal();
-    if (this.modal) this.modal.hidden = false;
+    if (this.modal) {
+      this.modal.hidden = false;
+      window.requestAnimationFrame(() => {
+        this.modal?.querySelector<HTMLButtonElement>('[data-save-action="close"]')?.focus();
+      });
+    }
   }
 
   private ensureModal(): void {
@@ -231,23 +236,31 @@ export class SaveSystem {
     backdrop.className = 'modal-backdrop save-load-backdrop';
     backdrop.hidden = true;
     backdrop.innerHTML =
-      '<section class="help-modal" role="dialog" aria-modal="true" aria-labelledby="save-load-title">' +
-      '<div class="help-modal-header">' +
-      '<div><div class="eyebrow">CASTLE ROLE · STORAGE</div><h2 id="save-load-title"></h2></div>' +
-      '<button type="button" class="icon-button" data-save-action="close" aria-label="Close">×</button>' +
+      '<section class="help-modal save-load-modal" role="dialog" aria-modal="true" aria-labelledby="save-load-title" aria-describedby="save-load-description">' +
+      '<div class="save-load-header">' +
+      '<div class="save-load-heading">' +
+      '<div class="eyebrow save-load-eyebrow">' + escapeHtml(t('CASTLE ROLE · STORAGE')) + '</div>' +
+      '<h2 id="save-load-title"></h2>' +
+      '<div class="save-load-title-rule" aria-hidden="true"></div>' +
       '</div>' +
-      '<p class="template-intro" data-save-description></p>' +
-      '<div data-save-list></div>' +
+      '<button type="button" class="icon-button save-load-close" data-save-action="close" aria-label="' + escapeHtml(t('Close')) + '">×</button>' +
+      '</div>' +
+      '<p id="save-load-description" class="template-intro save-load-description" data-save-description></p>' +
+      '<div class="save-load-list" data-save-list></div>' +
       '</section>';
 
     document.body.appendChild(backdrop);
     this.modal = backdrop;
 
     backdrop.addEventListener('click', (event) => {
-      if (event.target === backdrop) backdrop.hidden = true;
-      const target = event.target as HTMLElement;
-      const action = target.dataset.saveAction;
-      const targetValue = target.dataset.saveTarget;
+      if (event.target === backdrop) {
+        backdrop.hidden = true;
+        return;
+      }
+
+      const actionTarget = (event.target as HTMLElement | null)?.closest<HTMLElement>('[data-save-action]');
+      const action = actionTarget?.dataset.saveAction;
+      const targetValue = actionTarget?.dataset.saveTarget;
       if (!action) return;
 
       if (action === 'close') backdrop.hidden = true;
@@ -260,6 +273,10 @@ export class SaveSystem {
       if (action === 'rename' && targetValue) this.handleRename(targetValue);
       if (action === 'delete' && targetValue) this.handleDelete(targetValue);
     });
+
+    backdrop.addEventListener('keydown', (event) => {
+      if (event.key === 'Escape') backdrop.hidden = true;
+    });
   }
 
   private renderModal(): void {
@@ -269,10 +286,11 @@ export class SaveSystem {
     const list = this.modal.querySelector<HTMLElement>('[data-save-list]');
     if (!title || !description || !list) return;
 
-    title.textContent = this.dialogMode === 'save' ? 'Save Game' : 'Load Game';
-    description.textContent = this.dialogMode === 'save'
+    this.modal.dataset.saveMode = this.dialogMode;
+    title.textContent = t(this.dialogMode === 'save' ? 'Save Game' : 'Load Game');
+    description.textContent = t(this.dialogMode === 'save'
       ? 'Manual slots are protected from Auto Save. Quick Save and Auto Save use separate storage.'
-      : 'Select a saved world to restore. Runtime rendering, battle units and transient effects are rebuilt after loading.';
+      : 'Select a saved world to restore. Runtime rendering, battle units and transient effects are rebuilt after loading.');
 
     const records = new Map<string, SaveRecord>();
     for (const record of this.listRecords()) records.set(String(record.metadata.slot), record);
@@ -289,60 +307,88 @@ export class SaveSystem {
     const auto = records.get('autosave');
     cards.push(this.renderSpecialCard('autosave', 'Auto Save', auto, false));
 
-    list.innerHTML = '<div class="template-grid">' + cards.join('') + '</div>';
+    list.innerHTML = '<div class="save-load-grid">' + cards.join('') + '</div>';
   }
 
   private renderCard(slot: number, record?: SaveRecord): string {
     const meta = record?.metadata;
+    const title = escapeHtml(t(`Save Slot ${slot}`));
+    const isFilled = Boolean(meta);
+    const cardClass = 'save-load-card ' + (isFilled ? 'is-filled' : 'is-empty');
+    const visual = isFilled ? '▣' : '+';
     const details = meta
       ? this.metadataText(meta)
-      : '<span>Empty slot</span>';
-    if (this.dialogMode === 'save') {
-      return '<article class="template-card">' +
-        '<strong>Save Slot ' + slot + '</strong>' +
-        details +
-        '<button class="secondary-button" type="button" data-save-action="save-slot" data-save-target="' + slot + '">' +
-        (meta ? 'Overwrite' : 'Save') + '</button>' +
-        '</article>';
-    }
+      : '<div class="save-load-empty-state"><strong>' + escapeHtml(t('Empty slot')) + '</strong><span>' +
+        escapeHtml(t('Nothing to load')) + '</span></div>';
 
-    return '<article class="template-card">' +
-      '<strong>Save Slot ' + slot + '</strong>' +
-      details +
-      (meta
-        ? '<div class="settings-actions">' +
-          '<button class="secondary-button" type="button" data-save-action="load" data-save-target="' + slot + '">Load</button>' +
-          '<button class="secondary-button" type="button" data-save-action="rename" data-save-target="' + slot + '">Rename</button>' +
-          '<button class="danger-button" type="button" data-save-action="delete" data-save-target="' + slot + '">Delete</button>' +
+    const actions = this.dialogMode === 'save'
+      ? '<div class="save-load-actions">' +
+        '<button class="secondary-button save-load-action save-load-action--primary" type="button" data-save-action="save-slot" data-save-target="' + slot + '">' +
+        escapeHtml(t(meta ? 'Overwrite' : 'Save')) + '</button></div>'
+      : meta
+        ? '<div class="save-load-actions">' +
+          '<button class="secondary-button save-load-action save-load-action--primary" type="button" data-save-action="load" data-save-target="' + slot + '">' + escapeHtml(t('Load')) + '</button>' +
+          '<button class="secondary-button save-load-action" type="button" data-save-action="rename" data-save-target="' + slot + '">' + escapeHtml(t('Rename')) + '</button>' +
+          '<button class="danger-button save-load-action save-load-action--danger" type="button" data-save-action="delete" data-save-target="' + slot + '">' + escapeHtml(t('Delete')) + '</button>' +
           '</div>'
-        : '<span>Nothing to load</span>') +
+        : '';
+
+    return '<article class="' + cardClass + '">' +
+      '<div class="save-load-card__visual" aria-hidden="true"><span>' + visual + '</span></div>' +
+      '<div class="save-load-card__content">' +
+      '<div class="save-load-card__head"><strong>' + title + '</strong></div>' +
+      details +
+      actions +
+      '</div>' +
       '</article>';
   }
 
   private renderSpecialCard(target: 'quick' | 'autosave', label: string, record?: SaveRecord, writable = false): string {
-    const details = record ? this.metadataText(record.metadata) : '<span>Empty</span>';
+    const isFilled = Boolean(record);
+    const variant = target === 'quick' ? 'is-quick' : 'is-autosave';
+    const visual = target === 'quick' ? '⚡' : '↻';
+    const details = record
+      ? this.metadataText(record.metadata)
+      : '<div class="save-load-empty-state"><strong>' + escapeHtml(t('Empty')) + '</strong><span>' +
+        escapeHtml(t('Nothing to load')) + '</span></div>';
+
+    let actions = '';
     if (this.dialogMode === 'save' && writable) {
-      return '<article class="template-card">' +
-        '<strong>' + label + '</strong>' + details +
-        '<button class="secondary-button" type="button" data-save-action="quick">Quick Save</button>' +
-        '</article>';
+      actions = '<div class="save-load-actions">' +
+        '<button class="secondary-button save-load-action save-load-action--primary" type="button" data-save-action="quick">' +
+        escapeHtml(t('Quick Save')) + '</button></div>';
+    } else if (record && this.dialogMode === 'load') {
+      actions = '<div class="save-load-actions">' +
+        '<button class="secondary-button save-load-action save-load-action--primary" type="button" data-save-action="load" data-save-target="' + target + '">' +
+        escapeHtml(t('Load')) + '</button></div>';
     }
-    return '<article class="template-card">' +
-      '<strong>' + label + '</strong>' + details +
-      (record && this.dialogMode === 'load'
-        ? '<button class="secondary-button" type="button" data-save-action="load" data-save-target="' + target + '">Load</button>'
-        : '') +
+
+    return '<article class="save-load-card save-load-card--special ' + variant + ' ' + (isFilled ? 'is-filled' : 'is-empty') + '">' +
+      '<div class="save-load-card__visual" aria-hidden="true"><span>' + visual + '</span></div>' +
+      '<div class="save-load-card__content">' +
+      '<div class="save-load-card__head"><strong>' + escapeHtml(t(label)) + '</strong></div>' +
+      details +
+      actions +
+      '</div>' +
       '</article>';
   }
 
   private metadataText(meta: SaveMetadata): string {
     const date = new Date(meta.updatedAt).toLocaleString(getCurrentLocale() === 'fa' ? 'fa-IR' : 'en-US');
-    // Display localized defaults without ever rewriting user-provided names or save metadata.
-    const displayName = /^(?:Save Slot \d+|Quick Save|Auto Save)$/.test(meta.name) ? t(meta.name) : meta.name;
-    return '<small>' +
-      '<bdi dir="auto">' + escapeHtml(displayName) + '</bdi> · <bdi dir="auto">' + escapeHtml(date) + '</bdi><br>' +
-      escapeHtml(t(`${meta.summary.buildings} buildings · ${meta.summary.keeps} keeps`)) +
-      '</small>';
+    const isDefaultName = /^(?:Save Slot \d+|Quick Save|Auto Save)$/.test(meta.name);
+    const displayName = isDefaultName ? '' : meta.name;
+    const customName = displayName
+      ? '<div class="save-load-custom-name"><bdi dir="auto">' + escapeHtml(displayName) + '</bdi></div>'
+      : '';
+
+    return '<div class="save-load-meta">' +
+      customName +
+      '<span class="save-load-meta-item"><span class="save-load-meta-icon" aria-hidden="true">◷</span><bdi dir="auto">' + escapeHtml(date) + '</bdi></span>' +
+      '<span class="save-load-meta-item"><span class="save-load-meta-icon" aria-hidden="true">▦</span>' +
+      escapeHtml(String(meta.summary.buildings)) + ' ' + escapeHtml(t('buildings')) + '</span>' +
+      '<span class="save-load-meta-item"><span class="save-load-meta-icon" aria-hidden="true">♜</span>' +
+      escapeHtml(String(meta.summary.keeps)) + ' ' + escapeHtml(t('keeps')) + '</span>' +
+      '</div>';
   }
 
   private handleManualSave(slot: number): void {
