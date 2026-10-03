@@ -88,6 +88,15 @@ check('contextual panel owns the expected building actions', () => {
   assert.match(style, /touch-action:\s*manipulation/);
 });
 
+check('God Mode suppresses building context actions while targeting', () => {
+  const sync = method('syncSelectionActionUI');
+  assert.match(sync, /const suppressContextActions = this\.godModeOpen/);
+  assert.match(sync, /card\.hidden = !hasSelection \|\| suppressContextActions/);
+  assert.match(sync, /contextPanel\.hidden = !hasSelection \|\| suppressContextActions/);
+  assert.match(method('openGodMode'), /this\.syncSelectionActionUI\(\)/);
+  assert.match(method('closeGodMode'), /this\.syncSelectionActionUI\(\)/);
+});
+
 check('upgrade action dispatches into existing building upgrade systems', () => {
   const body = method('upgradeSelectedBuilding');
   for (const call of [

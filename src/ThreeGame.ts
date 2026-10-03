@@ -1231,6 +1231,7 @@ export class ThreeGame {
     this.setGodModeTarget(null);
     const panel = document.getElementById('god-mode-panel');
     if (panel) panel.hidden = false;
+    this.syncSelectionActionUI();
     this.updateGodModeUI();
     this.setStatus('God Mode ready · choose an action');
   }
@@ -1241,6 +1242,7 @@ export class ThreeGame {
     this.setGodModeTarget(null);
     const panel = document.getElementById('god-mode-panel');
     if (panel) panel.hidden = true;
+    this.syncSelectionActionUI();
     this.setStatus('God Mode closed');
   }
 
@@ -12512,8 +12514,9 @@ export class ThreeGame {
     const bridgeSelected = this.selectedTowerBridgeId !== null && this.towerBridges.has(this.selectedTowerBridgeId);
     const hasSelection = Boolean(descriptor && (keep || cell || bridgeSelected));
 
-    if (card) card.hidden = !hasSelection;
-    if (contextPanel) contextPanel.hidden = !hasSelection;
+    const suppressContextActions = this.godModeOpen;
+    if (card) card.hidden = !hasSelection || suppressContextActions;
+    if (contextPanel) contextPanel.hidden = !hasSelection || suppressContextActions;
     if (!hasSelection || !descriptor) {
       this.syncSelectedGateButton();
       return;

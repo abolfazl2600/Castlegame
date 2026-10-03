@@ -4321,6 +4321,111 @@ html.mobile-ui-active .battle-advanced {
   display: none !important;
 }
 
+/* Mobile God Mode: keep missile targeting compact so the world remains usable. */
+html.mobile-ui-active .god-mode-panel {
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 7px 8px;
+  max-height: min(48dvh, 340px);
+  padding: 10px;
+}
+
+html.mobile-ui-active .god-mode-panel .battle-panel-header,
+html.mobile-ui-active .god-mode-actions,
+html.mobile-ui-active .god-mode-target,
+html.mobile-ui-active .god-mode-feedback,
+html.mobile-ui-active .god-mode-actions-footer {
+  grid-column: 1 / -1;
+}
+
+html.mobile-ui-active .god-mode-instructions {
+  display: none;
+}
+
+html.mobile-ui-active .god-mode-capacity {
+  align-self: center;
+  white-space: nowrap;
+}
+
+html.mobile-ui-active #god-mode-free-build {
+  min-height: 36px;
+  padding: 6px 10px;
+}
+
+html.mobile-ui-active .god-mode-actions {
+  gap: 6px;
+}
+
+html.mobile-ui-active .god-mode-action {
+  min-height: 44px;
+  padding: 7px 9px;
+}
+
+html.mobile-ui-active .god-mode-action small,
+html.mobile-ui-active .god-mode-action:disabled {
+  display: none;
+}
+
+html.mobile-ui-active .god-mode-target {
+  overflow: hidden;
+  padding: 7px 9px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+html.mobile-ui-active .god-mode-feedback {
+  display: -webkit-box;
+  overflow: hidden;
+  font-size: 10px;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+html.mobile-ui-active .god-mode-actions-footer {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 6px;
+}
+
+html.mobile-ui-active .god-mode-actions-footer button {
+  min-width: 0;
+  min-height: 44px;
+  padding-inline: 10px;
+}
+
+@media (orientation: landscape) {
+  html.mobile-ui-active .god-mode-panel {
+    left: auto;
+    right: max(8px, var(--mobile-safe-right));
+    bottom: max(8px, var(--mobile-safe-bottom));
+    width: min(350px, 40vw);
+    max-width: calc(100vw - var(--mobile-safe-left) - var(--mobile-safe-right) - 16px);
+    max-height: min(74dvh, 360px);
+  }
+
+  html[dir="rtl"].mobile-ui-active .god-mode-panel {
+    left: max(8px, var(--mobile-safe-left));
+    right: auto;
+  }
+}
+
+@media (orientation: landscape) and (max-height: 700px) {
+  html.mobile-ui-active .god-mode-panel {
+    width: min(330px, 42vw);
+    max-height: calc(100dvh - var(--mobile-header-height) - var(--mobile-safe-top) - var(--mobile-safe-bottom) - 12px);
+    gap: 6px;
+    padding: 8px;
+  }
+
+  html.mobile-ui-active .god-mode-panel .battle-panel-header .eyebrow,
+  html.mobile-ui-active .god-mode-feedback {
+    display: none;
+  }
+
+  html.mobile-ui-active .god-mode-target {
+    font-size: 9px;
+  }
+}
+
 /* Persian RTL Settings normalization */
 html[dir="rtl"] .settings-modal {
   direction: rtl;
