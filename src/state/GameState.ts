@@ -1,7 +1,7 @@
 import type { GridCell, MissileInventoryState, TileKind } from '../core/types';
 import type { GameMode } from '../core/GameMode';
 import { defaultMissileState, normalizeMissileState } from '../battle/MissileCapability';
-import { MAX_WALL_LEVEL } from '../building/CastleBlockSystem';
+import { AUTOMATIC_WALL_LEVEL, isCastleWallKind } from '../building/CastleBlockSystem';
 
 export interface CellEntry extends GridCell {
   x: number;
@@ -38,8 +38,9 @@ export class GameState {
   }
 
   setCell(x: number, y: number, kind: TileKind, level = 1, options: Partial<GridCell> = {}): void {
+    const normalizedOptions = this.normalizeCellOptions(kind, options);
     this.cells.set(this.key(x, y), {
-      ...options,
+      ...normalizedOptions,
       kind,
       level: this.normalizeLevel(kind, level),
     });
@@ -51,7 +52,8 @@ export class GameState {
 
     const next: GridCell = { ...cell, ...changes };
     if (next.level !== undefined) next.level = this.normalizeLevel(next.kind, next.level);
-    this.cells.set(this.key(x, y), next);
+    const normalized = this.normalizeCellOptions(next.kind, next);
+    this.cells.set(this.key(x, y), { ...normalized, kind: next.kind, level: next.level });
   }
 
   setLevel(x: number, y: number, level: number): void {
@@ -85,10 +87,17 @@ export class GameState {
     return result;
   }
 
+  private normalizeCellOptions(kind: TileKind, options: Partial<GridCell>): Partial<GridCell> {
+    if (isCastleWallKind(kind)) {
+      return { ...options, battlement: true, walkway: true };
+    }
+    return options;
+  }
+
   private normalizeLevel(kind: TileKind, value: number): number {
     const level = Number.isFinite(value) ? Math.max(1, Math.floor(value)) : 1;
-    if (kind === 'wall1' || kind === 'wall2' || kind === 'wall3') return Math.min(MAX_WALL_LEVEL, level);
-    if (kind === 'tower' || kind === 'gate') return Math.min(4, level);
+    if (isCastleWallKind(kind)) return AUTOMATIC_WALL_LEVEL;
+    if (kind === 'tower' || kind === 'gate' || kind === 'cottage' || kind === 'mosque') return Math.min(4, level);
     return level;
   }
 }

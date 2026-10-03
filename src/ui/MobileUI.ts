@@ -35,6 +35,8 @@ export class MobileUI {
       <header class="mobile-header" aria-label="Mobile game actions">
         <div class="mobile-header-actions" role="toolbar" aria-label="Game actions">
           <button type="button" data-mobile-proxy="toolbar-open" class="mobile-action mobile-build-action" aria-label="Build tools" aria-controls="toolbar" aria-expanded="false"><span aria-hidden="true">🧱</span></button>
+          <button type="button" data-mobile-proxy="header-undo-button" class="mobile-action" aria-label="Undo" title="Undo" disabled><span aria-hidden="true">↶</span></button>
+          <button type="button" data-mobile-proxy="screenshot-button" class="mobile-action" aria-label="Take screenshot" title="Take screenshot"><span aria-hidden="true">📷</span></button>
           <button type="button" data-mobile-proxy="battle-button" class="mobile-action" aria-label="Battle and military">⚔️</button>
           <button type="button" data-mobile-proxy="god-mode-button" class="mobile-action" aria-label="God Mode">⚡</button>
           <button type="button" data-mobile-action="templates" class="mobile-action" aria-label="Templates">▧</button>
@@ -71,10 +73,19 @@ export class MobileUI {
       });
     });
 
-    const godModeButton = document.getElementById('god-mode-button');
-    if (godModeButton) {
+    const proxyTargetIds = new Set(
+      Array.from(layer.querySelectorAll<HTMLButtonElement>('[data-mobile-proxy]'))
+        .map((button) => button.dataset.mobileProxy)
+        .filter((id): id is string => Boolean(id)),
+    );
+    for (const targetId of proxyTargetIds) {
+      const target = document.getElementById(targetId);
+      if (!(target instanceof HTMLButtonElement)) continue;
       const observer = new MutationObserver(() => this.syncProxyVisibility());
-      observer.observe(godModeButton, { attributes: true, attributeFilter: ['hidden'] });
+      observer.observe(target, {
+        attributes: true,
+        attributeFilter: ['hidden', 'disabled', 'aria-expanded'],
+      });
       this.observers.push(observer);
     }
     this.syncProxyVisibility();
@@ -105,10 +116,13 @@ export class MobileUI {
       const targetId = proxy.dataset.mobileProxy;
       if (!targetId) return;
       const target = document.getElementById(targetId);
-      proxy.hidden = !(target instanceof HTMLButtonElement) || target.hidden;
-      if (target instanceof HTMLButtonElement) {
+      const isButton = target instanceof HTMLButtonElement;
+      proxy.hidden = !isButton || target.hidden;
+      proxy.disabled = !isButton || target.disabled;
+      if (isButton) {
         const expanded = target.getAttribute('aria-expanded');
         if (expanded !== null) proxy.setAttribute('aria-expanded', expanded);
+        else proxy.removeAttribute('aria-expanded');
       }
     });
   }

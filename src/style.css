@@ -69,6 +69,24 @@ h1 { margin: 3px 0 0; font-size: 22px; line-height: 1; letter-spacing: -.035em; 
 }
 .secondary-button:hover, .danger-button:hover, .tool-button:hover { transform: translateY(-1px); }
 .secondary-button:hover { background: rgba(91,201,255,.12); border-color: rgba(120,226,255,.3); }
+.header-icon-button {
+  flex: 0 0 auto;
+  width: 36px;
+  height: 36px;
+  min-width: 36px;
+  padding: 0;
+  display: grid;
+  place-items: center;
+  font-size: 20px;
+  line-height: 1;
+}
+.header-icon-button:disabled,
+.build-global-actions button:disabled {
+  opacity: .38;
+  cursor: default;
+  transform: none;
+  filter: saturate(.45);
+}
 .danger-button { color: #ffdeda; background: rgba(176,65,55,.2); border-color: rgba(255,191,184,.16); }
 .danger-button:hover { background: rgba(176,65,55,.34); }
 
@@ -84,6 +102,46 @@ h1 { margin: 3px 0 0; font-size: 22px; line-height: 1; letter-spacing: -.035em; 
     linear-gradient(145deg, #164d64, #092b3e 70%, #071b2a);
 }
 #game, #game canvas { width: 100% !important; height: 100% !important; display: block; }
+
+.screenshot-feedback {
+  position: absolute;
+  top: 16px;
+  left: 50%;
+  z-index: 61;
+  min-height: 38px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 13px;
+  border: 1px solid rgba(140,230,255,.35);
+  border-radius: 999px;
+  color: #f3fbff;
+  background: rgba(7,25,39,.92);
+  box-shadow: 0 12px 34px rgba(0,0,0,.34);
+  pointer-events: none;
+  opacity: 0;
+  transform: translate(-50%, -7px) scale(.98);
+  transition: opacity .16s ease, transform .16s ease;
+}
+.screenshot-feedback[hidden] { display: none; }
+.screenshot-feedback.is-visible { opacity: 1; transform: translate(-50%, 0) scale(1); }
+.screenshot-feedback.is-error { border-color: rgba(255,154,145,.5); color: #ffe4df; }
+.screenshot-feedback > span { font-size: 15px; font-weight: 900; }
+.screenshot-feedback > strong { font-size: 11px; letter-spacing: .01em; }
+
+#game-shell.screenshot-capture-flash::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 60;
+  pointer-events: none;
+  background: rgba(255,255,255,.18);
+  animation: screenshot-capture-flash .24s ease-out both;
+}
+@keyframes screenshot-capture-flash {
+  0% { opacity: .92; }
+  100% { opacity: 0; }
+}
 
 .toolbar {
   position: absolute;
@@ -2319,6 +2377,18 @@ kbd {
   gap: 14px;
   margin-top: 18px;
 }
+.starting-map-layout-grid {
+  grid-column: 1 / -1;
+  margin-top: 0;
+  margin-bottom: 4px;
+}
+#templates-modal .starting-map-layout-grid .map-layout-card {
+  min-width: 0;
+}
+html[dir="rtl"] #templates-modal .starting-map-layout-grid .map-layout-card {
+  direction: rtl;
+  text-align: right;
+}
 .map-layout-card {
   display: grid;
   grid-template-columns: 104px minmax(0, 1fr);
@@ -2370,6 +2440,11 @@ kbd {
     radial-gradient(ellipse at 70% 54%, #79a95d 0 19%, #c9b779 20% 24%, transparent 25%),
     #3d90a4;
 }
+.map-layout-preview-urban-60x80 {
+  background:
+    linear-gradient(#79a95d, #79a95d) center / 60% 80% no-repeat,
+    #3d90a4;
+}
 .map-layout-card strong { align-self: end; font-size: 16px; }
 .map-layout-card small { align-self: start; color: rgba(226,241,244,.72); line-height: 1.45; }
 .template-card:disabled {
@@ -2412,6 +2487,7 @@ kbd {
   .mobile-header-actions::-webkit-scrollbar { display:none; }
   .mobile-action,.mobile-dock-button { -webkit-tap-highlight-color:transparent; touch-action:manipulation; user-select:none; }
   .mobile-action { flex:0 0 auto; min-width:44px; min-height:44px; padding:7px 9px; border:1px solid rgba(255,255,255,.13); border-radius:12px; color:#f1fbff; background:rgba(7,25,39,.84); backdrop-filter:blur(14px); box-shadow:0 8px 24px rgba(0,0,0,.22); font-size:16px; font-weight:800; cursor:pointer; }
+  .mobile-action:disabled { opacity:.38; cursor:default; box-shadow:none; filter:saturate(.45); }
   .mobile-mode-action { width:44px; max-width:44px; padding:7px; overflow:visible; font-size:18px; line-height:1; }
   .mobile-danger { color:#ffd7d2; border-color:rgba(255,140,130,.22); }
   .mobile-bottom-dock { position:absolute; left:0; right:0; bottom:0; min-height:calc(var(--mobile-dock-height) + var(--mobile-safe-bottom)); padding:5px max(8px,var(--mobile-safe-right)) calc(5px + var(--mobile-safe-bottom)) max(8px,var(--mobile-safe-left)); display:grid; grid-template-columns:repeat(2,minmax(44px,160px)); justify-content:center; gap:5px; pointer-events:auto; background:linear-gradient(0deg,rgba(4,16,27,.97),rgba(4,16,27,.88) 72%,rgba(4,16,27,0)); backdrop-filter:blur(12px); }
@@ -3518,6 +3594,10 @@ html.mobile-ui-active .mobile-header-actions {
   overscroll-behavior-x: contain;
 }
 html.mobile-ui-active .mobile-header-actions::-webkit-scrollbar { display: none; }
+html.mobile-ui-active .screenshot-feedback {
+  top: calc(var(--mobile-safe-top) + var(--mobile-header-height) + 8px);
+  max-width: min(88vw, 340px);
+}
 
 html.mobile-ui-active .mobile-action,
 html.mobile-ui-active .mobile-dock-button {
@@ -4531,4 +4611,128 @@ html.mobile-ui-active #templates-modal .icon-button {
     font-size: 9px;
     line-height: 1.35;
   }
+}
+
+
+/* Issue #251 — lightweight floating top HUD
+   Keep the game canvas full-viewport and render only local, translucent HUD controls.
+   Unused top-screen space stays transparent so the world remains visible. */
+@media (min-width: 761px) {
+  #app {
+    position: relative;
+    display: block;
+    padding: 0;
+  }
+
+  #game-shell {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    min-height: 0;
+    border: 0;
+    border-radius: 0;
+  }
+
+  .topbar {
+    position: absolute;
+    top: max(12px, var(--safe-area-top));
+    left: max(12px, var(--safe-area-left));
+    right: max(12px, var(--safe-area-right));
+    z-index: 1000;
+    min-height: 0;
+    height: auto;
+    padding: 0;
+    gap: 0;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
+    backdrop-filter: none;
+    pointer-events: none;
+  }
+
+  .topbar > div:first-child {
+    display: none;
+  }
+
+  .status-group {
+    margin-left: auto;
+    margin-right: 0;
+    max-width: min(
+      780px,
+      calc(
+        100vw
+        - max(12px, var(--safe-area-left))
+        - max(12px, var(--safe-area-right))
+        - 176px
+      )
+    );
+    flex-wrap: wrap;
+    padding: 6px;
+    border: 1px solid rgba(140, 230, 255, .18);
+    border-radius: 14px;
+    background: rgba(5, 18, 29, .68);
+    box-shadow: 0 12px 30px rgba(0, 0, 0, .24), inset 0 1px rgba(255,255,255,.04);
+    backdrop-filter: blur(14px) saturate(1.05);
+    pointer-events: auto;
+  }
+
+  .status-group .secondary-button,
+  .status-group .danger-button {
+    background: rgba(7, 25, 39, .7);
+  }
+
+  .minimap {
+    top: max(16px, var(--safe-area-top));
+    left: max(16px, var(--safe-area-left));
+    background: rgba(8, 28, 42, .78);
+    backdrop-filter: blur(12px) saturate(1.04);
+  }
+
+  .view-mode-switch {
+    top: 76px;
+    right: max(16px, var(--safe-area-right));
+  }
+
+  .camera-view-controls {
+    top: 124px;
+    right: max(16px, var(--safe-area-right));
+  }
+}
+
+@media (min-width: 761px) and (max-width: 840px) {
+  .view-mode-switch {
+    top: 112px;
+  }
+
+  .camera-view-controls {
+    top: 160px;
+  }
+}
+
+/* The mobile header remains a hit-target container, but no longer paints a
+   full-width strip. Its left padding permanently reserves the minimap lane. */
+html.mobile-ui-active .mobile-header {
+  padding-left: max(112px, calc(var(--mobile-safe-left) + 104px));
+  background: transparent;
+  pointer-events: none;
+}
+
+html.mobile-ui-active .mobile-header-actions {
+  flex: 0 1 auto;
+  width: 100%;
+  max-width: 100%;
+  margin-left: auto;
+  pointer-events: auto;
+}
+
+html.mobile-ui-active .mobile-action {
+  background: rgba(7, 25, 39, .82);
+  box-shadow: 0 8px 22px rgba(0, 0, 0, .24);
+}
+
+html.mobile-ui-active .minimap {
+  background: rgba(8, 28, 42, .78);
+  backdrop-filter: blur(12px) saturate(1.04);
 }

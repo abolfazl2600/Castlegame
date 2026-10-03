@@ -56,6 +56,20 @@ build on a real multi-touch device and record the build SHA/versionCode, device,
 Android version, System WebView version, navigation mode and viewport. Use at least
 one narrow landscape phone and repeat on a tablet/larger device where available.
 
+### Device evidence helper
+
+The installed build can prepare the issue comment so device metadata is not copied
+by hand. Enable **Settings → Graphics → Debug mode**, then open
+**Settings → Data → Copy touch QA report**. Paste the generated Markdown into #112.
+It includes the source build SHA injected by CI, app version, Android versionCode
+and versionName, viewport/screen/DPR, max touch points, orientation, raw user agent,
+and detected Android/WebView Chromium versions. Fill the device model and Android
+navigation mode on the physical device, then mark each scenario only after testing it.
+
+If the Clipboard API is unavailable in the Android WebView, the game uses a local
+textarea copy fallback. This helper records evidence only; it does not turn browser
+emulation into physical-device acceptance.
+
 | Scenario | Result / device evidence |
 | --- | --- |
 | Rapid tap→pan, return to origin, fresh tap afterward | Pending physical device validation |

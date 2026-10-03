@@ -1,0 +1,71 @@
+name: Android Native Build QA
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - .github/workflows/android-native-qa.yml
+      - android/**
+      - capacitor.config.ts
+      - package-lock.json
+
+permissions:
+  contents: read
+
+concurrency:
+  group: android-native-qa-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  native-release:
+    name: Compile unsigned Android release APK and AAB
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+
+      - name: Set up Node.js 22
+        uses: actions/setup-node@v5
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Set up Java 21
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          cache-read-only: true
+
+      - name: Install Android SDK
+        shell: bash
+        run: |
+          set -euo pipefail
+          SDKMANAGER="$(find "$ANDROID_HOME/cmdline-tools" -type f -name sdkmanager | head -n 1)"
+          test -n "$SDKMANAGER"
+          yes | "$SDKMANAGER" --licenses > /dev/null || true
+          "$SDKMANAGER" "platforms;android-36" "build-tools;36.0.0" "platform-tools"
+
+      - name: Install locked npm packages
+        run: npm ci --no-audit --no-fund
+
+      - name: Build and sync bundled WebView assets
+        run: npm run android:sync
+
+      # No signing environment, upload key or release secrets enter this job.
+      - name: Compile native release APK and AAB
+        working-directory: android
+        run: ./gradlew --no-daemon assembleRelease bundleRelease
+
+      - name: Verify unsigned release outputs exist
+        run: |
+          test -s android/app/build/outputs/apk/release/app-release-unsigned.apk
+          test -s android/app/build/outputs/bundle/release/app-release.aab

@@ -1,74 +1,134 @@
 import { audioEvents } from './AudioEventBus';
 import { createAudioAssetRegistry } from './AudioAssets';
+import { AdaptiveMusicEngine } from './AdaptiveMusicEngine';
+import { AmbientAudioEngine, type AmbientContext } from './AmbientAudioEngine';
 import { AndroidAudioLifecycleBridge } from './AndroidAudioLifecycle';
-import type { AudioAsset, AudioEventDetail, AudioSettings } from './types';
+import type {
+  AudioAsset,
+  AudioBus,
+  AudioDiagnostics,
+  AudioManagerOptions,
+  AudioPriority,
+  AudioSettings,
+  ProceduralToneRecipe,
+} from './types';
 
 const DEFAULT_SETTINGS: AudioSettings = {
   masterVolume: 1,
   musicEnabled: true,
   musicVolume: 0.7,
+  ambientEnabled: true,
+  ambientVolume: 0.65,
   sfxEnabled: true,
   sfxVolume: 1,
   muted: false,
 };
 
-const clamp01 = (value: number): number => Math.min(1, Math.max(0, value));
-const MAX_TOTAL_SFX_VOICES = 12;
+const DEFAULT_AMBIENT_CONTEXT: AmbientContext = {
+  wind: 0.55,
+  birds: 0.45,
+  water: 0.2,
+  settlement: 0.15,
+  fire: 0.12,
+  battle: 0,
+};
 
-interface ToneRecipe {
-  start: number;
-  end: number;
-  duration: number;
-  type: OscillatorType;
-  level: number;
-  second?: number;
+const clamp01 = (value: number): number => Math.min(1, Math.max(0, value));
+
+const PRIORITY_WEIGHT: Record<AudioPriority, number> = {
+  low: 0,
+  normal: 1,
+  high: 2,
+  critical: 3,
+};
+
+interface SfxVoice {
+  element: HTMLAudioElement;
+  priority: AudioPriority;
+  startedAt: number;
 }
 
-const PROCEDURAL_SFX: Record<string, ToneRecipe> = {
-  'ui.tool-select': { start: 420, end: 640, duration: 0.07, type: 'sine', level: 0.16 },
-  'building.place': { start: 180, end: 115, duration: 0.16, type: 'triangle', level: 0.22, second: 270 },
-  'combat.battle-start': { start: 120, end: 240, duration: 0.32, type: 'sawtooth', level: 0.16, second: 180 },
-  'combat.battle-stop': { start: 220, end: 105, duration: 0.22, type: 'triangle', level: 0.15 },
-  'combat.battle-reset': { start: 150, end: 320, duration: 0.25, type: 'sine', level: 0.15, second: 225 },
-};
+interface ProceduralVoice {
+  node: OscillatorNode;
+  gain: GainNode;
+  assetId: string;
+  bus: AudioBus;
+  priority: AudioPriority;
+  startedAt: number;
+}
 
 export class AudioManager {
   private readonly registry = createAudioAssetRegistry();
   private readonly settingsStorageKey: string;
-  private readonly sfxVoices = new Map<string, HTMLAudioElement[]>();
+  private readonly sfxVoiceLimit: number;
+  private readonly sfxVoices = new Map<string, SfxVoice[]>();
+  private readonly proceduralNodes = new Map<OscillatorNode, ProceduralVoice>();
+  private readonly cooldownUntil = new Map<string, number>();
   private currentMusic: { assetId: string; element: HTMLAudioElement } | null = null;
   private settings: AudioSettings;
+  private ambientContext: AmbientContext = { ...DEFAULT_AMBIENT_CONTEXT };
+  private gameplayIntensity = 0;
   private initialized = false;
   private initializationRequested = false;
   private disposed = false;
   private unsubscribeEvents: (() => void) | null = null;
   private readonly lifecycleBlocks = new Set<string>();
-  private readonly proceduralNodes = new Map<OscillatorNode, 'music' | 'sfx'>();
   private readonly lifecycleBridge: AndroidAudioLifecycleBridge;
   private resumePromise: Promise<void> | null = null;
 
   private audioContext: AudioContext | null = null;
+  private masterGain: GainNode | null = null;
   private musicGain: GainNode | null = null;
-  private sfxGain: GainNode | null = null;
-  private ambientTimer: number | null = null;
+  private ambientGain: GainNode | null = null;
+  private gameplayGain: GainNode | null = null;
+  private uiGain: GainNode | null = null;
+  private adaptiveMusic: AdaptiveMusicEngine | null = null;
+  private ambientEngine: AmbientAudioEngine | null = null;
 
   private readonly gestureHandler = (): void => {
     void this.initializeFromUserGesture();
   };
 
-  constructor(options: { settingsStorageKey?: string } = {}) {
+  private readonly uiClickHandler = (event: Event): void => {
+    if (!this.initialized || this.disposed) return;
+    const origin = event.target instanceof Element ? event.target : null;
+    const button = origin?.closest('button, [role="button"]');
+    if (!button || button.matches(':disabled') || button.getAttribute('aria-disabled') === 'true') return;
+    this.playSfx('ui.button');
+  };
+
+  constructor(options: AudioManagerOptions = {}) {
     this.settingsStorageKey = options.settingsStorageKey ?? 'castle-role-audio-settings';
+    const mobileDefault = /Android|iPhone|iPad|Mobile/i.test(navigator.userAgent) ? 20 : 24;
+    this.sfxVoiceLimit = Math.max(4, Math.min(48, Math.trunc(options.sfxVoiceLimit ?? mobileDefault)));
     this.settings = this.loadSettings();
 
     this.unsubscribeEvents = audioEvents.on((event) => this.handleEvent(event));
     window.addEventListener('pointerdown', this.gestureHandler, { passive: true });
     window.addEventListener('keydown', this.gestureHandler, { passive: true });
     window.addEventListener('touchstart', this.gestureHandler, { passive: true });
+    document.addEventListener('click', this.uiClickHandler, true);
     this.lifecycleBridge = new AndroidAudioLifecycleBridge(this);
   }
 
   getSettings(): AudioSettings {
     return { ...this.settings };
+  }
+
+  getDiagnostics(): AudioDiagnostics {
+    const music = this.adaptiveMusic?.getDiagnostics();
+    return {
+      contextState: this.audioContext?.state ?? 'uninitialized',
+      unlocked: this.initialized,
+      musicState: music?.state ?? 'calm',
+      intensity: music?.smoothedIntensity ?? this.gameplayIntensity,
+      activeSection: music?.section ?? 'calm-loop',
+      activeStemCount: music?.activeStemCount ?? 0,
+      pendingMusicState: music?.pendingState ?? null,
+      activeSfxVoices: this.activeSfxVoiceCount(),
+      voiceLimit: this.sfxVoiceLimit,
+      activeAmbientLayers: this.ambientEngine?.getDiagnostics().activeLayers ?? [],
+    };
   }
 
   isInitialized(): boolean {
@@ -86,17 +146,26 @@ export class AudioManager {
     this.settings.musicEnabled = enabled;
     this.persistSettings();
     this.applyVolumes();
-    if (!enabled) {
-      this.currentMusic?.element.pause();
-      this.stopProceduralAmbience();
-      this.stopProceduralNodes('music');
-      return;
-    }
-    void this.resumePlaybackIfAllowed();
+    if (enabled) void this.resumePlaybackIfAllowed();
+    else this.currentMusic?.element.pause();
   }
 
   setMusicVolume(value: number): void {
     this.settings.musicVolume = clamp01(value);
+    this.persistSettings();
+    this.applyVolumes();
+  }
+
+  setAmbientEnabled(enabled: boolean): void {
+    if (this.settings.ambientEnabled === enabled) return;
+    this.settings.ambientEnabled = enabled;
+    this.persistSettings();
+    this.applyVolumes();
+    if (enabled) void this.resumePlaybackIfAllowed();
+  }
+
+  setAmbientVolume(value: number): void {
+    this.settings.ambientVolume = clamp01(value);
     this.persistSettings();
     this.applyVolumes();
   }
@@ -108,7 +177,7 @@ export class AudioManager {
     this.applyVolumes();
     if (!enabled) {
       this.clearSfxVoices();
-      this.stopProceduralNodes('sfx');
+      this.stopProceduralNodes();
     }
   }
 
@@ -125,12 +194,28 @@ export class AudioManager {
     this.applyVolumes();
     if (muted) {
       this.currentMusic?.element.pause();
-      this.stopProceduralAmbience();
       this.clearSfxVoices();
       this.stopProceduralNodes();
       return;
     }
     void this.resumePlaybackIfAllowed();
+  }
+
+  setGameplayIntensity(value: number): void {
+    this.gameplayIntensity = Math.min(2, Math.max(0, Number.isFinite(value) ? value : 0));
+    this.adaptiveMusic?.setIntensity(this.gameplayIntensity);
+  }
+
+  setAmbientContext(context: Partial<AmbientContext>): void {
+    this.ambientContext = {
+      wind: clamp01(context.wind ?? this.ambientContext.wind),
+      birds: clamp01(context.birds ?? this.ambientContext.birds),
+      water: clamp01(context.water ?? this.ambientContext.water),
+      settlement: clamp01(context.settlement ?? this.ambientContext.settlement),
+      fire: clamp01(context.fire ?? this.ambientContext.fire),
+      battle: clamp01(context.battle ?? this.ambientContext.battle),
+    };
+    this.ambientEngine?.setContext(this.ambientContext);
   }
 
   async initializeFromUserGesture(): Promise<boolean> {
@@ -172,11 +257,10 @@ export class AudioManager {
 
   playMusic(assetId: string): void {
     const asset = this.resolveAsset(assetId);
-    if (!asset) {
-      if (this.canPlayMusicNow()) this.startProceduralAmbience();
-      return;
-    }
-    if (asset.bus !== 'music' || (!asset.loop && !asset.src)) return;
+    // Never synthesize a persistent music bed as a fallback. If an authored
+    // music asset has not been registered yet, keep the game silent.
+    if (!asset?.src) return;
+    if (asset.bus !== 'music') return;
 
     if (this.currentMusic?.assetId === assetId) {
       if (this.canPlayMusicNow() && this.currentMusic.element.paused) {
@@ -184,24 +268,24 @@ export class AudioManager {
       }
       return;
     }
+
     this.stopHtmlMusic();
+    this.adaptiveMusic?.stop();
 
     const element = this.createElement(asset);
     element.loop = asset.loop ?? true;
     this.currentMusic = { assetId, element };
 
-    if (this.canPlayMusicNow()) {
-      void element.play().catch(() => undefined);
-    }
+    if (this.canPlayMusicNow()) void element.play().catch(() => undefined);
     this.applyVolumes();
   }
 
   stopMusic(): void {
     this.stopHtmlMusic();
-    this.stopProceduralAmbience();
+    this.adaptiveMusic?.stop();
   }
 
-  playSfx(assetId: string): void {
+  playSfx(assetId: string, force = false): void {
     if (
       !this.initialized
       || this.settings.muted
@@ -211,38 +295,36 @@ export class AudioManager {
     ) return;
 
     const asset = this.resolveAsset(assetId);
-    if (!asset) {
-      this.playProceduralSfx(assetId);
+    if (!asset || asset.bus === 'music' || asset.bus === 'ambient') return;
+
+    const nowMs = (this.audioContext?.currentTime ?? performance.now() / 1000) * 1000;
+    if (!force && nowMs < (this.cooldownUntil.get(assetId) ?? 0)) return;
+    this.cooldownUntil.set(assetId, nowMs + Math.max(0, asset.cooldownMs ?? 0));
+
+    const priority = asset.priority ?? 'normal';
+    const maxVoices = Math.max(1, Math.min(asset.maxVoices ?? 4, 12));
+    while (this.countAssetVoices(assetId) >= maxVoices) {
+      if (!this.evictOldestAssetVoice(assetId)) return;
+    }
+    if (!this.ensureVoiceCapacity(priority)) return;
+
+    if (asset.tone) {
+      this.playProceduralSfx(asset, priority);
       return;
     }
-    if (asset.bus === 'music') return;
+    if (!asset.src) return;
 
-    const maxVoices = Math.max(1, Math.min(asset.maxVoices ?? 4, 8));
+    const voice: SfxVoice = {
+      element: this.createElement(asset),
+      priority,
+      startedAt: nowMs,
+    };
+    voice.element.loop = false;
+    voice.element.addEventListener('ended', () => this.removeVoice(assetId, voice.element), { once: true });
     const voices = this.sfxVoices.get(assetId) ?? [];
-    const active = voices.filter((voice) => !voice.paused && !voice.ended);
-
-    while (active.length >= maxVoices) {
-      const oldest = active.shift();
-      oldest?.pause();
-      if (oldest) oldest.currentTime = 0;
-    }
-
-    const allActive = Array.from(this.sfxVoices.values())
-      .flat()
-      .filter((voice) => !voice.paused && !voice.ended);
-    while (allActive.length >= MAX_TOTAL_SFX_VOICES) {
-      const oldest = allActive.shift();
-      oldest?.pause();
-      if (oldest) oldest.currentTime = 0;
-    }
-
-    const element = this.createElement(asset);
-    element.loop = false;
-    element.addEventListener('ended', () => this.removeVoice(assetId, element), { once: true });
-    voices.push(element);
+    voices.push(voice);
     this.sfxVoices.set(assetId, voices);
-
-    void element.play().catch(() => this.removeVoice(assetId, element));
+    void voice.element.play().catch(() => this.removeVoice(assetId, voice.element));
   }
 
   pause(reason = 'manual'): void {
@@ -261,7 +343,6 @@ export class AudioManager {
     if (!wasActive) return;
 
     this.currentMusic?.element.pause();
-    this.stopProceduralAmbience();
     this.clearSfxVoices();
     this.stopProceduralNodes();
     if (this.audioContext?.state === 'running') void this.audioContext.suspend().catch(() => undefined);
@@ -282,25 +363,40 @@ export class AudioManager {
     window.removeEventListener('pointerdown', this.gestureHandler);
     window.removeEventListener('keydown', this.gestureHandler);
     window.removeEventListener('touchstart', this.gestureHandler);
+    document.removeEventListener('click', this.uiClickHandler, true);
     this.lifecycleBridge.dispose();
     this.stopMusic();
+    this.ambientEngine?.stop();
     this.clearSfxVoices();
     this.stopProceduralNodes();
     this.lifecycleBlocks.clear();
     if (this.audioContext && this.audioContext.state !== 'closed') void this.audioContext.close();
     this.audioContext = null;
+    this.masterGain = null;
     this.musicGain = null;
-    this.sfxGain = null;
+    this.ambientGain = null;
+    this.gameplayGain = null;
+    this.uiGain = null;
+    this.adaptiveMusic = null;
+    this.ambientEngine = null;
     delete document.documentElement.dataset.audioEngine;
   }
 
-  private handleEvent(event: AudioEventDetail): void {
+  private handleEvent(event: import('./types').AudioEventDetail): void {
     if (event.action === 'play_music' && event.assetId) {
       this.playMusic(event.assetId);
       return;
     }
     if (event.action === 'play_sfx' && event.assetId) {
-      this.playSfx(event.assetId);
+      this.playSfx(event.assetId, event.force ?? false);
+      return;
+    }
+    if (event.action === 'set_music_intensity') {
+      this.setGameplayIntensity(event.intensity ?? 0);
+      return;
+    }
+    if (event.action === 'set_ambient_context' && event.ambient) {
+      this.setAmbientContext(event.ambient);
       return;
     }
     if (event.action === 'stop_music') {
@@ -315,106 +411,108 @@ export class AudioManager {
   }
 
   private ensureAudioGraph(): AudioContext {
-    if (this.audioContext && this.musicGain && this.sfxGain) return this.audioContext;
+    if (
+      this.audioContext
+      && this.masterGain
+      && this.musicGain
+      && this.ambientGain
+      && this.gameplayGain
+      && this.uiGain
+    ) return this.audioContext;
 
     const context = new AudioContext();
+    const masterGain = context.createGain();
     const musicGain = context.createGain();
-    const sfxGain = context.createGain();
-    musicGain.connect(context.destination);
-    sfxGain.connect(context.destination);
+    const ambientGain = context.createGain();
+    const gameplayGain = context.createGain();
+    const uiGain = context.createGain();
+
+    musicGain.connect(masterGain);
+    ambientGain.connect(masterGain);
+    gameplayGain.connect(masterGain);
+    uiGain.connect(masterGain);
+    masterGain.connect(context.destination);
 
     this.audioContext = context;
+    this.masterGain = masterGain;
     this.musicGain = musicGain;
-    this.sfxGain = sfxGain;
+    this.ambientGain = ambientGain;
+    this.gameplayGain = gameplayGain;
+    this.uiGain = uiGain;
+    this.adaptiveMusic = new AdaptiveMusicEngine(context, musicGain);
+    this.ambientEngine = new AmbientAudioEngine(context, ambientGain);
+    this.ambientEngine.setContext(this.ambientContext);
     this.applyVolumes();
     return context;
   }
 
-  private playProceduralSfx(assetId: string): void {
-    const recipe = PROCEDURAL_SFX[assetId];
-    if (!recipe || !this.audioContext || !this.sfxGain) return;
+  private playProceduralSfx(asset: AudioAsset, priority: AudioPriority): void {
+    const recipe = asset.tone;
+    if (!recipe || !this.audioContext) return;
 
-    this.playTone(recipe.start, recipe.end, recipe.duration, recipe.type, recipe.level);
-    if (recipe.second) {
-      this.playTone(recipe.second, Math.max(70, recipe.second * 0.72), recipe.duration * 0.9, 'sine', recipe.level * 0.55, 0.018);
+    this.playTone(asset.id, recipe, asset.bus, priority, asset.volume ?? 1);
+    if (recipe.second && this.ensureVoiceCapacity(priority)) {
+      this.playTone(
+        asset.id,
+        {
+          ...recipe,
+          start: recipe.second,
+          end: Math.max(70, recipe.second * 0.72),
+          duration: recipe.duration * 0.9,
+          type: 'sine',
+          level: recipe.level * 0.55,
+          second: undefined,
+        },
+        asset.bus,
+        priority,
+        asset.volume ?? 1,
+        0.018,
+      );
     }
   }
 
   private playTone(
-    startFrequency: number,
-    endFrequency: number,
-    duration: number,
-    type: OscillatorType,
-    level: number,
+    assetId: string,
+    recipe: ProceduralToneRecipe,
+    bus: AudioBus,
+    priority: AudioPriority,
+    assetVolume: number,
     delay = 0,
   ): void {
     const context = this.audioContext;
-    const destination = this.sfxGain;
+    const destination = bus === 'ui' ? this.uiGain : this.gameplayGain;
     if (!context || !destination || context.state !== 'running') return;
 
     const startAt = context.currentTime + delay;
-    const endAt = startAt + duration;
+    const endAt = startAt + recipe.duration;
     const oscillator = context.createOscillator();
     const envelope = context.createGain();
 
-    oscillator.type = type;
-    oscillator.frequency.setValueAtTime(startFrequency, startAt);
-    oscillator.frequency.exponentialRampToValueAtTime(Math.max(35, endFrequency), endAt);
+    oscillator.type = recipe.type;
+    oscillator.frequency.setValueAtTime(recipe.start, startAt);
+    oscillator.frequency.exponentialRampToValueAtTime(Math.max(35, recipe.end), endAt);
 
     envelope.gain.setValueAtTime(0.0001, startAt);
-    envelope.gain.exponentialRampToValueAtTime(Math.max(0.001, level), startAt + Math.min(0.025, duration * 0.25));
+    envelope.gain.exponentialRampToValueAtTime(
+      Math.max(0.001, recipe.level * clamp01(assetVolume)),
+      startAt + Math.min(0.025, recipe.duration * 0.25),
+    );
     envelope.gain.exponentialRampToValueAtTime(0.0001, endAt);
 
     oscillator.connect(envelope);
     envelope.connect(destination);
-    this.trackProceduralNode(oscillator, 'sfx');
+    const voice: ProceduralVoice = {
+      node: oscillator,
+      gain: envelope,
+      assetId,
+      bus,
+      priority,
+      startedAt: startAt * 1000,
+    };
+    this.proceduralNodes.set(oscillator, voice);
+    oscillator.addEventListener('ended', () => this.removeProceduralVoice(oscillator), { once: true });
     oscillator.start(startAt);
     oscillator.stop(endAt + 0.02);
-  }
-
-  private startProceduralAmbience(): void {
-    if (
-      !this.canPlayMusicNow()
-      || !this.audioContext
-      || this.audioContext.state !== 'running'
-      || !this.musicGain
-      || this.ambientTimer !== null
-    ) return;
-    this.playAmbientPhrase();
-    this.ambientTimer = window.setInterval(() => this.playAmbientPhrase(), 7000);
-  }
-
-  private stopProceduralAmbience(): void {
-    if (this.ambientTimer !== null) {
-      window.clearInterval(this.ambientTimer);
-      this.ambientTimer = null;
-    }
-  }
-
-  private playAmbientPhrase(): void {
-    const context = this.audioContext;
-    const destination = this.musicGain;
-    if (!context || !destination || context.state !== 'running' || !this.canPlayMusicNow()) return;
-
-    const root = 110;
-    const ratios = [1, 1.5, 2];
-    const startAt = context.currentTime + 0.02;
-    const duration = 4.8;
-
-    ratios.forEach((ratio, index) => {
-      const oscillator = context.createOscillator();
-      const envelope = context.createGain();
-      oscillator.type = index === 0 ? 'sine' : 'triangle';
-      oscillator.frequency.setValueAtTime(root * ratio, startAt);
-      envelope.gain.setValueAtTime(0.0001, startAt);
-      envelope.gain.exponentialRampToValueAtTime(index === 0 ? 0.045 : 0.018, startAt + 0.9);
-      envelope.gain.exponentialRampToValueAtTime(0.0001, startAt + duration);
-      oscillator.connect(envelope);
-      envelope.connect(destination);
-      this.trackProceduralNode(oscillator, 'music');
-      oscillator.start(startAt);
-      oscillator.stop(startAt + duration + 0.05);
-    });
   }
 
   private stopHtmlMusic(): void {
@@ -432,36 +530,53 @@ export class AudioManager {
   }
 
   private createElement(asset: AudioAsset): HTMLAudioElement {
-    const element = new Audio(asset.src);
-    element.preload = 'auto';
-    element.volume = clamp01((asset.volume ?? 1) * this.effectiveVolume(asset.bus));
+    const element = new Audio(asset.src ?? '');
+    element.preload = asset.preload === 'stream' ? 'metadata' : asset.preload === 'lazy' ? 'none' : 'auto';
+    element.volume = clamp01((asset.volume ?? 1) * this.effectiveElementVolume(asset.bus));
     element.setAttribute('playsinline', '');
     return element;
   }
 
-  private effectiveVolume(bus: AudioAsset['bus']): number {
+  private effectiveElementVolume(bus: AudioBus): number {
     if (this.settings.muted) return 0;
-    if (bus === 'music' && !this.settings.musicEnabled) return 0;
-    if (bus !== 'music' && !this.settings.sfxEnabled) return 0;
-    const busVolume = bus === 'music' ? this.settings.musicVolume : this.settings.sfxVolume;
-    return this.settings.masterVolume * busVolume;
+    if (bus === 'music') {
+      if (!this.settings.musicEnabled) return 0;
+      return this.settings.masterVolume * this.settings.musicVolume;
+    }
+    if (bus === 'ambient') {
+      if (!this.settings.ambientEnabled) return 0;
+      return this.settings.masterVolume * this.settings.ambientVolume;
+    }
+    if (!this.settings.sfxEnabled) return 0;
+    return this.settings.masterVolume * this.settings.sfxVolume;
   }
 
   private applyVolumes(): void {
     const now = this.audioContext?.currentTime ?? 0;
-    if (this.musicGain) this.musicGain.gain.setTargetAtTime(this.effectiveVolume('music'), now, 0.015);
-    if (this.sfxGain) this.sfxGain.gain.setTargetAtTime(this.effectiveVolume('ui'), now, 0.015);
+    const master = this.settings.muted ? 0 : this.settings.masterVolume;
+    if (this.masterGain) this.masterGain.gain.setTargetAtTime(master, now, 0.015);
+    if (this.musicGain) {
+      this.musicGain.gain.setTargetAtTime(this.settings.musicEnabled ? this.settings.musicVolume : 0, now, 0.02);
+    }
+    if (this.ambientGain) {
+      this.ambientGain.gain.setTargetAtTime(this.settings.ambientEnabled ? this.settings.ambientVolume : 0, now, 0.02);
+    }
+    const sfxVolume = this.settings.sfxEnabled ? this.settings.sfxVolume : 0;
+    if (this.gameplayGain) this.gameplayGain.gain.setTargetAtTime(sfxVolume, now, 0.015);
+    if (this.uiGain) this.uiGain.gain.setTargetAtTime(sfxVolume, now, 0.015);
 
     if (this.currentMusic) {
       const asset = this.registry.get(this.currentMusic.assetId);
-      if (asset) this.currentMusic.element.volume = clamp01((asset.volume ?? 1) * this.effectiveVolume('music'));
+      if (asset) {
+        this.currentMusic.element.volume = clamp01((asset.volume ?? 1) * this.effectiveElementVolume('music'));
+      }
     }
 
     for (const [assetId, voices] of this.sfxVoices) {
       const asset = this.registry.get(assetId);
       if (!asset) continue;
-      const volume = clamp01((asset.volume ?? 1) * this.effectiveVolume(asset.bus));
-      for (const voice of voices) voice.volume = volume;
+      const volume = clamp01((asset.volume ?? 1) * this.effectiveElementVolume(asset.bus));
+      for (const voice of voices) voice.element.volume = volume;
     }
   }
 
@@ -499,9 +614,11 @@ export class AudioManager {
         if (this.currentMusic?.element.paused) {
           await this.currentMusic.element.play().catch(() => undefined);
         }
-        this.startProceduralAmbience();
       }
 
+      // Ambient and adaptive-music procedural beds intentionally do not
+      // auto-start. Until authored loop assets are available, startup should
+      // remain quiet and only short event-driven SFX may play.
       document.documentElement.dataset.audioLifecycle = 'active';
     })();
 
@@ -512,25 +629,108 @@ export class AudioManager {
     }
   }
 
+  private activeSfxVoiceCount(): number {
+    let count = this.proceduralNodes.size;
+    for (const voices of this.sfxVoices.values()) {
+      count += voices.filter((voice) => !voice.element.paused && !voice.element.ended).length;
+    }
+    return count;
+  }
+
+  private countAssetVoices(assetId: string): number {
+    const html = (this.sfxVoices.get(assetId) ?? [])
+      .filter((voice) => !voice.element.paused && !voice.element.ended).length;
+    let procedural = 0;
+    for (const voice of this.proceduralNodes.values()) {
+      if (voice.assetId === assetId) procedural += 1;
+    }
+    return html + procedural;
+  }
+
+  private ensureVoiceCapacity(priority: AudioPriority): boolean {
+    while (this.activeSfxVoiceCount() >= this.sfxVoiceLimit) {
+      if (!this.evictVoice(priority)) return false;
+    }
+    return true;
+  }
+
+  private evictVoice(incomingPriority: AudioPriority): boolean {
+    const incomingWeight = PRIORITY_WEIGHT[incomingPriority];
+    const candidates: Array<{ weight: number; startedAt: number; stop: () => void }> = [];
+    const consider = (weight: number, startedAt: number, stop: () => void): void => {
+      if (weight <= incomingWeight) candidates.push({ weight, startedAt, stop });
+    };
+
+    for (const [node, voice] of this.proceduralNodes) {
+      consider(PRIORITY_WEIGHT[voice.priority], voice.startedAt, () => {
+        try {
+          node.stop();
+        } catch {
+          // Node may already have ended.
+        }
+        this.removeProceduralVoice(node);
+      });
+    }
+
+    for (const [assetId, voices] of this.sfxVoices) {
+      for (const voice of voices) {
+        if (voice.element.paused || voice.element.ended) continue;
+        consider(PRIORITY_WEIGHT[voice.priority], voice.startedAt, () => {
+          voice.element.pause();
+          this.removeVoice(assetId, voice.element);
+        });
+      }
+    }
+
+    candidates.sort((a, b) => a.weight - b.weight || a.startedAt - b.startedAt);
+    const victim = candidates[0];
+    if (!victim) return false;
+    victim.stop();
+    return true;
+  }
+
+  private evictOldestAssetVoice(assetId: string): boolean {
+    let oldestProcedural: ProceduralVoice | null = null;
+    for (const voice of this.proceduralNodes.values()) {
+      if (voice.assetId !== assetId) continue;
+      if (!oldestProcedural || voice.startedAt < oldestProcedural.startedAt) oldestProcedural = voice;
+    }
+
+    const htmlVoices = (this.sfxVoices.get(assetId) ?? [])
+      .filter((voice) => !voice.element.paused && !voice.element.ended)
+      .sort((a, b) => a.startedAt - b.startedAt);
+    const oldestHtml = htmlVoices[0];
+
+    if (oldestProcedural && (!oldestHtml || oldestProcedural.startedAt <= oldestHtml.startedAt)) {
+      try {
+        oldestProcedural.node.stop();
+      } catch {
+        // Node may already have ended.
+      }
+      this.removeProceduralVoice(oldestProcedural.node);
+      return true;
+    }
+    if (oldestHtml) {
+      oldestHtml.element.pause();
+      this.removeVoice(assetId, oldestHtml.element);
+      return true;
+    }
+    return false;
+  }
+
   private clearSfxVoices(): void {
     for (const voices of this.sfxVoices.values()) {
       for (const voice of voices) {
-        voice.pause();
-        voice.removeAttribute('src');
-        voice.load();
+        voice.element.pause();
+        voice.element.removeAttribute('src');
+        voice.element.load();
       }
     }
     this.sfxVoices.clear();
   }
 
-  private trackProceduralNode(node: OscillatorNode, bus: 'music' | 'sfx'): void {
-    this.proceduralNodes.set(node, bus);
-    node.addEventListener('ended', () => this.proceduralNodes.delete(node), { once: true });
-  }
-
-  private stopProceduralNodes(bus?: 'music' | 'sfx'): void {
-    for (const [node, nodeBus] of Array.from(this.proceduralNodes.entries())) {
-      if (bus && nodeBus !== bus) continue;
+  private stopProceduralNodes(): void {
+    for (const [node, voice] of Array.from(this.proceduralNodes.entries())) {
       this.proceduralNodes.delete(node);
       try {
         node.stop();
@@ -539,16 +739,29 @@ export class AudioManager {
       }
       try {
         node.disconnect();
+        voice.gain.disconnect();
       } catch {
         // Disconnection is best-effort during lifecycle teardown.
       }
     }
   }
 
+  private removeProceduralVoice(node: OscillatorNode): void {
+    const voice = this.proceduralNodes.get(node);
+    if (!voice) return;
+    this.proceduralNodes.delete(node);
+    try {
+      node.disconnect();
+      voice.gain.disconnect();
+    } catch {
+      // Best-effort cleanup.
+    }
+  }
+
   private removeVoice(assetId: string, element: HTMLAudioElement): void {
     const voices = this.sfxVoices.get(assetId);
     if (!voices) return;
-    const next = voices.filter((voice) => voice !== element);
+    const next = voices.filter((voice) => voice.element !== element);
     if (next.length) this.sfxVoices.set(assetId, next);
     else this.sfxVoices.delete(assetId);
     element.removeAttribute('src');
@@ -564,6 +777,8 @@ export class AudioManager {
         masterVolume: clamp01(Number(parsed.masterVolume ?? DEFAULT_SETTINGS.masterVolume)),
         musicEnabled: Boolean(parsed.musicEnabled ?? DEFAULT_SETTINGS.musicEnabled),
         musicVolume: clamp01(Number(parsed.musicVolume ?? DEFAULT_SETTINGS.musicVolume)),
+        ambientEnabled: Boolean(parsed.ambientEnabled ?? DEFAULT_SETTINGS.ambientEnabled),
+        ambientVolume: clamp01(Number(parsed.ambientVolume ?? DEFAULT_SETTINGS.ambientVolume)),
         sfxEnabled: Boolean(parsed.sfxEnabled ?? DEFAULT_SETTINGS.sfxEnabled),
         sfxVolume: clamp01(Number(parsed.sfxVolume ?? DEFAULT_SETTINGS.sfxVolume)),
         muted: Boolean(parsed.muted ?? DEFAULT_SETTINGS.muted),

@@ -14,6 +14,7 @@ assert.equal(snapshot.blocks.length, 4);
 assert.equal(snapshot.blocks.find((b) => b.x === 1 && b.y === 1)?.corner, true);
 assert.equal(snapshot.blocks.find((b) => b.kind === 'gate')?.traversal.isCrossing, true);
 assert.equal(snapshot.blocks.find((b) => b.kind === 'tower')?.height, 3);
+assert.equal(snapshot.blocks.find((b) => b.x === 1 && b.y === 1)?.height, 1, 'legacy/manual wall levels must be ignored');
 assert.equal(snapshot.blocks.find((b) => b.x === 1 && b.y === 2)?.damage, 0.4);
 
 const second = system.build([
@@ -65,15 +66,17 @@ const elevated = system.build([
   { x: 0, y: 0, kind: 'wall1', level: 3 },
   { x: 1, y: 0, kind: 'wall1', level: 1 },
 ], 'limestone', (x) => x === 0 ? 2 : 0);
-assert.deepEqual(at(elevated, 0, 0).stack.map((floor) => floor.index), [1, 2, 3]);
-assert.equal(at(elevated, 0, 0).topWorld - at(elevated, 0, 0).topLocal, 2);
-assert.equal(at(elevated, 1, 0).topWorld - at(elevated, 1, 0).topLocal, 0);
-assert.ok(at(elevated, 0, 0).topLocal > at(elevated, 1, 0).topLocal);
+assert.deepEqual(at(elevated, 0, 0).stack.map((floor) => floor.index), [1]);
+assert.deepEqual(at(elevated, 1, 0).stack.map((floor) => floor.index), [1]);
+assert.ok(Math.abs((at(elevated, 0, 0).topWorld - at(elevated, 0, 0).topLocal) - 2) < 1e-9);
+assert.ok(Math.abs(at(elevated, 1, 0).topWorld - at(elevated, 1, 0).topLocal) < 1e-9);
+assert.equal(at(elevated, 0, 0).topLocal, at(elevated, 1, 0).topLocal);
 assert.equal(at(elevated, 0, 0).neighborTopDelta.E, -at(elevated, 1, 0).neighborTopDelta.W);
 assert.deepEqual(system.build(JSON.parse(JSON.stringify([
-  { x: 0, y: 0, kind: 'wall1', level: 3 }, { x: 1, y: 0, kind: 'wall1', level: 1 },
+  { x: 0, y: 0, kind: 'wall1', level: 12 }, { x: 1, y: 0, kind: 'wall1', level: 6 },
 ])), 'limestone', (x) => x === 0 ? 2 : 0), elevated);
-assert.equal(system.build([{ x: 0, y: 0, kind: 'wall1', level: 999 }], 'limestone').blocks[0].stack.length, 12);
+assert.equal(system.build([{ x: 0, y: 0, kind: 'wall1', level: 999 }], 'limestone').blocks[0].stack.length, 1);
+
 const closedGate = system.build([
   { x: 0, y: 0, kind: 'wall1' },
   { x: 1, y: 0, kind: 'gate', gateOpen: false },

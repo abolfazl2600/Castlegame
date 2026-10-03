@@ -156,7 +156,9 @@ export class SettingsUI {
               <div class="settings-control-card">
                 ${this.rangeRow('Master volume', 'Overall game volume.', 'masterVolume', 0, 1, 0.01)}
                 ${this.toggleRow('Music enabled', 'Allow ambient background music and ambience.', 'musicEnabled')}
-                ${this.rangeRow('Music volume', 'Ambient background sound level.', 'musicVolume', 0, 1, 0.01)}
+                ${this.rangeRow('Music volume', 'Adaptive score level.', 'musicVolume', 0, 1, 0.01)}
+                ${this.toggleRow('Ambient enabled', 'Allow wind, birds, water, settlement and battle ambience.', 'ambientEnabled')}
+                ${this.rangeRow('Ambient volume', 'Environmental world sound level.', 'ambientVolume', 0, 1, 0.01)}
                 ${this.toggleRow('Sound effects enabled', 'Allow building, UI and battle feedback sounds.', 'sfxEnabled')}
                 ${this.rangeRow('Sound effects volume', 'Building, UI and battle feedback level.', 'sfxVolume', 0, 1, 0.01)}
                 ${this.toggleRow('Mute all', 'Silence all game audio immediately.', 'muted')}
@@ -198,6 +200,7 @@ export class SettingsUI {
               ${this.paneHeading('LOCAL DATA', 'Data & Privacy', 'Saves and settings are stored locally in this browser.')}
               <div class="settings-data-actions">
                 <button type="button" data-action="open-privacy" disabled aria-busy="true"><span>Data & Privacy</span><small>Review what the game stores and how to delete it</small></button>
+                <button type="button" data-action="copy-touch-qa" hidden><span>Copy touch QA report</span><small>Developer evidence for Android multi-touch acceptance.</small></button>
                 <button type="button" data-action="defaults"><span>Restore defaults</span><small>Restore default settings without deleting saves</small></button>
                 <button type="button" data-action="reset-settings"><span>Reset settings</span><small>Clear saved preferences and return to defaults</small></button>
                 <button class="is-danger" type="button" data-action="reset-save"><span>Delete local saves</span><small>Remove all local save slots and autosaves</small></button>
@@ -289,6 +292,9 @@ export class SettingsUI {
     this.panel.querySelector('[data-action="reset-save"]')?.addEventListener('click', () => {
       if (window.confirm(translate('Delete all local game saves? Your settings will be kept. This cannot be undone.', resolveLocale(this.store.get().interface.language)))) this.onResetSave();
     });
+    this.panel.querySelector<HTMLButtonElement>('[data-action="copy-touch-qa"]')?.addEventListener('click', (event) => {
+      void this.copyTouchQaReport(event.currentTarget as HTMLButtonElement);
+    });
     this.panel.querySelector('[data-action="defaults"]')?.addEventListener('click', () => this.store.restoreDefaults());
     this.panel.querySelector('[data-action="reset-settings"]')?.addEventListener('click', () => {
       if (window.confirm(translate('Reset all game settings to their initial defaults? Your game saves will not be deleted.', resolveLocale(this.store.get().interface.language)))) this.store.resetSettings();
@@ -338,6 +344,60 @@ export class SettingsUI {
         privacyButton.removeAttribute('aria-busy');
         privacyButton.title = 'Data & Privacy is unavailable';
       }
+    }
+  }
+
+  private async copyTouchQaReport(button: HTMLButtonElement): Promise<void> {
+    const description = button.querySelector<HTMLElement>('small');
+    const idleText = 'Developer evidence for Android multi-touch acceptance.';
+    button.disabled = true;
+
+    try {
+      const { collectTouchQaEvidence, formatTouchQaIssueComment } = await import('../input/TouchQaEvidence');
+      const report = formatTouchQaIssueComment(collectTouchQaEvidence());
+      let copied = false;
+
+      try {
+        if (navigator.clipboard?.writeText) {
+          await navigator.clipboard.writeText(report);
+          copied = true;
+        }
+      } catch {
+        // Android WebView and non-secure browser contexts may block Clipboard API.
+      }
+
+      if (!copied) copied = this.copyTextFallback(report);
+      if (!copied) throw new Error('Clipboard API and fallback copy both failed');
+
+      if (description) description.textContent = 'Touch QA report copied. Paste it into issue #112 and complete physical results.';
+    } catch (error) {
+      console.error('Touch QA evidence copy failed', error);
+      if (description) description.textContent = 'Unable to copy touch QA report. Try again after the game has loaded.';
+    } finally {
+      button.disabled = false;
+      window.setTimeout(() => {
+        if (description) description.textContent = idleText;
+      }, 3500);
+    }
+  }
+
+  private copyTextFallback(text: string): boolean {
+    const field = document.createElement('textarea');
+    field.value = text;
+    field.readOnly = true;
+    field.style.position = 'fixed';
+    field.style.opacity = '0';
+    field.style.pointerEvents = 'none';
+    document.body.appendChild(field);
+    field.focus();
+    field.select();
+
+    try {
+      return document.execCommand('copy');
+    } catch {
+      return false;
+    } finally {
+      field.remove();
     }
   }
 
@@ -403,6 +463,12 @@ export class SettingsUI {
       case 'musicVolume':
         this.store.setAudio({ musicVolume: Number(value) });
         break;
+      case 'ambientEnabled':
+        this.store.setAudio({ ambientEnabled: Boolean(value) });
+        break;
+      case 'ambientVolume':
+        this.store.setAudio({ ambientVolume: Number(value) });
+        break;
       case 'sfxEnabled':
         this.store.setAudio({ sfxEnabled: Boolean(value) });
         break;
@@ -456,6 +522,8 @@ export class SettingsUI {
     set('masterVolume', settings.audio.masterVolume);
     set('musicEnabled', settings.audio.musicEnabled);
     set('musicVolume', settings.audio.musicVolume);
+    set('ambientEnabled', settings.audio.ambientEnabled);
+    set('ambientVolume', settings.audio.ambientVolume);
     set('sfxEnabled', settings.audio.sfxEnabled);
     set('sfxVolume', settings.audio.sfxVolume);
     set('muted', settings.audio.muted);
@@ -465,11 +533,14 @@ export class SettingsUI {
     set('highContrast', settings.interface.highContrast);
     set('confirmDestructiveActions', settings.interface.confirmDestructiveActions);
     set('showHelp', settings.interface.showHelp);
+
+    const touchQaButton = this.panel.querySelector<HTMLButtonElement>('[data-action="copy-touch-qa"]');
+    if (touchQaButton) touchQaButton.hidden = !settings.graphics.debugMode;
   }
 
   private formatOutput(key: string, value: number): string {
     if (key === 'cameraSensitivity') return value.toFixed(2) + '×';
-    if (key === 'uiScale' || key === 'masterVolume' || key === 'musicVolume' || key === 'sfxVolume') {
+    if (key === 'uiScale' || key === 'masterVolume' || key === 'musicVolume' || key === 'ambientVolume' || key === 'sfxVolume') {
       return Math.round(value * 100) + '%';
     }
     return String(value);

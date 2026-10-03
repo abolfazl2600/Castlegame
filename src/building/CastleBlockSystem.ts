@@ -73,15 +73,33 @@ export interface CastleBlockSnapshot {
 }
 
 const CASTLE_KINDS = new Set<string>(['wall1', 'wall2', 'wall3', 'gate', 'tower']);
-/** Walls may be upgraded once beyond their base level; towers keep their existing multi-level progression. */
-export const MAX_WALL_LEVEL = 12;
+export const AUTOMATIC_WALL_LEVEL = 1;
 const DIRECTIONS: WallDirection[] = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'];
 const BODY_BASE = 2.58;
 const WALL_RISE = 2.15;
 
+export function isCastleWallKind(kind: string): kind is WallKind {
+  return kind === 'wall1' || kind === 'wall2' || kind === 'wall3';
+}
+
+/**
+ * Canonical wall-height rule.
+ *
+ * Player/authored per-cell wall levels are intentionally ignored. Wall families own
+ * their architectural base height, while terrain is handled by stepped foundations
+ * and connected-block deltas. Towers and gates retain their independent upgrade
+ * levels because they are discrete fortification structures rather than wall-height
+ * controls.
+ */
+export function automaticWallLevel(): number {
+  return AUTOMATIC_WALL_LEVEL;
+}
+
 export function castleHeightFor(cell: GridCell): { topLocal: number; stack: CastleLevelState[] } {
   const rawLevel = Number.isFinite(cell.level) ? Math.max(1, Math.floor(cell.level!)) : 1;
-  const level = cell.kind === 'gate' || cell.kind === 'tower' ? Math.min(4, rawLevel) : Math.min(MAX_WALL_LEVEL, rawLevel);
+  const level = isCastleWallKind(cell.kind)
+    ? automaticWallLevel()
+    : Math.min(4, rawLevel);
   const base = cell.kind === 'wall1' ? 5.2 : cell.kind === 'wall2' ? 4.7 :
     cell.kind === 'wall3' ? 5.8 : cell.kind === 'tower' ?
       ((cell.towerShape ?? 'round') === 'watch' ? 6.4 : 7.4) : 5.27;
@@ -238,7 +256,7 @@ export class CastleBlockSystem {
         corner: kind === 'wall' && isCorner(links),
         stoneStyle,
         traversal: {
-          walkableTop: !collapsed && damageStage !== 'partial-breach' && (kind !== 'gate' ? Boolean(cell.walkway) : true),
+          walkableTop: !collapsed && damageStage !== 'partial-breach',
           blocksGround: !collapsed && (kind !== 'gate' || cell.gateOpen === false),
           isCrossing: kind === 'gate' || (collapsed && kind === 'wall'),
           passable: collapsed && kind === 'wall' || kind === 'gate' && (collapsed || cell.gateOpen !== false),

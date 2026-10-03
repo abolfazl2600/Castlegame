@@ -4,7 +4,30 @@ interface GameUpdaterPlugin {
   update(): Promise<{ updated: boolean; buildId?: string }>;
 }
 
+interface UpdaterError {
+  code?: string;
+  message?: string;
+}
+
 const GameUpdater = registerPlugin<GameUpdaterPlugin>('GameUpdater');
+
+function updateFailureMessage(error: unknown): string {
+  const failure = error && typeof error === 'object' ? error as UpdaterError : {};
+  switch (failure.code) {
+    case 'NETWORK':
+      return 'دریافت بروزرسانی ممکن نشد. اتصال اینترنت را بررسی کنید.';
+    case 'INTEGRITY':
+      return 'فایل بروزرسانی معتبر نیست و نصب نشد.';
+    case 'PACKAGE':
+      return 'بسته بروزرسانی معتبر نیست.';
+    case 'MANIFEST':
+      return 'اطلاعات بروزرسانی قابل دریافت نیست. بعداً دوباره تلاش کنید.';
+    case 'ACTIVATION':
+      return 'بروزرسانی دریافت شد اما فعال‌سازی آن انجام نشد. نسخه فعلی حفظ شده است.';
+    default:
+      return 'بروزرسانی انجام نشد. بعداً دوباره تلاش کنید.';
+  }
+}
 
 export class AndroidUpdateUI {
   constructor() {
@@ -19,7 +42,7 @@ export class AndroidUpdateUI {
     const card = document.createElement('button');
     card.type = 'button';
     card.dataset.action = 'update-game';
-    card.innerHTML = '<span>بروزرسانی بازی</span><small>دریافت آخرین داده‌های بازی از مخزن GitHub</small>';
+    card.innerHTML = '<span>بروزرسانی بازی</span><small>دریافت بسته وب امن از سرور عمومی بروزرسانی</small>';
 
     const status = document.createElement('div');
     status.className = 'settings-info-strip';
@@ -32,24 +55,25 @@ export class AndroidUpdateUI {
     card.addEventListener('click', async () => {
       card.disabled = true;
       const label = card.querySelector('span');
+      const statusText = status.querySelector<HTMLElement>('span:last-child');
       if (label) label.textContent = 'در حال بررسی و دریافت...';
-      status.querySelector('span:last-child')!.textContent = 'در حال بررسی آخرین build منتشرشده در GitHub...';
+      if (statusText) statusText.textContent = 'در حال دریافت اطلاعات آخرین بروزرسانی منتشرشده...';
 
       try {
         const result = await GameUpdater.update();
         if (result.updated) {
-          status.querySelector('span:last-child')!.textContent = 'بروزرسانی دریافت شد. بازی در حال بارگذاری نسخه جدید است...';
+          if (statusText) statusText.textContent = 'بروزرسانی تایید و فعال شد. بازی در حال بارگذاری نسخه جدید است...';
+          window.setTimeout(() => window.location.reload(), 250);
           return;
         }
 
-        status.querySelector('span:last-child')!.textContent = 'بازی شما به‌روز است.';
-        card.disabled = false;
-        if (label) label.textContent = 'بروزرسانی بازی';
+        if (statusText) statusText.textContent = 'بازی شما به‌روز است.';
       } catch (error) {
         console.error('Android game update failed', error);
-        status.querySelector('span:last-child')!.textContent = 'بروزرسانی ناموفق بود. اتصال اینترنت را بررسی کنید و دوباره تلاش کنید.';
-        card.disabled = false;
+        if (statusText) statusText.textContent = updateFailureMessage(error);
+      } finally {
         if (label) label.textContent = 'بروزرسانی بازی';
+        card.disabled = false;
       }
     });
   }

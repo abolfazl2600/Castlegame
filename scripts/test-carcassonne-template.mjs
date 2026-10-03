@@ -15,7 +15,7 @@ assert.equal(
   1,
   'Carcassonne must appear once in the template picker.',
 );
-assert.equal([...html.matchAll(/data-template=\"[^\"]+\"/g)].length, 34, 'Template picker must preserve all 34 complete starting worlds.');
+assert.equal([...html.matchAll(/data-template=\"[^\"]+\"/g)].length, 36, 'Template picker must preserve all 36 complete starting worlds.');
 assert.ok(threeGame.includes("'carcassonne': { layoutId: 'mainland', seed: 5601 }"));
 assert.ok(threeGame.includes("template === 'carcassonne'"));
 assert.ok(
@@ -41,7 +41,7 @@ assert.match(
 );
 assert.match(
   threeGame,
-  /place\(3, 13, 'gate', 2\);[\s\S]*?place\(6, 13, 'gate', 3\);/,
+  /place\(3, 13, 'gate', 2\);[\s\S]*?place\(5, 13, 'gate', 3\);/,
   'Porte d\'Aude must keep its outer and inner gates.',
 );
 assert.ok(
@@ -71,6 +71,24 @@ assert.ok(basilica.includes('RingGeometry'));
 assert.ok(wallPath.includes('every consecutive point is cardinally'));
 assert.ok(wallPath.includes('export function rasterizeWallPath'));
 assert.ok(wallPath.includes('closed = false'));
+
+assert.ok(
+  threeGame.includes('const wallPlanOutline = 0x3b3328;'),
+  'Plan view must keep a high-contrast fortification outline.',
+);
+assert.ok(
+  threeGame.split('wallPlanOutline').length - 1 >= 4,
+  'Plan wall runs and towers must reuse the same high-contrast outline.',
+);
+assert.ok(
+  threeGame.includes('terrainTile.renderOrder = 39;'),
+  'Plan terrain must render below fortification geometry.',
+);
+assert.doesNotMatch(
+  threeGame.slice(threeGame.indexOf('private renderPlanLayer'), threeGame.indexOf('const grid = new THREE.GridHelper')),
+  /\b0\.96\b/,
+  'Plan terrain must stay opaque so transparent sorting cannot overpaint fortifications.',
+);
 
 for (const source of [
   'whc.unesco.org/en/list/345',

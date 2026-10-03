@@ -103,8 +103,8 @@ assert.match(
 
 assert.match(
   accessTest,
-  /Wall-connected access removal\/navigation regression checks passed/,
-  'The wall-access removal regression must remain active.',
+  /Automatic wall detail\/access navigation regression checks passed/,
+  'The automatic wall-detail and navigation regression must remain active.',
 );
 assert.doesNotMatch(
   threeGame,

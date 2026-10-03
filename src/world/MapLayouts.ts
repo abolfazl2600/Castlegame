@@ -1,3 +1,4 @@
+import { TILE_SIZE } from '../core/constants';
 import type { MapLayoutId, TerrainKind } from '../core/types';
 
 export interface MapLayoutDefinition {
@@ -5,6 +6,42 @@ export interface MapLayoutDefinition {
   label: string;
   description: string;
   preview: string;
+}
+
+/** Exact land dimensions in world units, independent of the surrounding ocean. */
+export const URBAN_LAND_WIDTH = 60;
+export const URBAN_LAND_DEPTH = 80;
+
+/** Authored dimensions of the two-fortress battlefield. The renderer keeps the existing tile grid. */
+export const TWIN_FORTRESSES_LAND_WIDTH = 90;
+export const TWIN_FORTRESSES_LAND_DEPTH = 95;
+
+/** Authored Himeji Castle plot requested for the historic template. */
+export const HIMEJI_LAND_WIDTH = 46;
+export const HIMEJI_LAND_DEPTH = 90;
+
+export function urbanLandBounds(size: number) {
+  const cols = URBAN_LAND_WIDTH / TILE_SIZE;
+  const rows = URBAN_LAND_DEPTH / TILE_SIZE;
+  const minX = Math.floor((size - cols) / 2);
+  const minY = Math.floor((size - rows) / 2);
+  return { minX, minY, cols, rows, maxX: minX + cols - 1, maxY: minY + rows - 1 };
+}
+
+/**
+ * Raster bounds for the authored 46×90 Himeji plot.
+ *
+ * The engine currently uses a 22×22 grid with 4-unit cells (88×88 rendered units),
+ * so the authored dimensions are represented by the nearest complete-cell envelope:
+ * 12×22 cells. Keeping the 46×90 dimensions as first-class map metadata prevents
+ * the historic template from falling back to the old square mainland footprint.
+ */
+export function himejiLandBounds(size: number) {
+  const cols = Math.min(size, Math.ceil(HIMEJI_LAND_WIDTH / TILE_SIZE));
+  const rows = Math.min(size, Math.ceil(HIMEJI_LAND_DEPTH / TILE_SIZE));
+  const minX = Math.floor((size - cols) / 2);
+  const minY = Math.floor((size - rows) / 2);
+  return { minX, minY, cols, rows, maxX: minX + cols - 1, maxY: minY + rows - 1 };
 }
 
 export const MAP_LAYOUTS: readonly MapLayoutDefinition[] = [
@@ -32,13 +69,34 @@ export const MAP_LAYOUTS: readonly MapLayoutDefinition[] = [
     description: 'Two separated buildable islands with distinct shores and open water between them for bridges, ports, and split settlements.',
     preview: '◯ ◯',
   },
+  {
+    id: 'urban-60x80',
+    label: 'Urban Land 60×80',
+    description: 'A flat rectangular plot, 60×80 world units (15×20 building tiles), with ocean outside its boundaries.',
+    preview: '▦',
+  },
+  {
+    id: 'twin-fortresses-90x95',
+    label: 'Twin Fortresses 90×95',
+    description: 'A two-castle battlefield with twin gates, keeps, military camps, roads, and distributed resources.',
+    preview: '♜⚔♜',
+  },
+  {
+    id: 'himeji-46x90',
+    label: 'Himeji Castle Ground 46×90',
+    description: 'A narrow 46×90 authored historic-castle plot used by the Himeji Castle starting world.',
+    preview: '🏯',
+  },
 ] as const;
 
 export function isMapLayoutId(value: unknown): value is MapLayoutId {
   return value === 'island' ||
     value === 'mainland' ||
     value === 'peninsula' ||
-    value === 'twin-isles';
+    value === 'twin-isles' ||
+    value === 'urban-60x80' ||
+    value === 'twin-fortresses-90x95' ||
+    value === 'himeji-46x90';
 }
 
 export function normalizeMapLayoutId(value: unknown): MapLayoutId {
@@ -115,33 +173,178 @@ function landScore(layout: MapLayoutId, x: number, y: number, size: number): num
   return islandScore(x, y, size);
 }
 
+interface RiverProfile {
+  centerRatio: number;
+  startRatio: number;
+  endRatio: number;
+  broadAmplitude: number;
+  broadCycles: number;
+  broadPhase: number;
+  secondaryAmplitude: number;
+  secondaryCycles: number;
+  secondaryPhase: number;
+  localAmplitude: number;
+  localCycles: number;
+  localPhase: number;
+  asymmetry: number;
+  baseWidth: number;
+  widthVariation: number;
+  widthCycles: number;
+  widthPhase: number;
+  bendWidening: number;
+  bankIrregularity: number;
+  bankCycles: number;
+  bankPhase: number;
+}
+
+const RIVER_PROFILES: Partial<Record<MapLayoutId, RiverProfile>> = {
+  island: {
+    centerRatio: 0.49,
+    startRatio: 0.1,
+    endRatio: 0.9,
+    broadAmplitude: 1.55,
+    broadCycles: 0.72,
+    broadPhase: 0.35,
+    secondaryAmplitude: 0.68,
+    secondaryCycles: 1.85,
+    secondaryPhase: 1.55,
+    localAmplitude: 0.24,
+    localCycles: 4.15,
+    localPhase: 0.4,
+    asymmetry: 0.32,
+    baseWidth: 0.68,
+    widthVariation: 0.3,
+    widthCycles: 1.55,
+    widthPhase: 0.8,
+    bendWidening: 0.16,
+    bankIrregularity: 0.16,
+    bankCycles: 3.7,
+    bankPhase: 0.2,
+  },
+  mainland: {
+    centerRatio: 0.42,
+    startRatio: 0.08,
+    endRatio: 0.92,
+    broadAmplitude: 2.05,
+    broadCycles: 0.55,
+    broadPhase: 1.05,
+    secondaryAmplitude: 0.82,
+    secondaryCycles: 1.42,
+    secondaryPhase: 0.15,
+    localAmplitude: 0.28,
+    localCycles: 3.35,
+    localPhase: 2.05,
+    asymmetry: 0.42,
+    baseWidth: 0.82,
+    widthVariation: 0.42,
+    widthCycles: 1.18,
+    widthPhase: 0.1,
+    bendWidening: 0.24,
+    bankIrregularity: 0.2,
+    bankCycles: 3,
+    bankPhase: 1.25,
+  },
+  peninsula: {
+    centerRatio: 0.5,
+    startRatio: 0.2,
+    endRatio: 0.74,
+    broadAmplitude: 0.72,
+    broadCycles: 0.82,
+    broadPhase: 0.25,
+    secondaryAmplitude: 0.3,
+    secondaryCycles: 1.75,
+    secondaryPhase: 1.35,
+    localAmplitude: 0.12,
+    localCycles: 3.6,
+    localPhase: 0.7,
+    asymmetry: 0.12,
+    baseWidth: 0.54,
+    widthVariation: 0.14,
+    widthCycles: 1.35,
+    widthPhase: 2.1,
+    bendWidening: 0.07,
+    bankIrregularity: 0.08,
+    bankCycles: 2.6,
+    bankPhase: 0.35,
+  },
+};
+
+function riverWave(t: number, cycles: number, phase: number): number {
+  return Math.sin(t * Math.PI * 2 * cycles + phase);
+}
+
+function riverCenterline(profile: RiverProfile, t: number, size: number): number {
+  const broad = riverWave(t, profile.broadCycles, profile.broadPhase);
+  const secondary = riverWave(t, profile.secondaryCycles, profile.secondaryPhase);
+  const local = riverWave(t, profile.localCycles, profile.localPhase);
+  const asymmetric =
+    riverWave(t, profile.broadCycles * 0.47, profile.broadPhase + 1.1) *
+    riverWave(t, profile.secondaryCycles * 0.73, profile.secondaryPhase - 0.6);
+
+  return (
+    size * profile.centerRatio +
+    broad * profile.broadAmplitude +
+    secondary * profile.secondaryAmplitude +
+    local * profile.localAmplitude +
+    asymmetric * profile.asymmetry
+  );
+}
+
+function riverHalfWidth(profile: RiverProfile, t: number): number {
+  const primary = (riverWave(t, profile.widthCycles, profile.widthPhase) + 1) * 0.5;
+  const secondary =
+    (riverWave(t, profile.widthCycles * 2.27, profile.widthPhase + 1.7) + 1) * 0.5;
+  const majorBend = Math.abs(
+    riverWave(t, profile.broadCycles, profile.broadPhase + 0.25),
+  );
+
+  return (
+    profile.baseWidth +
+    profile.widthVariation * (primary * 0.7 + secondary * 0.3) +
+    profile.bendWidening * majorBend
+  );
+}
+
+function riverBankVariation(
+  profile: RiverProfile,
+  t: number,
+  side: -1 | 1,
+): number {
+  const primary = riverWave(
+    t,
+    profile.bankCycles,
+    profile.bankPhase + (side < 0 ? -0.65 : 0.8),
+  );
+  const detail = riverWave(
+    t,
+    profile.bankCycles * 1.83,
+    profile.bankPhase + (side < 0 ? 1.4 : -0.9),
+  );
+  return profile.bankIrregularity * (primary * 0.72 + detail * 0.28);
+}
+
 function layoutRiver(layout: MapLayoutId, x: number, y: number, size: number, score: number): boolean {
-  if (score <= 0.06 || y <= 1 || y >= size - 2) return false;
+  const profile = RIVER_PROFILES[layout];
+  if (!profile || score <= 0.05 || y <= 1 || y >= size - 2) return false;
 
-  if (layout === 'island') {
-    const center =
-      size * 0.48 +
-      Math.sin(y * 0.54) * 1.18 +
-      Math.sin(y * 0.18 + 1.2) * 0.42;
-    const width =
-      0.48 +
-      (Math.sin(y * 0.37 + 0.8) + 1) * 0.16 +
-      (y > size * 0.62 ? 0.12 : 0);
-    return Math.abs(x - center) < width;
-  }
+  const t = y / Math.max(1, size - 1);
+  if (t < profile.startRatio || t > profile.endRatio) return false;
 
-  if (layout === 'mainland') {
-    const center = size * 0.42 + Math.sin(y * 0.43 + 0.8) * 1.35;
-    const width = y > size * 0.58 ? 0.78 : 0.58;
-    return Math.abs(x - center) < width;
-  }
+  const center = riverCenterline(profile, t, size);
+  const signedDistance = x - center;
+  const bankVariation = riverBankVariation(
+    profile,
+    t,
+    signedDistance < 0 ? -1 : 1,
+  );
+  const halfWidth = Math.max(
+    0.46,
+    riverHalfWidth(profile, t) + bankVariation,
+  );
 
-  if (layout === 'peninsula') {
-    const center = size * 0.5 + Math.sin(y * 0.31) * 0.65;
-    return y > size * 0.2 && y < size * 0.72 && Math.abs(x - center) < 0.46;
-  }
-
-  return false;
+  // Bank variation only changes the contiguous half-width for a row. It never
+  // punches random holes into the channel, so editable terrain stays coherent.
+  return Math.abs(signedDistance) <= halfWidth;
 }
 
 function layoutMountain(layout: MapLayoutId, x: number, y: number, size: number): boolean {
@@ -207,6 +410,26 @@ export function terrainForMapLayout(
   size: number,
 ): TerrainKind {
   if (x < 0 || y < 0 || x >= size || y >= size) return 'water';
+
+  if (layout === 'himeji-46x90') {
+    const bounds = himejiLandBounds(size);
+    return x >= bounds.minX && x <= bounds.maxX && y >= bounds.minY && y <= bounds.maxY
+      ? 'plains' : 'water';
+  }
+
+  if (layout === 'twin-fortresses-90x95') {
+    const edgeMountain = (x <= 2 && y <= 4) || (x >= size - 3 && y >= size - 5);
+    if (edgeMountain) return 'mountain';
+    const forestPocket = (x >= 9 && x <= 11 && y <= 4) || (x >= 10 && x <= 12 && y >= size - 5);
+    if (forestPocket) return 'forest';
+    return 'plains';
+  }
+
+  if (layout === 'urban-60x80') {
+    const bounds = urbanLandBounds(size);
+    return x >= bounds.minX && x <= bounds.maxX && y >= bounds.minY && y <= bounds.maxY
+      ? 'plains' : 'water';
+  }
 
   const score = landScore(layout, x, y, size);
   if (score < -0.035) return 'water';

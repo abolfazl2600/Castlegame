@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
-import { createVisualScene, REFERENCE_CAMERA } from './visual-reference-scene.mjs';
+import { createVisualScene, REFERENCE_CAMERA, REFERENCE_SEED } from './visual-reference-scene.mjs';
 
 const empty = createVisualScene('empty');
 const reference = createVisualScene('reference');
@@ -19,8 +19,9 @@ for (const scene of [reference, dense]) {
   assert.equal(new Set(keys).size, keys.length, 'Two assets occupy the same cell');
   assert.ok(scene.data.cells.every(({ x, y }) => x >= 0 && x < 22 && y >= 0 && y < 22));
   assert.equal(scene.metadata.schemaVersion, scene.data.version);
-  assert.equal(scene.data.keeps[0].seed, 6001);
 }
+assert.equal(reference.data.keeps[0].seed, REFERENCE_SEED);
+assert.equal(dense.data.keeps[0].seed, REFERENCE_SEED + 1);
 assert.ok(REFERENCE_CAMERA.near.y < REFERENCE_CAMERA.normal.y);
 assert.ok(REFERENCE_CAMERA.normal.y < REFERENCE_CAMERA.far.y);
 

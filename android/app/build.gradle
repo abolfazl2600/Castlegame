@@ -17,6 +17,14 @@ if (hasUploadSigning && !file(uploadSigningValues['ANDROID_KEYSTORE_PATH']).isFi
     throw new GradleException('Android upload keystore file does not exist.')
 }
 
+// CI release builds can override the default code with -PandroidVersionCode=<integer>.
+// Local/debug builds keep versionCode 1 unless explicitly overridden.
+def androidVersionCodeOverride = project.findProperty('androidVersionCode')?.toString()
+def resolvedAndroidVersionCode = androidVersionCodeOverride ? Integer.parseInt(androidVersionCodeOverride) : 1
+if (resolvedAndroidVersionCode < 1 || resolvedAndroidVersionCode > 2100000000) {
+    throw new GradleException("Android versionCode must be between 1 and 2100000000; got ${resolvedAndroidVersionCode}.")
+}
+
 android {
     namespace = "com.castlerole.game"
     compileSdk = rootProject.ext.compileSdkVersion
@@ -24,7 +32,7 @@ android {
         applicationId "com.castlerole.game"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 1
+        versionCode resolvedAndroidVersionCode
         versionName "1.0"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {

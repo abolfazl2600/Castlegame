@@ -18,6 +18,7 @@ public class MainActivity extends BridgeActivity {
     @Override
     public void onCreate(Bundle savedInstanceState) {
         registerPlugin(GameUpdaterPlugin.class);
+        registerPlugin(GameScreenshotPlugin.class);
         registerPlugin(SafeAreaPlugin.class);
         super.onCreate(savedInstanceState);
         WindowCompat.setDecorFitsSystemWindows(getWindow(), false);
@@ -25,7 +26,7 @@ public class MainActivity extends BridgeActivity {
     }
 
     @Override
-    protected void onResume() {
+    public void onResume() {
         super.onResume();
         scheduleImmersiveMode(IMMERSIVE_REAPPLY_DELAY_MS);
     }
@@ -45,7 +46,7 @@ public class MainActivity extends BridgeActivity {
     }
 
     @Override
-    protected void onDestroy() {
+    public void onDestroy() {
         getWindow().getDecorView().removeCallbacks(immersiveRunnable);
         super.onDestroy();
     }

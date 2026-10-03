@@ -32,11 +32,11 @@ function between(source, startMarker, endMarker) {
 
 assert.match(
   types,
-  /export type MapLayoutId = 'island' \| 'mainland' \| 'peninsula' \| 'twin-isles';/,
-  'Map layouts must have a persisted finite ID type.',
+  /export type MapLayoutId = [^;]*'himeji-46x90';/,
+  'Map layouts must have a persisted finite ID type including the Himeji 46×90 footprint.',
 );
 
-for (const id of ['island', 'mainland', 'peninsula', 'twin-isles']) {
+for (const id of ['island', 'mainland', 'peninsula', 'twin-isles', 'urban-60x80', 'twin-fortresses-90x95', 'himeji-46x90']) {
   assert.match(
     mapLayouts,
     new RegExp(`id: '${id}'`),
@@ -69,6 +69,48 @@ assert.match(
   /return isMapLayoutId\(value\) \? value : 'island';/,
   'Unknown/legacy layout IDs must fall back to Classic Island.',
 );
+
+assert.match(
+  mapLayouts,
+  /const RIVER_PROFILES: Partial<Record<MapLayoutId, RiverProfile>>/,
+  'River generation must use layout-specific profiles.',
+);
+for (const id of ['island', 'mainland', 'peninsula']) {
+  assert.match(
+    mapLayouts,
+    new RegExp(`\\b${id}: \\{`),
+    `Missing layout-specific river profile: ${id}`,
+  );
+}
+assert.match(
+  mapLayouts,
+  /function riverCenterline\([\s\S]*?broadCycles[\s\S]*?secondaryCycles[\s\S]*?localCycles/,
+  'River centerlines must combine broad, secondary, and local meander scales.',
+);
+assert.match(
+  mapLayouts,
+  /function riverHalfWidth\([\s\S]*?widthVariation[\s\S]*?bendWidening/,
+  'River width must vary smoothly and widen around major bends.',
+);
+assert.match(
+  mapLayouts,
+  /function riverBankVariation\([\s\S]*?bankIrregularity/,
+  'River banks must include controlled deterministic irregularity.',
+);
+assert.doesNotMatch(
+  mapLayouts,
+  /Math\.random\(/,
+  'Map river generation must remain deterministic.',
+);
+assert.match(
+  mapLayouts,
+  /Math\.abs\(signedDistance\) <= halfWidth/,
+  'River bank variation must preserve one contiguous channel span per row.',
+);
+
+assert.match(mapLayouts, /export const HIMEJI_LAND_WIDTH = 46;/);
+assert.match(mapLayouts, /export const HIMEJI_LAND_DEPTH = 90;/);
+assert.match(mapLayouts, /if \(layout === 'himeji-46x90'\) {[\s\S]*?himejiLandBounds\(size\)/);
 
 const baseTerrain = between(
   threeGame,
@@ -118,15 +160,20 @@ assert.match(
   'Selecting a map layout must apply it before starting the new game.',
 );
 
-assert.match(
+assert.doesNotMatch(
   html,
   /id="map-layout-modal"/,
-  'New-game UI must expose a map-layout modal.',
+  'New-game UI must not expose a separate map-layout modal.',
 );
 assert.match(
   html,
-  /id="map-layout-grid"/,
-  'Map-layout modal needs a rendered selection grid.',
+  /id="starting-map-layout-grid"/,
+  'The unified starting-world modal must contain the map-layout grid.',
+);
+assert.match(
+  newGameFlow,
+  /document\.getElementById\('templates-modal'\)[\s\S]*?document\.getElementById\('starting-map-layout-grid'\)/,
+  'New-game map layouts and prepared worlds must share one picker.',
 );
 
 assert.match(
@@ -144,16 +191,27 @@ assert.match(
   /setMapLayoutId\(validMapLayoutId\(data\.mapLayoutId\) \? data\.mapLayoutId : 'island'\)/,
   'Loading must restore layout and default old saves to Classic Island.',
 );
+assert.match(saveSystem, /value === 'himeji-46x90'/, 'Himeji layout IDs must survive save/load validation.');
 
 const templateCompatibility = between(
   threeGame,
   'private applyTemplate(template: string): void {',
   'private applyTerrainTemplate(',
 );
-assert.match(
+assert.doesNotMatch(
   templateCompatibility,
   /this\.mapLayoutId !== 'island' && template !== 'empty-land'/,
-  'Complete legacy templates must be explicitly restricted when a non-island layout is active.',
+  'Unified map selection must not reject legacy templates because of the currently loaded layout.',
+);
+assert.match(
+  templateCompatibility,
+  /else \{[\s\S]*?this\.worldSeed = 0;[\s\S]*?this\.setMapLayoutId\('island'\);/,
+  'Legacy starting worlds must select Classic Island automatically.',
+);
+assert.match(
+  threeGame,
+  /private syncTemplateAvailability\(\): void \{[\s\S]*?button\.disabled = false;/,
+  'Every starting-world card must remain selectable in the unified picker.',
 );
 
 const snapshot = between(

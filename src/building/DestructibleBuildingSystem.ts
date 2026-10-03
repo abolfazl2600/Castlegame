@@ -58,7 +58,7 @@ export class DestructibleBuildingSystem {
       kind === 'market' ? 480 :
       kind === 'basilica' ? 760 :
       kind === 'windmill' ? 420 :
-      kind === 'farm' || kind === 'appleOrchard' ? 260 :
+      kind === 'farm' ? 260 :
       kind === 'armyCamp' ? 280 :
       kind === 'mine' || kind === 'hut' ? 240 :
       kind === 'smallDock' || kind === 'woodenPier' || kind === 'harbor' || kind === 'fishingDock' ? 340 :

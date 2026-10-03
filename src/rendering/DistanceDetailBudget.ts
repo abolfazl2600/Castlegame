@@ -43,9 +43,12 @@ export interface VisualBudgetSnapshot {
   detailSuppressionActive: boolean;
 }
 
+const QUALITY_DRAW_CALL_CAP = 1000;
+const PERFORMANCE_DRAW_CALL_CAP = 500;
+
 const DESKTOP_BUDGETS: Record<DistanceDetailBand, VisualPerformanceBudget> = {
   inspection: {
-    drawCalls: 950,
+    drawCalls: QUALITY_DRAW_CALL_CAP,
     animatedObjects: 180,
     particles: 160,
     shadowCasters: 128,
@@ -54,7 +57,7 @@ const DESKTOP_BUDGETS: Record<DistanceDetailBand, VisualPerformanceBudget> = {
     animationScale: 1,
   },
   gameplay: {
-    drawCalls: 760,
+    drawCalls: QUALITY_DRAW_CALL_CAP,
     animatedObjects: 120,
     particles: 96,
     shadowCasters: 72,
@@ -63,7 +66,7 @@ const DESKTOP_BUDGETS: Record<DistanceDetailBand, VisualPerformanceBudget> = {
     animationScale: 0.78,
   },
   strategic: {
-    drawCalls: 620,
+    drawCalls: QUALITY_DRAW_CALL_CAP,
     animatedObjects: 72,
     particles: 48,
     shadowCasters: 40,
@@ -75,7 +78,7 @@ const DESKTOP_BUDGETS: Record<DistanceDetailBand, VisualPerformanceBudget> = {
 
 const MOBILE_BUDGETS: Record<DistanceDetailBand, VisualPerformanceBudget> = {
   inspection: {
-    drawCalls: 620,
+    drawCalls: PERFORMANCE_DRAW_CALL_CAP,
     animatedObjects: 96,
     particles: 72,
     shadowCasters: 64,
@@ -84,7 +87,7 @@ const MOBILE_BUDGETS: Record<DistanceDetailBand, VisualPerformanceBudget> = {
     animationScale: 0.72,
   },
   gameplay: {
-    drawCalls: 520,
+    drawCalls: PERFORMANCE_DRAW_CALL_CAP,
     animatedObjects: 64,
     particles: 48,
     shadowCasters: 36,
@@ -93,7 +96,7 @@ const MOBILE_BUDGETS: Record<DistanceDetailBand, VisualPerformanceBudget> = {
     animationScale: 0.56,
   },
   strategic: {
-    drawCalls: 430,
+    drawCalls: PERFORMANCE_DRAW_CALL_CAP,
     animatedObjects: 40,
     particles: 24,
     shadowCasters: 20,
@@ -412,8 +415,35 @@ export class DistanceDetailBudgetSystem {
         settings.graphics.quality !== 'low' &&
         budget.shadowCasters > 0;
 
-      const detail = this.applyDetailBudget(scene, budget, this.band, mobile, detailSuppressionActive);
-      const shadow = this.applyShadowBudget(scene, budget.shadowCasters, renderer.shadowMap.enabled);
+      let detail = this.applyDetailBudget(
+        scene,
+        budget,
+        this.band,
+        mobile,
+        detailSuppressionActive,
+        0,
+      );
+      let shadow = this.applyShadowBudget(scene, budget.shadowCasters, renderer.shadowMap.enabled);
+
+      // WebGLRenderer.info.render.calls includes both the main pass and shadow-map
+      // passes. The detail pass previously consumed the full draw budget first and
+      // then shadow casters were added on top, which could exceed the active cap
+      // even when the governor reported a compliant detail estimate.
+      if (
+        detailSuppressionActive &&
+        detail.estimatedDrawCalls + shadow.activeShadowCasters > budget.drawCalls
+      ) {
+        detail = this.applyDetailBudget(
+          scene,
+          budget,
+          this.band,
+          mobile,
+          detailSuppressionActive,
+          shadow.activeShadowCasters,
+        );
+        shadow = this.applyShadowBudget(scene, budget.shadowCasters, renderer.shadowMap.enabled);
+      }
+
       const estimatedDrawCalls = detail.estimatedDrawCalls + shadow.activeShadowCasters;
       const baselineEstimatedDrawCalls =
         detail.baselineEstimatedDrawCalls + shadow.baselineShadowCasters;
@@ -499,6 +529,7 @@ export class DistanceDetailBudgetSystem {
     band: DistanceDetailBand,
     mobile: boolean,
     enforceSuppression: boolean,
+    reservedDrawCalls = 0,
   ): DetailBudgetResult {
     this.restoreSuppressedDetail(scene);
     scene.updateMatrixWorld(true);
@@ -579,7 +610,19 @@ export class DistanceDetailBudgetSystem {
 
     candidates.sort((a, b) => b.radius - a.radius || a.order - b.order);
 
-    const availableDrawCalls = detailDrawAllowance(budget, band, mobile);
+    // The band-specific detail allowance is a quality target, not permission
+    // to exceed the total draw-call cap. Protected silhouette geometry can consume
+    // most of the budget in dense strategic scenes, so clamp optional detail to
+    // the actual remaining headroom. This keeps the renderer at or below the
+    // active cap without hiding protected structure silhouettes.
+    const remainingDrawCalls = Math.max(
+      0,
+      budget.drawCalls - reservedDrawCalls - protectedDrawCalls,
+    );
+    const availableDrawCalls = Math.min(
+      detailDrawAllowance(budget, band, mobile),
+      remainingDrawCalls,
+    );
     const maxDetailMeshes = Math.min(
       Math.max(0, budget.highDetailMeshes),
       availableDrawCalls,

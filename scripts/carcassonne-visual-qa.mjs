@@ -70,7 +70,7 @@ function validateCarcassonne(record) {
     [19, 9, 'outer Narbonnaise gate'],
     [17, 9, 'inner Narbonnaise gate'],
     [3, 13, 'outer Aude gate'],
-    [6, 13, 'inner Aude gate'],
+    [5, 13, 'inner Aude gate'],
   ]) {
     if (findCell(record, x, y)?.kind !== 'gate') problems.push(`${label} is missing at ${x},${y}`);
   }

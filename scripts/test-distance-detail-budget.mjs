@@ -13,6 +13,18 @@ for (const band of ['inspection', 'gameplay', 'strategic']) {
   assert.match(budget, new RegExp(`\\b${band}: \\{`), `missing ${band} distance budget`);
 }
 
+assert.match(budget, /QUALITY_DRAW_CALL_CAP\s*=\s*1000/, 'quality mode draw-call cap must be 1000');
+assert.match(budget, /PERFORMANCE_DRAW_CALL_CAP\s*=\s*500/, 'performance mode draw-call cap must be 500');
+assert.match(
+  budget,
+  /if \(profile === 'performance'\) return MOBILE_BUDGETS\[band\]/,
+  'performance mode must use the 500-draw-call profile budget',
+);
+assert.match(
+  budget,
+  /if \(profile === 'quality'\) return DESKTOP_BUDGETS\[band\]/,
+  'quality mode must use the 1000-draw-call profile budget',
+);
 assert.match(budget, /BAND_HYSTERESIS\s*=\s*4/, 'distance bands must use hysteresis');
 assert.match(budget, /maximumStrategic/, 'strategic distance must use the shared camera contract');
 assert.match(budget, /shadowCasters:\s*40/, 'desktop strategic shadow budget changed unexpectedly');
@@ -35,6 +47,26 @@ assert.match(budget, /candidate\.mesh\.visible = false/, 'micro-detail budget mu
 assert.match(budget, /activeHighDetailMeshes/, 'active high-detail mesh diagnostics are required');
 assert.match(budget, /estimatedDrawCalls/, 'estimated draw-call diagnostics are required');
 assert.match(budget, /detailDrawAllowance/, 'detail draw allowance must keep normal and strategic LOD budgets distinct');
+assert.match(
+  budget,
+  /budget\.drawCalls - reservedDrawCalls - protectedDrawCalls/,
+  'optional detail must reserve draw-call headroom for shadow-map passes',
+);
+assert.match(
+  budget,
+  /detail\.estimatedDrawCalls \+ shadow\.activeShadowCasters > budget\.drawCalls/,
+  'the governor must detect when shadow passes push total renderer calls over the active cap',
+);
+assert.match(
+  budget,
+  /shadow\.activeShadowCasters,[\s\S]*?\);[\s\S]*?shadow = this\.applyShadowBudget/,
+  'over-budget scenes must reapply detail suppression using the measured shadow-pass reserve',
+);
+assert.match(
+  budget,
+  /Math\.min\([\s\S]*detailDrawAllowance\(budget, band, mobile\),[\s\S]*remainingDrawCalls/,
+  'band-specific detail allowance must never overrun the active draw-call cap',
+);
 assert.match(budget, /detailBudgetRoot/, 'distance governor must budget detail per logical structure or unit root');
 assert.match(budget, /current\.userData\.cellKey/, 'building roots must participate in per-structure LOD budgeting');
 assert.match(budget, /current\.userData\.visualRefs/, 'battle unit roots must participate in per-unit LOD budgeting');

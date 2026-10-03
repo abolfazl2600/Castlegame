@@ -9,7 +9,6 @@ export interface EconomyRates {
   woodPerSecond: number;
   stonePerSecond: number;
   grainPerSecond: number;
-  applesPerSecond: number;
   flourPerSecond: number;
   foodPerSecond: number;
   foodConsumptionPerSecond: number;
@@ -41,7 +40,6 @@ const DEFAULT_RESOURCES: EconomyResourceState = {
   wood: 120,
   stone: 120,
   grain: 35,
-  apples: 18,
   flour: 0,
   food: 30,
 };
@@ -63,7 +61,6 @@ const CONSTRUCTION_COSTS: Partial<Record<ToolKind, ResourceCost>> = {
   villa: { wood: 9, stone: 4 },
   farm: { wood: 3 },
   cowBarn: { wood: 6, stone: 2 },
-  appleOrchard: { wood: 3 },
   windmill: { wood: 7, stone: 5 },
   mine: { wood: 4, stone: 2 },
   carpenter: { wood: 6, stone: 2 },
@@ -99,7 +96,6 @@ export class EconomySystem {
     woodPerSecond: 0,
     stonePerSecond: 0,
     grainPerSecond: 0,
-    applesPerSecond: 0,
     flourPerSecond: 0,
     foodPerSecond: 0,
     foodConsumptionPerSecond: 0,
@@ -114,8 +110,7 @@ export class EconomySystem {
       woodPerSecond: 0,
       stonePerSecond: 0,
       grainPerSecond: 0,
-      applesPerSecond: 0,
-      flourPerSecond: 0,
+        flourPerSecond: 0,
       foodPerSecond: 0,
       foodConsumptionPerSecond: 0,
     };
@@ -128,15 +123,17 @@ export class EconomySystem {
   }
 
   setState(value?: Partial<EconomyResourceState> | null): void {
-    const source = value ?? DEFAULT_RESOURCES;
+    const source = (value ?? DEFAULT_RESOURCES) as Partial<EconomyResourceState> & { apples?: unknown };
+    // Apple Orchard was removed. Preserve older saves by folding stored apples
+    // into general food instead of discarding that resource value.
+    const legacyApples = finiteNonNegative(source.apples, 0);
     this.resources = {
       logs: finiteNonNegative(source.logs, DEFAULT_RESOURCES.logs),
       wood: finiteNonNegative(source.wood, DEFAULT_RESOURCES.wood),
       stone: finiteNonNegative(source.stone, DEFAULT_RESOURCES.stone),
       grain: finiteNonNegative(source.grain, DEFAULT_RESOURCES.grain),
-      apples: finiteNonNegative(source.apples, DEFAULT_RESOURCES.apples),
       flour: finiteNonNegative(source.flour, DEFAULT_RESOURCES.flour),
-      food: finiteNonNegative(source.food, DEFAULT_RESOURCES.food),
+      food: finiteNonNegative(source.food, DEFAULT_RESOURCES.food) + legacyApples,
     };
     this.accumulatorMs = 0;
     this.shortage = false;
@@ -146,10 +143,10 @@ export class EconomySystem {
     let capacity = 220 + Math.max(0, keepCount) * 180;
     for (const cell of cells) {
       if (cell.kind === 'market') capacity += 90;
-      else if (cell.kind === 'manor') capacity += 45;
+      else if (cell.kind === 'manor' || (cell.kind === 'cottage' && scaledLevel(cell) >= 3)) capacity += 45;
       else if (cell.kind === 'farm') capacity += 15 * scaledLevel(cell);
       else if (cell.kind === 'cowBarn') capacity += 12 * scaledLevel(cell);
-      else if (cell.kind === 'carpenter') capacity += 18 * scaledLevel(cell, 3);
+      else if (cell.kind === 'carpenter') capacity += 18 * scaledLevel(cell, 4);
     }
     return Math.max(220, Math.round(capacity));
   }
@@ -159,7 +156,7 @@ export class EconomySystem {
       resources: this.getState(),
       rates: { ...this.rates },
       storageCapacity: this.storageCapacity(cells, keepCount),
-      foodAvailable: this.resources.food + this.resources.flour + this.resources.apples + this.resources.grain,
+      foodAvailable: this.resources.food + this.resources.flour + this.resources.grain,
       foodShortage: this.shortage && civilianPopulation > 0,
     };
   }
@@ -224,7 +221,6 @@ export class EconomySystem {
     let woodRate = 0;
     let stoneRate = 0;
     let grainRate = 0;
-    let appleRate = 0;
     let directFoodRate = 0;
     let windmillCapacity = 0;
     let bakeryCapacity = 0;
@@ -232,7 +228,6 @@ export class EconomySystem {
     for (const cell of cells) {
       const level = scaledLevel(cell);
       if (cell.kind === 'farm') grainRate += 0.58 * (1 + (level - 1) * 0.32);
-      else if (cell.kind === 'appleOrchard') appleRate += 0.32 * scaledLevel(cell, 3);
       else if (cell.kind === 'cowBarn') directFoodRate += 0.18 * (1 + (level - 1) * 0.25);
       else if (cell.kind === 'windmill') windmillCapacity += 0.48 * level;
       else if (cell.kind === 'market') bakeryCapacity += 0.32;
@@ -249,9 +244,9 @@ export class EconomySystem {
     let woodProduced = 0;
     for (const cell of cells) {
       if (cell.kind !== 'carpenter') continue;
-      const level = scaledLevel(cell, 3);
-      const inputCapacity = [0, 0.30, 0.58, 0.90][level];
-      const yieldRatio = [0, 0.80, 0.90, 1.00][level];
+      const level = scaledLevel(cell, 4);
+      const inputCapacity = [0, 0.30, 0.58, 0.90, 1.20][level];
+      const yieldRatio = [0, 0.80, 0.90, 1.00, 1.00][level];
       const input = Math.min(this.resources.logs, inputCapacity);
       this.resources.logs -= input;
       logsProcessed += input;
@@ -261,7 +256,6 @@ export class EconomySystem {
     this.resources.wood = Math.min(capacity, this.resources.wood + woodProduced);
     this.resources.stone = Math.min(capacity, this.resources.stone + stoneRate);
     this.resources.grain = Math.min(capacity, this.resources.grain + grainRate);
-    this.resources.apples = Math.min(capacity, this.resources.apples + appleRate);
     this.resources.food = Math.min(capacity, this.resources.food + directFoodRate);
 
     const grainToMill = Math.min(this.resources.grain, windmillCapacity);
@@ -275,7 +269,7 @@ export class EconomySystem {
     this.resources.food = Math.min(capacity, this.resources.food + foodProduced);
 
     let remainingDemand = Math.max(0, Math.floor(civilianPopulation)) * 0.012;
-    const consume = (key: 'food' | 'apples' | 'flour' | 'grain'): void => {
+    const consume = (key: 'food' | 'flour' | 'grain'): void => {
       if (remainingDemand <= 0) return;
       const amount = Math.min(this.resources[key], remainingDemand);
       this.resources[key] -= amount;
@@ -283,7 +277,6 @@ export class EconomySystem {
     };
 
     consume('food');
-    consume('apples');
     consume('flour');
     consume('grain');
 
@@ -293,7 +286,6 @@ export class EconomySystem {
       woodPerSecond: woodRate,
       stonePerSecond: stoneRate,
       grainPerSecond: grainRate - grainToMill,
-      applesPerSecond: appleRate,
       flourPerSecond: flourProduced - flourToBakery,
       foodPerSecond: directFoodRate + foodProduced,
       foodConsumptionPerSecond: Math.max(0, Math.floor(civilianPopulation)) * 0.012,

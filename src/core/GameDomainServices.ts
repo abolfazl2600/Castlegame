@@ -6,7 +6,6 @@ import { DestructibleBuildingSystem } from '../building/DestructibleBuildingSyst
 import { CastleDetailGenerator } from '../building/CastleDetailGenerator';
 import { PopulationSystem } from '../systems/PopulationSystem';
 import { WindmillSystem } from '../systems/WindmillSystem';
-import { OrchardSystem } from '../systems/OrchardSystem';
 import { EconomySystem } from '../systems/EconomySystem';
 
 export interface GameDomainServices {
@@ -17,7 +16,6 @@ export interface GameDomainServices {
   readonly destructibleBuildingSystem: DestructibleBuildingSystem;
   readonly populationSystem: PopulationSystem;
   readonly windmillSystem: WindmillSystem;
-  readonly orchardSystem: OrchardSystem;
   readonly economySystem: EconomySystem;
   readonly detailGenerator: CastleDetailGenerator;
 }
@@ -33,7 +31,6 @@ export function createGameDomainServices(): GameDomainServices {
     destructibleBuildingSystem: new DestructibleBuildingSystem(),
     populationSystem: new PopulationSystem(),
     windmillSystem: new WindmillSystem(),
-    orchardSystem: new OrchardSystem(),
     economySystem: new EconomySystem(),
     detailGenerator: new CastleDetailGenerator(),
   };

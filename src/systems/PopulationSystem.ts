@@ -1,4 +1,3 @@
-import type { TileKind } from '../core/types';
 import type {
   CivilianOccupation,
   MilitiaUnitType,
@@ -40,13 +39,23 @@ export interface PopulationRenderAssignment {
   seed: number;
 }
 
-const RESIDENTIAL_CAPACITY: Partial<Record<TileKind, number>> = {
-  hut: 4,
-  cottage: 18,
-  house: 30,
-  manor: 42,
-  villa: 36,
-};
+const RESIDENTIAL_LEVEL_CAPACITY = [0, 18, 30, 42, 42] as const;
+
+function residentialCapacity(cell: Pick<CellEntry, 'kind' | 'level'>): number {
+  if (cell.kind === 'hut') return 4;
+
+  // Canonical residential upgrades must never reduce housing capacity.
+  // Legacy aliases retain their historical direct-state values for compatibility;
+  // SaveSystem migrates real loaded worlds into cottage + level before simulation.
+  if (cell.kind === 'cottage') {
+    const level = Math.max(1, Math.min(4, Math.floor(cell.level ?? 1)));
+    return RESIDENTIAL_LEVEL_CAPACITY[level] ?? 0;
+  }
+  if (cell.kind === 'house') return 30;
+  if (cell.kind === 'manor') return 42;
+  if (cell.kind === 'villa') return 36;
+  return 0;
+}
 
 const ARMY_CAMP_CAPACITY = [0, 6, 12, 20, 32] as const;
 const MILITIA_TYPES: MilitiaUnitType[] = ['swordsman', 'archer', 'spearman', 'crossbowman'];
@@ -100,7 +109,7 @@ export class PopulationSystem {
     this.lastCells = cells.map((cell) => ({ ...cell }));
     const homes = this.homeCells(cells);
     const currentCapacity = homes.reduce(
-      (sum, cell) => sum + (RESIDENTIAL_CAPACITY[cell.kind] ?? 0),
+      (sum, cell) => sum + residentialCapacity(cell),
       0,
     );
 
@@ -489,7 +498,7 @@ export class PopulationSystem {
     if (count <= 0 || homes.length === 0) return;
     const homeSlots: PopulationGridRef[] = [];
     for (const home of homes) {
-      const capacity = RESIDENTIAL_CAPACITY[home.kind] ?? 0;
+      const capacity = residentialCapacity(home);
       for (let i = 0; i < capacity; i += 1) homeSlots.push({ x: home.x, y: home.y });
     }
     if (homeSlots.length === 0) return;
@@ -508,7 +517,7 @@ export class PopulationSystem {
 
   private homeCells(cells: CellEntry[]): CellEntry[] {
     return cells
-      .filter((cell) => (RESIDENTIAL_CAPACITY[cell.kind] ?? 0) > 0)
+      .filter((cell) => residentialCapacity(cell) > 0)
       .sort((a, b) => a.x - b.x || a.y - b.y);
   }
 
@@ -523,7 +532,7 @@ export class PopulationSystem {
 
     const homeSlots: PopulationGridRef[] = [];
     for (const home of homes) {
-      const capacity = RESIDENTIAL_CAPACITY[home.kind] ?? 0;
+      const capacity = residentialCapacity(home);
       for (let i = 0; i < capacity; i += 1) homeSlots.push({ x: home.x, y: home.y });
     }
 
@@ -563,7 +572,7 @@ export class PopulationSystem {
 
     const workplaces = [...cells].sort((a, b) => a.x - b.x || a.y - b.y);
     for (const cell of workplaces) {
-      if (cell.kind === 'farm' || cell.kind === 'appleOrchard') assign(cell, 'farmer', 8);
+      if (cell.kind === 'farm') assign(cell, 'farmer', 8);
       else if (cell.kind === 'cowBarn') assign(cell, 'farmer', 6);
       else if (cell.kind === 'mine') assign(cell, 'miner', 5);
       else if (cell.kind === 'smallDock' || cell.kind === 'woodenPier') assign(cell, 'sailor', 2);
@@ -574,7 +583,7 @@ export class PopulationSystem {
         assign(cell, 'merchant', 6);
       } else if (cell.kind === 'windmill') assign(cell, 'worker', 4);
       else if (cell.kind === 'carpenter') {
-        const level = Math.max(1, Math.min(3, Math.floor(cell.level ?? 1)));
+        const level = Math.max(1, Math.min(4, Math.floor(cell.level ?? 1)));
         assign(cell, 'worker', level * 2);
       }
       else if (cell.kind === 'basilica') assign(cell, 'worker', 3);

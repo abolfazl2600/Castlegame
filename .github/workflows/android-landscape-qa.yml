@@ -15,6 +15,9 @@ on:
       - src/ThreeGame.ts
       - src/input/**
       - scripts/test-touch-gestures.mjs
+      - scripts/test-touch-qa-evidence.mjs
+      - tests/urban-city.spec.ts
+      - src/world/**
       - tests/touch-gestures.spec.ts
       - tests/android-landscape.spec.ts
   push:
@@ -32,6 +35,9 @@ on:
       - src/ThreeGame.ts
       - src/input/**
       - scripts/test-touch-gestures.mjs
+      - scripts/test-touch-qa-evidence.mjs
+      - tests/urban-city.spec.ts
+      - src/world/**
       - tests/touch-gestures.spec.ts
       - tests/android-landscape.spec.ts
 
@@ -68,7 +74,7 @@ jobs:
           npx tsc --noEmit
 
       - name: Validate executable world touch gestures
-        run: npm run test:touch-gestures
+        run: npm run test:touch-gestures && npm run test:touch-qa-evidence
 
       - name: Build web game
         run: npx vite build
@@ -77,7 +83,7 @@ jobs:
         run: npx playwright install --with-deps chromium
 
       - name: Run Android landscape viewport matrix
-        run: npx playwright test tests/android-landscape.spec.ts tests/touch-gestures.spec.ts --reporter=line
+        run: npx playwright test tests/android-landscape.spec.ts tests/touch-gestures.spec.ts tests/urban-city.spec.ts --reporter=line
 
       - name: Upload landscape screenshots and traces
         if: always()

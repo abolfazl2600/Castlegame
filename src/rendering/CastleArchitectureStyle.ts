@@ -54,6 +54,8 @@ export const CASTLE_STONE_PALETTES: Record<
   },
 };
 
+export const CANONICAL_WALL_THICKNESS = 2.04;
+
 export const CASTLE_ARCHITECTURE_STYLE = {
   palette: {
     timber: 0x654531,
@@ -69,6 +71,7 @@ export const CASTLE_ARCHITECTURE_STYLE = {
     bodyBaseY: 2.58,
   },
   wall: {
+    thickness: CANONICAL_WALL_THICKNESS,
     stoneBaseHeight: 5.2,
     timberBaseHeight: 4.7,
     reinforcedBaseHeight: 5.8,
@@ -105,7 +108,7 @@ export const CASTLE_ARCHITECTURE_STYLE = {
     roundRadius: 2.08,
     octagonalRadius: 2.0,
     watchRadius: 1.72,
-    connectorWidth: 2.04,
+    connectorWidth: CANONICAL_WALL_THICKNESS,
     connectorFoundationWidth: 2.5,
     platformOverhang: 0.58,
   },

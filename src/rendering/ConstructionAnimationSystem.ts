@@ -40,13 +40,18 @@ export class ConstructionAnimationSystem {
     }
   }
 
-  update(now: number, reducedMotion: boolean): void {
+  update(now: number, reducedMotion: boolean): string[] {
+    const completed: string[] = [];
     for (const [key, animation] of this.active) {
       const duration = reducedMotion ? Math.min(120, animation.duration) : animation.duration;
       const progress = Math.min(1, Math.max(0, (now - animation.startedAt) / duration));
       this.apply(animation, progress, reducedMotion);
-      if (progress >= 1) this.active.delete(key);
+      if (progress >= 1) {
+        this.active.delete(key);
+        completed.push(key);
+      }
     }
+    return completed;
   }
 
   cancel(key: string): void {

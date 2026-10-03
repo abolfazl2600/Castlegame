@@ -7,7 +7,7 @@ const visualStyle = await readFile(new URL('../src/rendering/TemplateVisualStyle
 const docs = await readFile(new URL('../docs/templates/crac-des-chevaliers.md', import.meta.url), 'utf8');
 
 assert.equal(html.split('data-template="crac-des-chevaliers"').length - 1, 1);
-assert.equal([...html.matchAll(/data-template=\"[^\"]+\"/g)].length, 34, 'Template picker must preserve all 34 complete starting worlds.');
+assert.equal([...html.matchAll(/data-template=\"[^\"]+\"/g)].length, 36, 'Template picker must preserve all 36 complete starting worlds.');
 assert.match(threeGame, /'crac-des-chevaliers': { layoutId: 'mainland', seed: 5901 }/);
 assert.match(threeGame, /template === 'crac-des-chevaliers'/);
 assert.match(visualStyle, /'crac-des-chevaliers': { stoneStyle: 'limestone', towerBridgeKind: 'stone', family: 'medieval' }/);
@@ -17,12 +17,12 @@ for (const marker of [
   'const innerEnceinte',
   "placeWallPath(outerEnceinte, 'wall1', 2",
   "placeWallPath(innerEnceinte, 'wall3', 4",
-  "place(19, 9, 'gate', 2",
-  "place(17, 9, 'gate', 4",
-  "placeKeepTemplate(10, 12, 3, 3, 5",
+  "place(20, 10, 'gate', 2",
+  "place(18, 10, 'gate', 4",
+  "placeKeepTemplate(8, 12, 2, 3, 5",
   "place(12, 8, 'basilica', 1",
   'const southBarbican',
-  "this.terrainOverrides.set(this.key(x, 17), 'river')",
+  "this.terrainOverrides.set(this.key(x, 15), 'river')",
 ]) assert.ok(threeGame.includes(marker), 'Missing Crac template marker: ' + marker);
 
 assert.match(threeGame, /rasterizeWallPath\(route\)/);

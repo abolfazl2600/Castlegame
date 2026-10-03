@@ -57,31 +57,33 @@ The shared progression language is now applied across the settlement layer witho
 
 ### Residential progression
 
-The residential family intentionally reads as one four-step visual ladder:
+The residential family is one four-step **in-place gameplay upgrade line**:
 
-**Cottage → House → Manor → Villa**
+**Cottage Cluster → House Cluster → Manor → Villa District**
 
-- Cottage = Level 1 / Basic: low loose hamlet massing.
-- House = Level 2 / Established: denser block with a taller central dwelling.
-- Manor = Level 3 / Advanced: dominant hall, formal court, stronger vertical hierarchy.
-- Villa = Level 4 / Landmark: open court plus a crowned corner pavilion/cupola that stays recognizable at normal gameplay zoom.
+- Level 1 / Cottage Cluster / Basic: low loose hamlet massing, open yard, and minimal enclosure.
+- Level 2 / House Cluster / Established: denser roof block with a taller central dwelling, organized paths, and partial fencing.
+- Level 3 / Manor / Advanced: dominant hall, formal court, symmetric service wings, and a broad gated compound.
+- Level 4 / Villa District / Landmark: open villa court, masonry enclosure, formal entrance, garden, and a crowned corner pavilion/cupola recognizable at normal gameplay zoom.
 
-These remain separate build choices for compatibility; the mapping is a visual-language contract, not an economy rewrite.
-
-### Apple Orchard progression
-
-Apple Orchard now supports four visual maturity levels:
-
-1. **Young Grove** — smaller 3×3 planting language with a deliberately open entrance.
-2. **Working Orchard** — broader 4×3 rows plus visible produce handling.
-3. **Mature Orchard** — 4×4 canopy mass plus a taller entrance trellis.
-4. **Estate Orchard** — 5×4 mature planting mass with a dedicated packing shed landmark.
-
-The final tier gains a new architectural mass rather than relying on more apples, crates, or color changes.
+Only Level 1 is exposed as a normal residential build tool. Players upgrade the same placed cell sequentially through Levels 2–4; position, rotation, damage, undo history, and save state stay attached to that cell. The runtime stores the progression canonically as `cottage` plus `level`, while legacy saves/templates using `house`, `manor`, or `villa` migrate to Levels 2, 3, and 4 respectively. The old layout keys remain available internally so historic templates and visual regression fixtures keep their authored silhouettes without exposing duplicate build buttons.
 
 ### Existing upgradeable settlement families
 
 Crop Farm, Cattle Farm, Army Camp, and Harbor continue to consume the shared `upgradeVisualProfile` at Levels 1–4. Their existing gameplay values, save semantics, worker assignment, and pathfinding remain unchanged by this visual pass.
+
+### Mosque progression
+
+The Mosque now follows one four-stage in-place architectural progression:
+
+**Basic Mosque → Improved Mosque → Grand Mosque → Monumental Mosque**
+
+- Level 1 stays deliberately low and modest with one shallow dome and an open courtyard.
+- Level 2 broadens the prayer hall, adds a three-dome roofline, strengthens the entrance, and introduces one short minaret.
+- Level 3 becomes a civic landmark with a larger central dome, formal courtyard enclosure, stronger entrance hierarchy, and paired minarets.
+- Level 4 is the maximum landmark tier: a larger central dome, taller paired minarets, enclosed ceremonial court, formal gateway, and corner pavilions create a clearly different silhouette at normal gameplay distance.
+
+The progression uses the shared `upgradeVisualProfile` and deliberately keeps dynamic lighting out of the structure. Mesh growth is bounded and concentrated in large silhouette elements so Level 4 remains compatible with the mobile rendering strategy.
 
 ### Fixed-role landmarks
 

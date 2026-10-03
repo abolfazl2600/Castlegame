@@ -441,18 +441,56 @@ try {
       const strategic = results.find((entry) => entry.screenshot === strategicName);
       const strategicCheck = checks.find((entry) => entry.screenshot === strategicName);
       if (!normal || !strategic || !strategicCheck) return;
+
       const normalDetail = normal.visualBudget?.activeHighDetailMeshes ?? Number.POSITIVE_INFINITY;
       const strategicDetail = strategic.visualBudget?.activeHighDetailMeshes ?? Number.POSITIVE_INFINITY;
-      if (strategic.drawCallsMedian >= normal.drawCallsMedian) {
+      const normalBudget = normal.visualBudget?.budget;
+      const strategicBudget = strategic.visualBudget?.budget;
+      const detailFloorReached = normalDetail === 0 && strategicDetail === 0;
+
+      if (strategic.drawCallsMedian > normal.drawCallsMedian) {
         strategicCheck.hardViolations.push(
-          `strategic draw calls ${strategic.drawCallsMedian} are not cheaper than normal ${normal.drawCallsMedian}`,
+          `strategic draw calls ${strategic.drawCallsMedian} exceed normal ${normal.drawCallsMedian}`,
         );
       }
-      if (strategicDetail >= normalDetail) {
+      if (strategicDetail > normalDetail) {
+        strategicCheck.hardViolations.push(
+          `strategic high-detail meshes ${strategicDetail} exceed normal ${normalDetail}`,
+        );
+      }
+
+      // Dense scenes can legitimately reach a protected-silhouette floor where
+      // neither band has optional high-detail meshes left to suppress. In that
+      // state, equal measured draw calls are acceptable: forcing another drop
+      // would hide protected structure silhouettes rather than optional detail.
+      // Strategic must still keep a strictly cheaper raster/animation policy.
+      if (strategic.drawCallsMedian === normal.drawCallsMedian && !detailFloorReached) {
+        strategicCheck.hardViolations.push(
+          `strategic draw calls ${strategic.drawCallsMedian} are not cheaper than normal ${normal.drawCallsMedian} before the detail floor`,
+        );
+      }
+      if (strategicDetail === normalDetail && normalDetail > 0) {
         strategicCheck.hardViolations.push(
           `strategic high-detail meshes ${strategicDetail} are not cheaper than normal ${normalDetail}`,
         );
       }
+      if (detailFloorReached) {
+        if (!normalBudget || !strategicBudget) {
+          strategicCheck.hardViolations.push('missing render budgets at the protected-detail floor');
+        } else {
+          if (strategicBudget.pixelRatioScale >= normalBudget.pixelRatioScale) {
+            strategicCheck.hardViolations.push(
+              `strategic pixel ratio scale ${strategicBudget.pixelRatioScale} is not cheaper than normal ${normalBudget.pixelRatioScale}`,
+            );
+          }
+          if (strategicBudget.animationScale >= normalBudget.animationScale) {
+            strategicCheck.hardViolations.push(
+              `strategic animation scale ${strategicBudget.animationScale} is not cheaper than normal ${normalBudget.animationScale}`,
+            );
+          }
+        }
+      }
+
       strategicCheck.passed = strategicCheck.hardViolations.length === 0;
     };
 
