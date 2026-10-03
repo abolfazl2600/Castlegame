@@ -25,14 +25,14 @@ The French Ministry archaeology portal is the principal architectural reference 
 
 The French Ministry describes the surviving castle as approximately **300 m long and 140 m wide**, with two concentric enceintes. The upper ward is a polygonal enclosure with towers of different shapes; the lower outer enceinte is also towered. The south and west fronts of the upper castle are marked by a massive talus, while the north/northeast use bedrock as a foundation. A ditch separates the south side from a rocky plateau and triangular barbican.
 
-At game scale, the 22 × 22 board preserves the structural relationships rather than literal dimensions:
+At game scale, the 22 × 22 board compresses the documented roughly 300 m × 140 m footprint, while preserving an explicitly elongated east-west plan and the structural relationships rather than literal dimensions:
 
 | Historic feature | Castle Role representation |
 | --- | --- |
 | High ridge controlling the Homs Gap | Elliptical hill/ridge profile, highest beneath the upper ward and descending on the eastern approach |
 | Lower outer enceinte | Closed irregular wall1 circuit, Level 2, with repeated round flanking towers |
 | Higher inner enceinte | Closed reinforced wall3 circuit, Level 4, visibly dominating the outer wall |
-| South/west keep and talus | Highest inner towers plus a five-floor defensive-platform Keep mass on the south-west side |
+| South/west keep and talus | Three dominant level-5 inner towers plus a narrower five-floor flat-battlement Keep mass on the south-west side |
 | Eastern controlled entrance | Two gate stages connected by a bent ascending stone-road route |
 | Southern ditch/open cistern | Recessed water strip between inner and outer southern defenses |
 | Triangular southern barbican | Small closed triangular outwork on the southern plateau |
@@ -50,7 +50,7 @@ There is no separate static historical-scene mesh. After loading the template, e
 
 - Wall lengths, tower spacing and courtyard widths are compressed while preserving the concentric hierarchy and elongated plan.
 - The massive historical talus is represented by terrain elevation plus tall/thick inner defenses rather than a bespoke continuous sloped masonry shell.
-- The upper ward's southern keep is represented by the modular Keep plus dominant inner towers so battle/navigation/editing remain native.
+- The upper ward's southern keep is represented by a narrowed modular Keep mass plus three dominant inner towers so battle/navigation/editing remain native without overwhelming the historic plan.
 - The chapel uses the game's reusable medieval religious renderer; its real Romanesque proportions are simplified.
 - The great hall and service ranges use the closest native medieval hall/residential masses and remain subordinate to the defensive plan.
 - The southern open cistern is represented as a bounded native water strip, not interpreted as a geographic river.
@@ -65,6 +65,17 @@ There is no separate static historical-scene mesh. After loading the template, e
 | East approach | French Ministry strengthening material | bent ascending access with layered gate control and inner defenses rising behind the lower wall |
 | South / south-west | French Ministry keep/final-phase material | dominant high inner towers/keep, lower outer enceinte, ditch/cistern and southern outwork |
 | Normal gameplay | UNESCO + French Ministry aerial/site views | pale limestone mass, round-tower rhythm, deep defensive layering and exposed ridge silhouette |
+
+## Automated browser and matched-view QA
+
+Issue #59 now has a dedicated WebGL QA path in addition to the static historical-template contract:
+
+- `npm run test:crac-des-chevaliers-browser` loads the template through the real template picker, validates the authored eastern gates, chapel, Keep, tower rhythm, southern cistern, road route and elevation serialization, then verifies edit + Auto Save + reload + gate interaction through the normal UI.
+- `npm run visual:crac-des-chevaliers-qa` captures deterministic plan, normal oblique, east-approach and south/south-west views from the live renderer.
+- `.github/workflows/crac-des-chevaliers-template-qa.yml` runs the static contract, castle-access navigation regression, production build, browser QA and matched-view capture, then uploads `visual-baselines/issue-59/` as a review artifact.
+- The evidence pack includes `summary.md` with authoritative comparison links and `metrics.json` with serialized structure counts and renderer/resource metrics.
+
+The automation verifies live behavior and produces the comparison evidence. Historical visual fidelity still requires reviewing the four generated captures against the documented UNESCO, French Ministry and Rey references.
 
 ### Final visual review status
 
