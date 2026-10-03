@@ -13,7 +13,7 @@ const docs = await readFile(new URL('../docs/templates/himeji.md', import.meta.u
 
 assert.equal(html.split('data-template="himeji-castle"').length - 1, 1, 'Himeji must appear exactly once in the template picker.');
 assert.match(html, /Himeji Castle · Japan · 46×90/);
-assert.equal([...html.matchAll(/data-template=\"[^\"]+\"/g)].length, 36, 'Template picker must preserve all 36 complete starting worlds.');
+assert.equal([...html.matchAll(/data-template=\"[^\"]+\"/g)].length, 37, 'Template picker must preserve all 37 complete starting worlds.');
 
 assert.match(threeGame, /'himeji-castle': { layoutId: 'himeji-46x90', seed: 5801 }/);
 assert.match(types, /\| 'himeji-46x90'/);
@@ -67,7 +67,7 @@ for (const source of [
 }
 assert.match(docs, /present-day preserved core complex as documented in 2026/);
 assert.match(docs, /46×90 authored castle ground/);
-assert.match(docs, /12×22-cell envelope/);
+assert.match(docs, /12×23-cell envelope/);
 assert.match(docs, /Fidelity and scale compromises/);
 assert.match(docs, /Matched-view comparison checklist/);
 

@@ -110,6 +110,7 @@ const HARBOR_KINDS: HarborKind[] = ['harbor'];
 const PLAYABLE_LAYOUT_TEMPLATES: Readonly<Record<string, { layoutId: MapLayoutId; seed: number }>> = {
   'urban-city-60x80': { layoutId: 'urban-60x80', seed: 6001 },
   'twin-fortresses-90x95': { layoutId: 'twin-fortresses-90x95', seed: 9095 },
+  'royal-valley-50x89': { layoutId: 'royal-valley-50x89', seed: 5089 },
   'mainland-frontier': { layoutId: 'mainland', seed: 5501 },
   'coastal-peninsula': { layoutId: 'peninsula', seed: 5502 },
   'split-isles': { layoutId: 'twin-isles', seed: 5503 },
@@ -13674,6 +13675,84 @@ export class ThreeGame {
           this.services.state.removeCell(footprintCell.x, footprintCell.y);
         }
         this.services.keepSystem.add(keep);
+      }
+    } else if (template === 'royal-valley-50x89') {
+      // Handcrafted 50×89 world-unit kingdom using the complete medieval gameplay stack.
+      // The authored ground is 13×23 cells inside the 23×23 ocean-backed world.
+      // Natural generation supplies forests, rocks and ridge resources first; the
+      // prepared areas below deliberately preserve the surrounding wilderness.
+      prepareBuildableArea(8, 6, 13, 13, 0.14);
+      prepareBuildableArea(8, 14, 13, 20, 0.08);
+      prepareBuildableArea(15, 14, 16, 19, 0.06);
+
+      // Central royal fortress: layered walls, four towers, two gates, and a keep.
+      placeWallRect(8, 7, 13, 12, 'wall2', 3, {
+        battlement: true,
+        walkway: true,
+      });
+      place(10, 12, 'gate', 3, { rotationMode: 'auto' });
+      place(13, 9, 'gate', 3, { rotationMode: 'auto' });
+      place(8, 7, 'tower', 4, { towerShape: 'round', towerTop: 'conical' });
+      place(13, 7, 'tower', 4, { towerShape: 'round', towerTop: 'conical' });
+      place(8, 12, 'tower', 3, { towerShape: 'square', towerTop: 'openBattlement' });
+      place(13, 12, 'tower', 3, { towerShape: 'square', towerTop: 'openBattlement' });
+      placeKeepTemplate(10, 9, 2, 3, 4, 'towered', true);
+
+      // Main processional road links the gate to the civic and agricultural quarter.
+      for (let y = 13; y <= 20; y += 1) {
+        if (!this.services.state.getCell(10, y) && this.terrainAt(10, y) !== 'river') {
+          place(10, y, 'stoneRoad');
+        }
+      }
+
+      // Compact but complete settlement progression around a central market.
+      place(8, 14, 'cottage', 1, { rotation: 1 });
+      place(11, 14, 'villa', 4, { rotation: 3 });
+      place(8, 16, 'manor', 3, { rotation: 1 });
+      place(12, 16, 'market', 1, { rotation: 0 });
+      place(8, 18, 'mosque', 3, { rotation: 1 });
+      place(12, 18, 'carpenter', 1, { rotation: 3 });
+      place(9, 15, 'basilica', 1, { rotation: 0 });
+
+      // Food and production district.
+      place(8, 20, 'farm', 3);
+      place(11, 20, 'farm', 2);
+      place(12, 20, 'cowBarn', 3);
+      place(9, 20, 'windmill', 3);
+      place(7, 4, 'mine', 2);
+      place(12, 14, 'armyCamp', 3);
+
+      // A fortified bridge crosses the river to the eastern harbor quarter.
+      place(13, 16, 'tower', 2, { towerShape: 'round', towerTop: 'openBattlement' });
+      place(16, 16, 'tower', 2, { towerShape: 'round', towerTop: 'openBattlement' });
+      addTemplateBridge({ x: 13, y: 16 }, { x: 16, y: 16 }, 'stone');
+      if (!this.services.state.getCell(16, 17)) place(16, 17, 'stoneRoad');
+      if (!this.services.state.getCell(16, 18)) place(16, 18, 'stoneRoad');
+
+      // Two complementary ports exercise the unified harbor upgrade/ship system.
+      placeHarborTemplate(4, 'tradingBoat', 17, 18);
+      placeHarborTemplate(2, 'fishingBoat', 17, 5);
+
+      // A second military post keeps defenders present near the exposed river crossing.
+      if (!this.services.state.getCell(15, 18)) {
+        place(15, 18, 'armyCamp', 2, { rotation: 1 });
+      }
+
+      // Add a readable elevation gradient: high western ridge, gentle castle shelf,
+      // and low eastern river/harbor plain.
+      for (let y = 1; y < SIZE - 1; y += 1) {
+        for (let x = 5; x <= 17; x += 1) {
+          const terrain = this.terrainAt(x, y);
+          if (terrain === 'water' || terrain === 'river') continue;
+          const westRise = Math.max(0, (9 - x) * 0.14);
+          const northSouthRoll = Math.sin(y * 0.42) * 0.08;
+          const authored = this.elevationOverrides.get(this.key(x, y)) ?? 0;
+          this.setAbsoluteElevation(
+            x,
+            y,
+            Math.max(authored, Math.max(0.03, 0.08 + westRise + northSouthRoll)),
+          );
+        }
       }
     } else if (template === 'mainland-frontier') {
       prepareBuildableArea(4, 6, 15, 17, 0.08);

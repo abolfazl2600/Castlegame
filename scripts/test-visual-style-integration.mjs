@@ -6,7 +6,7 @@ const threeGame = await readFile(new URL('../src/ThreeGame.ts', import.meta.url)
 const templateStyle = await readFile(new URL('../src/rendering/TemplateVisualStyle.ts', import.meta.url), 'utf8');
 
 const templateIds = [...html.matchAll(/data-template="([^"]+)"/g)].map((match) => match[1]);
-assert.equal(templateIds.length, 35, 'Template picker should expose the current 35 complete starting worlds.');
+assert.equal(templateIds.length, 37, 'Template picker should expose the current 37 complete starting worlds.');
 assert.equal(new Set(templateIds).size, templateIds.length, 'Complete template IDs must be unique.');
 
 for (const id of templateIds) {

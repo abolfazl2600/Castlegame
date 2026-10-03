@@ -15,6 +15,7 @@ export interface TemplateVisualPreset {
  */
 export const TEMPLATE_VISUAL_PRESETS: Readonly<Record<string, TemplateVisualPreset>> = {
   'urban-city-60x80': { stoneStyle: 'limestone', towerBridgeKind: 'stone', family: 'medieval' },
+  'royal-valley-50x89': { stoneStyle: 'limestone', towerBridgeKind: 'stone', family: 'medieval' },
   'mainland-frontier': { stoneStyle: 'frontier', towerBridgeKind: 'wood', family: 'medieval' },
   'coastal-peninsula': { stoneStyle: 'limestone', towerBridgeKind: 'stone', family: 'medieval' },
   'split-isles': { stoneStyle: 'sandstone', towerBridgeKind: 'wood', family: 'medieval' },

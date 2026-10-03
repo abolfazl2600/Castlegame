@@ -8,6 +8,7 @@ const html = await readFile(new URL('../index.html', import.meta.url), 'utf8');
 
 const templates = [
   ['urban-city-60x80', 'urban-60x80', '6001', '60×80 world units: connected streets, central square, homes, market, parks, and farms.'],
+  ['royal-valley-50x89', 'royal-valley-50x89', '5089', '50×89 world units: royal fortress, river crossing, village, farms, forests, mountain resources, army camps, and working harbors.'],
   ['mainland-frontier', 'mainland', '5501', 'Coast, fortified town, farms, roads, camp, and pier.'],
   ['coastal-peninsula', 'peninsula', '5502', 'Narrow peninsula, cross-wall, town, farms, and harbors.'],
   ['split-isles', 'twin-isles', '5503', 'Castle island + village island with sea transport.'],
@@ -49,10 +50,21 @@ assert.match(
   'Coastal Peninsula must fortify the narrow landward approach.',
 );
 
+assert.match(
+  threeGame,
+  /template === 'royal-valley-50x89'[\s\S]*?addTemplateBridge[\s\S]*?placeHarborTemplate\(4, 'tradingBoat'[\s\S]*?placeHarborTemplate\(2, 'fishingBoat'/,
+  'Royal Valley must exercise the bridge and unified harbor systems.',
+);
+assert.match(
+  threeGame,
+  /template === 'royal-valley-50x89'[\s\S]*?'farm'[\s\S]*?'mine'[\s\S]*?'armyCamp'/,
+  'Royal Valley must include military, resource, and agricultural gameplay.',
+);
+
 assert.match(types, /worldSeed\?: number;/, 'Saved worlds must carry a deterministic seed.');
 assert.match(saveSystem, /worldSeed: this\.host\.getWorldSeed\(\)/, 'Save data must persist the world seed.');
 assert.match(saveSystem, /this\.host\.setWorldSeed\(normalizeWorldSeed\(data\.worldSeed\)\)/, 'Loading must restore the world seed.');
 assert.match(saveSystem, /return Number\.isFinite\(numeric\) \? Math\.trunc\(numeric\) : 0;/, 'Legacy saves must default to the original zero seed.');
-assert.equal([...html.matchAll(/data-template="[^"]+"/g)].length, 36, 'Template picker must include all current starting worlds.');
+assert.equal([...html.matchAll(/data-template="[^"]+"/g)].length, 37, 'Template picker must include all current starting worlds.');
 
 console.log('Playable layout template regression checks passed.');
