@@ -111,9 +111,11 @@ test('Urban city loads from the picker, supports undo/redo, and survives reload'
     expect(cell.y).toBeGreaterThanOrEqual(1);
     expect(cell.y).toBeLessThanOrEqual(20);
   }
-  await page.locator('#undo-button').evaluate(button => (button as HTMLButtonElement).click());
+  await expect(page.locator('#undo-button')).toHaveCount(0);
+  await expect(page.locator('#redo-button')).toHaveCount(0);
+  await page.locator('#header-undo-button').evaluate(button => (button as HTMLButtonElement).click());
   await expect.poll(async () => (await saved()).mapLayoutId).toBe('island');
-  await page.locator('#redo-button').evaluate(button => (button as HTMLButtonElement).click());
+  await page.keyboard.press('Control+Y');
   await expect.poll(async () => (await saved()).mapLayoutId).toBe('urban-60x80');
   await page.reload({ waitUntil: 'domcontentloaded' });
   await expect(page.locator('#game-canvas')).toHaveCount(1, { timeout: 30_000 });
