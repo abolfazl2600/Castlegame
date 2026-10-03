@@ -95,6 +95,8 @@ export function translate(message: string, locale: Locale = 'fa'): string {
         : 'ساختمان به بالاترین سطح رسیده است.';
     return translate(match[1], locale) + ' ' + maximumLabel;
   }
+  match = message.match(/^Uses (.+)\.$/);
+  if (match) return 'از ' + translate(match[1], locale) + ' استفاده می‌کند.';
 
   // Common status patterns with variable levels, costs and coordinates.
   match = message.match(/^LOCKED · TIER (\d+)$/);
