@@ -72,6 +72,11 @@ assert.match(
   /signature === this\.worldLayoutSurfaceSignature/,
   'World layout surface rebuilding should be cached when terrain has not changed.',
 );
+assert.match(
+  threeGame,
+  /private worldLayoutSurfaceSignature = '';/,
+  'World layout surface caching must start invalid so the initial layout is built.',
+);
 
 const redraw = between(
   threeGame,
