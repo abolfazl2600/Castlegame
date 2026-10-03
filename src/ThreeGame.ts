@@ -11847,6 +11847,30 @@ export class ThreeGame {
       '<div class="settings-hint">Advanced architecture and terrain tuning is optional. Normal building uses automatic defaults.</div>' +
       '</div></section></div>';
 
+    let selectionPanel = document.getElementById('world-selection-panel');
+    if (!selectionPanel) {
+      selectionPanel = document.createElement('section');
+      selectionPanel.id = 'world-selection-panel';
+      selectionPanel.className = 'world-selection-panel';
+      selectionPanel.setAttribute('role', 'group');
+      selectionPanel.setAttribute('aria-label', 'Selected building actions');
+      selectionPanel.hidden = true;
+      selectionPanel.innerHTML =
+        '<div class="world-selection-summary">' +
+        '<span class="eyebrow">SELECTED</span>' +
+        '<strong id="world-selection-name">Building</strong>' +
+        '<small id="world-selection-level"></small>' +
+        '</div>' +
+        '<div class="world-selection-actions">' +
+        '<button id="world-selection-upgrade" type="button">Upgrade</button>' +
+        '<button id="world-selection-move" type="button">Move</button>' +
+        '<button id="world-selection-rotate" type="button" hidden>Rotate</button>' +
+        '<button id="world-selection-demolish" class="is-danger" type="button">Demolish</button>' +
+        '<button id="world-selection-deselect" type="button" aria-label="Deselect building">Deselect</button>' +
+        '</div>';
+      this.root.appendChild(selectionPanel);
+    }
+
     const builderSettings = toolbar.querySelector<HTMLElement>('.builder-settings');
     if (builderSettings) builderSettings.hidden = false;
 
@@ -12100,6 +12124,13 @@ export class ThreeGame {
 
     get<HTMLButtonElement>('rotate-selected').onclick = () => this.rotateSelected();
     get<HTMLButtonElement>('remove-selected').onclick = () => this.removeSelected();
+    get<HTMLButtonElement>('world-selection-upgrade').onclick = () => this.upgradeSelectedBuilding();
+    get<HTMLButtonElement>('world-selection-rotate').onclick = () => this.rotateSelected();
+    get<HTMLButtonElement>('world-selection-demolish').onclick = () => this.removeSelected();
+    get<HTMLButtonElement>('world-selection-deselect').onclick = () => {
+      this.clearSelection();
+      this.setStatus('Selection cleared');
+    };
     get<HTMLButtonElement>('fortification-upgrade-button').onclick = () => this.upgradeSelectedFortification();
     get<HTMLButtonElement>('fortification-remove-bridge-button').onclick = () => this.removeSelectedTowerBridge();
     get<HTMLButtonElement>('army-camp-upgrade-button').onclick = () => this.upgradeSelectedArmyCamp();
@@ -12406,44 +12437,170 @@ export class ThreeGame {
     button.textContent = cell?.kind === 'gate' ? (cell.gateOpen === false ? 'Open Gate' : 'Close Gate') : 'Open Gate';
   }
 
+  private selectedBuildingDescriptor(): { name: string; level?: number } | null {
+    if (this.selectedTowerBridgeId !== null) {
+      const bridge = this.towerBridges.get(this.selectedTowerBridgeId);
+      if (bridge) return {
+        name: 'Tower Bridge',
+        level: Math.max(1, Math.min(FORTIFICATION_MAX_LEVEL, Math.floor(bridge.level ?? 1))),
+      };
+    }
+
+    if (this.selectedKeepId !== null) {
+      const keep = this.services.keepSystem.get(this.selectedKeepId);
+      if (keep) return { name: 'Keep', level: this.keepUpgradeLevel(keep) };
+    }
+
+    if (!this.selectedCell) return null;
+    const cell = this.services.state.getCell(this.selectedCell.x, this.selectedCell.y);
+    if (!cell) return null;
+
+    const level = Math.max(1, Math.floor(cell.level ?? 1));
+    const residentialLevel = this.residentialLevelForCell(cell);
+    if (residentialLevel !== null) {
+      return { name: this.residentialLevelDefinition(residentialLevel).name, level: residentialLevel };
+    }
+    if (cell.kind === 'armyCamp') return { name: this.armyCampLevelDefinition(level).name, level };
+    if (cell.kind === 'farm' || cell.kind === 'cowBarn') {
+      const normalized = Math.max(1, Math.min(AGRICULTURE_MAX_LEVEL, level));
+      return { name: this.agricultureLevelDefinition(cell.kind, normalized).name, level: normalized };
+    }
+    if (cell.kind === 'mosque') {
+      const normalized = Math.max(1, Math.min(MOSQUE_MAX_LEVEL, level));
+      return { name: this.mosqueLevelDefinition(normalized).name, level: normalized };
+    }
+    if (cell.kind === 'carpenter') {
+      const normalized = normalizeCarpenterLevel(level);
+      return { name: carpenterLevelDefinition(normalized).name, level: normalized };
+    }
+    if (cell.kind === 'harbor') {
+      const normalized = Math.max(1, Math.min(HARBOR_MAX_LEVEL, level));
+      return { name: this.harborLevelDefinition(normalized).name, level: normalized };
+    }
+
+    const name = cell.kind
+      .replace(/([a-z])([A-Z])/g, '$1 $2')
+      .replace(/([A-Za-z])(\d)/g, '$1 $2')
+      .replace(/^./, (value) => value.toUpperCase());
+    return { name, level };
+  }
+
+  private selectedUpgradeState(): { supported: boolean; atMax: boolean } {
+    if (this.selectedTowerBridgeId !== null) {
+      const bridge = this.towerBridges.get(this.selectedTowerBridgeId);
+      const level = Math.max(1, Math.floor(bridge?.level ?? 1));
+      return { supported: Boolean(bridge), atMax: level >= FORTIFICATION_MAX_LEVEL };
+    }
+    if (this.selectedKeepId !== null) {
+      const keep = this.services.keepSystem.get(this.selectedKeepId);
+      return { supported: Boolean(keep), atMax: keep ? this.keepUpgradeLevel(keep) >= FORTIFICATION_MAX_LEVEL : false };
+    }
+    if (!this.selectedCell) return { supported: false, atMax: false };
+
+    const cell = this.services.state.getCell(this.selectedCell.x, this.selectedCell.y);
+    if (!cell) return { supported: false, atMax: false };
+    const residentialLevel = this.residentialLevelForCell(cell);
+    if (residentialLevel !== null) return { supported: true, atMax: residentialLevel >= RESIDENTIAL_MAX_LEVEL };
+
+    const maxByKind: Partial<Record<TileKind, number>> = {
+      tower: FORTIFICATION_MAX_LEVEL,
+      gate: FORTIFICATION_MAX_LEVEL,
+      armyCamp: ARMY_CAMP_MAX_LEVEL,
+      farm: AGRICULTURE_MAX_LEVEL,
+      cowBarn: AGRICULTURE_MAX_LEVEL,
+      mosque: MOSQUE_MAX_LEVEL,
+      carpenter: CARPENTER_MAX_LEVEL,
+      harbor: HARBOR_MAX_LEVEL,
+    };
+    const max = maxByKind[cell.kind];
+    if (!max) return { supported: false, atMax: false };
+    return { supported: true, atMax: Math.max(1, Math.floor(cell.level ?? 1)) >= max };
+  }
+
+  private upgradeSelectedBuilding(): void {
+    if (this.selectedTowerBridgeId !== null || this.selectedKeepId !== null) {
+      this.upgradeSelectedFortification();
+      return;
+    }
+    if (!this.selectedCell) {
+      this.setStatus('Select a building first');
+      return;
+    }
+
+    const cell = this.services.state.getCell(this.selectedCell.x, this.selectedCell.y);
+    if (!cell) {
+      this.clearSelection();
+      this.setStatus('Selected building no longer exists');
+      return;
+    }
+    if (cell.kind === 'tower' || cell.kind === 'gate') this.upgradeSelectedFortification();
+    else if (cell.kind === 'armyCamp') this.upgradeSelectedArmyCamp();
+    else if (this.residentialLevelForCell(cell) !== null) this.upgradeSelectedResidence();
+    else if (cell.kind === 'mosque') this.upgradeSelectedMosque();
+    else if (cell.kind === 'farm' || cell.kind === 'cowBarn') this.upgradeSelectedAgricultureBuilding();
+    else if (cell.kind === 'carpenter') this.upgradeSelectedCarpenter();
+    else if (cell.kind === 'harbor') this.upgradeSelectedHarbor();
+    else this.setStatus('This building has no upgrade path');
+  }
+
   private syncSelectionActionUI(): void {
     const card = document.getElementById('selection-action-card');
-    if (!card) return;
-
+    const contextPanel = document.getElementById('world-selection-panel');
+    const descriptor = this.selectedBuildingDescriptor();
     const keep = this.selectedKeepId !== null ? this.services.keepSystem.get(this.selectedKeepId) : undefined;
     const cell = this.selectedCell
       ? this.services.state.getCell(this.selectedCell.x, this.selectedCell.y)
       : undefined;
     const bridgeSelected = this.selectedTowerBridgeId !== null && this.towerBridges.has(this.selectedTowerBridgeId);
-    const hasSelection = Boolean(keep || cell || bridgeSelected);
-    const residentialLevel = cell ? this.residentialLevelForCell(cell) : null;
-    card.hidden = !hasSelection;
+    const hasSelection = Boolean(descriptor && (keep || cell || bridgeSelected));
 
-    const name = document.getElementById('selection-action-name');
-    if (name) {
-      name.textContent = keep
-        ? `Keep · Level ${this.keepUpgradeLevel(keep)}`
-        : bridgeSelected
-          ? 'Tower Bridge'
-          : cell?.kind === 'tower'
-            ? `Tower · Level ${Math.max(1, Math.floor(cell.level ?? 1))}`
-            : cell?.kind === 'gate'
-              ? `Gate · Level ${Math.max(1, Math.floor(cell.level ?? 1))}`
-              : residentialLevel !== null
-                ? `${this.residentialLevelDefinition(residentialLevel).name} · Level ${residentialLevel}`
-                : cell?.kind === 'mosque'
-                  ? `${this.mosqueLevelDefinition(cell.level ?? 1).name} · Level ${Math.max(1, Math.min(MOSQUE_MAX_LEVEL, cell.level ?? 1))}`
-                  : 'Selected Building';
+    if (card) card.hidden = !hasSelection;
+    if (contextPanel) contextPanel.hidden = !hasSelection;
+    if (!hasSelection || !descriptor) {
+      this.syncSelectedGateButton();
+      return;
     }
 
-    const rotate = document.getElementById('rotate-selected') as HTMLButtonElement | null;
-    const remove = document.getElementById('remove-selected') as HTMLButtonElement | null;
+    const cardName = document.getElementById('selection-action-name');
+    if (cardName) cardName.textContent = descriptor.level
+      ? `${descriptor.name} · Level ${descriptor.level}`
+      : descriptor.name;
+
+    const contextName = document.getElementById('world-selection-name');
+    const contextLevel = document.getElementById('world-selection-level');
+    if (contextName) contextName.textContent = descriptor.name;
+    if (contextLevel) contextLevel.textContent = descriptor.level ? `Level ${descriptor.level}` : '';
+
     const rotatable = Boolean(keep || cell?.kind === 'gate' || cell?.kind === 'harbor' || cell?.kind === 'basilica');
+    const rotate = document.getElementById('rotate-selected') as HTMLButtonElement | null;
+    const contextRotate = document.getElementById('world-selection-rotate') as HTMLButtonElement | null;
+    const remove = document.getElementById('remove-selected') as HTMLButtonElement | null;
+    const contextDemolish = document.getElementById('world-selection-demolish') as HTMLButtonElement | null;
     if (rotate) {
       rotate.hidden = !rotatable;
       rotate.disabled = !rotatable || this.battleSystem.isActive();
     }
-    if (remove) remove.disabled = !hasSelection || this.battleSystem.isActive();
+    if (contextRotate) {
+      contextRotate.hidden = !rotatable;
+      contextRotate.disabled = !rotatable || this.battleSystem.isActive();
+    }
+    if (remove) {
+      remove.disabled = this.battleSystem.isActive();
+      remove.textContent = 'Demolish';
+    }
+    if (contextDemolish) contextDemolish.disabled = this.battleSystem.isActive();
+
+    const upgradeState = this.selectedUpgradeState();
+    const contextUpgrade = document.getElementById('world-selection-upgrade') as HTMLButtonElement | null;
+    if (contextUpgrade) {
+      contextUpgrade.hidden = !upgradeState.supported;
+      contextUpgrade.disabled = this.battleSystem.isActive() || upgradeState.atMax;
+      contextUpgrade.textContent = upgradeState.atMax ? 'Max Level' : 'Upgrade';
+    }
+
+    const contextMove = document.getElementById('world-selection-move') as HTMLButtonElement | null;
+    if (contextMove) contextMove.hidden = true;
+
     this.syncSelectedGateButton();
   }
 
