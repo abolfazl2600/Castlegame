@@ -11,6 +11,7 @@ import {
 import type { GameMode } from './GameMode';
 import { normalizeGameMode } from './GameMode';
 import type { GameState } from '../state/GameState';
+import { AUTOMATIC_WALL_LEVEL, isCastleWallKind } from '../building/CastleBlockSystem';
 import type { KeepSystem } from '../building/KeepSystem';
 import { APPLICATION_METADATA } from '../app/applicationMetadata';
 import { getCurrentLocale, t } from '../i18n/localization';
@@ -516,7 +517,7 @@ export class SaveSystem {
         x: cell.x,
         y: cell.y,
         kind: migration.kind as ReturnType<GameState['entries']>[number]['kind'],
-        level: migration.level,
+        level: isCastleWallKind(migration.kind) ? AUTOMATIC_WALL_LEVEL : migration.level,
         thickness: cell.thickness,
         battlement: migration.kind === 'wall1' || migration.kind === 'wall2' || migration.kind === 'wall3' ? true : cell.battlement,
         walkway: migration.kind === 'wall1' || migration.kind === 'wall2' || migration.kind === 'wall3' ? true : cell.walkway,
