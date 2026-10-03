@@ -342,7 +342,14 @@ export class SettingsUI {
       if (privacyButton) {
         privacyButton.disabled = true;
         privacyButton.removeAttribute('aria-busy');
-        privacyButton.title = 'Data & Privacy is unavailable';
+        privacyButton.removeAttribute('title');
+        const description = privacyButton.querySelector<HTMLElement>('small');
+        if (description) {
+          description.textContent = translate(
+            'Data & Privacy is unavailable',
+            resolveLocale(this.store.get().interface.language),
+          );
+        }
       }
     }
   }
