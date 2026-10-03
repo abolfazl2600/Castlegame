@@ -14366,7 +14366,7 @@ export class ThreeGame {
         { x: 8, y: 5 }, { x: 11, y: 4 }, { x: 14, y: 5 },
         { x: 16, y: 7 }, { x: 17, y: 11 }, { x: 15, y: 14 },
         { x: 13, y: 16 }, { x: 9, y: 16 }, { x: 6, y: 14 },
-        { x: 5, y: 11 }, { x: 5, y: 8 }, { x: 7, y: 6 },
+        { x: 6, y: 12 }, { x: 5, y: 11 }, { x: 5, y: 8 }, { x: 7, y: 6 },
       ];
 
       placeWallPath(outerRampart, 'wall1', 2, {
