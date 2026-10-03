@@ -1162,7 +1162,7 @@ export class ThreeGame {
         anchor: { x: point.x, y: point.y },
         kind: direct.kind,
         footprint: getStructureFootprint(direct.kind, point.x, point.y)
-          .filter((item) => item.x >= 0 && item.y >= 0 && item.x < SIZE && item.y < SIZE),
+          .filter((item) => item.x >= 0 && item.y >= 0 && item.x < this.worldCols && item.y < this.worldRows),
       };
     }
 
@@ -1173,7 +1173,7 @@ export class ThreeGame {
         return {
           anchor: { x: cell.x, y: cell.y },
           kind: cell.kind,
-          footprint: footprint.filter((item) => item.x >= 0 && item.y >= 0 && item.x < SIZE && item.y < SIZE),
+          footprint: footprint.filter((item) => item.x >= 0 && item.y >= 0 && item.x < this.worldCols && item.y < this.worldRows),
         };
       }
     }
@@ -1973,8 +1973,8 @@ export class ThreeGame {
         !Number.isInteger(y) ||
         x < 0 ||
         y < 0 ||
-        x >= SIZE ||
-        y >= SIZE
+        x >= this.worldCols ||
+        y >= this.worldRows
       ) {
         continue;
       }
@@ -2013,15 +2013,15 @@ export class ThreeGame {
 
   private gridToWorld(gx: number, gy: number): { x: number; z: number } {
     return {
-      x: (gx - SIZE / 2 + 0.5) * TILE,
-      z: (gy - SIZE / 2 + 0.5) * TILE,
+      x: (gx - this.worldCols / 2 + 0.5) * TILE,
+      z: (gy - this.worldRows / 2 + 0.5) * TILE,
     };
   }
 
   private seedNaturalProps(): void {
     const seed = Math.trunc(this.worldSeed);
-    for (let y = 0; y < SIZE; y += 1) {
-      for (let x = 0; x < SIZE; x += 1) {
+    for (let y = 0; y < this.worldRows; y += 1) {
+      for (let x = 0; x < this.worldCols; x += 1) {
         if (this.services.state.getCell(x, y)) continue;
 
         const terrain = this.baseTerrainAt(x, y);
@@ -2176,7 +2176,8 @@ export class ThreeGame {
     this.automaticWallAccessCache = this.services.detailGenerator.wallAccessPlan(
       this.services.state.entries(),
       {
-        size: SIZE,
+        cols: this.worldCols,
+        rows: this.worldRows,
         terrainBuildable: (x, y) => {
           const terrain = this.terrainAt(x, y);
           return terrain !== 'water' && terrain !== 'river' && terrain !== 'mountain';
@@ -2320,7 +2321,8 @@ export class ThreeGame {
 
 
     for (const weapon of BattleSystem.wallWeaponPositions(
-      SIZE,
+      this.worldCols,
+      this.worldRows,
       (x, y) => this.services.state.getCell(x, y),
     )) {
       const cell = this.services.state.getCell(weapon.x, weapon.y);
@@ -2396,7 +2398,7 @@ export class ThreeGame {
     const snapshot = this.castleBlockSystem.build(cells, this.stoneStyle, (x, y) => this.terrainElevation(x, y));
     const nextBlocks = new Map(snapshot.blocks.map((block) => [this.key(block.x, block.y), block]));
     // Gates, towers and mounted weapons own additional runtime objects; rebuild those safely.
-    const weapons = BattleSystem.wallWeaponPositions(SIZE, (x, y) => this.services.state.getCell(x, y));
+    const weapons = BattleSystem.wallWeaponPositions(this.worldCols, this.worldRows, (x, y) => this.services.state.getCell(x, y));
     if ([...affected].some((key) => {
       const oldKind = this.buildObjectsByCell.get(key)?.userData.cellKind as TileKind | undefined;
       const nextKind = byKey.get(key)?.kind;
@@ -2445,7 +2447,8 @@ export class ThreeGame {
 
   private rebuildAmbientFauna(): void {
     this.ambientFauna.rebuild({
-      size: SIZE,
+      cols: this.worldCols,
+      rows: this.worldRows,
       seed: this.worldSeed,
       terrainAt: (x, y) => this.terrainAt(x, y),
       elevationAt: (x, y) => this.terrainElevation(x, y),
@@ -2468,7 +2471,8 @@ export class ThreeGame {
     const context = canvas?.getContext('2d');
     if (!canvas || !context) return;
     // One tile per map cell keeps the map deterministic and cheap on redraw.
-    canvas.width = canvas.height = SIZE;
+    canvas.width = this.worldCols;
+    canvas.height = this.worldRows;
     const palette = WORLD_STYLE.palette;
     const terrainColors: Record<TerrainKind, number> = {
       water: palette.deepWater,
@@ -2479,8 +2483,8 @@ export class ThreeGame {
       mountain: palette.terrainRock,
     };
     const color = (value: number) => `#${value.toString(16).padStart(6, '0')}`;
-    for (let y = 0; y < SIZE; y += 1) {
-      for (let x = 0; x < SIZE; x += 1) {
+    for (let y = 0; y < this.worldRows; y += 1) {
+      for (let x = 0; x < this.worldCols; x += 1) {
         const cell = this.services.state.getCell(x, y);
         const kind = cell?.kind;
         let tileColor = terrainColors[this.terrainAt(x, y)];
@@ -2774,8 +2778,8 @@ export class ThreeGame {
       forest: WORLD_STYLE.palette.grassForest,
     };
 
-    for (let y = 0; y < SIZE; y += 1) {
-      for (let x = 0; x < SIZE; x += 1) {
+    for (let y = 0; y < this.worldRows; y += 1) {
+      for (let x = 0; x < this.worldCols; x += 1) {
         const position = this.gridToWorld(x, y);
         const terrain = this.terrainAt(x, y);
         const elevation = this.terrainElevation(x, y);
@@ -2798,16 +2802,34 @@ export class ThreeGame {
       }
     }
 
-    const grid = new THREE.GridHelper(WORLD, SIZE, 0xe7f6ef, 0x1f3d46);
-    grid.position.y = 10.04;
-    grid.renderOrder = 41;
-    const gridMaterials = Array.isArray(grid.material) ? grid.material : [grid.material];
-    for (const material of gridMaterials) {
-      material.transparent = true;
-      material.opacity = 0.32;
-      material.depthTest = false;
-      material.depthWrite = false;
+    const gridPoints: THREE.Vector3[] = [];
+    const halfWidth = this.worldWidth / 2;
+    const halfHeight = this.worldHeight / 2;
+    for (let x = 0; x <= this.worldCols; x += 1) {
+      const worldX = -halfWidth + x * TILE;
+      gridPoints.push(
+        new THREE.Vector3(worldX, 10.04, -halfHeight),
+        new THREE.Vector3(worldX, 10.04, halfHeight),
+      );
     }
+    for (let y = 0; y <= this.worldRows; y += 1) {
+      const worldZ = -halfHeight + y * TILE;
+      gridPoints.push(
+        new THREE.Vector3(-halfWidth, 10.04, worldZ),
+        new THREE.Vector3(halfWidth, 10.04, worldZ),
+      );
+    }
+    const grid = new THREE.LineSegments(
+      new THREE.BufferGeometry().setFromPoints(gridPoints),
+      new THREE.LineBasicMaterial({
+        color: 0x1f3d46,
+        transparent: true,
+        opacity: 0.32,
+        depthTest: false,
+        depthWrite: false,
+      }),
+    );
+    grid.renderOrder = 41;
     this.planLayer.add(grid);
 
     const wallPlanOutline = 0x3b3328;
@@ -3016,16 +3038,17 @@ export class ThreeGame {
   private enforceGameplayCameraBounds(): void {
     if (this.visualBenchmark) return;
 
-    const limit = Math.max(0, WORLD / 2 - WORLD_STYLE.camera.targetPadding);
+    const limitX = Math.max(0, this.worldWidth / 2 - WORLD_STYLE.camera.targetPadding);
+    const limitZ = Math.max(0, this.worldHeight / 2 - WORLD_STYLE.camera.targetPadding);
     const previousTarget = this.controls.target.clone();
     const clampedTarget = previousTarget.clone();
-    clampedTarget.x = THREE.MathUtils.clamp(clampedTarget.x, -limit, limit);
+    clampedTarget.x = THREE.MathUtils.clamp(clampedTarget.x, -limitX, limitX);
     clampedTarget.y = THREE.MathUtils.clamp(
       clampedTarget.y,
       WORLD_STYLE.camera.minTargetY,
       WORLD_STYLE.camera.maxTargetY,
     );
-    clampedTarget.z = THREE.MathUtils.clamp(clampedTarget.z, -limit, limit);
+    clampedTarget.z = THREE.MathUtils.clamp(clampedTarget.z, -limitZ, limitZ);
 
     if (!clampedTarget.equals(previousTarget)) {
       const offset = this.camera.position.clone().sub(previousTarget);
@@ -3207,8 +3230,8 @@ export class ThreeGame {
   }
 
   private renderTerrain(): void {
-    for (let y = 0; y < SIZE; y += 1) {
-      for (let x = 0; x < SIZE; x += 1) {
+    for (let y = 0; y < this.worldRows; y += 1) {
+      for (let x = 0; x < this.worldCols; x += 1) {
         const terrain = this.terrainAt(x, y);
         const base = this.baseTerrainAt(x, y);
         const elevation = this.terrainElevation(x, y);
@@ -3551,7 +3574,7 @@ export class ThreeGame {
   }
 
   private terrainSurfaceYForCliff(x: number, y: number): number {
-    if (x < 0 || y < 0 || x >= SIZE || y >= SIZE) return 1.04;
+    if (x < 0 || y < 0 || x >= this.worldCols || y >= this.worldRows) return 1.04;
 
     const terrain = this.terrainAt(x, y);
     const elevation = this.terrainElevation(x, y);
@@ -3573,7 +3596,7 @@ export class ThreeGame {
       [gx, gy + 1],
       [gx - 1, gy],
     ].map(([x, y]) => {
-      if (x < 0 || y < 0 || x >= SIZE || y >= SIZE) return 0;
+      if (x < 0 || y < 0 || x >= this.worldCols || y >= this.worldRows) return 0;
       const terrain = this.terrainAt(x, y);
       if (terrain === 'water') return 0;
       return this.terrainElevation(x, y);
@@ -8765,7 +8788,7 @@ export class ThreeGame {
 
     for (let y = center.y - radius; y <= center.y + radius; y += 1) {
       for (let x = center.x - radius; x <= center.x + radius; x += 1) {
-        if (x < 0 || y < 0 || x >= SIZE || y >= SIZE) continue;
+        if (x < 0 || y < 0 || x >= this.worldCols || y >= this.worldRows) continue;
 
         const distance = Math.hypot(x - center.x, y - center.y);
         if (radius > 0 && distance > radius + 0.35) continue;
@@ -8789,7 +8812,7 @@ export class ThreeGame {
       for (let ox = -1; ox <= 1; ox += 1) {
         const nx = x + ox;
         const ny = y + oy;
-        if (nx < 0 || ny < 0 || nx >= SIZE || ny >= SIZE) continue;
+        if (nx < 0 || ny < 0 || nx >= this.worldCols || ny >= this.worldRows) continue;
         if (this.terrainAt(nx, ny) === 'water' || this.terrainAt(nx, ny) === 'river') continue;
         sum += this.terrainElevation(nx, ny);
         count += 1;
@@ -9451,9 +9474,9 @@ export class ThreeGame {
     const hit = this.raycaster.intersectObject(this.groundHit, false)[0];
     if (!hit) return null;
 
-    const x = Math.floor(hit.point.x / TILE + SIZE / 2);
-    const y = Math.floor(hit.point.z / TILE + SIZE / 2);
-    if (x < 0 || y < 0 || x >= SIZE || y >= SIZE) return null;
+    const x = Math.floor(hit.point.x / TILE + this.worldCols / 2);
+    const y = Math.floor(hit.point.z / TILE + this.worldRows / 2);
+    if (x < 0 || y < 0 || x >= this.worldCols || y >= this.worldRows) return null;
 
     return { x, y };
   }
@@ -9491,7 +9514,7 @@ export class ThreeGame {
     }
 
     return points.filter(
-      (point) => point.x >= 0 && point.y >= 0 && point.x < SIZE && point.y < SIZE,
+      (point) => point.x >= 0 && point.y >= 0 && point.x < this.worldCols && point.y < this.worldRows,
     );
   }
 
@@ -9604,7 +9627,7 @@ export class ThreeGame {
       for (let ox = -3; ox <= 3; ox += 1) {
         const x = gx + ox;
         const y = gy + oy;
-        if (x < 1 || y < 1 || x >= SIZE - 1 || y >= SIZE - 1) continue;
+        if (x < 1 || y < 1 || x >= this.worldCols - 1 || y >= this.worldRows - 1) continue;
         if (!this.canEditTerrainAt(x, y)) continue;
 
         const distance = Math.hypot(ox, oy);
@@ -9646,7 +9669,7 @@ export class ThreeGame {
   }
 
   private mountainRangePath(start: GridPoint, end: GridPoint): GridPoint[] {
-    const base = WallSystem.createSnappedPath(start, end, SIZE);
+    const base = WallSystem.createSnappedPath(start, end, this.worldCols, this.worldRows);
     if (base.length <= 2) return base;
 
     const result: GridPoint[] = [];
@@ -9663,8 +9686,8 @@ export class ThreeGame {
 
       const hash = Math.abs((i * 47 + start.x * 23 + start.y * 31 + end.x * 17 + end.y * 13) % 17);
       const jitter = hash === 3 || hash === 11 ? 1 : hash === 7 ? -1 : 0;
-      const x = THREE.MathUtils.clamp(point.x + px * jitter, 1, SIZE - 2);
-      const y = THREE.MathUtils.clamp(point.y + py * jitter, 1, SIZE - 2);
+      const x = THREE.MathUtils.clamp(point.x + px * jitter, 1, this.worldCols - 2);
+      const y = THREE.MathUtils.clamp(point.y + py * jitter, 1, this.worldRows - 2);
       const key = this.key(x, y);
 
       if (!seen.has(key)) {
@@ -9761,7 +9784,7 @@ export class ThreeGame {
         for (let ox = -3; ox <= 3; ox += 1) {
           const x = ridge.x + ox;
           const y = ridge.y + oy;
-          if (x < 1 || y < 1 || x >= SIZE - 1 || y >= SIZE - 1) continue;
+          if (x < 1 || y < 1 || x >= this.worldCols - 1 || y >= this.worldRows - 1) continue;
           if (!this.canEditTerrainAt(x, y)) continue;
   
           const distance = Math.hypot(ox, oy);
@@ -9839,7 +9862,7 @@ export class ThreeGame {
   }
 
   private wallPath(start: GridPoint, end: GridPoint): GridPoint[] {
-    return WallSystem.createSnappedPath(start, end, SIZE);
+    return WallSystem.createSnappedPath(start, end, this.worldCols, this.worldRows);
   }
 
   private renderWallPreview(path: GridPoint[]): void {
@@ -10453,7 +10476,7 @@ export class ThreeGame {
     for (const footprintCell of preview.cells) {
       if (
         footprintCell.x < 0 || footprintCell.y < 0 ||
-        footprintCell.x >= SIZE || footprintCell.y >= SIZE
+        footprintCell.x >= this.worldCols || footprintCell.y >= this.worldRows
       ) continue;
 
       const world = this.gridToWorld(footprintCell.x, footprintCell.y);
@@ -10859,7 +10882,7 @@ export class ThreeGame {
     const radius = 1;
     for (let y = gy - radius; y <= gy + radius; y += 1) {
       for (let x = gx - radius; x <= gx + radius; x += 1) {
-        if (x < 0 || y < 0 || x >= SIZE || y >= SIZE) return false;
+        if (x < 0 || y < 0 || x >= this.worldCols || y >= this.worldRows) return false;
         if (
           this.services.state.getCell(x, y) ||
           this.services.keepSystem.findAtCell(x, y) ||
@@ -11062,8 +11085,8 @@ export class ThreeGame {
   private settlementTraversabilitySignature(): string {
     const blocked: string[] = [];
 
-    for (let y = 0; y < SIZE; y += 1) {
-      for (let x = 0; x < SIZE; x += 1) {
+    for (let y = 0; y < this.worldRows; y += 1) {
+      for (let x = 0; x < this.worldCols; x += 1) {
         if (this.isSettlementBlocked(x, y)) blocked.push(this.key(x, y));
       }
     }
@@ -11264,7 +11287,7 @@ export class ThreeGame {
   }
 
   private isSettlementBlocked(x: number, y: number): boolean {
-    if (x < 0 || y < 0 || x >= SIZE || y >= SIZE) return true;
+    if (x < 0 || y < 0 || x >= this.worldCols || y >= this.worldRows) return true;
     const terrain = this.terrainAt(x, y);
     if (terrain === 'water' || terrain === 'river') return true;
 
@@ -11346,8 +11369,8 @@ export class ThreeGame {
 
   private worldToGrid(worldX: number, worldZ: number): GridPoint {
     return {
-      x: THREE.MathUtils.clamp(Math.floor(worldX / TILE + SIZE / 2), 0, SIZE - 1),
-      y: THREE.MathUtils.clamp(Math.floor(worldZ / TILE + SIZE / 2), 0, SIZE - 1),
+      x: THREE.MathUtils.clamp(Math.floor(worldX / TILE + this.worldCols / 2), 0, this.worldCols - 1),
+      y: THREE.MathUtils.clamp(Math.floor(worldZ / TILE + this.worldRows / 2), 0, this.worldRows - 1),
     };
   }
 
@@ -12005,8 +12028,8 @@ export class ThreeGame {
       if (!delta) return;
       event.preventDefault();
       this.minimapCursor = {
-        x: THREE.MathUtils.clamp(this.minimapCursor.x + delta.x, 0, SIZE - 1),
-        y: THREE.MathUtils.clamp(this.minimapCursor.y + delta.y, 0, SIZE - 1),
+        x: THREE.MathUtils.clamp(this.minimapCursor.x + delta.x, 0, this.worldCols - 1),
+        y: THREE.MathUtils.clamp(this.minimapCursor.y + delta.y, 0, this.worldRows - 1),
       };
       minimap.setAttribute('aria-label', `Map sector ${this.minimapCursor.x + 1}, ${this.minimapCursor.y + 1}; press Enter to move camera`);
       this.renderMinimap();
@@ -12015,8 +12038,12 @@ export class ThreeGame {
       const canvas = get<HTMLCanvasElement>('minimap-canvas');
       const bounds = canvas.getBoundingClientRect();
       if (event.detail !== 0 && (event.clientX < bounds.left || event.clientX > bounds.right || event.clientY < bounds.top || event.clientY > bounds.bottom)) return;
-      const x = event.detail === 0 ? this.minimapCursor.x : Math.max(0, Math.min(SIZE - 1, Math.floor((event.clientX - bounds.left) / bounds.width * SIZE)));
-      const y = event.detail === 0 ? this.minimapCursor.y : Math.max(0, Math.min(SIZE - 1, Math.floor((event.clientY - bounds.top) / bounds.height * SIZE)));
+      const x = event.detail === 0
+        ? this.minimapCursor.x
+        : Math.max(0, Math.min(this.worldCols - 1, Math.floor((event.clientX - bounds.left) / bounds.width * this.worldCols)));
+      const y = event.detail === 0
+        ? this.minimapCursor.y
+        : Math.max(0, Math.min(this.worldRows - 1, Math.floor((event.clientY - bounds.top) / bounds.height * this.worldRows)));
       this.minimapCursor = { x, y };
       const next = this.gridToWorld(x, y);
       const offset = this.camera.position.clone().sub(this.controls.target);
@@ -12550,7 +12577,7 @@ export class ThreeGame {
   ): { valid: boolean; reason?: string } {
     return this.services.keepSystem.validate(
       draft,
-      SIZE,
+      this.worldGrid,
       (x, y) => this.terrainAt(x, y),
       (x, y) => this.terrainElevation(x, y),
       (x, y) =>
@@ -13678,8 +13705,8 @@ export class ThreeGame {
     if (template !== 'empty-land' && template !== 'urban-city-60x80') this.seedNaturalProps();
 
     if (template === 'empty-land') {
-      for (let y = 0; y < SIZE; y += 1) {
-        for (let x = 0; x < SIZE; x += 1) {
+      for (let y = 0; y < this.worldRows; y += 1) {
+        for (let x = 0; x < this.worldCols; x += 1) {
           if (this.baseTerrainAt(x, y) !== 'water') {
             this.terrainOverrides.set(this.key(x, y), 'plains');
           }
@@ -13692,8 +13719,8 @@ export class ThreeGame {
     } else if (template === 'twin-fortresses-90x95') {
       // Two complete, editable fortresses with gates, keeps, roads, camps, and
       // dedicated food, wood, and stone resources.
-      for (let y = 0; y < SIZE; y += 1) {
-        for (let x = 0; x < SIZE; x += 1) {
+      for (let y = 0; y < this.worldRows; y += 1) {
+        for (let x = 0; x < this.worldCols; x += 1) {
           this.services.state.removeCell(x, y);
           this.terrainOverrides.set(this.key(x, y), 'plains');
           this.elevationOverrides.delete(this.key(x, y));
@@ -14001,7 +14028,7 @@ export class ThreeGame {
     } else if (template === 'coastal-kingdom') {
       for (let y = center - 5; y <= center + 5; y += 1) {
         for (let x = center - 4; x <= center + 4; x += 1) {
-          if (x < 0 || y < 0 || x >= SIZE || y >= SIZE) continue;
+          if (x < 0 || y < 0 || x >= this.worldCols || y >= this.worldRows) continue;
           const existing = this.services.state.getCell(x, y);
           if (
             existing &&
@@ -14053,7 +14080,7 @@ export class ThreeGame {
             if (distance > 2.35) continue;
             const x = hill.x + ox;
             const y = hill.y + oy;
-            if (x < 1 || y < 1 || x >= SIZE - 1 || y >= SIZE - 1) continue;
+            if (x < 1 || y < 1 || x >= this.worldCols - 1 || y >= this.worldRows - 1) continue;
             if (this.terrainAt(x, y) === 'water' || this.terrainAt(x, y) === 'river') continue;
             const height = hill.h * Math.max(0.12, 1 - distance / 2.6);
             this.setAbsoluteElevation(x, y, Math.max(this.terrainElevation(x, y), height));
@@ -14653,8 +14680,8 @@ export class ThreeGame {
       const hy = (localY: number): number => himejiBounds.minY + localY;
       const hp = (localX: number, localY: number): GridPoint => ({ x: hx(localX), y: hy(localY) });
 
-      for (let y = 0; y < SIZE; y += 1) {
-        for (let x = 0; x < SIZE; x += 1) {
+      for (let y = 0; y < this.worldRows; y += 1) {
+        for (let x = 0; x < this.worldCols; x += 1) {
           this.services.state.removeCell(x, y);
           const insidePlot =
             x >= himejiBounds.minX && x <= himejiBounds.maxX &&
@@ -14804,8 +14831,8 @@ export class ThreeGame {
       // Present-day fortified city after the Viollet-le-Duc restoration campaign:
       // two concentric enclosures, dense round towers, Narbonnaise/Aude gates,
       // the western Château Comtal and Saint-Nazaire basilica on the raised cité.
-      for (let y = 0; y < SIZE; y += 1) {
-        for (let x = 0; x < SIZE; x += 1) {
+      for (let y = 0; y < this.worldRows; y += 1) {
+        for (let x = 0; x < this.worldCols; x += 1) {
           this.services.state.removeCell(x, y);
           this.terrainOverrides.set(this.key(x, y), 'plains');
           const dx = (x - center) / 9.4;
@@ -14820,7 +14847,7 @@ export class ThreeGame {
       }
 
       // The Aude runs below the western escarpment.
-      for (let y = 0; y < SIZE; y += 1) {
+      for (let y = 0; y < this.worldRows; y += 1) {
         const riverX = 1 + Math.round((Math.sin(y * 0.34 + 0.8) + 1) * 0.5);
         for (const x of [riverX, riverX + 1]) {
           this.services.state.removeCell(x, y);
@@ -14931,8 +14958,8 @@ export class ThreeGame {
       // Hospitaller final construction phase, c. mid-13th century to 1271.
       // Preserve the site's elongated hilltop footprint, lower outer enceinte,
       // higher inner ward, controlled eastern entrance and southern cistern/outwork.
-      for (let y = 0; y < SIZE; y += 1) {
-        for (let x = 0; x < SIZE; x += 1) {
+      for (let y = 0; y < this.worldRows; y += 1) {
+        for (let x = 0; x < this.worldCols; x += 1) {
           this.services.state.removeCell(x, y);
           this.terrainOverrides.set(this.key(x, y), 'plains');
 
@@ -15073,8 +15100,8 @@ export class ThreeGame {
       // Pre-earthquake Arg-e Bam, immediately before 26 December 2003.
       // The authored plan preserves the southern entrance, bazaar axis,
       // dense lower town, dry moat and raised governor's citadel to the north.
-      for (let y = 0; y < SIZE; y += 1) {
-        for (let x = 0; x < SIZE; x += 1) {
+      for (let y = 0; y < this.worldRows; y += 1) {
+        for (let x = 0; x < this.worldCols; x += 1) {
           this.services.state.removeCell(x, y);
           this.terrainOverrides.set(this.key(x, y), 'plains');
           const broadRise = Math.max(
@@ -15260,15 +15287,15 @@ export class ThreeGame {
 
     const center = Math.floor(SIZE / 2);
     const addProp = (x: number, y: number, kind: TileKind, level = 1): void => {
-      if (x < 0 || y < 0 || x >= SIZE || y >= SIZE) return;
+      if (x < 0 || y < 0 || x >= this.worldCols || y >= this.worldRows) return;
       const terrain = this.terrainAt(x, y);
       if (terrain === 'water' || terrain === 'river') return;
       if (!this.services.state.getCell(x, y)) this.services.state.setCell(x, y, kind, level);
     };
 
     const flattenLand = (): void => {
-      for (let y = 0; y < SIZE; y += 1) {
-        for (let x = 0; x < SIZE; x += 1) {
+      for (let y = 0; y < this.worldRows; y += 1) {
+        for (let x = 0; x < this.worldCols; x += 1) {
           const base = this.baseTerrainAt(x, y);
           if (base !== 'water') this.terrainOverrides.set(this.key(x, y), 'plains');
           if (base !== 'water') this.setAbsoluteElevation(x, y, 0);
