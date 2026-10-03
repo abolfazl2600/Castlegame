@@ -41,7 +41,7 @@ assert.match(
 );
 assert.match(
   threeGame,
-  /place\(3, 13, 'gate', 2\);[\s\S]*?place\(6, 13, 'gate', 3\);/,
+  /place\(3, 13, 'gate', 2\);[\s\S]*?place\(5, 13, 'gate', 3\);/,
   'Porte d\'Aude must keep its outer and inner gates.',
 );
 assert.ok(

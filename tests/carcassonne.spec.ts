@@ -203,7 +203,7 @@ test('Carcassonne template serializes its documented landmark plan', async ({ pa
   expect(cellAt(record, 19, 9)?.kind).toBe('gate');
   expect(cellAt(record, 17, 9)?.kind).toBe('gate');
   expect(cellAt(record, 3, 13)?.kind).toBe('gate');
-  expect(cellAt(record, 6, 13)?.kind).toBe('gate');
+  expect(cellAt(record, 5, 13)?.kind).toBe('gate');
 
   expect(cellAt(record, 13, 12)).toMatchObject({ kind: 'basilica', rotation: 1 });
   expect(record.data.keeps).toEqual(expect.arrayContaining([
@@ -233,7 +233,7 @@ test('Carcassonne Narbonnaise and Aude gate routes remain traversable in product
   expect(aude.at(-1)).toEqual({ x: 7, y: 13 });
   const westCells = new Set(aude.map((point) => `${point.x},${point.y}`));
   expect(westCells.has('3,13')).toBe(true);
-  expect(westCells.has('6,13')).toBe(true);
+  expect(westCells.has('5,13')).toBe(true);
 });
 
 test('Carcassonne remains editable and gate state survives the normal autosave/reload path', async ({ page }) => {
@@ -284,5 +284,5 @@ test('Carcassonne remains editable and gate state survives the normal autosave/r
   record = await readAutosave(page);
   expect(cellAt(record, 17, 9)?.kind).toBe('gate');
   expect(cellAt(record, 3, 13)?.kind).toBe('gate');
-  expect(cellAt(record, 6, 13)?.kind).toBe('gate');
+  expect(cellAt(record, 5, 13)?.kind).toBe('gate');
 });
