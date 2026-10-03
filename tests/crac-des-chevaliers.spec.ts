@@ -161,15 +161,15 @@ test('Crac des Chevaliers serializes its documented defensive hierarchy', async 
   expect(record.data.worldSeed).toBe(5901);
   expect(record.data.stoneStyle).toBe('limestone');
 
-  expect(cellAt(record, 19, 9)).toMatchObject({ kind: 'gate', level: 2 });
-  expect(cellAt(record, 17, 9)).toMatchObject({ kind: 'gate', level: 4 });
+  expect(cellAt(record, 20, 10)).toMatchObject({ kind: 'gate', level: 2 });
+  expect(cellAt(record, 18, 10)).toMatchObject({ kind: 'gate', level: 4 });
   expect(cellAt(record, 12, 8)).toMatchObject({ kind: 'basilica', rotation: 1 });
   expect(record.data.keeps).toEqual(expect.arrayContaining([
-    expect.objectContaining({ x: 10, y: 12, width: 3, depth: 3, floors: 5 }),
+    expect.objectContaining({ x: 8, y: 12, width: 2, depth: 3, floors: 5 }),
   ]));
 
   const towerCount = record.data.cells.filter((cell) => cell.kind === 'tower').length;
-  const cisternCount = (record.data.terrain ?? []).filter((cell) => cell.kind === 'river' && cell.y === 17).length;
+  const cisternCount = (record.data.terrain ?? []).filter((cell) => cell.kind === 'river' && cell.y === 15).length;
   const roadCount = record.data.cells.filter((cell) => cell.kind === 'stoneRoad').length;
   expect(towerCount).toBeGreaterThanOrEqual(24);
   expect(cisternCount).toBeGreaterThanOrEqual(5);
@@ -200,24 +200,24 @@ test('Crac remains editable and gate state survives autosave/reload', async ({ p
     return typeof qa.__castleVisualGridPoint === 'function';
   });
   await setTopQaCamera(page);
-  await clickGridCell(page, 19, 9);
+  await clickGridCell(page, 20, 10);
 
   await expect(page.locator('#selected-gate-toggle')).toHaveText(/Close Gate/i);
   await page.locator('#selected-gate-toggle').evaluate((button) => (button as HTMLButtonElement).click());
   await expect.poll(async () => {
     const next = await readAutosave(page);
-    return cellAt(next, 19, 9)?.gateOpen ?? null;
+    return cellAt(next, 20, 10)?.gateOpen ?? null;
   }, { timeout: 10_000 }).toBe(false);
 
   await page.locator('#selected-gate-toggle').evaluate((button) => (button as HTMLButtonElement).click());
   await expect.poll(async () => {
     const next = await readAutosave(page);
-    return cellAt(next, 19, 9)?.gateOpen ?? null;
+    return cellAt(next, 20, 10)?.gateOpen ?? null;
   }, { timeout: 10_000 }).toBe(true);
 
   record = await readAutosave(page);
-  expect(cellAt(record, 17, 9)).toMatchObject({ kind: 'gate', level: 4 });
+  expect(cellAt(record, 18, 10)).toMatchObject({ kind: 'gate', level: 4 });
   expect(record.data.keeps).toEqual(expect.arrayContaining([
-    expect.objectContaining({ x: 10, y: 12, floors: 5 }),
+    expect.objectContaining({ x: 8, y: 12, floors: 5 }),
   ]));
 });

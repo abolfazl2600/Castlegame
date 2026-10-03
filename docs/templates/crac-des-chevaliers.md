@@ -25,14 +25,14 @@ The French Ministry archaeology portal is the principal architectural reference 
 
 The French Ministry describes the surviving castle as approximately **300 m long and 140 m wide**, with two concentric enceintes. The upper ward is a polygonal enclosure with towers of different shapes; the lower outer enceinte is also towered. The south and west fronts of the upper castle are marked by a massive talus, while the north/northeast use bedrock as a foundation. A ditch separates the south side from a rocky plateau and triangular barbican.
 
-At game scale, the 22 × 22 board preserves the structural relationships rather than literal dimensions:
+At game scale, the 22 × 22 board compresses the documented roughly 300 m × 140 m footprint, while preserving an explicitly elongated east-west plan and the structural relationships rather than literal dimensions:
 
 | Historic feature | Castle Role representation |
 | --- | --- |
 | High ridge controlling the Homs Gap | Elliptical hill/ridge profile, highest beneath the upper ward and descending on the eastern approach |
 | Lower outer enceinte | Closed irregular wall1 circuit, Level 2, with repeated round flanking towers |
 | Higher inner enceinte | Closed reinforced wall3 circuit, Level 4, visibly dominating the outer wall |
-| South/west keep and talus | Highest inner towers plus a five-floor defensive-platform Keep mass on the south-west side |
+| South/west keep and talus | Three dominant level-5 inner towers plus a narrower five-floor flat-battlement Keep mass on the south-west side |
 | Eastern controlled entrance | Two gate stages connected by a bent ascending stone-road route |
 | Southern ditch/open cistern | Recessed water strip between inner and outer southern defenses |
 | Triangular southern barbican | Small closed triangular outwork on the southern plateau |
@@ -50,7 +50,7 @@ There is no separate static historical-scene mesh. After loading the template, e
 
 - Wall lengths, tower spacing and courtyard widths are compressed while preserving the concentric hierarchy and elongated plan.
 - The massive historical talus is represented by terrain elevation plus tall/thick inner defenses rather than a bespoke continuous sloped masonry shell.
-- The upper ward's southern keep is represented by the modular Keep plus dominant inner towers so battle/navigation/editing remain native.
+- The upper ward's southern keep is represented by a narrowed modular Keep mass plus three dominant inner towers so battle/navigation/editing remain native without overwhelming the historic plan.
 - The chapel uses the game's reusable medieval religious renderer; its real Romanesque proportions are simplified.
 - The great hall and service ranges use the closest native medieval hall/residential masses and remain subordinate to the defensive plan.
 - The southern open cistern is represented as a bounded native water strip, not interpreted as a geographic river.

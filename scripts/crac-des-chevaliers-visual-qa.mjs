@@ -67,8 +67,8 @@ function validateCrac(record) {
   if (record.data.stoneStyle !== 'limestone') problems.push('stone style is not limestone');
 
   for (const [x, y, label, level] of [
-    [19, 9, 'outer east gate', 2],
-    [17, 9, 'inner east gate', 4],
+    [20, 10, 'outer east gate', 2],
+    [18, 10, 'inner east gate', 4],
   ]) {
     const cell = findCell(record, x, y);
     if (cell?.kind !== 'gate') problems.push(`${label} is missing at ${x},${y}`);
@@ -78,14 +78,14 @@ function validateCrac(record) {
   const chapel = findCell(record, 12, 8);
   if (chapel?.kind !== 'basilica') problems.push('upper-ward chapel landmark is missing');
   if (!record.data.keeps?.some((keep) =>
-    keep.x === 10 && keep.y === 12 && keep.width === 3 && keep.depth === 3 && keep.floors === 5
+    keep.x === 8 && keep.y === 12 && keep.width === 2 && keep.depth === 3 && keep.floors === 5
   )) {
     problems.push('south-west five-floor Keep footprint is missing');
   }
 
   const towerCount = record.data.cells.filter((cell) => cell.kind === 'tower').length;
   if (towerCount < 24) problems.push(`tower rhythm is too sparse: ${towerCount}`);
-  const cisternCount = (record.data.terrain ?? []).filter((cell) => cell.kind === 'river' && cell.y === 17).length;
+  const cisternCount = (record.data.terrain ?? []).filter((cell) => cell.kind === 'river' && cell.y === 15).length;
   if (cisternCount < 5) problems.push(`southern cistern is incomplete: ${cisternCount} water cells`);
   const roadCount = record.data.cells.filter((cell) => cell.kind === 'stoneRoad').length;
   if (roadCount < 8) problems.push(`authored access route is too short: ${roadCount} stone-road cells`);
@@ -215,20 +215,20 @@ try {
     await page.locator('#view-3d-button').evaluate((button) => button.click());
 
     await setCamera(page, {
-      x: 56, y: 56, z: 64,
-      targetX: 0, targetY: 2, targetZ: 0,
+      x: 52, y: 48, z: 56,
+      targetX: 0, targetY: 2.6, targetZ: 0,
     });
     await captureCanvas(page, 'crac-des-chevaliers-normal-oblique.png');
 
     await setCamera(page, {
-      x: 90, y: 36, z: 2,
-      targetX: 0, targetY: 3, targetZ: 0,
+      x: 84, y: 32, z: 0,
+      targetX: 5, targetY: 2.8, targetZ: 0,
     });
     await captureCanvas(page, 'crac-des-chevaliers-east-approach.png');
 
     await setCamera(page, {
-      x: -52, y: 42, z: 88,
-      targetX: 0, targetY: 3, targetZ: 4,
+      x: -46, y: 38, z: 74,
+      targetX: -6, targetY: 3, targetZ: 8,
     });
     await captureCanvas(page, 'crac-des-chevaliers-south-southwest.png');
 

@@ -14375,36 +14375,45 @@ export class ThreeGame {
         }
       }
     } else if (template === 'crac-des-chevaliers') {
-      // Hospitaller final construction phase, c. mid-13th century to 1271:
-      // a lower outer enceinte surrounds a higher inner ward, with the eastern
-      // entrance ramp, southern cistern/ditch, major flanking towers and barbican.
+      // Hospitaller final construction phase, c. mid-13th century to 1271.
+      // Preserve the site's elongated hilltop footprint, lower outer enceinte,
+      // higher inner ward, controlled eastern entrance and southern cistern/outwork.
       for (let y = 0; y < SIZE; y += 1) {
         for (let x = 0; x < SIZE; x += 1) {
           this.services.state.removeCell(x, y);
           this.terrainOverrides.set(this.key(x, y), 'plains');
 
-          const dx = (x - center) / 9.2;
-          const dy = (y - center) / 10.2;
+          const dx = (x - center) / 11;
+          const dy = (y - (center - 1)) / 8.3;
           const radial = Math.hypot(dx, dy);
-          let height = Math.max(0.15, 3.25 - radial * 3.1);
-          if (radial < 0.58) height += 0.72;
-          if (x >= 17) height = Math.max(0.25, height - (x - 16) * 0.34);
-          if (y >= 18) height = Math.max(0.32, height - (y - 17) * 0.2);
+          let height = Math.max(0.18, 2.75 - radial * 2.25);
+
+          const upperWard = Math.hypot((x - center) / 6.7, (y - (center - 1)) / 4.8);
+          if (upperWard < 1) height += (1 - upperWard) * 0.95;
+          if (x <= 13 && y >= 11 && upperWard < 1.15) height += 0.32;
+
+          // The documented eastern ramp descends away from the gate.
+          if (x >= 17) height = Math.max(0.22, height - (x - 16) * 0.34);
+          // The southern plateau/outwork sits below the upper ward.
+          if (y >= 17) height = Math.max(0.28, height - (y - 16) * 0.18);
+
           this.setAbsoluteElevation(x, y, height);
         }
       }
 
+      // Compressed from the documented ~300 m × 140 m footprint while keeping
+      // the clearly elongated east-west relationship visible in plan view.
       const outerEnceinte: GridPoint[] = [
-        { x: 6, y: 3 }, { x: 11, y: 2 }, { x: 16, y: 4 },
-        { x: 19, y: 7 }, { x: 19, y: 12 }, { x: 17, y: 16 },
-        { x: 14, y: 18 }, { x: 9, y: 18 }, { x: 5, y: 16 },
-        { x: 3, y: 12 }, { x: 3, y: 8 }, { x: 4, y: 5 },
+        { x: 4, y: 5 }, { x: 9, y: 4 }, { x: 15, y: 4 },
+        { x: 19, y: 6 }, { x: 20, y: 9 }, { x: 20, y: 12 },
+        { x: 17, y: 15 }, { x: 12, y: 16 }, { x: 7, y: 16 },
+        { x: 3, y: 14 }, { x: 2, y: 10 }, { x: 2, y: 7 },
       ];
       const innerEnceinte: GridPoint[] = [
-        { x: 8, y: 5 }, { x: 12, y: 4 }, { x: 15, y: 5 },
-        { x: 17, y: 8 }, { x: 17, y: 12 }, { x: 14, y: 16 },
-        { x: 10, y: 16 }, { x: 7, y: 14 }, { x: 6, y: 10 },
-        { x: 6, y: 7 },
+        { x: 6, y: 7 }, { x: 10, y: 6 }, { x: 14, y: 6 },
+        { x: 17, y: 7 }, { x: 18, y: 9 }, { x: 18, y: 12 },
+        { x: 16, y: 13 }, { x: 13, y: 14 }, { x: 9, y: 14 },
+        { x: 6, y: 12 }, { x: 5, y: 9 },
       ];
 
       placeWallPath(outerEnceinte, 'wall1', 2, {
@@ -14416,24 +14425,25 @@ export class ThreeGame {
         walkway: true,
       }, true);
 
+      // Keep the outer ring visibly subordinate to the upper defensive enclosure.
       const outerTowers: GridPoint[] = [
-        { x: 6, y: 3 }, { x: 11, y: 2 }, { x: 16, y: 4 },
-        { x: 19, y: 7 }, { x: 19, y: 12 }, { x: 17, y: 16 },
-        { x: 14, y: 18 }, { x: 9, y: 18 }, { x: 5, y: 16 },
-        { x: 3, y: 12 }, { x: 3, y: 8 }, { x: 4, y: 5 },
+        { x: 4, y: 5 }, { x: 9, y: 4 }, { x: 15, y: 4 },
+        { x: 19, y: 6 }, { x: 20, y: 9 }, { x: 20, y: 12 },
+        { x: 17, y: 15 }, { x: 12, y: 16 }, { x: 7, y: 16 },
+        { x: 3, y: 14 }, { x: 2, y: 10 }, { x: 2, y: 7 },
       ];
-      for (const [index, point] of outerTowers.entries()) {
-        place(point.x, point.y, 'tower', index % 4 === 0 ? 3 : 2, {
+      for (const point of outerTowers) {
+        place(point.x, point.y, 'tower', 2, {
           towerShape: 'round',
           towerTop: 'openBattlement',
         });
       }
 
       const innerTowers: Array<[number, number, number, TowerShape]> = [
-        [8, 5, 4, 'round'], [12, 4, 4, 'round'], [15, 5, 4, 'round'],
-        [17, 8, 4, 'round'], [17, 12, 4, 'round'],
-        [14, 16, 5, 'round'], [10, 16, 5, 'round'],
-        [7, 14, 5, 'round'], [6, 10, 4, 'round'], [6, 7, 4, 'round'],
+        [6, 7, 4, 'round'], [10, 6, 4, 'round'], [14, 6, 4, 'round'],
+        [17, 7, 4, 'round'], [18, 9, 4, 'round'], [18, 12, 4, 'round'],
+        [16, 13, 4, 'round'], [13, 14, 5, 'round'], [9, 14, 5, 'round'],
+        [6, 12, 5, 'round'], [5, 9, 4, 'round'],
       ];
       for (const [x, y, level, shape] of innerTowers) {
         place(x, y, 'tower', level, {
@@ -14442,48 +14452,49 @@ export class ThreeGame {
         });
       }
 
-      place(19, 9, 'gate', 2, { rotationMode: 'auto' });
-      place(17, 9, 'gate', 4, { rotationMode: 'auto' });
-      place(18, 7, 'tower', 3, { towerShape: 'round', towerTop: 'openBattlement' });
-      place(18, 11, 'tower', 3, { towerShape: 'round', towerTop: 'openBattlement' });
+      // Two-stage eastern gate control with round towers immediately flanking it.
+      place(20, 10, 'gate', 2, { rotationMode: 'auto' });
+      place(18, 10, 'gate', 4, { rotationMode: 'auto' });
 
-      placeKeepTemplate(10, 12, 3, 3, 5, 'defensivePlatform', true, 0, true);
+      // The historical south-west command/keep complex is compressed into a
+      // narrower native Keep mass and the three dominant level-5 inner towers.
+      placeKeepTemplate(8, 12, 2, 3, 5, 'flatBattlement', true, 0, false);
 
-      // Chapel: use the reusable stone religious landmark, not a residence placeholder.
+      // Chapel: reusable stone religious landmark in the upper ward.
       place(12, 8, 'basilica', 1, { rotation: 1 });
 
-      // Great hall / service ranges leave the central court open.
+      // Great hall / service ranges around an intentionally open central court.
       for (const [x, y, kind] of [
         [14, 10, 'manor'],
         [14, 12, 'house'],
-        [8, 9, 'manor'],
+        [11, 7, 'manor'],
       ] as Array<[number, number, TileKind]>) {
         if (!this.services.state.getCell(x, y) && !this.services.keepSystem.findAtCell(x, y)) {
           place(x, y, kind, 1);
         }
       }
 
-      // Mid-13th-century open cistern in the former southern ditch.
+      // Mid-13th-century open cistern in the former southern ditch, between wards.
       for (let x = 9; x <= 14; x += 1) {
-        if (!this.services.state.getCell(x, 17)) {
-          this.terrainOverrides.set(this.key(x, 17), 'river');
-          this.setAbsoluteElevation(x, 17, 1.05);
+        if (!this.services.state.getCell(x, 15)) {
+          this.terrainOverrides.set(this.key(x, 15), 'river');
+          this.setAbsoluteElevation(x, 15, 0.92);
         }
       }
 
       const southBarbican: GridPoint[] = [
-        { x: 8, y: 19 }, { x: 11, y: 21 }, { x: 15, y: 19 },
+        { x: 7, y: 18 }, { x: 11, y: 20 }, { x: 15, y: 18 },
       ];
       placeWallPath(southBarbican, 'wall1', 2, {
         battlement: true,
         walkway: true,
       }, true);
-      place(11, 21, 'tower', 2, { towerShape: 'round', towerTop: 'openBattlement' });
+      place(11, 20, 'tower', 2, { towerShape: 'round', towerTop: 'openBattlement' });
 
       const routes: GridPoint[][] = [
-        [{ x: 21, y: 8 }, { x: 19, y: 8 }, { x: 19, y: 9 }, { x: 17, y: 9 }, { x: 15, y: 10 }, { x: 12, y: 10 }],
-        [{ x: 12, y: 6 }, { x: 12, y: 10 }, { x: 11, y: 13 }],
-        [{ x: 11, y: 14 }, { x: 11, y: 16 }, { x: 11, y: 18 }, { x: 11, y: 20 }],
+        [{ x: 21, y: 9 }, { x: 20, y: 9 }, { x: 20, y: 10 }, { x: 18, y: 10 }, { x: 16, y: 11 }, { x: 13, y: 11 }],
+        [{ x: 13, y: 7 }, { x: 13, y: 11 }, { x: 11, y: 12 }],
+        [{ x: 16, y: 13 }, { x: 16, y: 15 }, { x: 15, y: 17 }, { x: 13, y: 18 }],
       ];
       for (const route of routes) {
         for (const point of rasterizeWallPath(route)) {
@@ -14497,11 +14508,13 @@ export class ThreeGame {
         }
       }
 
-      for (const point of [
-        { x: 2, y: 5 }, { x: 20, y: 4 }, { x: 21, y: 14 },
-        { x: 4, y: 19 }, { x: 18, y: 19 }, { x: 2, y: 16 },
-      ]) {
-        if (!this.services.state.getCell(point.x, point.y)) place(point.x, point.y, 'tree', 1);
+      // Sparse ridge vegetation/rock keeps the site reading as an exposed hilltop,
+      // rather than a generic forested or urban castle setting.
+      for (const [x, y, kind] of [
+        [1, 5, 'rock'], [20, 4, 'rock'], [21, 14, 'rock'],
+        [4, 19, 'tree'], [18, 19, 'rock'], [1, 16, 'tree'],
+      ] as Array<[number, number, TileKind]>) {
+        if (!this.services.state.getCell(x, y)) place(x, y, kind, 1);
       }
     } else if (template === 'arg-e-bam') {
       // Pre-earthquake Arg-e Bam, immediately before 26 December 2003.
