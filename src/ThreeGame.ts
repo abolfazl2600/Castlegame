@@ -1444,7 +1444,18 @@ export class ThreeGame {
       const authoredLayoutTemplate = PLAYABLE_LAYOUT_TEMPLATES[template ?? ''];
       const targetLayoutId = authoredLayoutTemplate?.layoutId ?? 'island';
       const targetLayout = MAP_LAYOUTS.find((layout) => layout.id === targetLayoutId);
-      button.title = `Uses ${targetLayout?.label ?? targetLayoutId}.`;
+      const layoutMessage = t(`Uses ${targetLayout?.label ?? targetLayoutId}.`);
+      button.title = layoutMessage;
+
+      let layoutInfo = button.querySelector<HTMLElement>('.template-layout-info');
+      if (!layoutInfo) {
+        layoutInfo = document.createElement('small');
+        layoutInfo.className = 'template-layout-info';
+        layoutInfo.id = `template-layout-info-${template ?? 'unknown'}`.replace(/[^a-zA-Z0-9_-]/g, '-');
+        button.appendChild(layoutInfo);
+        button.setAttribute('aria-describedby', layoutInfo.id);
+      }
+      layoutInfo.textContent = layoutMessage;
     });
   }
 
