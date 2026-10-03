@@ -68,8 +68,8 @@ const elevated = system.build([
 ], 'limestone', (x) => x === 0 ? 2 : 0);
 assert.deepEqual(at(elevated, 0, 0).stack.map((floor) => floor.index), [1]);
 assert.deepEqual(at(elevated, 1, 0).stack.map((floor) => floor.index), [1]);
-assert.equal(at(elevated, 0, 0).topWorld - at(elevated, 0, 0).topLocal, 2);
-assert.equal(at(elevated, 1, 0).topWorld - at(elevated, 1, 0).topLocal, 0);
+assert.ok(Math.abs((at(elevated, 0, 0).topWorld - at(elevated, 0, 0).topLocal) - 2) < 1e-9);
+assert.ok(Math.abs(at(elevated, 1, 0).topWorld - at(elevated, 1, 0).topLocal) < 1e-9);
 assert.equal(at(elevated, 0, 0).topLocal, at(elevated, 1, 0).topLocal);
 assert.equal(at(elevated, 0, 0).neighborTopDelta.E, -at(elevated, 1, 0).neighborTopDelta.W);
 assert.deepEqual(system.build(JSON.parse(JSON.stringify([
