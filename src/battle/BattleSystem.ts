@@ -19,6 +19,7 @@ import type {
 } from './types';
 import { defenderUnitStats, militaryTierDefinition, normalizeMilitaryTier, type MilitaryTier } from './MilitaryProgression';
 import { WALL_DAMAGE_READABILITY } from '../rendering/DefenseVisualLanguage';
+import type { BattlePresentationBudget } from '../rendering/GraphicsQualityPreset';
 
 export type CoreUnitType = 'swordsman' | 'archer' | 'spearman' | 'crossbowman' | 'modernSoldier';
 
@@ -42,6 +43,7 @@ export interface BattleWorldContext {
   gatePassable?: (x: number, y: number) => boolean;
   wallWeaponVisuals?: () => THREE.Object3D[];
   effectsEnabled?: () => boolean;
+  presentationBudget?: () => BattlePresentationBudget;
 }
 
 interface UnitRuntime {
@@ -4002,7 +4004,8 @@ export class BattleSystem {
     }
 
     this.wallCollapseEffects.push(effect);
-    while (this.wallCollapseEffects.length > 6) {
+    const wallCollapseEffectCap = this.world.presentationBudget?.().wallCollapseEffectCap ?? 6;
+    while (this.wallCollapseEffects.length > wallCollapseEffectCap) {
       const oldest = this.wallCollapseEffects.shift();
       if (oldest) this.disposeWallCollapseEffect(oldest);
     }
@@ -4682,7 +4685,8 @@ export class BattleSystem {
       baseScale,
     });
 
-    while (this.missileTrailParticles.length > 48) {
+    const missileTrailParticleCap = this.world.presentationBudget?.().missileTrailParticleCap ?? 48;
+    while (this.missileTrailParticles.length > missileTrailParticleCap) {
       const oldest = this.missileTrailParticles.shift();
       if (oldest) this.layer.remove(oldest.view);
     }
@@ -4767,7 +4771,8 @@ export class BattleSystem {
       light,
     });
 
-    while (this.missileExplosionEffects.length > 6) {
+    const missileExplosionEffectCap = this.world.presentationBudget?.().missileExplosionEffectCap ?? 6;
+    while (this.missileExplosionEffects.length > missileExplosionEffectCap) {
       const oldest = this.missileExplosionEffects.shift();
       if (oldest) this.layer.remove(oldest.group);
     }
@@ -4829,7 +4834,8 @@ export class BattleSystem {
   private addImpactEffect(view: THREE.Mesh, remainingMs: number): void {
     this.layer.add(view);
     this.impactEffects.push({ view, remainingMs });
-    if (this.impactEffects.length > 16) {
+    const impactEffectCap = this.world.presentationBudget?.().impactEffectCap ?? 16;
+    while (this.impactEffects.length > impactEffectCap) {
       const oldest = this.impactEffects.shift();
       if (oldest) this.layer.remove(oldest.view);
     }
