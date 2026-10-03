@@ -15336,7 +15336,7 @@ export class ThreeGame {
     this.economySaveAccumulatorMs = 0;
     this.worldSeeded = true;
 
-    const center = Math.floor(SIZE / 2);
+    const center = Math.floor(this.worldCols / 2);
     const addProp = (x: number, y: number, kind: TileKind, level = 1): void => {
       if (x < 0 || y < 0 || x >= this.worldCols || y >= this.worldRows) return;
       const terrain = this.terrainAt(x, y);
@@ -15356,8 +15356,8 @@ export class ThreeGame {
 
     if (template === 'rolling-plains') {
       flattenLand();
-      for (let y = 2; y < SIZE - 2; y += 1) {
-        for (let x = 2; x < SIZE - 2; x += 1) {
+      for (let y = 2; y < this.worldCols - 2; y += 1) {
+        for (let x = 2; x < this.worldCols - 2; x += 1) {
           if (this.terrainAt(x, y) === 'water') continue;
           const elevation =
             0.25 +
@@ -15370,23 +15370,23 @@ export class ThreeGame {
       }
     } else if (template === 'twin-rivers') {
       flattenLand();
-      for (let y = 1; y < SIZE - 1; y += 1) {
+      for (let y = 1; y < this.worldCols - 1; y += 1) {
         for (const baseX of [center - 5, center + 5]) {
           const x = baseX + Math.round(Math.sin(y * 0.47 + baseX) * 1.1);
           this.terrainOverrides.set(this.key(x, y), 'river');
           if (y % 5 < 3) this.terrainOverrides.set(this.key(x + 1, y), 'river');
         }
       }
-      for (let y = 3; y < SIZE - 3; y += 2) {
+      for (let y = 3; y < this.worldCols - 3; y += 2) {
         for (const x of [center - 9, center, center + 9]) {
           addProp(x, y, 'tree', 1 + ((x + y) % 2));
         }
       }
     } else if (template === 'alpine-basin') {
       flattenLand();
-      this.applyMountainRange({ x: 3, y: 4 }, { x: 5, y: SIZE - 5 }, true);
-      this.applyMountainRange({ x: SIZE - 4, y: 4 }, { x: SIZE - 6, y: SIZE - 5 }, true);
-      this.applyMountainRange({ x: 5, y: 4 }, { x: SIZE - 6, y: 3 }, true);
+      this.applyMountainRange({ x: 3, y: 4 }, { x: 5, y: this.worldCols - 5 }, true);
+      this.applyMountainRange({ x: this.worldCols - 4, y: 4 }, { x: this.worldCols - 6, y: this.worldCols - 5 }, true);
+      this.applyMountainRange({ x: 5, y: 4 }, { x: this.worldCols - 6, y: 3 }, true);
       for (let y = center - 5; y <= center + 6; y += 1) {
         for (let x = center - 5; x <= center + 5; x += 1) {
           this.services.state.removeCell(x, y);
@@ -15396,11 +15396,11 @@ export class ThreeGame {
       }
     } else if (template === 'coastal-cliffs') {
       flattenLand();
-      for (let y = 1; y < SIZE - 1; y += 1) {
-        for (let x = 1; x < SIZE - 1; x += 1) {
+      for (let y = 1; y < this.worldCols - 1; y += 1) {
+        for (let x = 1; x < this.worldCols - 1; x += 1) {
           const radial = Math.hypot(x-center,y-center);
-          if (radial > SIZE * 0.36 && this.terrainAt(x,y) !== 'water') {
-            this.setAbsoluteElevation(x,y,2.1+Math.max(0,radial-SIZE*0.36)*0.3);
+          if (radial > this.worldCols * 0.36 && this.terrainAt(x,y) !== 'water') {
+            this.setAbsoluteElevation(x,y,2.1+Math.max(0,radial-this.worldCols*0.36)*0.3);
             if ((x*11+y*7)%9===0) addProp(x,y,'rock',1+((x+y)%2));
           } else if (this.terrainAt(x,y) !== 'water') {
             this.setAbsoluteElevation(x,y,0.18);
@@ -15409,8 +15409,8 @@ export class ThreeGame {
       }
     } else if (template === 'forest-highlands') {
       flattenLand();
-      for (let y = 2; y < SIZE - 2; y += 1) {
-        for (let x = 2; x < SIZE - 2; x += 1) {
+      for (let y = 2; y < this.worldCols - 2; y += 1) {
+        for (let x = 2; x < this.worldCols - 2; x += 1) {
           if (this.terrainAt(x,y) === 'water') continue;
           const elevation = Math.max(0, 0.4 + Math.sin(x*0.31+y*0.17)*0.55 + Math.cos(y*0.41)*0.4);
           this.setAbsoluteElevation(x,y,elevation);
@@ -15421,8 +15421,8 @@ export class ThreeGame {
       }
     } else if (template === 'marsh-island') {
       flattenLand();
-      for (let y = 2; y < SIZE - 2; y += 1) {
-        for (let x = 2; x < SIZE - 2; x += 1) {
+      for (let y = 2; y < this.worldCols - 2; y += 1) {
+        for (let x = 2; x < this.worldCols - 2; x += 1) {
           if (this.terrainAt(x,y) === 'water') continue;
           this.setAbsoluteElevation(x,y,0.03+Math.sin((x+y)*0.35)*0.05);
           const wet =
@@ -15437,8 +15437,8 @@ export class ThreeGame {
       }
     } else if (template === 'terraced-hills') {
       flattenLand();
-      for (let y = 2; y < SIZE - 2; y += 1) {
-        for (let x = 2; x < SIZE - 2; x += 1) {
+      for (let y = 2; y < this.worldCols - 2; y += 1) {
+        for (let x = 2; x < this.worldCols - 2; x += 1) {
           if (this.terrainAt(x,y)==='water') continue;
           const distance = Math.hypot(x-center,y-center);
           const terrace = Math.floor(Math.max(0, 7.5-distance)/1.6)*0.62;
