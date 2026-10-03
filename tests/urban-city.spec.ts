@@ -1,5 +1,6 @@
 import { expect, test, type Page } from '@playwright/test';
-import { SAVE_AUTOSAVE_KEY, SAVE_KEY, SAVE_VERSION } from '../src/core/constants';
+import { SAVE_AUTOSAVE_KEY, SAVE_KEY, SAVE_VERSION, WORLD_COLS } from '../src/core/constants';
+import { urbanLandBounds } from '../src/world/MapLayouts';
 
 type SavedCell = {
   x: number;
@@ -105,11 +106,12 @@ test('Urban city loads from the picker, supports undo/redo, and survives reload'
   expect(residences.filter((cell: SavedCell) => cell.level === 2)).toHaveLength(10);
   expect(residences.filter((cell: SavedCell) => cell.level === 3)).toHaveLength(2);
   expect(before.cells.some((cell: SavedCell) => cell.kind === 'house' || cell.kind === 'manor')).toBe(false);
+  const bounds = urbanLandBounds(WORLD_COLS);
   for (const cell of before.cells as SavedCell[]) {
-    expect(cell.x).toBeGreaterThanOrEqual(3);
-    expect(cell.x).toBeLessThanOrEqual(17);
-    expect(cell.y).toBeGreaterThanOrEqual(1);
-    expect(cell.y).toBeLessThanOrEqual(20);
+    expect(cell.x).toBeGreaterThanOrEqual(bounds.minX);
+    expect(cell.x).toBeLessThanOrEqual(bounds.maxX);
+    expect(cell.y).toBeGreaterThanOrEqual(bounds.minY);
+    expect(cell.y).toBeLessThanOrEqual(bounds.maxY);
   }
   await expect(page.locator('#undo-button')).toHaveCount(0);
   await expect(page.locator('#redo-button')).toHaveCount(0);
