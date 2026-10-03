@@ -235,7 +235,7 @@ try {
     const resources = await page.evaluate(() => window.__castleVisualMetrics());
     const metrics = {
       schemaVersion: 1,
-      issue: 56,
+      issue: 59,
       capturedAt: new Date().toISOString(),
       source: {
         gitSha: process.env.GITHUB_SHA ?? null,
