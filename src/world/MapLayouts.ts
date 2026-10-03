@@ -35,10 +35,10 @@ export function urbanLandBounds(size: number) {
 /**
  * Raster bounds for the authored 46×90 Himeji plot.
  *
- * The engine currently uses a 22×22 grid with 4-unit cells (88×88 rendered units),
- * so the authored dimensions are represented by the nearest complete-cell envelope:
- * 12×22 cells. Keeping the 46×90 dimensions as first-class map metadata prevents
- * the historic template from falling back to the old square mainland footprint.
+ * The engine uses 4-unit cells and now provides a 23×23 grid (92×92 rendered units),
+ * so the complete authored depth fits without the former 22-row clipping:
+ * 12×23 cells. Keeping the 46×90 dimensions as first-class map metadata prevents
+ * the historic template from falling back to a generic square mainland footprint.
  */
 export function himejiLandBounds(size: number) {
   const cols = Math.ceil(HIMEJI_LAND_WIDTH / TILE_SIZE);
