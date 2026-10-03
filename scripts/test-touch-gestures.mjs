@@ -135,6 +135,7 @@ function harness(tool = null, { battle = false, god = false, native = false } = 
     wallPreviewLayer: {}, terrainStrokeSnapshot: null, terrainStrokeChanged: false, terrainStrokeActive: false,
     elevationOverrides: new Map(), pointerStart: null, godModeTouchStart: null, longPressTriggered: false,
     cancelLongPress() { this.longPress = false; }, beginLongPress() { this.longPress = true; },
+    deactivateBuildToolAfterCommit() { this.selectedTool = null; },
     cancelLongPressOnMovement() {}, pickGridCell: e => ({ x: Math.floor(e.clientX / 10), y: Math.floor(e.clientY / 10) }),
     isGodModeTargeting: () => god, isWallTool: t => t === 'wall1', isRoadTool: t => t === 'road', isTerrainTool: t => t === 'raise',
     wallPath: (a,b) => [a,b], roadPath: (a,b) => [a,b], mountainRangePath: (a,b) => [a,b],
