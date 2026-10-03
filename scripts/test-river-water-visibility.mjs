@@ -85,8 +85,8 @@ const worldLayoutSurface = between(
 );
 assert.match(
   worldLayoutSurface,
-  /const terrain = this\.terrainAt\(x, y\);/,
-  'The world layout surface must use effective terrain so carved rivers remove the original grass slab.',
+  /terrainAt: \(x, y\) => this\.terrainAt\(x, y\)/,
+  'The chunked world layout surface must use effective terrain so carved rivers remove the original grass slab.',
 );
 assert.doesNotMatch(
   worldLayoutSurface,
