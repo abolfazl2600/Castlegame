@@ -188,10 +188,11 @@ assert.match(
   /battlement: migration\.kind === 'wall1' \|\| migration\.kind === 'wall2' \|\| migration\.kind === 'wall3' \? true : cell\.battlement,/,
   'Legacy saves with disabled battlements must normalize wall cells to enabled battlements.',
 );
-assert.match(
-  constants,
-  /export const SAVE_VERSION = 18;/,
-  'Wall-height canonicalization must advance the persistent save schema.',
+const saveVersionMatch = constants.match(/export const SAVE_VERSION = (\d+);/);
+assert.ok(saveVersionMatch, 'Persistent save schema version must be declared.');
+assert.ok(
+  Number(saveVersionMatch[1]) >= 18,
+  'Wall-height canonicalization requires save schema version 18 or newer.',
 );
 
 console.log('Wall-connected access removal/navigation regression checks passed.');
