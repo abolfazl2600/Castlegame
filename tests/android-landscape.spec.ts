@@ -173,6 +173,16 @@ for (const viewport of VIEWPORTS) {
       await expect(godMode).toBeVisible();
       await assertInsideViewport(godMode);
       await assertScrollableWhenNeeded(godMode);
+      const godModeGeometry = await godMode.evaluate((element) => {
+        const box = element.getBoundingClientRect();
+        return { width: box.width, height: box.height, viewportWidth: window.innerWidth };
+      });
+      expect(godModeGeometry.width).toBeLessThanOrEqual(Math.min(380, godModeGeometry.viewportWidth * 0.46));
+      expect(godModeGeometry.height).toBeLessThanOrEqual(390);
+      await expect(page.locator('.god-mode-instructions')).toBeHidden();
+      await expect(page.locator('[data-god-action="flood"]')).toBeHidden();
+      await expect(page.locator('[data-god-action="earthquake"]')).toBeHidden();
+      await capture(page, testInfo, viewport.name + '-god-mode');
       await page.locator('#god-mode-close').click();
       await expect(godMode).toBeHidden();
 
