@@ -57,7 +57,7 @@ assert.match(
 );
 assert.match(
   threeGame,
-  /template === 'royal-valley-50x89'[\s\S]*?'armyCamp'[\s\S]*?'mine'[\s\S]*?'farm'/,
+  /template === 'royal-valley-50x89'[\s\S]*?'farm'[\s\S]*?'mine'[\s\S]*?'armyCamp'/,
   'Royal Valley must include military, resource, and agricultural gameplay.',
 );
 
