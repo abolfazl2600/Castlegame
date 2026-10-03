@@ -3587,12 +3587,34 @@ export class ThreeGame {
     });
 
     const maxDrop = Math.max(...neighbors.map((neighbor) => elevation - neighbor));
-    const plateauNeighbors = neighbors.filter((neighbor) => Math.abs(neighbor - elevation) <= 0.16).length;
+    const plateauNeighbors = neighbors.filter((neighbor) => Math.abs(neighbor - elevation) <= 0.18).length;
 
-    // The Cliff brush produces flat shelves with abrupt drops. This inference
-    // also upgrades any naturally steep edited terrain while leaving rounded
-    // Hill/Raise gradients on the softer mound renderer.
-    return maxDrop >= 0.42 || plateauNeighbors >= 2;
+    // Cliff strokes create broad flat shelves with sharp exposed edges. Keep the
+    // plateau core on the same renderer so adjacent cells read as one landform,
+    // but only exposed edges receive vertical rock geometry.
+    return maxDrop >= 0.34 || plateauNeighbors >= 2;
+  }
+
+  private cliffNoise(seed: number, channel: number): number {
+    const value = Math.sin((seed * 0.000001 + channel * 17.173) * 12.9898) * 43758.5453;
+    return value - Math.floor(value);
+  }
+
+  private cliffFacetedRockMaterial(): THREE.MeshStandardMaterial {
+    const key = 'terrain-cliff-faceted-rock';
+    const existing = this.environmentMaterials.get(key);
+    if (existing) return existing;
+
+    const material = new THREE.MeshStandardMaterial({
+      color: 0xffffff,
+      roughness: 0.98,
+      metalness: 0,
+      flatShading: true,
+      vertexColors: true,
+      side: THREE.DoubleSide,
+    });
+    this.environmentMaterials.set(key, material);
+    return material;
   }
 
   private addCliffRockFace(
@@ -3605,10 +3627,10 @@ export class ThreeGame {
     const faceHeight = topY - bottomY;
     if (faceHeight <= 0.14) return;
 
-    const segments = faceHeight > 2.6 ? 5 : 4;
-    const rows = faceHeight > 2.8 ? 4 : 3;
+    const segments = faceHeight > 2.8 ? 6 : 5;
+    const rows = faceHeight > 3.2 ? 5 : 4;
     const half = TILE * 0.505;
-    const tangentHalf = TILE * 0.515;
+    const tangentHalf = TILE * 0.53;
     const vertices: number[] = [];
     const indices: number[] = [];
 
@@ -3620,28 +3642,30 @@ export class ThreeGame {
           ? { x: 0, z: 1 }
           : { x: -1, z: 0 };
 
-    const hash01 = (a: number, b: number): number => {
-      const value = Math.sin((seed + a * 17.17 + b * 31.91) * 12.9898) * 43758.5453;
-      return value - Math.floor(value);
-    };
-
     for (let row = 0; row < rows; row += 1) {
       const vertical = row / (rows - 1);
+      const baseTaper = (1 - vertical) * Math.min(0.42, 0.2 + faceHeight * 0.075);
+      const shoulder = Math.sin(vertical * Math.PI) * 0.08;
+
       for (let column = 0; column <= segments; column += 1) {
-        const along = -tangentHalf + (column / segments) * tangentHalf * 2;
-        const noise = hash01(column, row);
-        const middleBulge = row > 0 && row < rows - 1 ? 0.08 + noise * 0.12 : noise * 0.035;
+        const edgeColumn = column === 0 || column === segments;
+        const alongNoise = this.cliffNoise(seed, row * 31 + column * 7 + 3);
+        const depthNoise = this.cliffNoise(seed, row * 37 + column * 11 + 13);
+        const heightNoise = this.cliffNoise(seed, row * 41 + column * 17 + 29);
+        const alongJitter = edgeColumn ? 0 : (alongNoise - 0.5) * 0.24;
+        const along = -tangentHalf + (column / segments) * tangentHalf * 2 + alongJitter;
+        const outwardPush = baseTaper + shoulder + (depthNoise - 0.5) * 0.14;
         const yNoise = row > 0 && row < rows - 1
-          ? (noise - 0.5) * Math.min(0.2, faceHeight * 0.075)
-          : 0;
-        const y = THREE.MathUtils.lerp(bottomY, topY - 0.11, vertical) + yNoise;
+          ? (heightNoise - 0.5) * Math.min(0.28, faceHeight * 0.09)
+          : (heightNoise - 0.5) * 0.045;
+        const y = THREE.MathUtils.lerp(bottomY + 0.03, topY - 0.09, vertical) + yNoise;
         const edgeX = direction === 'east' ? half : direction === 'west' ? -half : along;
         const edgeZ = direction === 'south' ? half : direction === 'north' ? -half : along;
 
         vertices.push(
-          edgeX + outward.x * middleBulge,
+          edgeX + outward.x * outwardPush,
           y,
-          edgeZ + outward.z * middleBulge,
+          edgeZ + outward.z * outwardPush,
         );
       }
     }
@@ -3653,79 +3677,100 @@ export class ThreeGame {
         const b = a + 1;
         const c = a + stride;
         const d = c + 1;
-        indices.push(a, c, b, b, c, d);
+        const flip = ((row + column + Math.abs(seed)) & 1) === 0;
+        if (flip) indices.push(a, c, d, a, d, b);
+        else indices.push(a, c, b, b, c, d);
       }
     }
 
-    const geometry = new THREE.BufferGeometry();
-    geometry.setAttribute('position', new THREE.Float32BufferAttribute(vertices, 3));
-    geometry.setIndex(indices);
+    const indexed = new THREE.BufferGeometry();
+    indexed.setAttribute('position', new THREE.Float32BufferAttribute(vertices, 3));
+    indexed.setIndex(indices);
+    const geometry = indexed.toNonIndexed();
+    indexed.dispose();
     geometry.computeVertexNormals();
 
-    const rockColors = [0x625b54, 0x6f675f, 0x5a5550];
-    const variant = Math.abs(seed) % rockColors.length;
-    const material = this.environmentMaterial(
-      `terrain-cliff-rock-face-${variant}`,
-      rockColors[variant],
-      1,
-    );
-    material.side = THREE.DoubleSide;
+    const position = geometry.getAttribute('position');
+    const colors = new Float32Array(position.count * 3);
+    const rockPalette = [0x756f67, 0x837a70, 0x67635e, 0x91877a, 0x706b65];
 
-    const face = new THREE.Mesh(geometry, material);
-    face.castShadow = faceHeight > 0.55;
+    for (let triangle = 0; triangle < position.count / 3; triangle += 1) {
+      const paletteIndex = Math.floor(this.cliffNoise(seed, 100 + triangle * 5) * rockPalette.length) % rockPalette.length;
+      const color = new THREE.Color(rockPalette[paletteIndex]);
+      color.offsetHSL(0, 0, (this.cliffNoise(seed, 200 + triangle * 7) - 0.5) * 0.075);
+      for (let vertex = 0; vertex < 3; vertex += 1) {
+        const offset = (triangle * 3 + vertex) * 3;
+        colors[offset] = color.r;
+        colors[offset + 1] = color.g;
+        colors[offset + 2] = color.b;
+      }
+    }
+    geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+
+    const face = new THREE.Mesh(geometry, this.cliffFacetedRockMaterial());
+    face.castShadow = faceHeight > 0.5;
     face.receiveShadow = true;
     face.userData.terrainCliffFace = true;
     group.add(face);
 
-    const ledgeMaterial = this.environmentMaterial('terrain-cliff-rock-ledge', 0x81776d, 1);
-    const ledgeCount = faceHeight > 3 ? 2 : faceHeight > 1.35 ? 1 : 0;
-    for (let i = 0; i < ledgeCount; i += 1) {
-      const ratio = (i + 1) / (ledgeCount + 1);
-      const y = topY - faceHeight * ratio;
-      const offset = half + 0.08 + i * 0.025;
-      if (direction === 'north' || direction === 'south') {
-        this.addBox(
-          group,
-          TILE * (0.88 - i * 0.06),
-          0.075,
-          0.22,
-          ledgeMaterial,
-          0,
-          y,
-          direction === 'north' ? -offset : offset,
-        );
-      } else {
-        this.addBox(
-          group,
-          0.22,
-          0.075,
-          TILE * (0.88 - i * 0.06),
-          ledgeMaterial,
-          direction === 'west' ? -offset : offset,
-          y,
-          0,
-        );
+    // Short, broken rock shelves replace the old full-width horizontal bands.
+    // This keeps stratification readable without making the cliff look man-made.
+    if (faceHeight > 1.35) {
+      const ledgeMaterial = this.environmentMaterial('terrain-cliff-rock-ledge', 0x8b8176, 1);
+      const ledgeRows = faceHeight > 3.1 ? 2 : 1;
+      for (let row = 0; row < ledgeRows; row += 1) {
+        const ledgeCount = 1 + (this.cliffNoise(seed, 310 + row) > 0.62 ? 1 : 0);
+        for (let i = 0; i < ledgeCount; i += 1) {
+          const rock = new THREE.Mesh(new THREE.DodecahedronGeometry(0.38, 0), ledgeMaterial);
+          const along = (this.cliffNoise(seed, 330 + row * 9 + i) - 0.5) * TILE * 0.62;
+          const outwardOffset = half + 0.13 + this.cliffNoise(seed, 350 + row * 11 + i) * 0.08;
+          const ratio = (row + 1) / (ledgeRows + 1);
+          const y = topY - faceHeight * ratio;
+          rock.position.set(
+            direction === 'east' ? outwardOffset : direction === 'west' ? -outwardOffset : along,
+            y,
+            direction === 'south' ? outwardOffset : direction === 'north' ? -outwardOffset : along,
+          );
+          const length = 1.65 + this.cliffNoise(seed, 370 + row * 13 + i) * 1.15;
+          rock.scale.set(
+            direction === 'north' || direction === 'south' ? length : 0.5,
+            0.18 + this.cliffNoise(seed, 390 + i) * 0.08,
+            direction === 'east' || direction === 'west' ? length : 0.5,
+          );
+          rock.rotation.y = (this.cliffNoise(seed, 410 + i) - 0.5) * 0.32;
+          rock.castShadow = true;
+          rock.receiveShadow = true;
+          group.add(rock);
+        }
       }
     }
 
-    if (faceHeight > 1.05 && Math.abs(seed) % 3 === 0) {
-      const debrisMaterial = this.environmentMaterial('terrain-cliff-rock-debris', 0x69635d, 1);
-      const debris = new THREE.Mesh(
-        new THREE.DodecahedronGeometry(0.22 + (Math.abs(seed) % 4) * 0.045, 0),
-        debrisMaterial,
-      );
-      const along = ((Math.abs(seed * 37) % 100) / 100 - 0.5) * TILE * 0.58;
-      const outwardOffset = half + 0.26;
-      debris.position.set(
-        direction === 'east' ? outwardOffset : direction === 'west' ? -outwardOffset : along,
-        bottomY + 0.18,
-        direction === 'south' ? outwardOffset : direction === 'north' ? -outwardOffset : along,
-      );
-      debris.scale.set(1.2, 0.72, 0.94);
-      debris.rotation.y = (Math.abs(seed) % 11) * 0.27;
-      debris.castShadow = true;
-      debris.receiveShadow = true;
-      group.add(debris);
+    // Sparse talus at the foot visually anchors tall cliffs into beaches/ground.
+    if (faceHeight > 0.9 && this.cliffNoise(seed, 501) > 0.54) {
+      const debrisMaterial = this.environmentMaterial('terrain-cliff-rock-debris', 0x746f69, 1);
+      const count = this.cliffNoise(seed, 503) > 0.72 ? 2 : 1;
+      for (let i = 0; i < count; i += 1) {
+        const debris = new THREE.Mesh(
+          new THREE.DodecahedronGeometry(0.2 + this.cliffNoise(seed, 520 + i) * 0.2, 0),
+          debrisMaterial,
+        );
+        const along = (this.cliffNoise(seed, 540 + i) - 0.5) * TILE * 0.7;
+        const outwardOffset = half + 0.22 + this.cliffNoise(seed, 560 + i) * 0.24;
+        debris.position.set(
+          direction === 'east' ? outwardOffset : direction === 'west' ? -outwardOffset : along,
+          bottomY + 0.13 + this.cliffNoise(seed, 580 + i) * 0.08,
+          direction === 'south' ? outwardOffset : direction === 'north' ? -outwardOffset : along,
+        );
+        debris.scale.set(
+          0.9 + this.cliffNoise(seed, 600 + i) * 0.75,
+          0.62 + this.cliffNoise(seed, 620 + i) * 0.38,
+          0.82 + this.cliffNoise(seed, 640 + i) * 0.65,
+        );
+        debris.rotation.y = this.cliffNoise(seed, 660 + i) * Math.PI;
+        debris.castShadow = true;
+        debris.receiveShadow = true;
+        group.add(debris);
+      }
     }
   }
 
@@ -3736,55 +3781,126 @@ export class ThreeGame {
     elevation: number,
   ): void {
     const topY = 2.2 + elevation;
-    const capGrass = this.environmentMaterial('terrain-cliff-cap-grass', 0x93aa58, 0.98);
-    const capEarth = this.environmentMaterial('terrain-cliff-cap-earth', 0x75634f, 1);
+    const half = TILE * 0.515;
+    const seed = gx * 73856093 ^ gy * 19349663;
 
-    // Slight overlap removes the old "separate cylinders" look and lets
-    // neighboring cliff cells read as one continuous plateau.
-    const earthCap = this.addBox(
-      group,
-      TILE * 1.012,
-      0.18,
-      TILE * 1.012,
-      capEarth,
-      0,
-      topY - 0.17,
-      0,
-    );
-    earthCap.castShadow = elevation > 0.8;
+    const northSurface = this.terrainSurfaceYForCliff(gx, gy - 1);
+    const eastSurface = this.terrainSurfaceYForCliff(gx + 1, gy);
+    const southSurface = this.terrainSurfaceYForCliff(gx, gy + 1);
+    const westSurface = this.terrainSurfaceYForCliff(gx - 1, gy);
+    const exposed = {
+      north: topY - northSurface > 0.16,
+      east: topY - eastSurface > 0.16,
+      south: topY - southSurface > 0.16,
+      west: topY - westSurface > 0.16,
+    };
 
-    const grassCap = this.addBox(
-      group,
-      TILE * 1.026,
-      0.105,
-      TILE * 1.026,
-      capGrass,
-      0,
-      topY - 0.045,
-      0,
+    const northJitter = exposed.north ? (this.cliffNoise(seed, 701) - 0.35) * 0.24 : -0.025;
+    const eastJitter = exposed.east ? (this.cliffNoise(seed, 703) - 0.35) * 0.24 : 0.025;
+    const southJitter = exposed.south ? (this.cliffNoise(seed, 705) - 0.35) * 0.24 : 0.025;
+    const westJitter = exposed.west ? (this.cliffNoise(seed, 707) - 0.35) * 0.24 : -0.025;
+
+    const nwCut = exposed.north && exposed.west ? 0.12 + this.cliffNoise(seed, 711) * 0.14 : 0;
+    const neCut = exposed.north && exposed.east ? 0.12 + this.cliffNoise(seed, 713) * 0.14 : 0;
+    const seCut = exposed.south && exposed.east ? 0.12 + this.cliffNoise(seed, 715) * 0.14 : 0;
+    const swCut = exposed.south && exposed.west ? 0.12 + this.cliffNoise(seed, 717) * 0.14 : 0;
+
+    // A single irregular grass plane is enough for plateau cores. Rock geometry
+    // is generated only on truly exposed sides, eliminating the stacked-box
+    // seams that made the previous version look voxel-like.
+    const points: Array<{ x: number; z: number }> = [
+      { x: -half + nwCut, z: -half + nwCut },
+      { x: 0, z: -half + northJitter },
+      { x: half - neCut, z: -half + neCut },
+      { x: half + eastJitter, z: 0 },
+      { x: half - seCut, z: half - seCut },
+      { x: 0, z: half + southJitter },
+      { x: -half + swCut, z: half - swCut },
+      { x: -half + westJitter, z: 0 },
+    ];
+
+    const shape = new THREE.Shape();
+    shape.moveTo(points[0].x, -points[0].z);
+    for (let i = 1; i < points.length; i += 1) {
+      shape.lineTo(points[i].x, -points[i].z);
+    }
+    shape.closePath();
+
+    const grassPalette = [0x95ad5d, 0x9fb466, 0x8fa858];
+    const grassVariant = Math.floor(this.cliffNoise(seed, 731) * grassPalette.length) % grassPalette.length;
+    const grass = this.environmentMaterial(
+      `terrain-cliff-cap-grass-${grassVariant}`,
+      grassPalette[grassVariant],
+      0.96,
     );
-    grassCap.castShadow = false;
-    grassCap.receiveShadow = true;
-    grassCap.userData.terrainCliffCap = true;
+    const capGeometry = new THREE.ShapeGeometry(shape);
+    capGeometry.rotateX(-Math.PI / 2);
+    const cap = new THREE.Mesh(capGeometry, grass);
+    cap.position.y = topY + 0.015;
+    cap.receiveShadow = true;
+    cap.userData.terrainCliffCap = true;
+    group.add(cap);
 
     const edges: Array<{
       direction: 'north' | 'east' | 'south' | 'west';
-      dx: number;
-      dy: number;
+      surface: number;
+      isExposed: boolean;
       salt: number;
     }> = [
-      { direction: 'north', dx: 0, dy: -1, salt: 11 },
-      { direction: 'east', dx: 1, dy: 0, salt: 23 },
-      { direction: 'south', dx: 0, dy: 1, salt: 37 },
-      { direction: 'west', dx: -1, dy: 0, salt: 53 },
+      { direction: 'north', surface: northSurface, isExposed: exposed.north, salt: 11 },
+      { direction: 'east', surface: eastSurface, isExposed: exposed.east, salt: 23 },
+      { direction: 'south', surface: southSurface, isExposed: exposed.south, salt: 37 },
+      { direction: 'west', surface: westSurface, isExposed: exposed.west, salt: 53 },
     ];
 
     for (const edge of edges) {
-      const neighborSurface = this.terrainSurfaceYForCliff(gx + edge.dx, gy + edge.dy);
-      const bottomY = Math.min(topY - 0.12, neighborSurface);
-      if (topY - bottomY <= 0.14) continue;
-      const seed = gx * 73856093 ^ gy * 19349663 ^ edge.salt * 83492791;
-      this.addCliffRockFace(group, edge.direction, topY, bottomY, seed);
+      if (!edge.isExposed) continue;
+      const bottomY = Math.min(topY - 0.12, edge.surface);
+      this.addCliffRockFace(
+        group,
+        edge.direction,
+        topY,
+        bottomY,
+        seed ^ edge.salt * 83492791,
+      );
+    }
+
+    // A few top-edge boulders and chips are enough to break the perfect grid
+    // silhouette while staying cheap on mobile.
+    const exposedDirections: Array<'north' | 'east' | 'south' | 'west'> = [];
+    if (exposed.north) exposedDirections.push('north');
+    if (exposed.east) exposedDirections.push('east');
+    if (exposed.south) exposedDirections.push('south');
+    if (exposed.west) exposedDirections.push('west');
+
+    if (exposedDirections.length > 0 && this.cliffNoise(seed, 801) > 0.5) {
+      const topRock = this.environmentMaterial('terrain-cliff-top-rock', 0x7f7971, 1);
+      const count = this.cliffNoise(seed, 803) > 0.78 ? 2 : 1;
+      for (let i = 0; i < count; i += 1) {
+        const direction = exposedDirections[
+          Math.floor(this.cliffNoise(seed, 820 + i) * exposedDirections.length) % exposedDirections.length
+        ];
+        const rock = new THREE.Mesh(
+          new THREE.DodecahedronGeometry(0.18 + this.cliffNoise(seed, 840 + i) * 0.2, 0),
+          topRock,
+        );
+        const along = (this.cliffNoise(seed, 860 + i) - 0.5) * TILE * 0.62;
+        const edgeOffset = half - 0.16 - this.cliffNoise(seed, 880 + i) * 0.18;
+        rock.position.set(
+          direction === 'east' ? edgeOffset : direction === 'west' ? -edgeOffset : along,
+          topY + 0.11 + this.cliffNoise(seed, 900 + i) * 0.1,
+          direction === 'south' ? edgeOffset : direction === 'north' ? -edgeOffset : along,
+        );
+        rock.scale.set(
+          0.9 + this.cliffNoise(seed, 920 + i) * 0.65,
+          0.62 + this.cliffNoise(seed, 940 + i) * 0.42,
+          0.85 + this.cliffNoise(seed, 960 + i) * 0.55,
+        );
+        rock.rotation.y = this.cliffNoise(seed, 980 + i) * Math.PI;
+        rock.castShadow = true;
+        rock.receiveShadow = true;
+        group.add(rock);
+      }
     }
   }
 
@@ -8703,8 +8819,16 @@ export class ThreeGame {
       } else if (tool === 'hill') {
         next = current + 0.48 * scaled;
       } else if (tool === 'cliff') {
-        const target = centerElevation + 0.85 * this.brushStrength;
-        next = point.weight > 0.42 ? Math.max(current, target) : current;
+        // Build a broad main shelf plus a lower fractured shoulder instead of
+        // isolated same-size pillars. Quantized heights keep repeated strokes
+        // visually coherent and produce the layered escarpments used by the
+        // professional cliff renderer.
+        const rawTarget = centerElevation + 1.05 * this.brushStrength;
+        const target = Math.round(rawTarget * 4) / 4;
+        if (point.weight >= 0.34) next = Math.max(current, target);
+        else if (point.weight >= 0.17) {
+          next = Math.max(current, target - 0.42 * this.brushStrength);
+        }
       }
 
       next = THREE.MathUtils.clamp(next, -1.6, 6);
