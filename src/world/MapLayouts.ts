@@ -453,48 +453,73 @@ export function terrainForMapLayout(
 
     const localX = x - bounds.minX;
     const localY = y - bounds.minY;
-    const edgeDistance = Math.min(
-      localX,
-      bounds.cols - 1 - localX,
-      localY,
-      bounds.rows - 1 - localY,
-    );
 
-    // Continuous sandy rim keeps both long coasts readable and guarantees harbor access.
-    if (edgeDistance <= 0) return 'shore';
+    // The eastern 3–6 columns form a real ocean margin inside the runtime grid,
+    // so harbors can attach to deep water without relying on out-of-bounds cells.
+    const coast =
+      bounds.cols - 5 +
+      Math.round(
+        Math.sin(localY * 0.18) * 1.15 +
+        Math.sin(localY * 0.057 + 1.3) * 0.85,
+      );
+    if (localX > coast) return 'water';
+    if (localX === coast) return 'shore';
 
-    // A narrow navigable river runs north-south along the eastern side of the valley,
-    // leaving a large uninterrupted western plain for settlement and fortification.
+    // Northern/southern beaches frame the long valley without closing the
+    // central land corridor used by attackers, roads and settlement navigation.
+    if (localY === 0 || localY === bounds.rows - 1) return 'water';
+    if (localY === 1 || localY === bounds.rows - 2) return 'shore';
+
+    // A continuous navigable-looking river winds through the eastern valley.
+    // It remains separate from the sea through most of the map, creating useful
+    // bridge chokepoints while still reading as part of the same watershed.
     const t = localY / Math.max(1, bounds.rows - 1);
     const riverCenter =
-      bounds.cols * 0.73 +
-      Math.sin(t * Math.PI * 2 * 1.35 + 0.4) * 0.72 +
-      Math.sin(t * Math.PI * 2 * 3.1) * 0.24;
+      bounds.cols * 0.72 +
+      Math.sin(t * Math.PI * 2 * 1.3 + 0.4) * 1.45 +
+      Math.sin(t * Math.PI * 2 * 3.2) * 0.5;
+    const riverHalfWidth =
+      0.92 +
+      (Math.sin(t * Math.PI * 2 * 2.1 + 0.7) + 1) * 0.28;
     if (
-      localY >= 2 &&
-      localY <= bounds.rows - 3 &&
-      Math.abs(localX - riverCenter) <= (localY % 7 === 0 ? 0.78 : 0.56)
+      localY >= 4 &&
+      localY <= bounds.rows - 5 &&
+      Math.abs(localX - riverCenter) <= riverHalfWidth
     ) {
       return 'river';
     }
 
-    const ridgeNoise = Math.sin(localY * 0.72) + Math.cos((localX + localY) * 0.37);
+    // A broad broken mountain ridge anchors the west side and supplies mines.
+    const ridgeNoise =
+      Math.sin(localY * 0.36) +
+      Math.cos(localY * 0.13 + localX * 0.7) +
+      Math.sin((localX + localY) * 0.19) * 0.45;
     if (
-      localX <= 2 &&
-      localY >= 2 &&
-      localY <= bounds.rows - 3 &&
-      ridgeNoise > -0.38
+      localX <= 7 &&
+      localY >= 3 &&
+      localY <= bounds.rows - 4 &&
+      ridgeNoise > -0.42 + localX * 0.075
     ) {
       return 'mountain';
     }
 
     const forestNoise =
-      Math.sin(localX * 0.91 + localY * 0.21) +
-      Math.cos(localY * 0.54 - localX * 0.27);
-    const northernForest = localY >= 2 && localY <= 7 && localX >= 3 && localX <= 7;
-    const southernForest = localY >= bounds.rows - 8 && localY <= bounds.rows - 3 && localX >= 3 && localX <= 8;
-    const riverWoodland = localX >= 7 && localX <= 9 && localY >= 10 && localY <= 17;
-    if ((northernForest || southernForest || riverWoodland) && forestNoise > -0.48) return 'forest';
+      Math.sin(localX * 0.61 + localY * 0.14) +
+      Math.cos(localY * 0.29 - localX * 0.33) +
+      Math.sin((localX + localY) * 0.11) * 0.7;
+    const northernForest =
+      localY >= 7 && localY <= 29 &&
+      localX >= 8 && localX <= 18;
+    const southernForest =
+      localY >= 62 && localY <= 84 &&
+      localX >= 7 && localX <= 20;
+    const riverWoodland =
+      localY >= 27 && localY <= 63 &&
+      localX >= Math.floor(riverCenter) - 5 &&
+      localX <= Math.floor(riverCenter) - 2;
+    if ((northernForest || southernForest || riverWoodland) && forestNoise > -0.36) {
+      return 'forest';
+    }
 
     return 'plains';
   }
