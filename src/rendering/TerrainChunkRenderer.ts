@@ -31,7 +31,7 @@ export class TerrainChunkRenderer {
   private readonly shoreGeometry: THREE.BoxGeometry;
   private lastStats: ChunkStats = { chunks: 0, instances: 0 };
 
-  constructor(private readonly tileSize: number) {
+  constructor(tileSize: number) {
     this.layer.name = 'terrain-chunks';
     this.soilGeometry = new THREE.BoxGeometry(tileSize * 1.015, 1.55, tileSize * 1.015);
     this.grassGeometry = new THREE.BoxGeometry(tileSize, 0.16, tileSize);
