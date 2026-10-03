@@ -13,7 +13,8 @@ export interface WallNavNode extends NavPoint {
 }
 
 export interface BattleNavigationContext {
-  size: number;
+  cols: () => number;
+  rows: () => number;
   terrainAt: (x: number, y: number) => TerrainKind;
   elevationAt: (x: number, y: number) => number;
   kindAt: (x: number, y: number) => TileKind | undefined;
@@ -50,7 +51,8 @@ export class BattleNavigation {
 
   constructor(private readonly context: BattleNavigationContext) {
     this.defensiveNetwork = new ConnectedWallNetwork({
-      size: context.size,
+      cols: context.cols,
+      rows: context.rows,
       cellAt: context.cellAt,
       elevationAt: context.elevationAt,
       fortificationTopAt: context.fortificationTopAt,
@@ -63,8 +65,9 @@ export class BattleNavigation {
   }
 
   isGroundWalkable(x: number, y: number): boolean {
-    const { size } = this.context;
-    if (x < 0 || y < 0 || x >= size || y >= size) return false;
+    const cols = this.context.cols();
+    const rows = this.context.rows();
+    if (x < 0 || y < 0 || x >= cols || y >= rows) return false;
 
     const terrain = this.context.terrainAt(x, y);
     if (terrain === 'water' || terrain === 'river' || terrain === 'mountain') return false;
@@ -132,7 +135,7 @@ export class BattleNavigation {
     let bestDistance = this.heuristic(start, goal);
     let iterations = 0;
 
-    while (open.size > 0 && iterations < this.context.size * this.context.size * 6) {
+    while (open.size > 0 && iterations < this.context.cols() * this.context.rows() * 6) {
       iterations += 1;
 
       let currentKey = '';
@@ -231,8 +234,8 @@ export class BattleNavigation {
     if (keep) return { x: keep.x, y: keep.y };
 
     const candidates: NavPoint[] = [];
-    for (let y = 0; y < this.context.size; y += 1) {
-      for (let x = 0; x < this.context.size; x += 1) {
+    for (let y = 0; y < this.context.rows(); y += 1) {
+      for (let x = 0; x < this.context.cols(); x += 1) {
         const kind = this.context.kindAt(x, y);
         if (
           kind === 'wall1' ||
@@ -250,8 +253,10 @@ export class BattleNavigation {
     }
 
     if (candidates.length === 0) {
-      const center = Math.floor(this.context.size / 2);
-      return { x: center, y: center };
+      return {
+        x: Math.floor(this.context.cols() / 2),
+        y: Math.floor(this.context.rows() / 2),
+      };
     }
 
     const sum = candidates.reduce(
@@ -267,8 +272,8 @@ export class BattleNavigation {
 
   bestAttackerEntry(objective: NavPoint): NavPoint {
     const gates: NavPoint[] = [];
-    for (let y = 0; y < this.context.size; y += 1) {
-      for (let x = 0; x < this.context.size; x += 1) {
+    for (let y = 0; y < this.context.rows(); y += 1) {
+      for (let x = 0; x < this.context.cols(); x += 1) {
         if (this.context.kindAt(x, y) === 'gate') gates.push({ x, y });
       }
     }
@@ -287,13 +292,14 @@ export class BattleNavigation {
 
   attackerSpawnCells(objective: NavPoint, count: number): NavPoint[] {
     const edgeCandidates: NavPoint[] = [];
-    const size = this.context.size;
+    const cols = this.context.cols();
+    const rows = this.context.rows();
 
-    for (let x = 1; x < size - 1; x += 1) {
-      edgeCandidates.push({ x, y: 1 }, { x, y: size - 2 });
+    for (let x = 1; x < cols - 1; x += 1) {
+      edgeCandidates.push({ x, y: 1 }, { x, y: rows - 2 });
     }
-    for (let y = 2; y < size - 2; y += 1) {
-      edgeCandidates.push({ x: 1, y }, { x: size - 2, y });
+    for (let y = 2; y < rows - 2; y += 1) {
+      edgeCandidates.push({ x: 1, y }, { x: cols - 2, y });
     }
 
     const walkable = edgeCandidates
@@ -304,7 +310,10 @@ export class BattleNavigation {
       );
 
     if (walkable.length === 0) {
-      const fallback = this.findNearestWalkable({ x: 1, y: size - 2 }, size);
+      const fallback = this.findNearestWalkable(
+        { x: 1, y: rows - 2 },
+        Math.max(cols, rows),
+      );
       return fallback ? Array.from({ length: count }, () => ({ ...fallback })) : [];
     }
 
@@ -327,8 +336,8 @@ export class BattleNavigation {
   gateGuardCells(): NavPoint[] {
     const result: NavPoint[] = [];
 
-    for (let y = 0; y < this.context.size; y += 1) {
-      for (let x = 0; x < this.context.size; x += 1) {
+    for (let y = 0; y < this.context.rows(); y += 1) {
+      for (let x = 0; x < this.context.cols(); x += 1) {
         if (this.context.kindAt(x, y) !== 'gate') continue;
 
         const candidates: NavPoint[] = [
@@ -352,8 +361,8 @@ export class BattleNavigation {
   defenderGroundCells(objective: NavPoint, count: number): NavPoint[] {
     const candidates: Array<NavPoint & { score: number }> = [];
 
-    for (let y = 0; y < this.context.size; y += 1) {
-      for (let x = 0; x < this.context.size; x += 1) {
+    for (let y = 0; y < this.context.rows(); y += 1) {
+      for (let x = 0; x < this.context.cols(); x += 1) {
         if (!this.isGroundWalkable(x, y)) continue;
         const distance = this.heuristic({ x, y }, objective);
         if (distance > 7) continue;
@@ -407,7 +416,10 @@ export class BattleNavigation {
     if (kind !== 'tower' && kind !== 'gate') return null;
 
     const keep = this.context.keeps()[0];
-    const center = keep ?? { x: Math.floor(this.context.size / 2), y: Math.floor(this.context.size / 2) };
+    const center = keep ?? {
+      x: Math.floor(this.context.cols() / 2),
+      y: Math.floor(this.context.rows() / 2),
+    };
     const candidates = DIRS.slice(0, 4)
       .map((direction) => ({ x: node.x + direction.x, y: node.y + direction.y }))
       .filter((point) => this.isGroundWalkable(point.x, point.y));
