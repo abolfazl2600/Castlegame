@@ -959,6 +959,85 @@ export class ThreeGame {
     return `${x},${y}`;
   }
 
+  private get worldCols(): number {
+    return this.worldGrid.cols;
+  }
+
+  private get worldRows(): number {
+    return this.worldGrid.rows;
+  }
+
+  private get worldWidth(): number {
+    return this.worldCols * TILE;
+  }
+
+  private get worldHeight(): number {
+    return this.worldRows * TILE;
+  }
+
+  private isInsideWorld(x: number, y: number): boolean {
+    return gridContains(this.worldGrid, x, y);
+  }
+
+  private syncWorldRuntimeBounds(): void {
+    this.groundHit.scale.set(this.worldWidth, this.worldHeight, 1);
+    this.minimapCursor = {
+      x: THREE.MathUtils.clamp(this.minimapCursor.x, 0, this.worldCols - 1),
+      y: THREE.MathUtils.clamp(this.minimapCursor.y, 0, this.worldRows - 1),
+    };
+
+    const diagonal = Math.hypot(this.worldWidth, this.worldHeight);
+    if (this.controls) {
+      this.controls.maxDistance = Math.max(
+        WORLD_STYLE.camera.maxDistance,
+        Math.min(520, diagonal * 0.96),
+      );
+    }
+    this.camera.far = Math.max(700, diagonal * 2.1);
+    this.camera.updateProjectionMatrix();
+
+    if (this.scene.fog instanceof THREE.Fog) {
+      this.scene.fog.near = Math.max(WORLD_STYLE.lighting.fogNear, diagonal * 0.36);
+      this.scene.fog.far = Math.max(WORLD_STYLE.lighting.fogFar, diagonal * 1.15);
+    }
+
+    this.worldLayoutSurfaceSignature = '';
+    this.rebuildWorldGridLines();
+  }
+
+  private rebuildWorldGridLines(): void {
+    this.clearGroup(this.worldGridLayer);
+    const halfWidth = this.worldWidth / 2;
+    const halfHeight = this.worldHeight / 2;
+    const points: THREE.Vector3[] = [];
+
+    for (let x = 0; x <= this.worldCols; x += 1) {
+      const worldX = -halfWidth + x * TILE;
+      points.push(
+        new THREE.Vector3(worldX, 2.18, -halfHeight),
+        new THREE.Vector3(worldX, 2.18, halfHeight),
+      );
+    }
+    for (let y = 0; y <= this.worldRows; y += 1) {
+      const worldZ = -halfHeight + y * TILE;
+      points.push(
+        new THREE.Vector3(-halfWidth, 2.18, worldZ),
+        new THREE.Vector3(halfWidth, 2.18, worldZ),
+      );
+    }
+
+    const geometry = new THREE.BufferGeometry().setFromPoints(points);
+    const material = new THREE.LineBasicMaterial({
+      color: 0x7eb8bd,
+      transparent: true,
+      opacity: 0.075,
+      depthWrite: false,
+    });
+    const lines = new THREE.LineSegments(geometry, material);
+    lines.name = 'rectangular-world-grid';
+    this.worldGridLayer.add(lines);
+  }
+
   private isWallTool(tool: ToolKind): tool is WallKind {
     return WALL_KINDS.includes(tool as WallKind);
   }
@@ -979,8 +1058,11 @@ export class ThreeGame {
     const next = normalizeMapLayoutId(value);
     const changed = next !== this.mapLayoutId;
     this.mapLayoutId = next;
+    this.worldGrid = worldGridForLayout(next);
     if (changed && this.worldLayoutLayer.parent) {
+      this.syncWorldRuntimeBounds();
       this.rebuildWorldLayoutSurface();
+      this.ambientShip.rebuild(this.worldSeed);
     }
     this.syncTemplateAvailability();
   }
