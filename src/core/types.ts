@@ -5,6 +5,7 @@ export type RoadKind = 'road' | 'dirtRoad' | 'stoneRoad';
 /** Legacy dock kinds remain readable for pre-v13 saves; new gameplay creates only `harbor`. */
 export type HarborKind = 'smallDock' | 'woodenPier' | 'harbor' | 'fishingDock';
 export type ShipKind = 'fishingBoat' | 'tradingBoat' | 'transportShip';
+/** Legacy save compatibility only. Runtime castle walls use one canonical thickness. */
 export type WallThickness = 'thin' | 'medium' | 'thick';
 export type WallDirection = 'N' | 'NE' | 'E' | 'SE' | 'S' | 'SW' | 'W' | 'NW';
 export type GateRotationMode = 'auto' | 'manual';
@@ -88,7 +89,6 @@ export type TerrainOverrideKind = 'plains' | 'river';
 export interface GridCell {
   kind: TileKind;
   level?: number;
-  thickness?: WallThickness;
   battlement?: boolean;
   walkway?: boolean;
   towerShape?: TowerShape;

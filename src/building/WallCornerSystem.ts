@@ -12,8 +12,7 @@ export class WallCornerSystem {
     if (links.length < 2) return null;
 
     const level = cell.level ?? 1;
-    const thickness = cell.thickness ?? 'medium';
-    const major = level >= 3 || thickness === 'thick';
+    const major = level >= 3;
     const sorted = [...links].sort(
       (a, b) => WallSystem.directions.indexOf(a) - WallSystem.directions.indexOf(b),
     );

@@ -2346,12 +2346,8 @@ export class BattleSystem {
       cell.kind === 'wall2' ? 430 :
       cell.kind === 'wall3' ? 860 :
       650;
-    const thickness =
-      cell.thickness === 'thin' ? 0.82 :
-      cell.thickness === 'thick' ? 1.28 :
-      1;
     const level = Math.max(1, cell.level ?? 1);
-    return Math.round(base * thickness * (1 + (level - 1) * 0.18) * militaryTierDefinition(this.militaryTier).wallHealthMultiplier);
+    return Math.round(base * (1 + (level - 1) * 0.18) * militaryTierDefinition(this.militaryTier).wallHealthMultiplier);
   }
 
   private clearSiegeState(): void {

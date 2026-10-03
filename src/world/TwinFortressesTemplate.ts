@@ -37,12 +37,12 @@ export function createTwinFortressesTemplate(): TwinFortressesTemplate {
     level = 2,
   ): void => {
     for (let x = minX; x <= maxX; x += 1) {
-      place(x, minY, 'wall1', level, { battlement: true, walkway: true, thickness: 'medium' });
-      place(x, maxY, 'wall1', level, { battlement: true, walkway: true, thickness: 'medium' });
+      place(x, minY, 'wall1', level, { battlement: true, walkway: true });
+      place(x, maxY, 'wall1', level, { battlement: true, walkway: true });
     }
     for (let y = minY; y <= maxY; y += 1) {
-      place(minX, y, 'wall1', level, { battlement: true, walkway: true, thickness: 'medium' });
-      place(maxX, y, 'wall1', level, { battlement: true, walkway: true, thickness: 'medium' });
+      place(minX, y, 'wall1', level, { battlement: true, walkway: true });
+      place(maxX, y, 'wall1', level, { battlement: true, walkway: true });
     }
   };
 

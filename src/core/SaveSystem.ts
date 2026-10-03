@@ -518,7 +518,6 @@ export class SaveSystem {
         y: cell.y,
         kind: migration.kind as ReturnType<GameState['entries']>[number]['kind'],
         level: isCastleWallKind(migration.kind) ? AUTOMATIC_WALL_LEVEL : migration.level,
-        thickness: cell.thickness,
         battlement: migration.kind === 'wall1' || migration.kind === 'wall2' || migration.kind === 'wall3' ? true : cell.battlement,
         walkway: migration.kind === 'wall1' || migration.kind === 'wall2' || migration.kind === 'wall3' ? true : cell.walkway,
         towerShape: cell.towerShape,
