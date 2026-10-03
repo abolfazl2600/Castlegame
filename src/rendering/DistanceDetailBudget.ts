@@ -412,8 +412,35 @@ export class DistanceDetailBudgetSystem {
         settings.graphics.quality !== 'low' &&
         budget.shadowCasters > 0;
 
-      const detail = this.applyDetailBudget(scene, budget, this.band, mobile, detailSuppressionActive);
-      const shadow = this.applyShadowBudget(scene, budget.shadowCasters, renderer.shadowMap.enabled);
+      let detail = this.applyDetailBudget(
+        scene,
+        budget,
+        this.band,
+        mobile,
+        detailSuppressionActive,
+        0,
+      );
+      let shadow = this.applyShadowBudget(scene, budget.shadowCasters, renderer.shadowMap.enabled);
+
+      // WebGLRenderer.info.render.calls includes both the main pass and shadow-map
+      // passes. The detail pass previously consumed the full draw budget first and
+      // then shadow casters were added on top, which could exceed the active cap
+      // even when the governor reported a compliant detail estimate.
+      if (
+        detailSuppressionActive &&
+        detail.estimatedDrawCalls + shadow.activeShadowCasters > budget.drawCalls
+      ) {
+        detail = this.applyDetailBudget(
+          scene,
+          budget,
+          this.band,
+          mobile,
+          detailSuppressionActive,
+          shadow.activeShadowCasters,
+        );
+        shadow = this.applyShadowBudget(scene, budget.shadowCasters, renderer.shadowMap.enabled);
+      }
+
       const estimatedDrawCalls = detail.estimatedDrawCalls + shadow.activeShadowCasters;
       const baselineEstimatedDrawCalls =
         detail.baselineEstimatedDrawCalls + shadow.baselineShadowCasters;
@@ -499,6 +526,7 @@ export class DistanceDetailBudgetSystem {
     band: DistanceDetailBand,
     mobile: boolean,
     enforceSuppression: boolean,
+    reservedDrawCalls = 0,
   ): DetailBudgetResult {
     this.restoreSuppressedDetail(scene);
     scene.updateMatrixWorld(true);
@@ -584,7 +612,10 @@ export class DistanceDetailBudgetSystem {
     // most of the budget in dense strategic scenes, so clamp optional detail to
     // the actual remaining headroom. This keeps the renderer at or below the
     // active cap without hiding protected structure silhouettes.
-    const remainingDrawCalls = Math.max(0, budget.drawCalls - protectedDrawCalls);
+    const remainingDrawCalls = Math.max(
+      0,
+      budget.drawCalls - reservedDrawCalls - protectedDrawCalls,
+    );
     const availableDrawCalls = Math.min(
       detailDrawAllowance(budget, band, mobile),
       remainingDrawCalls,

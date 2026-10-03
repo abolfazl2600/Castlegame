@@ -37,8 +37,18 @@ assert.match(budget, /estimatedDrawCalls/, 'estimated draw-call diagnostics are 
 assert.match(budget, /detailDrawAllowance/, 'detail draw allowance must keep normal and strategic LOD budgets distinct');
 assert.match(
   budget,
-  /remainingDrawCalls = Math\.max\(0, budget\.drawCalls - protectedDrawCalls\)/,
-  'optional detail must be capped by the total remaining draw-call budget',
+  /budget\.drawCalls - reservedDrawCalls - protectedDrawCalls/,
+  'optional detail must reserve draw-call headroom for shadow-map passes',
+);
+assert.match(
+  budget,
+  /detail\.estimatedDrawCalls \+ shadow\.activeShadowCasters > budget\.drawCalls/,
+  'the governor must detect when shadow passes push total renderer calls over the active cap',
+);
+assert.match(
+  budget,
+  /shadow\.activeShadowCasters,[\s\S]*?\);[\s\S]*?shadow = this\.applyShadowBudget/,
+  'over-budget scenes must reapply detail suppression using the measured shadow-pass reserve',
 );
 assert.match(
   budget,
