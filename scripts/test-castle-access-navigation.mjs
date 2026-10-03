@@ -5,6 +5,7 @@ const [
   threeGame,
   battleSystem,
   battleNavigation,
+  castleDetailGenerator,
   gameMode,
   gameDomainServices,
   gameState,
@@ -14,6 +15,7 @@ const [
   readFile(new URL('../src/ThreeGame.ts', import.meta.url), 'utf8'),
   readFile(new URL('../src/battle/BattleSystem.ts', import.meta.url), 'utf8'),
   readFile(new URL('../src/battle/BattleNavigation.ts', import.meta.url), 'utf8'),
+  readFile(new URL('../src/building/CastleDetailGenerator.ts', import.meta.url), 'utf8'),
   readFile(new URL('../src/core/GameMode.ts', import.meta.url), 'utf8'),
   readFile(new URL('../src/core/GameDomainServices.ts', import.meta.url), 'utf8'),
   readFile(new URL('../src/state/GameState.ts', import.meta.url), 'utf8'),
@@ -29,16 +31,57 @@ function between(source, startMarker, endMarker) {
   return source.slice(start, end);
 }
 
+assert.match(
+  gameDomainServices,
+  /CastleDetailGenerator[\s\S]*?detailGenerator/,
+  'Castle detail generation must remain a shared domain service.',
+);
 assert.doesNotMatch(
   gameDomainServices,
   /CastleAccessSystem|castleAccessSystem/,
-  'Automatic CastleAccessSystem must not be part of runtime services.',
+  'Automatic wall access must not restore the obsolete standalone access service.',
 );
 
+assert.match(
+  castleDetailGenerator,
+  /wallPlan\([\s\S]*?slitOffsets[\s\S]*?buttresses[\s\S]*?flag/,
+  'Arrow slits, buttresses, and flags must share one procedural wall-detail plan.',
+);
+assert.match(
+  castleDetailGenerator,
+  /wallAccessPlan\([\s\S]*?terrainBuildable[\s\S]*?isOccupied/,
+  'Wall access must be generated from live geometry and valid ground clearance.',
+);
+assert.match(
+  castleDetailGenerator,
+  /neighbors\.length === 2[\s\S]*?neighbors\.length >= 3/,
+  'Automatic access placement must account for straight walls and junction topology.',
+);
+assert.match(
+  castleDetailGenerator,
+  /existingGroundAnchors[\s\S]*?tower[\s\S]*?gate/,
+  'Existing tower and gate access anchors must influence whether extra wall stairs are generated.',
+);
+
+assert.match(
+  threeGame,
+  /getAutomaticWallAccess\(\)[\s\S]*?wallAccessPlan/,
+  'ThreeGame must materialize the canonical automatic wall-access plan.',
+);
+assert.match(
+  threeGame,
+  /makeAutomaticWallStairs\([\s\S]*?automaticWallAccess/,
+  'Automatic wall access must have a compact derived visual representation.',
+);
+assert.match(
+  threeGame,
+  /automaticWallAccess:\s*\(\) => this\.getAutomaticWallAccess\(\)/,
+  'Battle runtime must consume the same derived wall-access plan used by rendering.',
+);
 assert.doesNotMatch(
   threeGame,
   /GeneratedAccess|getGeneratedCastleAccess|makeGeneratedAccess|makeStairTower|makeAccess\(/,
-  'ThreeGame must not generate or render wall-connected stair/ramp/ladder structures.',
+  'The removed bulky legacy stair/ramp renderer must not be restored.',
 );
 
 const buildings = between(
@@ -50,7 +93,7 @@ for (const removed of ['stoneStairs', 'woodenStairs', 'ramp', 'ladder']) {
   assert.doesNotMatch(
     buildings,
     new RegExp(`['"]${removed}['"]`),
-    `${removed} must not remain a runtime building kind.`,
+    `${removed} must not return as a player-placeable runtime building kind.`,
   );
 }
 
@@ -76,24 +119,35 @@ for (const removed of ['stairTower', 'stoneStairs', 'woodenStairs', 'ramp', 'lad
   assert.match(
     migration,
     new RegExp(`kind === ['"]${removed}['"]`),
-    `Legacy ${removed} saves must be discarded during migration.`,
+    `Legacy explicit ${removed} saves must be normalized away during migration.`,
   );
 }
 assert.match(
   migration,
-  /\) return null;/,
-  'Legacy wall-access cells must migrate to no structure.',
+  /procedural wall detail plan can regenerate safe access/,
+  'Legacy wall-access migration must document regeneration by the procedural system.',
 );
 
-assert.doesNotMatch(
-  battleSystem,
-  /generatedAccess\??:/,
-  'BattleWorldContext must not expose generated wall access.',
+const advancedEditor = between(
+  threeGame,
+  '<span class="settings-section-title">Advanced Editor</span>',
+  '</div></section></div>',
 );
 assert.doesNotMatch(
+  advancedEditor,
+  /wall stairs|buttresses|defensive openings|arrow slits/i,
+  'Advanced Editor must not expose or describe automatic wall secondary details.',
+);
+
+assert.match(
   battleSystem,
-  /generatedAccess:\s*world\.generatedAccess/,
-  'BattleSystem must not forward generated wall access into navigation.',
+  /automaticWallAccess\??:\s*\(\) => AutomaticWallAccess\[\]/,
+  'BattleWorldContext must expose derived automatic wall access.',
+);
+assert.match(
+  battleSystem,
+  /automaticWallAccess:\s*world\.automaticWallAccess/,
+  'BattleSystem must forward automatic wall access into navigation.',
 );
 
 const groundWalkability = between(
@@ -105,19 +159,39 @@ for (const removed of ['stoneStairs', 'woodenStairs', 'ramp', 'ladder']) {
   assert.doesNotMatch(
     groundWalkability,
     new RegExp(`kind === ['"]${removed}['"]`),
-    `${removed} must not create special ground walkability.`,
+    `${removed} must not require persisted special ground walkability.`,
   );
 }
 
+assert.match(
+  battleNavigation,
+  /automaticWallAccess\??:\s*\(\) => AutomaticWallAccess\[\]/,
+  'BattleNavigation must accept the derived access plan.',
+);
+assert.match(
+  battleNavigation,
+  /const queue = nodes\.filter\(\(node\) => this\.accessGroundCell\(node\) !== null\)/,
+  'Wall-platform reachability must seed from every valid automatic or structural access node.',
+);
+assert.match(
+  battleNavigation,
+  /automaticAccessAt\(node\)[\s\S]*?groundX[\s\S]*?groundY/,
+  'Automatic stair targets must resolve to their validated ground entry cell.',
+);
+assert.match(
+  battleNavigation,
+  /if \(this\.accessGroundCell\(node\)\) \{/,
+  'Wall access routes must terminate at a generated or structural ground connection.',
+);
 assert.doesNotMatch(
   battleNavigation,
   /stairTowerAccessNodes|isCastleAccessKind|generatedAccess/,
-  'BattleNavigation must not expose any wall stair access API.',
+  'BattleNavigation must not restore legacy stair-tower APIs or persisted access kinds.',
 );
 assert.doesNotMatch(
   battleSystem,
   /tryUseStairTowerToReach|tryUseStairTowerToDescend|tryMoveDefenderToWallPosition|WallAccessTransition|accessTransition/,
-  'Battle runtime must not keep hidden ground-to-wall stair transitions.',
+  'Battle runtime must use normal deployment routing instead of hidden stair-transition state.',
 );
 
 const attackVisibility = between(
@@ -144,12 +218,12 @@ assert.match(
 assert.match(
   battleSystem,
   /interface SiegeLadder/,
-  'Enemy siege ladders must remain available as an attack mechanic.',
+  'Enemy siege ladders must remain available as a separate attack mechanic.',
 );
 assert.match(
   battleSystem,
   /createLadderAttack/,
-  'Removing wall architecture stairs must not remove siege ladder attacks.',
+  'Automatic defender wall access must not remove siege ladder attacks.',
 );
 
 assert.doesNotMatch(
@@ -188,11 +262,19 @@ assert.match(
   /battlement: migration\.kind === 'wall1' \|\| migration\.kind === 'wall2' \|\| migration\.kind === 'wall3' \? true : cell\.battlement,/,
   'Legacy saves with disabled battlements must normalize wall cells to enabled battlements.',
 );
+
+const detailVersionMatch = constants.match(/export const CASTLE_DETAIL_VERSION = (\d+);/);
+assert.ok(detailVersionMatch, 'Castle detail generation version must be declared.');
+assert.ok(
+  Number(detailVersionMatch[1]) >= 2,
+  'Automatic wall detail rule changes must advance the deterministic detail version.',
+);
+
 const saveVersionMatch = constants.match(/export const SAVE_VERSION = (\d+);/);
 assert.ok(saveVersionMatch, 'Persistent save schema version must be declared.');
 assert.ok(
   Number(saveVersionMatch[1]) >= 18,
-  'Wall-height canonicalization requires save schema version 18 or newer.',
+  'Canonical wall persistence requires save schema version 18 or newer.',
 );
 
-console.log('Wall-connected access removal/navigation regression checks passed.');
+console.log('Automatic wall detail/access navigation regression checks passed.');
