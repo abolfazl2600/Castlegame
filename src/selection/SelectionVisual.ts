@@ -33,9 +33,19 @@ export class SelectionVisual {
     this.layer.clear();
   }
 
-  show(points: readonly SelectionGridPoint[], planMode: boolean): void {
+  show(
+    points: readonly SelectionGridPoint[],
+    planMode: boolean,
+    mode: 'selected' | 'valid' | 'invalid' = 'selected',
+  ): void {
     this.clear();
     if (!points.length) return;
+
+    const palette = mode === 'valid'
+      ? { fill: 0x66e889, edge: 0x8df0a6 }
+      : mode === 'invalid'
+        ? { fill: 0xff7168, edge: 0xff9a92 }
+        : { fill: 0x5de4ff, edge: 0x75ebff };
 
     const minX = Math.min(...points.map((point) => point.x));
     const maxX = Math.max(...points.map((point) => point.x));
@@ -52,7 +62,7 @@ export class SelectionVisual {
     const edge = Math.max(0.12, this.tileSize * 0.045);
 
     const fillMaterial = new THREE.MeshBasicMaterial({
-      color: 0x5de4ff,
+      color: palette.fill,
       transparent: true,
       opacity: planMode ? 0.12 : 0.09,
       depthTest: false,
@@ -66,7 +76,7 @@ export class SelectionVisual {
     this.layer.add(fill);
 
     const edgeMaterial = new THREE.MeshBasicMaterial({
-      color: 0x75ebff,
+      color: palette.edge,
       transparent: true,
       opacity: 0.96,
       depthTest: false,
@@ -83,5 +93,6 @@ export class SelectionVisual {
     addEdge(width, edge, centerX, centerZ + depth / 2);
     addEdge(edge, depth, centerX - width / 2, centerZ);
     addEdge(edge, depth, centerX + width / 2, centerZ);
+    edgeMaterial.dispose();
   }
 }
