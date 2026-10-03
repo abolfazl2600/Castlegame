@@ -7,6 +7,7 @@ import {
   SAVE_STORAGE_PREFIX,
   SAVE_VERSION,
   WORLD_COLS,
+  WORLD_ROWS,
 } from './constants';
 import type { GameMode } from './GameMode';
 import { normalizeGameMode } from './GameMode';
@@ -590,7 +591,7 @@ export class SaveSystem {
       return { ok: false, message: 'Incompatible save version' };
     }
     if (!Array.isArray(data.cells)) return { ok: false, message: 'Invalid save data' };
-    if (data.cells.length > WORLD_COLS * WORLD_COLS * 4) return { ok: false, message: 'Save is too large or malformed' };
+    if (data.cells.length > WORLD_COLS * WORLD_ROWS * 4) return { ok: false, message: 'Save is too large or malformed' };
     return { ok: true };
   }
 
@@ -727,7 +728,7 @@ function normalizeBattleSetup(input: SavedBattleSetup): SavedBattleSetup {
 }
 
 function validGrid(x: number, y: number): boolean {
-  return Number.isInteger(x) && Number.isInteger(y) && x >= 0 && y >= 0 && x < WORLD_COLS && y < WORLD_COLS;
+  return Number.isInteger(x) && Number.isInteger(y) && x >= 0 && y >= 0 && x < WORLD_COLS && y < WORLD_ROWS;
 }
 
 function normalizeWorldSeed(value: unknown): number {
@@ -742,7 +743,8 @@ function validMapLayoutId(value: unknown): value is MapLayoutId {
     value === 'twin-isles' ||
     value === 'urban-60x80' ||
     value === 'twin-fortresses-90x95' ||
-    value === 'himeji-46x90';
+    value === 'himeji-46x90' ||
+    value === 'royal-valley-50x89';
 }
 
 function validStoneStyle(value: unknown): value is StoneStyle {
