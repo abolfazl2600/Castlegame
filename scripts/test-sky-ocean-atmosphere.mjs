@@ -29,8 +29,8 @@ assert.match(skyBlock, /LinearFilter/);
 assert.doesNotMatch(skyBlock, /ShaderMaterial|WebGLRenderTarget|CubeCamera/,
   'sky depth must stay lightweight and avoid expensive reflection/post-processing paths');
 
-assert.match(game, /new THREE\.CircleGeometry\(WORLD \* 3, 128\)/,
-  'deep ocean must extend far enough to avoid visible geometry boundaries at maximum zoom-out');
+assert.match(game, /new THREE\.CircleGeometry\(MAX_WORLD_SPAN \* 3, 160\)/,
+  'deep ocean must extend beyond the largest supported rectangular world at maximum zoom-out');
 assert.match(game, /this\.ambientMotion\.registerTextureFlow\(this\.oceanTexture/,
   'ocean motion must reuse the existing lightweight texture-flow system');
 assert.match(game, /this\.oceanWaterMaterial\.color\.lerp\(deepWater, blend\)/);
