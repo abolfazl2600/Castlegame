@@ -64,6 +64,7 @@ import type { SettingsStore } from './settings/SettingsStore';
 import { resolveLocale, t } from './i18n/localization';
 import { applyGraphicsSettings, applyInputSettings, applySceneGraphicsSettings } from './settings/SettingsSubsystems';
 import { getStructureFootprint } from './building/StructureFootprints';
+import { SelectionVisual } from './selection/SelectionVisual';
 import { MAP_LAYOUTS, himejiLandBounds, normalizeMapLayoutId, terrainForMapLayout } from './world/MapLayouts';
 import { AudioManager } from './audio/AudioManager';
 import { audioEvents } from './audio/AudioEventBus';
@@ -484,6 +485,11 @@ export class ThreeGame {
   private worldLayoutSurfaceSignature = '';
   private readonly terrainLayer = new THREE.Group();
   private readonly buildLayer = new THREE.Group();
+  private readonly selectionVisual = new SelectionVisual(
+    TILE,
+    (x, y) => this.gridToWorld(x, y),
+    (x, y) => this.terrainElevation(x, y),
+  );
   private readonly ambientMotion = new AmbientMotionSystem();
   private readonly environmentSystem = new EnvironmentSystem();
   private readonly planLayer = new THREE.Group();
@@ -864,6 +870,7 @@ export class ThreeGame {
     this.scene.add(this.ambientShip.layer);
     this.scene.add(this.terrainLayer);
     this.scene.add(this.buildLayer);
+    this.scene.add(this.selectionVisual.layer);
     this.scene.add(this.planLayer);
     this.scene.add(this.wallPreviewLayer);
     this.scene.add(this.workerLayer);
@@ -2316,6 +2323,7 @@ export class ThreeGame {
     this.updatePopulationUI();
     this.syncEconomyUI();
     this.syncArmyCampUpgradeUI();
+    this.renderSelectionVisual();
     this.syncIdleDefenderGarrison();
     this.syncSelectedGateButton();
 
@@ -3108,6 +3116,7 @@ export class ThreeGame {
     this.battleLayer.visible = !planMode;
     this.godModeLayer.visible = !planMode;
     this.godModeMarkerLayer.visible = !planMode;
+    this.renderSelectionVisual();
 
     if (planMode) {
       this.camera.up.set(0, 1, 0);
@@ -10512,13 +10521,8 @@ export class ThreeGame {
 
     const gx = point.x;
     const gy = point.y;
-    this.selectedCell = point;
-    this.selectedTowerBridgeId = null;
-    this.syncSelectedGateButton();
-
     const cell = this.services.state.getCell(gx, gy);
     const current = cell?.kind;
-    this.syncArmyCampUpgradeUI();
     const terrain = this.terrainAt(gx, gy);
     const overrideKey = this.key(gx, gy);
     const keepAtPoint = this.services.keepSystem.findAtCell(gx, gy);
@@ -10526,12 +10530,24 @@ export class ThreeGame {
     if (this.selectedTool === null) {
       if (keepAtPoint) {
         this.selectKeep(keepAtPoint);
-      } else {
+      } else if (cell) {
+        this.selectedCell = point;
         this.selectedKeepId = null;
-        this.setStatus(current ? `Selected: ${current}` : 'Inspect mode · click a structure');
+        this.selectedTowerBridgeId = null;
+        this.syncArmyCampUpgradeUI();
+        this.renderSelectionVisual();
+        this.setStatus(`Selected: ${current}`);
+      } else {
+        this.clearSelection();
+        this.setStatus('Inspect mode · click a structure');
       }
       return;
     }
+
+    this.selectedCell = point;
+    this.selectedTowerBridgeId = null;
+    this.syncSelectedGateButton();
+    this.syncArmyCampUpgradeUI();
 
     if (this.selectedTool === 'erase') {
       if (keepAtPoint) {
@@ -12349,6 +12365,37 @@ export class ThreeGame {
     });
   }
 
+  private clearSelection(): void {
+    this.selectedCell = null;
+    this.selectedKeepId = null;
+    this.selectedTowerBridgeId = null;
+    this.selectionVisual.clear();
+    this.syncArmyCampUpgradeUI();
+  }
+
+  private renderSelectionVisual(): void {
+    if (this.selectedKeepId !== null) {
+      const keep = this.services.keepSystem.get(this.selectedKeepId);
+      if (keep) {
+        this.selectionVisual.show(this.services.keepSystem.footprint(keep), this.viewMode === 'plan2d');
+        return;
+      }
+    }
+
+    if (this.selectedCell) {
+      const cell = this.services.state.getCell(this.selectedCell.x, this.selectedCell.y);
+      if (cell) {
+        this.selectionVisual.show(
+          getStructureFootprint(cell.kind, this.selectedCell.x, this.selectedCell.y),
+          this.viewMode === 'plan2d',
+        );
+        return;
+      }
+    }
+
+    this.selectionVisual.clear();
+  }
+
   private syncSelectedGateButton(): void {
     const button = document.getElementById('selected-gate-toggle') as HTMLButtonElement | null;
     if (!button) return;
@@ -12484,6 +12531,7 @@ export class ThreeGame {
     this.selectedCell = null;
     this.selectedTowerBridgeId = null;
     this.syncArmyCampUpgradeUI();
+    this.renderSelectionVisual();
     this.keepWidth = keep.width;
     this.keepDepth = keep.depth;
     this.keepFloors = keep.floors;
