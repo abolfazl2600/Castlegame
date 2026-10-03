@@ -135,6 +135,12 @@ export function translate(message: string, locale: Locale = 'fa'): string {
   if (match) return 'رشته‌کوه: ' + formatDigits(match[1]) + ' نقطه خط‌الرأس · برای ساخت رها کنید';
   match = message.match(/^Selected: (.+)$/);
   if (match) return 'انتخاب‌شده: ' + translate(match[1], locale);
+  match = message.match(/^Move (.+) · choose a valid destination · Esc cancels$/);
+  if (match) return 'جابه‌جایی ' + translate(match[1], locale) + ' · مقصد معتبری انتخاب کنید · Esc لغو می‌کند';
+  match = message.match(/^(.+) moved · Undo available$/);
+  if (match) return translate(match[1], locale) + ' جابه‌جا شد · امکان بازگردانی وجود دارد';
+  match = message.match(/^(.+) demolished · Undo available$/);
+  if (match) return translate(match[1], locale) + ' تخریب شد · امکان بازگردانی وجود دارد';
   match = message.match(/^Invalid placement · (.+)$/);
   if (match) return 'مکان ساخت نامعتبر است · ' + translate(match[1], locale);
   match = message.match(/^Selected Keep #(\d+) · (\d+)×(\d+) · (\d+) floors$/);

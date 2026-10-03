@@ -64,6 +64,7 @@ import type { SettingsStore } from './settings/SettingsStore';
 import { resolveLocale, t } from './i18n/localization';
 import { applyGraphicsSettings, applyInputSettings, applySceneGraphicsSettings } from './settings/SettingsSubsystems';
 import { getStructureFootprint } from './building/StructureFootprints';
+import { SelectionVisual } from './selection/SelectionVisual';
 import { MAP_LAYOUTS, himejiLandBounds, normalizeMapLayoutId, terrainForMapLayout } from './world/MapLayouts';
 import { AudioManager } from './audio/AudioManager';
 import { audioEvents } from './audio/AudioEventBus';
@@ -266,12 +267,34 @@ const CONSTRUCTION_VISUAL_KINDS = new Set<TileKind>([
   'armyCamp', 'harbor', 'basilica', 'mosque',
 ]);
 
+const MOVABLE_BUILDING_KINDS = new Set<TileKind>([
+  'harbor',
+  'cottage',
+  'house',
+  'manor',
+  'villa',
+  'farm',
+  'cowBarn',
+  'armyCamp',
+  'market',
+  'basilica',
+  'mosque',
+  'windmill',
+  'mine',
+  'carpenter',
+  'hut',
+]);
+
 type ViewMode = 'plan2d' | 'world3d';
 
 interface GridPoint {
   x: number;
   y: number;
 }
+
+type RelocationState =
+  | { type: 'cell'; origin: GridPoint; cell: GridCell }
+  | { type: 'keep'; keep: KeepState };
 
 interface ToolDefinition {
   id: ToolKind;
@@ -484,6 +507,11 @@ export class ThreeGame {
   private worldLayoutSurfaceSignature = '';
   private readonly terrainLayer = new THREE.Group();
   private readonly buildLayer = new THREE.Group();
+  private readonly selectionVisual = new SelectionVisual(
+    TILE,
+    (x, y) => this.gridToWorld(x, y),
+    (x, y) => this.terrainElevation(x, y),
+  );
   private readonly ambientMotion = new AmbientMotionSystem();
   private readonly environmentSystem = new EnvironmentSystem();
   private readonly planLayer = new THREE.Group();
@@ -525,6 +553,8 @@ export class ThreeGame {
   private newGameSelectionPending = false;
   private selectedTool: ToolKind | null = 'wall1';
   private selectedCell: GridPoint | null = null;
+  private relocationState: RelocationState | null = null;
+  private relocationHover: GridPoint | null = null;
   private minimapCursor: GridPoint = { x: Math.floor(SIZE / 2), y: Math.floor(SIZE / 2) };
   private viewMode: ViewMode = 'world3d';
   private toolbarOpen = window.innerWidth > 760;
@@ -864,6 +894,7 @@ export class ThreeGame {
     this.scene.add(this.ambientShip.layer);
     this.scene.add(this.terrainLayer);
     this.scene.add(this.buildLayer);
+    this.scene.add(this.selectionVisual.layer);
     this.scene.add(this.planLayer);
     this.scene.add(this.wallPreviewLayer);
     this.scene.add(this.workerLayer);
@@ -1527,6 +1558,9 @@ export class ThreeGame {
     this.towerBridgeStart = null;
     this.towerBridgeHover = null;
     this.clearGroup(this.wallPreviewLayer);
+    this.relocationState = null;
+    this.relocationHover = null;
+    this.selectionVisual.clear();
     this.selectedCell = null;
     this.selectedKeepId = null;
     this.terrainOverrides.clear();
@@ -2316,6 +2350,7 @@ export class ThreeGame {
     this.updatePopulationUI();
     this.syncEconomyUI();
     this.syncArmyCampUpgradeUI();
+    this.renderSelectionVisual();
     this.syncIdleDefenderGarrison();
     this.syncSelectedGateButton();
 
@@ -3108,6 +3143,7 @@ export class ThreeGame {
     this.battleLayer.visible = !planMode;
     this.godModeLayer.visible = !planMode;
     this.godModeMarkerLayer.visible = !planMode;
+    this.renderSelectionVisual();
 
     if (planMode) {
       this.camera.up.set(0, 1, 0);
@@ -8684,6 +8720,9 @@ export class ThreeGame {
     this.syncMilitaryUI();
     this.syncEconomyUI();
 
+    this.relocationState = null;
+    this.relocationHover = null;
+    this.selectionVisual.clear();
     this.selectedCell = null;
     this.selectedKeepId = null;
     this.selectedTowerBridgeId = null;
@@ -8696,6 +8735,7 @@ export class ThreeGame {
   }
 
   private undo(): void {
+    if (this.relocationState) this.cancelRelocation(false);
     const snapshot = this.undoStack.pop();
     if (!snapshot) {
       this.syncHistoryActions();
@@ -8710,6 +8750,7 @@ export class ThreeGame {
   }
 
   private redo(): void {
+    if (this.relocationState) this.cancelRelocation(false);
     const snapshot = this.redoStack.pop();
     if (!snapshot) {
       this.syncHistoryActions();
@@ -8932,7 +8973,8 @@ export class ThreeGame {
 
         const cell = this.pickGridCell(event);
         if (cell && event.pointerType !== 'mouse') {
-          this.renderBuildPlacementPreview(cell, true, event.shiftKey);
+          if (this.relocationState) this.renderRelocationPreview(cell);
+          else this.renderBuildPlacementPreview(cell, true, event.shiftKey);
         }
         if (this.isGodModeTargeting()) {
           if (event.pointerType !== 'mouse') {
@@ -9043,7 +9085,9 @@ export class ThreeGame {
           !this.terrainStrokeActive &&
           !(this.selectedTool === 'towerBridge' && this.towerBridgeStart)
         ) {
-          this.renderBuildPlacementPreview(this.pickGridCell(event), false, event.shiftKey);
+          const hoverCell = this.pickGridCell(event);
+          if (this.relocationState) this.renderRelocationPreview(hoverCell);
+          else this.renderBuildPlacementPreview(hoverCell, false, event.shiftKey);
         }
 
         if (this.wallDragStart) {
@@ -9242,15 +9286,32 @@ export class ThreeGame {
 
         if (movement <= 6) {
           const previewCell = this.pickGridCell(event);
+          const wasRelocating = Boolean(this.relocationState);
           this.handleBuildClick(event);
-          if (event.pointerType === 'mouse') this.renderBuildPlacementPreview(previewCell, true, event.shiftKey);
-          else this.clearBuildPlacementPreview();
+          if (wasRelocating) {
+            if (this.relocationState) this.renderRelocationPreview(previewCell);
+            else this.renderSelectionVisual();
+          } else if (event.pointerType === 'mouse') {
+            this.renderBuildPlacementPreview(previewCell, true, event.shiftKey);
+          } else {
+            this.clearBuildPlacementPreview();
+          }
+        } else if (this.relocationState) {
+          // Camera drag must never leave a relocation preview looking like a
+          // committed selection. Restore the original selection footprint.
+          this.relocationHover = null;
+          this.renderSelectionVisual();
         }
       },
       true,
     );
 
     canvas.addEventListener('pointerleave', () => {
+      if (this.relocationState) {
+        this.relocationHover = null;
+        this.renderSelectionVisual();
+        return;
+      }
       if (
         !this.wallDragStart &&
         !this.roadDragStart &&
@@ -10508,15 +10569,15 @@ export class ThreeGame {
     const point = this.pickGridCell(event);
     if (!point) return;
 
+    if (this.relocationState) {
+      this.commitRelocation(point);
+      return;
+    }
+
     const gx = point.x;
     const gy = point.y;
-    this.selectedCell = point;
-    this.selectedTowerBridgeId = null;
-    this.syncSelectedGateButton();
-
     const cell = this.services.state.getCell(gx, gy);
     const current = cell?.kind;
-    this.syncArmyCampUpgradeUI();
     const terrain = this.terrainAt(gx, gy);
     const overrideKey = this.key(gx, gy);
     const keepAtPoint = this.services.keepSystem.findAtCell(gx, gy);
@@ -10524,12 +10585,24 @@ export class ThreeGame {
     if (this.selectedTool === null) {
       if (keepAtPoint) {
         this.selectKeep(keepAtPoint);
-      } else {
+      } else if (cell) {
+        this.selectedCell = point;
         this.selectedKeepId = null;
-        this.setStatus(current ? `Selected: ${current}` : 'Inspect mode · click a structure');
+        this.selectedTowerBridgeId = null;
+        this.syncArmyCampUpgradeUI();
+        this.renderSelectionVisual();
+        this.setStatus(`Selected: ${current}`);
+      } else {
+        this.clearSelection();
+        this.setStatus('Inspect mode · click a structure');
       }
       return;
     }
+
+    this.selectedCell = point;
+    this.selectedTowerBridgeId = null;
+    this.syncSelectedGateButton();
+    this.syncArmyCampUpgradeUI();
 
     if (this.selectedTool === 'erase') {
       if (keepAtPoint) {
@@ -10819,15 +10892,17 @@ export class ThreeGame {
     this.finishBuild();
   }
 
-  private canBuildMarketAt(gx: number, gy: number): boolean {
+  private canBuildMarketAt(gx: number, gy: number, ignoreCell?: GridPoint): boolean {
     const radius = 1;
     for (let y = gy - radius; y <= gy + radius; y += 1) {
       for (let x = gx - radius; x <= gx + radius; x += 1) {
         if (x < 0 || y < 0 || x >= SIZE || y >= SIZE) return false;
+        const ignored = ignoreCell?.x === x && ignoreCell.y === y;
         if (
-          this.services.state.getCell(x, y) ||
-          this.services.keepSystem.findAtCell(x, y) ||
-          this.isStructureFootprintReserved(x, y)
+          !ignored &&
+          (this.services.state.getCell(x, y) ||
+            this.services.keepSystem.findAtCell(x, y) ||
+            this.isStructureFootprintReserved(x, y))
         ) return false;
         const terrain = this.terrainAt(x, y);
         if (terrain === 'water' || terrain === 'river' || terrain === 'mountain' || terrain === 'forest') return false;
@@ -11828,6 +11903,30 @@ export class ThreeGame {
       '<div class="settings-hint">Advanced architecture and terrain tuning is optional. Normal building uses automatic defaults.</div>' +
       '</div></section></div>';
 
+    let selectionPanel = document.getElementById('world-selection-panel');
+    if (!selectionPanel) {
+      selectionPanel = document.createElement('section');
+      selectionPanel.id = 'world-selection-panel';
+      selectionPanel.className = 'world-selection-panel';
+      selectionPanel.setAttribute('role', 'group');
+      selectionPanel.setAttribute('aria-label', 'Selected building actions');
+      selectionPanel.hidden = true;
+      selectionPanel.innerHTML =
+        '<div class="world-selection-summary">' +
+        '<span class="eyebrow">SELECTED</span>' +
+        '<strong id="world-selection-name">Building</strong>' +
+        '<small id="world-selection-level"></small>' +
+        '</div>' +
+        '<div class="world-selection-actions">' +
+        '<button id="world-selection-upgrade" type="button">Upgrade</button>' +
+        '<button id="world-selection-move" type="button">Move</button>' +
+        '<button id="world-selection-rotate" type="button" hidden>Rotate</button>' +
+        '<button id="world-selection-demolish" class="is-danger" type="button">Demolish</button>' +
+        '<button id="world-selection-deselect" type="button" aria-label="Deselect building">Deselect</button>' +
+        '</div>';
+      this.root.appendChild(selectionPanel);
+    }
+
     const builderSettings = toolbar.querySelector<HTMLElement>('.builder-settings');
     if (builderSettings) builderSettings.hidden = false;
 
@@ -12081,6 +12180,14 @@ export class ThreeGame {
 
     get<HTMLButtonElement>('rotate-selected').onclick = () => this.rotateSelected();
     get<HTMLButtonElement>('remove-selected').onclick = () => this.removeSelected();
+    get<HTMLButtonElement>('world-selection-upgrade').onclick = () => this.upgradeSelectedBuilding();
+    get<HTMLButtonElement>('world-selection-move').onclick = () => this.beginRelocation();
+    get<HTMLButtonElement>('world-selection-rotate').onclick = () => this.rotateSelected();
+    get<HTMLButtonElement>('world-selection-demolish').onclick = () => this.removeSelected();
+    get<HTMLButtonElement>('world-selection-deselect').onclick = () => {
+      this.clearSelection();
+      this.setStatus('Selection cleared');
+    };
     get<HTMLButtonElement>('fortification-upgrade-button').onclick = () => this.upgradeSelectedFortification();
     get<HTMLButtonElement>('fortification-remove-bridge-button').onclick = () => this.removeSelectedTowerBridge();
     get<HTMLButtonElement>('army-camp-upgrade-button').onclick = () => this.upgradeSelectedArmyCamp();
@@ -12240,6 +12347,9 @@ export class ThreeGame {
     get<HTMLButtonElement>('load-button').onclick = () => {
       this.clearSettlementAgents();
       this.load();
+      this.relocationState = null;
+      this.relocationHover = null;
+      this.selectionVisual.clear();
       this.selectedCell = null;
       this.selectedKeepId = null;
       this.selectedTowerBridgeId = null;
@@ -12334,6 +12444,10 @@ export class ThreeGame {
       const selected = shortcutMap[key];
       if (selected) this.selectTool(selected);
       if (event.key === 'Escape') {
+        if (this.relocationState) {
+          this.cancelRelocation();
+          return;
+        }
         help.hidden = true;
         templates.hidden = true;
         const layoutModal = document.getElementById('map-layout-modal');
@@ -12342,6 +12456,245 @@ export class ThreeGame {
         this.selectTool(null);
       }
     });
+  }
+
+  private canMoveCurrentSelection(): boolean {
+    if (this.selectedKeepId !== null) return Boolean(this.services.keepSystem.get(this.selectedKeepId));
+    if (!this.selectedCell) return false;
+    const cell = this.services.state.getCell(this.selectedCell.x, this.selectedCell.y);
+    return Boolean(cell && MOVABLE_BUILDING_KINDS.has(cell.kind));
+  }
+
+  private beginRelocation(): void {
+    if (this.battleSystem.isActive()) {
+      this.setStatus('Finish or reset the battle before moving buildings');
+      return;
+    }
+    if (this.selectedKeepId !== null) {
+      const keep = this.services.keepSystem.get(this.selectedKeepId);
+      if (!keep) {
+        this.clearSelection();
+        return;
+      }
+      if (this.selectedTool !== null) this.selectTool(null);
+      this.relocationState = { type: 'keep', keep };
+      this.relocationHover = null;
+      this.syncSelectionActionUI();
+      this.setStatus('Move Keep · choose a valid destination · Esc cancels');
+      return;
+    }
+
+    if (!this.selectedCell) {
+      this.setStatus('Select a movable building first');
+      return;
+    }
+    const cell = this.services.state.getCell(this.selectedCell.x, this.selectedCell.y);
+    if (!cell || !MOVABLE_BUILDING_KINDS.has(cell.kind)) {
+      this.setStatus('This structure cannot be relocated safely');
+      return;
+    }
+
+    if (this.selectedTool !== null) this.selectTool(null);
+    this.relocationState = {
+      type: 'cell',
+      origin: { ...this.selectedCell },
+      cell: {
+        ...cell,
+        wallLinks: cell.wallLinks ? [...cell.wallLinks] : undefined,
+      },
+    };
+    this.relocationHover = null;
+    this.syncSelectionActionUI();
+    this.setStatus(`Move ${this.selectedBuildingDescriptor()?.name ?? 'building'} · choose a valid destination · Esc cancels`);
+  }
+
+  private cancelRelocation(showStatus = true): void {
+    if (!this.relocationState) return;
+    this.relocationState = null;
+    this.relocationHover = null;
+    this.renderSelectionVisual();
+    this.syncSelectionActionUI();
+    if (showStatus) this.setStatus('Move cancelled');
+  }
+
+  private evaluateRelocationTarget(
+    point: GridPoint,
+  ): { valid: boolean; reason?: string; cells: GridPoint[]; harborRotation?: number } {
+    const relocation = this.relocationState;
+    if (!relocation) return { valid: false, reason: 'No building is being moved', cells: [] };
+
+    if (relocation.type === 'keep') {
+      if (point.x === relocation.keep.x && point.y === relocation.keep.y) {
+        return {
+          valid: false,
+          reason: 'Choose a different position for the Keep',
+          cells: this.services.keepSystem.footprint(relocation.keep),
+        };
+      }
+      const draft = { ...relocation.keep, x: point.x, y: point.y };
+      const validation = this.validateKeepDraft(draft, relocation.keep.id);
+      return {
+        valid: validation.valid,
+        reason: validation.reason,
+        cells: this.services.keepSystem.footprint(draft),
+      };
+    }
+
+    const origin = relocation.origin;
+    const cell = relocation.cell;
+    const cells = cell.kind === 'market'
+      ? this.buildPlacementFootprint('market', point)
+      : getStructureFootprint(cell.kind, point.x, point.y);
+    if (point.x === origin.x && point.y === origin.y) {
+      return { valid: false, reason: 'Choose a different tile', cells };
+    }
+    if (this.services.state.getCell(point.x, point.y)) {
+      return { valid: false, reason: 'Destination is already occupied', cells };
+    }
+    if (this.services.keepSystem.findAtCell(point.x, point.y)) {
+      return { valid: false, reason: 'Destination overlaps a Keep', cells };
+    }
+    if (this.isStructureFootprintReserved(point.x, point.y)) {
+      return { valid: false, reason: 'Destination overlaps another structure footprint', cells };
+    }
+
+    const terrain = this.terrainAt(point.x, point.y);
+    if (cell.kind === 'market') {
+      const valid = this.canBuildMarketAt(point.x, point.y, origin);
+      return {
+        valid,
+        reason: valid ? undefined : 'Market needs a clear 3×3 land area',
+        cells,
+      };
+    }
+    if (cell.kind === 'harbor') {
+      const direction = this.maritimeSystem.canPlace('harbor', point.x, point.y);
+      return {
+        valid: Boolean(direction),
+        reason: direction ? undefined : 'Harbor requires a clear coastal tile next to ocean water',
+        cells,
+        harborRotation: direction?.rotation,
+      };
+    }
+    if (cell.kind === 'mine') {
+      const valid = terrain === 'mountain';
+      return { valid, reason: valid ? undefined : 'Mine must remain on mountain terrain', cells };
+    }
+
+    const valid = this.canBuildOnTerrain(cell.kind, terrain);
+    return {
+      valid,
+      reason: valid ? undefined : 'Destination terrain is not valid for this building',
+      cells,
+    };
+  }
+
+  private renderRelocationPreview(point: GridPoint | null): void {
+    if (!this.relocationState) return;
+    if (!point) {
+      this.relocationHover = null;
+      this.renderSelectionVisual();
+      return;
+    }
+
+    const evaluation = this.evaluateRelocationTarget(point);
+    const changed = point.x !== this.relocationHover?.x || point.y !== this.relocationHover?.y;
+    this.relocationHover = { ...point };
+    this.selectionVisual.show(
+      evaluation.cells,
+      this.viewMode === 'plan2d',
+      evaluation.valid ? 'valid' : 'invalid',
+    );
+    if (changed) {
+      this.setStatus(
+        evaluation.valid
+          ? 'Valid move destination · click/tap to confirm'
+          : evaluation.reason ?? 'Invalid move destination',
+      );
+    }
+  }
+
+  private commitRelocation(point: GridPoint): void {
+    const relocation = this.relocationState;
+    if (!relocation) return;
+
+    const evaluation = this.evaluateRelocationTarget(point);
+    if (!evaluation.valid) {
+      this.renderRelocationPreview(point);
+      return;
+    }
+
+    this.recordHistory();
+
+    if (relocation.type === 'keep') {
+      const updated = this.services.keepSystem.update(relocation.keep.id, {
+        x: point.x,
+        y: point.y,
+      });
+      if (!updated) {
+        this.cancelRelocation(false);
+        this.setStatus('Keep could not be moved');
+        return;
+      }
+
+      this.relocationState = null;
+      this.relocationHover = null;
+      this.selectKeep(updated);
+      this.redraw();
+      this.scheduleSave();
+      this.setStatus('Keep moved · Undo available');
+      return;
+    }
+
+    const { origin, cell } = relocation;
+    const { kind, level, ...options } = cell;
+    if (cell.kind === 'harbor' && evaluation.harborRotation !== undefined) {
+      options.rotation = evaluation.harborRotation;
+    }
+
+    this.services.state.removeCell(origin.x, origin.y);
+    this.services.state.setCell(point.x, point.y, kind, level ?? 1, options);
+    this.relocationState = null;
+    this.relocationHover = null;
+    this.selectedCell = { ...point };
+    this.selectedKeepId = null;
+    this.selectedTowerBridgeId = null;
+    this.redraw();
+    this.scheduleSave();
+    this.setStatus(`${this.selectedBuildingDescriptor()?.name ?? 'Building'} moved · Undo available`);
+  }
+
+  private clearSelection(): void {
+    this.relocationState = null;
+    this.relocationHover = null;
+    this.selectedCell = null;
+    this.selectedKeepId = null;
+    this.selectedTowerBridgeId = null;
+    this.selectionVisual.clear();
+    this.syncArmyCampUpgradeUI();
+  }
+
+  private renderSelectionVisual(): void {
+    if (this.selectedKeepId !== null) {
+      const keep = this.services.keepSystem.get(this.selectedKeepId);
+      if (keep) {
+        this.selectionVisual.show(this.services.keepSystem.footprint(keep), this.viewMode === 'plan2d');
+        return;
+      }
+    }
+
+    if (this.selectedCell) {
+      const cell = this.services.state.getCell(this.selectedCell.x, this.selectedCell.y);
+      if (cell) {
+        this.selectionVisual.show(
+          getStructureFootprint(cell.kind, this.selectedCell.x, this.selectedCell.y),
+          this.viewMode === 'plan2d',
+        );
+        return;
+      }
+    }
+
+    this.selectionVisual.clear();
   }
 
   private syncSelectedGateButton(): void {
@@ -12354,44 +12707,175 @@ export class ThreeGame {
     button.textContent = cell?.kind === 'gate' ? (cell.gateOpen === false ? 'Open Gate' : 'Close Gate') : 'Open Gate';
   }
 
+  private selectedBuildingDescriptor(): { name: string; level?: number } | null {
+    if (this.selectedTowerBridgeId !== null) {
+      const bridge = this.towerBridges.get(this.selectedTowerBridgeId);
+      if (bridge) return {
+        name: 'Tower Bridge',
+        level: Math.max(1, Math.min(FORTIFICATION_MAX_LEVEL, Math.floor(bridge.level ?? 1))),
+      };
+    }
+
+    if (this.selectedKeepId !== null) {
+      const keep = this.services.keepSystem.get(this.selectedKeepId);
+      if (keep) return { name: 'Keep', level: this.keepUpgradeLevel(keep) };
+    }
+
+    if (!this.selectedCell) return null;
+    const cell = this.services.state.getCell(this.selectedCell.x, this.selectedCell.y);
+    if (!cell) return null;
+
+    const level = Math.max(1, Math.floor(cell.level ?? 1));
+    const residentialLevel = this.residentialLevelForCell(cell);
+    if (residentialLevel !== null) {
+      return { name: this.residentialLevelDefinition(residentialLevel).name, level: residentialLevel };
+    }
+    if (cell.kind === 'armyCamp') return { name: this.armyCampLevelDefinition(level).name, level };
+    if (cell.kind === 'farm' || cell.kind === 'cowBarn') {
+      const normalized = Math.max(1, Math.min(AGRICULTURE_MAX_LEVEL, level));
+      return { name: this.agricultureLevelDefinition(cell.kind, normalized).name, level: normalized };
+    }
+    if (cell.kind === 'mosque') {
+      const normalized = Math.max(1, Math.min(MOSQUE_MAX_LEVEL, level));
+      return { name: this.mosqueLevelDefinition(normalized).name, level: normalized };
+    }
+    if (cell.kind === 'carpenter') {
+      const normalized = normalizeCarpenterLevel(level);
+      return { name: carpenterLevelDefinition(normalized).name, level: normalized };
+    }
+    if (cell.kind === 'harbor') {
+      const normalized = Math.max(1, Math.min(HARBOR_MAX_LEVEL, level));
+      return { name: this.harborLevelDefinition(normalized).name, level: normalized };
+    }
+
+    const name = cell.kind
+      .replace(/([a-z])([A-Z])/g, '$1 $2')
+      .replace(/([A-Za-z])(\d)/g, '$1 $2')
+      .replace(/^./, (value) => value.toUpperCase());
+    return { name, level };
+  }
+
+  private selectedUpgradeState(): { supported: boolean; atMax: boolean } {
+    if (this.selectedTowerBridgeId !== null) {
+      const bridge = this.towerBridges.get(this.selectedTowerBridgeId);
+      const level = Math.max(1, Math.floor(bridge?.level ?? 1));
+      return { supported: Boolean(bridge), atMax: level >= FORTIFICATION_MAX_LEVEL };
+    }
+    if (this.selectedKeepId !== null) {
+      const keep = this.services.keepSystem.get(this.selectedKeepId);
+      return { supported: Boolean(keep), atMax: keep ? this.keepUpgradeLevel(keep) >= FORTIFICATION_MAX_LEVEL : false };
+    }
+    if (!this.selectedCell) return { supported: false, atMax: false };
+
+    const cell = this.services.state.getCell(this.selectedCell.x, this.selectedCell.y);
+    if (!cell) return { supported: false, atMax: false };
+    const residentialLevel = this.residentialLevelForCell(cell);
+    if (residentialLevel !== null) return { supported: true, atMax: residentialLevel >= RESIDENTIAL_MAX_LEVEL };
+
+    const maxByKind: Partial<Record<TileKind, number>> = {
+      tower: FORTIFICATION_MAX_LEVEL,
+      gate: FORTIFICATION_MAX_LEVEL,
+      armyCamp: ARMY_CAMP_MAX_LEVEL,
+      farm: AGRICULTURE_MAX_LEVEL,
+      cowBarn: AGRICULTURE_MAX_LEVEL,
+      mosque: MOSQUE_MAX_LEVEL,
+      carpenter: CARPENTER_MAX_LEVEL,
+      harbor: HARBOR_MAX_LEVEL,
+    };
+    const max = maxByKind[cell.kind];
+    if (!max) return { supported: false, atMax: false };
+    return { supported: true, atMax: Math.max(1, Math.floor(cell.level ?? 1)) >= max };
+  }
+
+  private upgradeSelectedBuilding(): void {
+    if (this.selectedTowerBridgeId !== null || this.selectedKeepId !== null) {
+      this.upgradeSelectedFortification();
+      return;
+    }
+    if (!this.selectedCell) {
+      this.setStatus('Select a building first');
+      return;
+    }
+
+    const cell = this.services.state.getCell(this.selectedCell.x, this.selectedCell.y);
+    if (!cell) {
+      this.clearSelection();
+      this.setStatus('Selected building no longer exists');
+      return;
+    }
+    if (cell.kind === 'tower' || cell.kind === 'gate') this.upgradeSelectedFortification();
+    else if (cell.kind === 'armyCamp') this.upgradeSelectedArmyCamp();
+    else if (this.residentialLevelForCell(cell) !== null) this.upgradeSelectedResidence();
+    else if (cell.kind === 'mosque') this.upgradeSelectedMosque();
+    else if (cell.kind === 'farm' || cell.kind === 'cowBarn') this.upgradeSelectedAgricultureBuilding();
+    else if (cell.kind === 'carpenter') this.upgradeSelectedCarpenter();
+    else if (cell.kind === 'harbor') this.upgradeSelectedHarbor();
+    else this.setStatus('This building has no upgrade path');
+  }
+
   private syncSelectionActionUI(): void {
     const card = document.getElementById('selection-action-card');
-    if (!card) return;
-
+    const contextPanel = document.getElementById('world-selection-panel');
+    const descriptor = this.selectedBuildingDescriptor();
     const keep = this.selectedKeepId !== null ? this.services.keepSystem.get(this.selectedKeepId) : undefined;
     const cell = this.selectedCell
       ? this.services.state.getCell(this.selectedCell.x, this.selectedCell.y)
       : undefined;
     const bridgeSelected = this.selectedTowerBridgeId !== null && this.towerBridges.has(this.selectedTowerBridgeId);
-    const hasSelection = Boolean(keep || cell || bridgeSelected);
-    const residentialLevel = cell ? this.residentialLevelForCell(cell) : null;
-    card.hidden = !hasSelection;
+    const hasSelection = Boolean(descriptor && (keep || cell || bridgeSelected));
 
-    const name = document.getElementById('selection-action-name');
-    if (name) {
-      name.textContent = keep
-        ? `Keep · Level ${this.keepUpgradeLevel(keep)}`
-        : bridgeSelected
-          ? 'Tower Bridge'
-          : cell?.kind === 'tower'
-            ? `Tower · Level ${Math.max(1, Math.floor(cell.level ?? 1))}`
-            : cell?.kind === 'gate'
-              ? `Gate · Level ${Math.max(1, Math.floor(cell.level ?? 1))}`
-              : residentialLevel !== null
-                ? `${this.residentialLevelDefinition(residentialLevel).name} · Level ${residentialLevel}`
-                : cell?.kind === 'mosque'
-                  ? `${this.mosqueLevelDefinition(cell.level ?? 1).name} · Level ${Math.max(1, Math.min(MOSQUE_MAX_LEVEL, cell.level ?? 1))}`
-                  : 'Selected Building';
+    if (card) card.hidden = !hasSelection;
+    if (contextPanel) contextPanel.hidden = !hasSelection;
+    if (!hasSelection || !descriptor) {
+      this.syncSelectedGateButton();
+      return;
     }
 
-    const rotate = document.getElementById('rotate-selected') as HTMLButtonElement | null;
-    const remove = document.getElementById('remove-selected') as HTMLButtonElement | null;
+    const cardName = document.getElementById('selection-action-name');
+    if (cardName) cardName.textContent = descriptor.level
+      ? `${descriptor.name} · Level ${descriptor.level}`
+      : descriptor.name;
+
+    const contextName = document.getElementById('world-selection-name');
+    const contextLevel = document.getElementById('world-selection-level');
+    if (contextName) contextName.textContent = descriptor.name;
+    if (contextLevel) contextLevel.textContent = descriptor.level ? `Level ${descriptor.level}` : '';
+
     const rotatable = Boolean(keep || cell?.kind === 'gate' || cell?.kind === 'harbor' || cell?.kind === 'basilica');
+    const rotate = document.getElementById('rotate-selected') as HTMLButtonElement | null;
+    const contextRotate = document.getElementById('world-selection-rotate') as HTMLButtonElement | null;
+    const remove = document.getElementById('remove-selected') as HTMLButtonElement | null;
+    const contextDemolish = document.getElementById('world-selection-demolish') as HTMLButtonElement | null;
     if (rotate) {
       rotate.hidden = !rotatable;
       rotate.disabled = !rotatable || this.battleSystem.isActive();
     }
-    if (remove) remove.disabled = !hasSelection || this.battleSystem.isActive();
+    if (contextRotate) {
+      contextRotate.hidden = !rotatable;
+      contextRotate.disabled = !rotatable || this.battleSystem.isActive();
+    }
+    if (remove) {
+      remove.disabled = this.battleSystem.isActive();
+      remove.textContent = 'Demolish';
+    }
+    if (contextDemolish) contextDemolish.disabled = this.battleSystem.isActive();
+
+    const upgradeState = this.selectedUpgradeState();
+    const contextUpgrade = document.getElementById('world-selection-upgrade') as HTMLButtonElement | null;
+    if (contextUpgrade) {
+      contextUpgrade.hidden = !upgradeState.supported;
+      contextUpgrade.disabled = this.battleSystem.isActive() || upgradeState.atMax;
+      contextUpgrade.textContent = upgradeState.atMax ? 'Max Level' : 'Upgrade';
+    }
+
+    const contextMove = document.getElementById('world-selection-move') as HTMLButtonElement | null;
+    if (contextMove) {
+      const movable = this.canMoveCurrentSelection();
+      contextMove.hidden = !movable;
+      contextMove.disabled = !movable || this.battleSystem.isActive() || Boolean(this.relocationState);
+      contextMove.textContent = this.relocationState ? 'Moving…' : 'Move';
+    }
+
     this.syncSelectedGateButton();
   }
 
@@ -12479,6 +12963,7 @@ export class ThreeGame {
     this.selectedCell = null;
     this.selectedTowerBridgeId = null;
     this.syncArmyCampUpgradeUI();
+    this.renderSelectionVisual();
     this.keepWidth = keep.width;
     this.keepDepth = keep.depth;
     this.keepFloors = keep.floors;
@@ -12591,6 +13076,11 @@ export class ThreeGame {
     }
   }
 
+  private confirmDemolition(): boolean {
+    if (!this.settingsStore.get().interface.confirmDestructiveActions) return true;
+    return confirm(t('Demolish selected building? This action can be undone.'));
+  }
+
   private removeSelected(): void {
     if (this.battleSystem.isActive()) {
       this.setStatus('Finish or reset the battle before editing buildings');
@@ -12599,13 +13089,11 @@ export class ThreeGame {
 
     if (this.selectedTowerBridgeId !== null) {
       this.removeSelectedTowerBridge();
-      this.syncArmyCampUpgradeUI();
       return;
     }
 
     if (this.selectedKeepId !== null) {
       this.removeSelectedKeep();
-      this.syncArmyCampUpgradeUI();
       return;
     }
 
@@ -12614,23 +13102,28 @@ export class ThreeGame {
       return;
     }
 
-    const point = this.selectedCell;
+    const point = { ...this.selectedCell };
     const cell = this.services.state.getCell(point.x, point.y);
     if (!cell) {
-      this.setStatus('Select a building first');
-      this.syncArmyCampUpgradeUI();
+      this.clearSelection();
+      this.setStatus('Selected building no longer exists');
+      return;
+    }
+
+    const label = this.selectedBuildingDescriptor()?.name ?? 'building';
+    if (!this.confirmDemolition()) {
+      this.setStatus('Demolition cancelled');
       return;
     }
 
     this.recordHistory();
     if (cell.kind === 'tower') this.removeTowerBridgesAt(point.x, point.y);
     this.services.state.removeCell(point.x, point.y);
-    this.selectedCell = null;
+    this.clearSelection();
     this.redraw();
     this.scheduleSave();
-    this.syncArmyCampUpgradeUI();
     audioEvents.emit({ action: 'play_sfx', assetId: 'building.destroyed' });
-    this.setStatus('Building removed · Undo available');
+    this.setStatus(`${label} demolished · Undo available`);
   }
 
   private removeSelectedKeep(): void {
@@ -12639,12 +13132,24 @@ export class ThreeGame {
       return;
     }
 
+    const keep = this.services.keepSystem.get(this.selectedKeepId);
+    if (!keep) {
+      this.clearSelection();
+      this.setStatus('Selected Keep no longer exists');
+      return;
+    }
+    if (!this.confirmDemolition()) {
+      this.setStatus('Demolition cancelled');
+      return;
+    }
+
     this.recordHistory();
-    this.services.keepSystem.remove(this.selectedKeepId);
-    this.selectedKeepId = null;
+    this.services.keepSystem.remove(keep.id);
+    this.clearSelection();
     this.redraw();
     this.scheduleSave();
-    this.setStatus('Keep removed');
+    audioEvents.emit({ action: 'play_sfx', assetId: 'building.destroyed' });
+    this.setStatus('Keep demolished · Undo available');
   }
 
   private keepUpgradeLevel(keep: KeepState): number {
@@ -12914,19 +13419,23 @@ export class ThreeGame {
       return;
     }
     if (this.selectedTowerBridgeId === null || !this.towerBridges.has(this.selectedTowerBridgeId)) {
-      this.selectedTowerBridgeId = null;
-      this.syncFortificationUpgradeUI();
+      this.clearSelection();
       this.setStatus('Select a Tower Bridge first');
       return;
     }
+    if (!this.confirmDemolition()) {
+      this.setStatus('Demolition cancelled');
+      return;
+    }
 
+    const bridgeId = this.selectedTowerBridgeId;
     this.recordHistory();
-    this.towerBridges.delete(this.selectedTowerBridgeId);
-    this.selectedTowerBridgeId = null;
+    this.towerBridges.delete(bridgeId);
+    this.clearSelection();
     this.redraw();
     this.scheduleSave();
     audioEvents.emit({ action: 'play_sfx', assetId: 'building.destroyed' });
-    this.setStatus('Tower Bridge removed · Undo available');
+    this.setStatus('Tower Bridge demolished · Undo available');
   }
 
   private mosqueLevelDefinition(level: number): (typeof MOSQUE_LEVELS)[number] {
@@ -15182,6 +15691,9 @@ export class ThreeGame {
       placeHarborTemplate(1,'fishingBoat',4,center);
     }
 
+    this.relocationState = null;
+    this.relocationHover = null;
+    this.selectionVisual.clear();
     this.selectedCell = null;
     this.selectedKeepId = null;
     const stoneSelect = document.getElementById('castle-stone-style') as HTMLSelectElement | null;
@@ -15205,6 +15717,9 @@ export class ThreeGame {
     this.towerBridgeStart = null;
     this.towerBridgeHover = null;
     this.clearGroup(this.wallPreviewLayer);
+    this.relocationState = null;
+    this.relocationHover = null;
+    this.selectionVisual.clear();
     this.selectedKeepId = null;
     this.selectedCell = null;
     this.terrainOverrides.clear();
@@ -15993,6 +16508,7 @@ export class ThreeGame {
   }
 
   private selectTool(tool: ToolKind | null): void {
+    if (tool !== null && this.relocationState) this.cancelRelocation(false);
     if (tool !== null && !this.isToolAvailable(tool)) {
       this.setStatus('Tool unavailable');
       return;
