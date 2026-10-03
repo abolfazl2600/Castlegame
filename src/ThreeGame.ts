@@ -478,6 +478,7 @@ export class ThreeGame {
   private readonly raycaster = new THREE.Raycaster();
   private readonly pointer = new THREE.Vector2();
   private readonly worldLayoutLayer = new THREE.Group();
+  private worldLayoutSurfaceSignature = '';
   private readonly terrainLayer = new THREE.Group();
   private readonly buildLayer = new THREE.Group();
   private readonly ambientMotion = new AmbientMotionSystem();
@@ -1813,7 +1814,19 @@ export class ThreeGame {
     this.scene.add(grid);
   }
 
+  private currentWorldLayoutSurfaceSignature(): string {
+    const overrides = Array.from(this.terrainOverrides.entries())
+      .sort(([left], [right]) => left.localeCompare(right))
+      .map(([key, terrain]) => `${key}:${terrain}`)
+      .join('|');
+    return `${this.mapLayoutId}|${overrides}`;
+  }
+
   private rebuildWorldLayoutSurface(): void {
+    const signature = this.currentWorldLayoutSurfaceSignature();
+    if (signature === this.worldLayoutSurfaceSignature) return;
+    this.worldLayoutSurfaceSignature = signature;
+
     this.clearGroup(this.worldLayoutLayer);
 
     const land: GridPoint[] = [];
@@ -1822,7 +1835,9 @@ export class ThreeGame {
 
     for (let y = 0; y < SIZE; y += 1) {
       for (let x = 0; x < SIZE; x += 1) {
-        const terrain = this.baseTerrainAt(x, y);
+        // Use effective terrain, not only the immutable map base. Otherwise a
+        // manually carved river keeps the original grass slab above its water.
+        const terrain = this.terrainAt(x, y);
         if (terrain === 'water' || terrain === 'river') continue;
         land.push({ x, y });
         if (terrain === 'shore') shore.push({ x, y });
@@ -2132,6 +2147,9 @@ export class ThreeGame {
     this.buildObjectsByCell.clear();
     this.constructionObjects.clear();
     this.clearGroup(this.planLayer);
+    // Terrain overrides can turn land into river (or water into land). Keep the
+    // instanced world surface synchronized before drawing terrain details.
+    this.rebuildWorldLayoutSurface();
     this.renderTerrain();
     this.ambientShip.rebuild(this.worldSeed);
 
