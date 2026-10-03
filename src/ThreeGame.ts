@@ -6015,7 +6015,7 @@ export class ThreeGame {
     this.towerBridgeStart = null;
     this.towerBridgeHover = null;
     this.clearGroup(this.wallPreviewLayer);
-    this.finishBuild();
+    this.finishBuild(true);
     this.startConstruction(`bridge:${bridge.id}`, 1100);
     this.syncArmyCampUpgradeUI();
     this.setStatus(
@@ -8949,6 +8949,7 @@ export class ThreeGame {
           if (this.terrainStrokeChanged && this.terrainStrokeSnapshot) {
             this.pushUndoSnapshot(this.terrainStrokeSnapshot);
             this.scheduleSave();
+            this.deactivateBuildToolAfterCommit();
           }
 
           this.terrainStrokeSnapshot = null;
@@ -9299,6 +9300,7 @@ export class ThreeGame {
       this.redraw();
       this.scheduleSave();
       this.setStatus(`Built ${changed} connected road tiles · preview confirmed`);
+      this.deactivateBuildToolAfterCommit();
     } else {
       this.setStatus('No valid road tiles in that path');
     }
@@ -9444,6 +9446,7 @@ export class ThreeGame {
     this.redraw();
     this.scheduleSave();
     this.setStatus('Mountain Range generated · ridge, peaks, slopes, valleys and foothills');
+    this.deactivateBuildToolAfterCommit();
   }
 
   private applyMountainRange(
@@ -9825,6 +9828,7 @@ export class ThreeGame {
           ? 'Wall segment updated'
           : `Built ${path.length} snapped wall segments · 45° angles supported`,
       );
+      this.deactivateBuildToolAfterCommit();
     }
   }
 
@@ -10368,7 +10372,7 @@ export class ThreeGame {
         this.elevationOverrides.delete(overrideKey);
         this.terrainOverrides.set(overrideKey, 'river');
 
-        this.finishBuild();
+        this.finishBuild(true);
         this.setStatus('River water created · no source connection required');
         return;
       }
@@ -10376,7 +10380,7 @@ export class ThreeGame {
       if (current) return;
       this.recordHistory();
       this.terrainOverrides.set(overrideKey, 'plains');
-      this.finishBuild();
+      this.finishBuild(true);
       return;
     }
 
@@ -10400,7 +10404,7 @@ export class ThreeGame {
         shipKind: this.maritimeSystem.defaultShipForLevel(1),
       });
       this.spendConstructionCost('harbor');
-      this.finishBuild();
+      this.finishBuild(true);
       this.setStatus('Landing Dock placed · upgrade it from Build Settings');
       return;
     }
@@ -10411,6 +10415,7 @@ export class ThreeGame {
       this.moatTasks.set(overrideKey, { x: gx, y: gy, progressMs: 0 });
       this.setStatus('Workers assigned to dig moat');
       this.redraw();
+      this.deactivateBuildToolAfterCommit();
       return;
     }
 
@@ -10425,7 +10430,7 @@ export class ThreeGame {
         const nextLevel = (cell?.level ?? 1) + 1;
         this.services.state.setLevel(gx, gy, nextLevel);
         this.shapeMountainFootprint(gx, gy, nextLevel);
-        this.finishBuild();
+        this.finishBuild(true);
         return;
       }
 
@@ -10433,7 +10438,7 @@ export class ThreeGame {
         this.recordHistory();
         this.services.state.setCell(gx, gy, 'mountain', 1);
         this.shapeMountainFootprint(gx, gy, 1);
-        this.finishBuild();
+        this.finishBuild(true);
       }
       return;
     }
@@ -10444,7 +10449,7 @@ export class ThreeGame {
         this.recordHistory();
         this.services.state.setCell(gx, gy, 'mine', 1);
         this.spendConstructionCost('mine');
-        this.finishBuild();
+        this.finishBuild(true);
         return;
       }
 
@@ -10453,7 +10458,7 @@ export class ThreeGame {
         this.recordHistory();
         this.services.state.setCell(gx, gy, 'mine', 1);
         this.spendConstructionCost('mine');
-        this.finishBuild();
+        this.finishBuild(true);
       }
       return;
     }
@@ -10462,7 +10467,7 @@ export class ThreeGame {
       if (!current && (terrain === 'plains' || terrain === 'shore' || terrain === 'forest')) {
         this.recordHistory();
         this.services.state.setCell(gx, gy, 'tree', 1 + ((gx + gy) % 3));
-        this.finishBuild();
+        this.finishBuild(true);
       }
       return;
     }
@@ -10489,7 +10494,7 @@ export class ThreeGame {
         wallLinks: cell?.wallLinks,
       });
       this.spendConstructionCost('tower');
-      this.finishBuild();
+      this.finishBuild(true);
       this.setStatus('Tower built · appearance will evolve automatically when upgraded');
       return;
     }
@@ -10510,7 +10515,7 @@ export class ThreeGame {
       this.recordHistory();
       this.services.state.setCell(gx, gy, 'cowBarn', 1);
       this.spendConstructionCost('cowBarn');
-      this.finishBuild();
+      this.finishBuild(true);
       this.setStatus('Cow Barn placed · Level 1 livestock yard active');
       return;
     }
@@ -10533,7 +10538,7 @@ export class ThreeGame {
       this.recordHistory();
       this.services.state.setCell(gx, gy, 'market', 1);
       this.spendConstructionCost('market');
-      this.finishBuild();
+      this.finishBuild(true);
       return;
     }
 
@@ -10550,7 +10555,7 @@ export class ThreeGame {
           rotationMode: 'auto',
         });
         this.spendConstructionCost(selectedTile);
-        this.finishBuild();
+        this.finishBuild(true);
       }
       return;
     }
@@ -10564,7 +10569,7 @@ export class ThreeGame {
       this.services.state.setCell(gx, gy, selectedTile, 1);
     }
     this.spendConstructionCost(selectedTile);
-    this.finishBuild();
+    this.finishBuild(true);
   }
 
   private canBuildMarketAt(gx: number, gy: number, ignoreCell?: GridPoint): boolean {
@@ -10596,7 +10601,12 @@ export class ThreeGame {
     return terrain === 'plains' || terrain === 'shore';
   }
 
-  private finishBuild(): void {
+  private deactivateBuildToolAfterCommit(): void {
+    if (this.selectedTool === null || this.selectedTool === 'erase') return;
+    this.selectTool(null, false);
+  }
+
+  private finishBuild(deactivateTool = false): void {
     const point = this.selectedCell;
     const previous = point && this.undoStack.at(-1)?.cells.find((cell) => cell.x === point.x && cell.y === point.y);
     const current = point && this.services.state.getCell(point.x, point.y);
@@ -10608,6 +10618,7 @@ export class ThreeGame {
     if (newlyPlaced && point) this.startConstruction(`cell:${point.x},${point.y}`,
       current.kind === 'gate' || current.kind === 'tower' || current.kind === 'harbor' ? 1150 : 800);
     this.scheduleSave();
+    if (deactivateTool) this.deactivateBuildToolAfterCommit();
   }
 
   private reconcileSettlementAgents(
@@ -12884,6 +12895,7 @@ export class ThreeGame {
     this.startConstruction(`keep:${keep.id}`, 1450);
     this.scheduleSave();
     this.setStatus(`Keep built · ${keep.width}×${keep.depth} · ${keep.floors} floors · details generated automatically`);
+    this.deactivateBuildToolAfterCommit();
   }
 
   private fortificationLevelDefinition(kind: FortificationUpgradeKind, level: number): FortificationUpgradeLevel {
@@ -16230,7 +16242,7 @@ export class ThreeGame {
       's</span>';
   }
 
-  private selectTool(tool: ToolKind | null): void {
+  private selectTool(tool: ToolKind | null, announce = true): void {
     if (tool !== null && this.relocationState) this.cancelRelocation(false);
     if (tool !== null && !this.isToolAvailable(tool)) {
       this.setStatus('Tool unavailable');
@@ -16279,7 +16291,9 @@ export class ThreeGame {
     const activeLabel = document.getElementById('build-active-label');
     if (activeLabel) activeLabel.textContent = tool === null ? 'Inspect' : (document.querySelector<HTMLElement>('[data-tool="' + tool + '"] .tool-copy strong')?.textContent ?? tool);
     this.filterBuildTools();
-    this.setStatus(tool === null ? 'Inspect mode · free camera / select objects' : 'Selected: ' + tool);
+    if (announce) {
+      this.setStatus(tool === null ? 'Inspect mode · free camera / select objects' : 'Selected: ' + tool);
+    }
     for (const extension of this.extensions) extension.onToolSelected?.(tool);
   }
 
