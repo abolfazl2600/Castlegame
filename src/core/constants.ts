@@ -10,7 +10,7 @@ export const SAVE_LEGACY_KEY = 'castle-role-save-v1';
 
 /** Current persistent save schema version. */
 export const SAVE_VERSION = 19;
-export const CASTLE_DETAIL_VERSION = 1;
+export const CASTLE_DETAIL_VERSION = 2;
 
 export const SAVE_STORAGE_PREFIX = 'castle-role.saves.v1.';
 export const SAVE_SLOT_COUNT = 3;
