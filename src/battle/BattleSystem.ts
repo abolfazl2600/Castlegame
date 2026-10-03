@@ -175,6 +175,34 @@ interface ArrowProjectile {
   life: number;
 }
 
+interface MissileTrailParticle {
+  view: THREE.Mesh;
+  age: number;
+  lifetime: number;
+  riseSpeed: number;
+  baseScale: number;
+}
+
+interface MissileExplosionDebris {
+  view: THREE.Mesh;
+  velocity: THREE.Vector3;
+  spin: THREE.Vector3;
+}
+
+interface MissileExplosionEffect {
+  group: THREE.Group;
+  age: number;
+  duration: number;
+  radius: number;
+  flash: THREE.Mesh;
+  core: THREE.Mesh;
+  outerFireball: THREE.Mesh;
+  shockwave: THREE.Mesh;
+  smoke: THREE.Mesh[];
+  debris: MissileExplosionDebris[];
+  light: THREE.PointLight;
+}
+
 interface MissileProjectile {
   view: THREE.Group;
   targetId: string;
@@ -184,6 +212,9 @@ interface MissileProjectile {
   duration: number;
   impactRadius: number;
   damage: number;
+  trailTimer: number;
+  flame: THREE.Mesh;
+  engineGlow: THREE.Mesh;
 }
 
 interface UnitVisualRefs {
@@ -349,6 +380,8 @@ export class BattleSystem {
   private readonly units = new Map<string, UnitRuntime>();
   private readonly arrows: ArrowProjectile[] = [];
   private readonly missiles: MissileProjectile[] = [];
+  private readonly missileTrailParticles: MissileTrailParticle[] = [];
+  private readonly missileExplosionEffects: MissileExplosionEffect[] = [];
   private readonly impactEffects: Array<{ view: THREE.Mesh; remainingMs: number }> = [];
   private readonly wallCollapseEffects: WallCollapseEffect[] = [];
   private readonly sharedGeometries: THREE.BufferGeometry[] = [];
@@ -369,9 +402,18 @@ export class BattleSystem {
   private readonly arrowGeometry = this.geometry(new THREE.CylinderGeometry(0.022, 0.022, 0.68, 5));
   private readonly rifleGeometry = this.geometry(new THREE.BoxGeometry(0.08, 0.08, 0.9));
   private readonly rifleStockGeometry = this.geometry(new THREE.BoxGeometry(0.13, 0.11, 0.32));
-  private readonly missileBodyGeometry = this.geometry(new THREE.CylinderGeometry(0.1, 0.14, 1.25, 8));
-  private readonly missileNoseGeometry = this.geometry(new THREE.ConeGeometry(0.14, 0.32, 8));
-  private readonly missileBlastGeometry = this.geometry(new THREE.RingGeometry(0.72, 1, 24));
+  private readonly missileBodyGeometry = this.geometry(new THREE.CylinderGeometry(0.105, 0.155, 1.34, 12));
+  private readonly missileNoseGeometry = this.geometry(new THREE.ConeGeometry(0.148, 0.38, 12));
+  private readonly missileBandGeometry = this.geometry(new THREE.CylinderGeometry(0.162, 0.162, 0.075, 12));
+  private readonly missileFinGeometry = this.geometry(new THREE.BoxGeometry(0.045, 0.34, 0.26));
+  private readonly missileNozzleGeometry = this.geometry(new THREE.CylinderGeometry(0.085, 0.115, 0.19, 10));
+  private readonly missileFlameGeometry = this.geometry(new THREE.ConeGeometry(0.105, 0.52, 10));
+  private readonly missileEngineGlowGeometry = this.geometry(new THREE.SphereGeometry(0.15, 8, 6));
+  private readonly missileTrailGeometry = this.geometry(new THREE.SphereGeometry(0.16, 7, 5));
+  private readonly missileExplosionCoreGeometry = this.geometry(new THREE.SphereGeometry(1, 12, 9));
+  private readonly missileExplosionSmokeGeometry = this.geometry(new THREE.SphereGeometry(1, 9, 7));
+  private readonly missileExplosionDebrisGeometry = this.geometry(new THREE.DodecahedronGeometry(0.13, 0));
+  private readonly missileBlastGeometry = this.geometry(new THREE.RingGeometry(0.58, 0.84, 32));
   private readonly wallFlashGeometry = this.geometry(new THREE.SphereGeometry(0.09, 6, 5));
   private readonly wallChipGeometry = this.geometry(new THREE.DodecahedronGeometry(0.16, 0));
   private readonly wallStoneGeometry = this.geometry(new THREE.DodecahedronGeometry(0.3, 0));
@@ -380,8 +422,43 @@ export class BattleSystem {
   private readonly wallShockwaveGeometry = this.geometry(new THREE.RingGeometry(0.55, 0.78, 28));
   private readonly tacticalMaterial = this.material(new THREE.MeshStandardMaterial({ color: 0x334039, roughness: 0.9 }));
   private readonly rifleMaterial = this.material(new THREE.MeshStandardMaterial({ color: 0x1d2322, roughness: 0.46, metalness: 0.52 }));
-  private readonly missileMaterial = this.material(new THREE.MeshStandardMaterial({ color: 0xcfd7d8, roughness: 0.38, metalness: 0.62 }));
-  private readonly missileNoseMaterial = this.material(new THREE.MeshStandardMaterial({ color: 0xb34d3f, roughness: 0.52, metalness: 0.35 }));
+  private readonly missileMaterial = this.material(new THREE.MeshStandardMaterial({ color: 0xcfd7d8, roughness: 0.32, metalness: 0.68 }));
+  private readonly missileNoseMaterial = this.material(new THREE.MeshStandardMaterial({ color: 0xb34d3f, roughness: 0.44, metalness: 0.38 }));
+  private readonly missileDarkMaterial = this.material(new THREE.MeshStandardMaterial({ color: 0x4d5557, roughness: 0.42, metalness: 0.72 }));
+  private readonly missileFinMaterial = this.material(new THREE.MeshStandardMaterial({ color: 0x8c9799, roughness: 0.46, metalness: 0.6 }));
+  private readonly missileFlameMaterial = this.material(
+    new THREE.MeshBasicMaterial({ color: 0xff8a2b, transparent: true, opacity: 0.88, depthWrite: false }),
+  );
+  private readonly missileEngineGlowMaterial = this.material(
+    new THREE.MeshBasicMaterial({ color: 0xffd27a, transparent: true, opacity: 0.62, depthWrite: false }),
+  );
+  private readonly missileTrailMaterial = this.material(
+    new THREE.MeshBasicMaterial({ color: 0xb8b2a8, transparent: true, opacity: 0.18, depthWrite: false }),
+  );
+  private readonly missileExplosionFlashMaterial = this.material(
+    new THREE.MeshBasicMaterial({ color: 0xfff0bb, transparent: true, opacity: 0.92, depthWrite: false }),
+  );
+  private readonly missileExplosionCoreMaterial = this.material(
+    new THREE.MeshBasicMaterial({ color: 0xffa13a, transparent: true, opacity: 0.82, depthWrite: false }),
+  );
+  private readonly missileExplosionOuterMaterial = this.material(
+    new THREE.MeshBasicMaterial({ color: 0xd94c24, transparent: true, opacity: 0.54, depthWrite: false }),
+  );
+  private readonly missileExplosionSmokeMaterial = this.material(
+    new THREE.MeshBasicMaterial({ color: 0x4f4b46, transparent: true, opacity: 0.28, depthWrite: false }),
+  );
+  private readonly missileExplosionDebrisMaterial = this.material(
+    new THREE.MeshStandardMaterial({ color: 0x5b5148, roughness: 0.96, metalness: 0.04, flatShading: true }),
+  );
+  private readonly missileShockwaveMaterial = this.material(
+    new THREE.MeshBasicMaterial({
+      color: 0xffc779,
+      transparent: true,
+      opacity: 0.42,
+      depthWrite: false,
+      side: THREE.DoubleSide,
+    }),
+  );
   private readonly skinMaterial = this.material(new THREE.MeshStandardMaterial({ color: 0xd8aa82, roughness: 0.94 }));
   private readonly metalMaterial = this.material(new THREE.MeshStandardMaterial({ color: 0x757b7d, roughness: 0.64, metalness: 0.34 }));
   private readonly swordMaterial = this.material(new THREE.MeshStandardMaterial({ color: 0xb7bec1, roughness: 0.48, metalness: 0.54 }));
@@ -775,6 +852,8 @@ export class BattleSystem {
 
   update(deltaMs: number, timeMs: number): void {
     this.updateImpactEffects(deltaMs);
+    this.updateMissileTrailParticles(deltaMs);
+    this.updateMissileExplosionEffects(deltaMs);
     this.updateWallCollapseEffects(deltaMs);
     if (this.mode !== 'running') {
       if (this.mode === 'idle' && this.preparedDefenderSignature) {
@@ -886,11 +965,43 @@ export class BattleSystem {
 
     const view = new THREE.Group();
     const body = new THREE.Mesh(this.missileBodyGeometry, this.missileMaterial);
+    body.castShadow = true;
+
     const nose = new THREE.Mesh(this.missileNoseGeometry, this.missileNoseMaterial);
-    nose.position.y = 0.78;
-    view.add(body, nose);
+    nose.position.y = 0.86;
+    nose.castShadow = true;
+
+    const band = new THREE.Mesh(this.missileBandGeometry, this.missileDarkMaterial);
+    band.position.y = 0.34;
+
+    const nozzle = new THREE.Mesh(this.missileNozzleGeometry, this.missileDarkMaterial);
+    nozzle.position.y = -0.76;
+
+    const finOffsets = [
+      { x: 0.18, z: 0, rotationY: 0 },
+      { x: -0.18, z: 0, rotationY: 0 },
+      { x: 0, z: 0.18, rotationY: Math.PI / 2 },
+      { x: 0, z: -0.18, rotationY: Math.PI / 2 },
+    ];
+    const fins: THREE.Mesh[] = [];
+    for (const offset of finOffsets) {
+      const fin = new THREE.Mesh(this.missileFinGeometry, this.missileFinMaterial);
+      fin.position.set(offset.x, -0.46, offset.z);
+      fin.rotation.y = offset.rotationY;
+      fin.castShadow = true;
+      fins.push(fin);
+    }
+
+    const flame = new THREE.Mesh(this.missileFlameGeometry, this.missileFlameMaterial);
+    flame.position.y = -1.08;
+    flame.rotation.z = Math.PI;
+
+    const engineGlow = new THREE.Mesh(this.missileEngineGlowGeometry, this.missileEngineGlowMaterial);
+    engineGlow.position.y = -0.9;
+
+    view.add(body, nose, band, nozzle, ...fins, flame, engineGlow);
     view.position.copy(start);
-    view.scale.setScalar(1.15);
+    view.scale.setScalar(1.18);
     this.layer.add(view);
 
     this.missiles.push({
@@ -902,6 +1013,9 @@ export class BattleSystem {
       duration: THREE.MathUtils.clamp(distance / 34, 0.85, 1.8),
       impactRadius,
       damage,
+      trailTimer: 0,
+      flame,
+      engineGlow,
     });
 
     return { ok: true, message: `Missile launched at ${target.data.unitType}` };
@@ -932,6 +1046,7 @@ export class BattleSystem {
 
   dispose(): void {
     this.reset(false);
+    this.clearMissileExplosionEffects();
     for (const geometry of this.sharedGeometries) geometry.dispose();
     for (const material of this.sharedMaterials) material.dispose();
   }
@@ -4501,14 +4616,30 @@ export class BattleSystem {
         missile.targetPoint.y += 0.55;
       }
 
+      const previousPosition = missile.view.position.clone();
       missile.elapsed += delta;
       const progress = THREE.MathUtils.clamp(missile.elapsed / missile.duration, 0, 1);
-      missile.view.position.lerpVectors(missile.start, missile.targetPoint, progress);
-      missile.view.position.y += Math.sin(progress * Math.PI) * 9;
-      missile.view.rotation.z = Math.atan2(
-        missile.targetPoint.x - missile.view.position.x,
-        Math.max(0.001, missile.targetPoint.y - missile.view.position.y),
-      );
+      const nextPosition = new THREE.Vector3().lerpVectors(missile.start, missile.targetPoint, progress);
+      nextPosition.y += Math.sin(progress * Math.PI) * 9;
+      missile.view.position.copy(nextPosition);
+
+      const direction = nextPosition.clone().sub(previousPosition);
+      if (direction.lengthSq() > 0.000001) {
+        direction.normalize();
+        missile.view.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), direction);
+      }
+
+      const enginePulse = 0.92 + Math.sin(missile.elapsed * 42) * 0.12;
+      missile.flame.scale.set(0.9 + enginePulse * 0.16, 0.82 + enginePulse * 0.36, 0.9 + enginePulse * 0.16);
+      missile.engineGlow.scale.setScalar(0.82 + enginePulse * 0.2);
+
+      if (this.world.effectsEnabled?.() !== false && progress < 0.995) {
+        missile.trailTimer -= delta;
+        if (missile.trailTimer <= 0) {
+          missile.trailTimer = 0.055;
+          this.spawnMissileTrailParticle(missile.view.position, direction, missile.elapsed);
+        }
+      }
 
       if (progress < 1) continue;
       this.resolveMissileImpact(missile);
@@ -4530,14 +4661,169 @@ export class BattleSystem {
 
     this.layer.remove(missile.view);
     if (this.world.effectsEnabled?.() !== false) {
-      const blast = new THREE.Mesh(this.missileBlastGeometry, this.objectiveMaterial);
-      blast.position.copy(impact);
-      blast.position.y += 0.14;
-      blast.rotation.x = -Math.PI / 2;
-      blast.scale.setScalar(Math.max(0.8, missile.impactRadius * 0.4));
-      this.addImpactEffect(blast, 180);
+      this.spawnMissileExplosion(impact, missile.impactRadius);
     }
     this.emitStatus();
+  }
+
+  private spawnMissileTrailParticle(position: THREE.Vector3, direction: THREE.Vector3, elapsed: number): void {
+    const particle = new THREE.Mesh(this.missileTrailGeometry, this.missileTrailMaterial);
+    const backwards = direction.lengthSq() > 0.000001 ? direction.clone().normalize() : new THREE.Vector3(0, -1, 0);
+    particle.position.copy(position).addScaledVector(backwards, -0.72);
+    const baseScale = 0.46 + (Math.sin(elapsed * 37) * 0.5 + 0.5) * 0.16;
+    particle.scale.setScalar(baseScale);
+    this.layer.add(particle);
+
+    this.missileTrailParticles.push({
+      view: particle,
+      age: 0,
+      lifetime: 0.72,
+      riseSpeed: 0.22 + (Math.sin(elapsed * 19) * 0.5 + 0.5) * 0.16,
+      baseScale,
+    });
+
+    while (this.missileTrailParticles.length > 48) {
+      const oldest = this.missileTrailParticles.shift();
+      if (oldest) this.layer.remove(oldest.view);
+    }
+  }
+
+  private updateMissileTrailParticles(deltaMs: number): void {
+    const delta = Math.max(0, deltaMs) / 1000;
+    const enabled = this.world.effectsEnabled?.() !== false;
+    for (let index = this.missileTrailParticles.length - 1; index >= 0; index -= 1) {
+      const particle = this.missileTrailParticles[index];
+      particle.age += delta;
+      const progress = THREE.MathUtils.clamp(particle.age / particle.lifetime, 0, 1);
+      particle.view.position.y += particle.riseSpeed * delta;
+      particle.view.scale.setScalar(particle.baseScale * (1 + progress * 2.35));
+
+      if (enabled && particle.age < particle.lifetime) continue;
+      this.layer.remove(particle.view);
+      this.missileTrailParticles.splice(index, 1);
+    }
+  }
+
+  private spawnMissileExplosion(impact: THREE.Vector3, radius: number): void {
+    const group = new THREE.Group();
+    group.position.copy(impact);
+    group.position.y += 0.18;
+
+    const flash = new THREE.Mesh(this.missileExplosionCoreGeometry, this.missileExplosionFlashMaterial);
+    flash.scale.setScalar(Math.max(0.45, radius * 0.1));
+
+    const core = new THREE.Mesh(this.missileExplosionCoreGeometry, this.missileExplosionCoreMaterial);
+    core.scale.setScalar(Math.max(0.4, radius * 0.08));
+
+    const outerFireball = new THREE.Mesh(this.missileExplosionCoreGeometry, this.missileExplosionOuterMaterial);
+    outerFireball.scale.setScalar(Math.max(0.5, radius * 0.1));
+
+    const shockwave = new THREE.Mesh(this.missileBlastGeometry, this.missileShockwaveMaterial);
+    shockwave.rotation.x = -Math.PI / 2;
+    shockwave.position.y = -0.05;
+    shockwave.scale.setScalar(Math.max(0.65, radius * 0.16));
+
+    const smoke: THREE.Mesh[] = [];
+    for (let i = 0; i < 7; i += 1) {
+      const puff = new THREE.Mesh(this.missileExplosionSmokeGeometry, this.missileExplosionSmokeMaterial);
+      const angle = (i / 7) * Math.PI * 2;
+      const radial = radius * (0.04 + (i % 3) * 0.018);
+      puff.position.set(Math.cos(angle) * radial, 0.16 + (i % 2) * 0.12, Math.sin(angle) * radial);
+      puff.scale.setScalar(Math.max(0.28, radius * (0.035 + (i % 3) * 0.008)));
+      smoke.push(puff);
+    }
+
+    const debris: MissileExplosionDebris[] = [];
+    for (let i = 0; i < 10; i += 1) {
+      const fragment = new THREE.Mesh(this.missileExplosionDebrisGeometry, this.missileExplosionDebrisMaterial);
+      const angle = (i / 10) * Math.PI * 2 + (i % 2) * 0.21;
+      const speed = 2.4 + (i % 4) * 0.48;
+      fragment.position.set(Math.cos(angle) * 0.18, 0.14 + (i % 3) * 0.08, Math.sin(angle) * 0.18);
+      fragment.scale.setScalar(0.7 + (i % 3) * 0.18);
+      debris.push({
+        view: fragment,
+        velocity: new THREE.Vector3(Math.cos(angle) * speed, 2.8 + (i % 3) * 0.7, Math.sin(angle) * speed),
+        spin: new THREE.Vector3(2.2 + i * 0.17, 3.1 + i * 0.11, 1.8 + i * 0.13),
+      });
+    }
+
+    const light = new THREE.PointLight(0xff9b3d, 4.8, Math.max(6, radius * 3.1), 2);
+    light.position.y = 0.65;
+
+    group.add(flash, outerFireball, core, shockwave, ...smoke, ...debris.map((item) => item.view), light);
+    this.layer.add(group);
+
+    this.missileExplosionEffects.push({
+      group,
+      age: 0,
+      duration: 1.9,
+      radius,
+      flash,
+      core,
+      outerFireball,
+      shockwave,
+      smoke,
+      debris,
+      light,
+    });
+
+    while (this.missileExplosionEffects.length > 6) {
+      const oldest = this.missileExplosionEffects.shift();
+      if (oldest) this.layer.remove(oldest.group);
+    }
+  }
+
+  private updateMissileExplosionEffects(deltaMs: number): void {
+    const delta = Math.max(0, deltaMs) / 1000;
+    const enabled = this.world.effectsEnabled?.() !== false;
+
+    for (let index = this.missileExplosionEffects.length - 1; index >= 0; index -= 1) {
+      const effect = this.missileExplosionEffects[index];
+      effect.age += delta;
+      const progress = THREE.MathUtils.clamp(effect.age / effect.duration, 0, 1);
+
+      effect.flash.visible = effect.age < 0.11;
+      effect.flash.scale.setScalar(Math.max(0.4, effect.radius * (0.12 + Math.min(0.18, effect.age) * 1.6)));
+
+      effect.core.visible = effect.age < 0.52;
+      effect.core.scale.setScalar(Math.max(0.45, effect.radius * (0.1 + Math.min(0.42, effect.age) * 0.3)));
+
+      effect.outerFireball.visible = effect.age < 0.7;
+      effect.outerFireball.scale.setScalar(Math.max(0.55, effect.radius * (0.12 + Math.min(0.55, effect.age) * 0.38)));
+
+      effect.shockwave.visible = effect.age < 0.62;
+      effect.shockwave.scale.setScalar(Math.max(0.7, effect.radius * (0.2 + Math.min(0.62, effect.age) * 1.34)));
+
+      effect.light.intensity = effect.age < 0.34
+        ? THREE.MathUtils.lerp(5.2, 0.25, THREE.MathUtils.clamp(effect.age / 0.34, 0, 1))
+        : 0;
+
+      for (let smokeIndex = 0; smokeIndex < effect.smoke.length; smokeIndex += 1) {
+        const puff = effect.smoke[smokeIndex];
+        puff.position.y += delta * (0.62 + smokeIndex * 0.075);
+        const growth = 1 + delta * (0.7 + smokeIndex * 0.035);
+        puff.scale.multiplyScalar(growth);
+        puff.visible = effect.age > 0.12;
+      }
+
+      for (const fragment of effect.debris) {
+        fragment.velocity.y -= 7.2 * delta;
+        fragment.view.position.addScaledVector(fragment.velocity, delta);
+        fragment.view.rotation.x += fragment.spin.x * delta;
+        fragment.view.rotation.y += fragment.spin.y * delta;
+        fragment.view.rotation.z += fragment.spin.z * delta;
+        if (fragment.view.position.y < -0.08) fragment.view.visible = false;
+      }
+
+      if (enabled && progress < 1) continue;
+      this.layer.remove(effect.group);
+      this.missileExplosionEffects.splice(index, 1);
+    }
+  }
+
+  private clearMissileExplosionEffects(): void {
+    for (const effect of this.missileExplosionEffects) this.layer.remove(effect.group);
+    this.missileExplosionEffects.length = 0;
   }
 
   private addImpactEffect(view: THREE.Mesh, remainingMs: number): void {
@@ -4563,6 +4849,8 @@ export class BattleSystem {
   private clearMissiles(): void {
     for (const missile of this.missiles) this.layer.remove(missile.view);
     this.missiles.length = 0;
+    for (const particle of this.missileTrailParticles) this.layer.remove(particle.view);
+    this.missileTrailParticles.length = 0;
   }
 
   private updateProjectiles(delta: number): void {

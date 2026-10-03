@@ -32,11 +32,11 @@ function between(source, startMarker, endMarker) {
 
 assert.match(
   types,
-  /export type MapLayoutId = [^;]*'himeji-46x90'[^;]*'royal-valley-50x89';/,
-  'Map layouts must have persisted finite IDs including Himeji and Royal Valley.',
+  /export type MapLayoutId = [^;]*'triple-isles-100x100'[^;]*;/,
+  'Map layouts must have persisted finite IDs including the three-island 100×100 layout.',
 );
 
-for (const id of ['island', 'mainland', 'peninsula', 'twin-isles', 'urban-60x80', 'twin-fortresses-90x95', 'himeji-46x90', 'royal-valley-50x89']) {
+for (const id of ['island', 'mainland', 'peninsula', 'twin-isles', 'triple-isles-100x100', 'urban-60x80', 'twin-fortresses-90x95', 'himeji-46x90', 'royal-valley-50x89']) {
   assert.match(
     mapLayouts,
     new RegExp(`id: '${id}'`),
@@ -63,6 +63,11 @@ assert.match(
   mapLayouts,
   /if \(layout === 'twin-isles'\) return twinIslesScore/,
   'Twin Isles must have its own coastline function.',
+);
+assert.match(
+  mapLayouts,
+  /if \(layout === 'triple-isles-100x100'\) return tripleIslesScore/,
+  'Three Isles must have its own deterministic coastline function.',
 );
 assert.match(
   mapLayouts,
@@ -197,6 +202,7 @@ assert.match(
 );
 assert.match(saveSystem, /value === 'himeji-46x90'/, 'Himeji layout IDs must survive save/load validation.');
 assert.match(saveSystem, /value === 'royal-valley-50x89'/, 'Royal Valley layout IDs must survive save/load validation.');
+assert.match(saveSystem, /value === 'triple-isles-100x100'/, 'Three Isles layout IDs must survive save/load validation.');
 
 const templateCompatibility = between(
   threeGame,

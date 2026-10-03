@@ -35,7 +35,7 @@ export class MobileUI {
       <header class="mobile-header" aria-label="Mobile game actions">
         <div class="mobile-header-actions" role="toolbar" aria-label="Game actions">
           <button type="button" data-mobile-proxy="toolbar-open" class="mobile-action mobile-build-action" aria-label="Build tools" aria-controls="toolbar" aria-expanded="false"><span aria-hidden="true">🧱</span></button>
-          <button type="button" data-mobile-proxy="header-undo-button" class="mobile-action" aria-label="Undo" title="Undo" disabled><span aria-hidden="true">↶</span></button>
+          <button type="button" data-mobile-proxy="header-undo-button" class="mobile-action mobile-undo-action" aria-label="Undo" title="Undo" aria-keyshortcuts="Control+Z Meta+Z" disabled><span class="history-undo-icon" aria-hidden="true"><svg viewBox="0 0 24 24" focusable="false"><path d="M9 14 4 9l5-5"></path><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11"></path></svg></span></button>
           <button type="button" data-mobile-proxy="screenshot-button" class="mobile-action" aria-label="Take screenshot" title="Take screenshot"><span aria-hidden="true">📷</span></button>
           <button type="button" data-mobile-proxy="battle-button" class="mobile-action" aria-label="Battle and military">⚔️</button>
           <button type="button" data-mobile-proxy="god-mode-button" class="mobile-action" aria-label="God Mode">⚡</button>
