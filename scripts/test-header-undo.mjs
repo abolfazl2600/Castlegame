@@ -15,8 +15,8 @@ assert.match(
 );
 assert.match(
   desktopHeader,
-  /id="header-undo-button"[\s\S]*?<span aria-hidden="true">↶<\/span>/,
-  'Desktop Undo control must render as an icon rather than a text-only action.',
+  /id="header-undo-button"[\s\S]*?<span class="history-undo-icon" aria-hidden="true">[\s\S]*?<svg[\s\S]*?<\/svg>[\s\S]*?<\/span>/,
+  'Desktop Undo control must render the current SVG icon rather than a text-only action.',
 );
 
 const mobileHeader = mobileUi.match(/<header class="mobile-header"[\s\S]*?<\/header>/)?.[0];
