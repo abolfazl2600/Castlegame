@@ -40,7 +40,7 @@ check('selection visual renders one fill plus four lightweight edges', () => {
     (x, y) => ({ x: (x + 0.5) * 4, z: (y + 0.5) * 4 }),
     () => 0,
   );
-  visual.show([{ x: 2, y: 3 }], false);
+  visual.show([{ x: 2, y: 3 }]);
   assert.equal(visual.layer.children.length, 5);
   assert.equal(visual.layer.name, 'selection-visual');
   visual.clear();
@@ -49,9 +49,9 @@ check('selection visual renders one fill plus four lightweight edges', () => {
 
 check('relocation previews expose distinct valid and invalid colors', () => {
   const visual = new SelectionVisual(4, (x, y) => ({ x: x * 4, z: y * 4 }), () => 1);
-  visual.show([{ x: 1, y: 1 }], false, 'valid');
+  visual.show([{ x: 1, y: 1 }], 'valid');
   assert.equal(visual.layer.children[0].material.color.getHex(), 0x66e889);
-  visual.show([{ x: 1, y: 1 }], false, 'invalid');
+  visual.show([{ x: 1, y: 1 }], 'invalid');
   assert.equal(visual.layer.children[0].material.color.getHex(), 0xff7168);
 });
 
