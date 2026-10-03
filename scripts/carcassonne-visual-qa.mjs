@@ -204,11 +204,11 @@ try {
     const record = await page.evaluate(() => JSON.parse(localStorage.getItem('castle-role.saves.v1.autosave')));
     const stateSummary = validateCarcassonne(record);
 
-    await page.locator('#view-2d-button').evaluate((button) => button.click());
-    await page.waitForTimeout(300);
-    await captureCanvas(page, 'carcassonne-plan-top.png');
-
-    await page.locator('#view-3d-button').evaluate((button) => button.click());
+    await setCamera(page, {
+      x: 0, y: 82, z: 0.01,
+      targetX: 0, targetY: 0, targetZ: 0,
+    });
+    await captureCanvas(page, 'carcassonne-top-3d.png');
 
     await setCamera(page, {
       x: 56, y: 56, z: 64,
@@ -241,7 +241,7 @@ try {
       referenceState: 'Present-day fortified city as documented in 2025',
       stateSummary,
       captures: [
-        'carcassonne-plan-top.png',
+        'carcassonne-top-3d.png',
         'carcassonne-normal-oblique.png',
         'carcassonne-east-narbonnaise.png',
         'carcassonne-west-aude.png',
@@ -258,7 +258,7 @@ Reference state: **present-day fortified city as documented in 2025**.
 
 | Review view | Game capture | Authoritative comparison source |
 | --- | --- | --- |
-| Top / plan | \`carcassonne-plan-top.png\` | UNESCO property maps: https://whc.unesco.org/en/list/345/maps/ |
+| Top 3D | \`carcassonne-top-3d.png\` | UNESCO property maps: https://whc.unesco.org/en/list/345/maps/ |
 | Normal gameplay | \`carcassonne-normal-oblique.png\` | CMN iconic silhouette: https://www.remparts-carcassonne.fr/en/discover/an-iconic-silhouette |
 | East / Porte Narbonnaise | \`carcassonne-east-narbonnaise.png\` | CMN monument material: https://www.remparts-carcassonne.fr/en/discover/an-iconic-silhouette |
 | West / Aude approach | \`carcassonne-west-aude.png\` | UNESCO property and site documentation: https://whc.unesco.org/en/list/345 |

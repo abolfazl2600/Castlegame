@@ -87,7 +87,7 @@ assert.doesNotMatch(
 const buildings = between(
   threeGame,
   'const BUILDING_KINDS: TileKind[] = [',
-  'type ViewMode',
+  'interface GridPoint',
 );
 for (const removed of ['stoneStairs', 'woodenStairs', 'ramp', 'ladder']) {
   assert.doesNotMatch(

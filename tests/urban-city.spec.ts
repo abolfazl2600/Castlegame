@@ -125,7 +125,6 @@ test('Urban city loads from the picker, supports undo/redo, and survives reload'
   const after = await saved();
   expect(after.mapLayoutId).toBe('urban-60x80');
   expect(after.cells).toHaveLength(before.cells.length);
-  await page.locator('#view-3d-button').evaluate(button => (button as HTMLButtonElement).click());
   await page.evaluate(() => {
     const qa = window as unknown as { __castleVisualCamera: (camera: object) => void };
     qa.__castleVisualCamera({ x: 44, y: 55, z: 66, targetX: -2, targetY: 0, targetZ: 0 });

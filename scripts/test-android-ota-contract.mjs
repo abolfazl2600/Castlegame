@@ -13,10 +13,15 @@ const updateUi = read('src/settings/AndroidUpdateUI.ts');
 const docs = read('docs/android-ota-updates.md');
 const manifestGenerator = read('scripts/create-android-update-manifest.mjs');
 
-assert.equal(
+assert.match(
   packageJson.scripts['build:android-update'],
-  'tsc --noEmit && vite build --base=./ --outDir dist-android-update --emptyOutDir',
-  'Android OTA must have a dedicated relative-base build command.',
+  /(?:^|&&\s*)tsc --noEmit && vite build --base=\.\/ --outDir dist-android-update --emptyOutDir$/,
+  'Android OTA must keep its dedicated relative-base build command, while allowing pre-build validation.',
+);
+assert.match(
+  packageJson.scripts['build:android-update'],
+  /npm run test:3d-only-renderer/,
+  'Android OTA builds must enforce the 3D-only renderer contract before packaging.',
 );
 assert.match(workflow, /npm run build:android-update/);
 assert.match(workflow, /dist-android-update\/index\.html/);

@@ -322,7 +322,7 @@ function detailDrawAllowance(
       ? (mobile ? 0.25 : 0.42)
       : band === 'gameplay'
         ? (mobile ? 0.18 : 0.35)
-        : (mobile ? 0.05 : 0.12);
+        : (mobile ? 0 : 0.12);
   return Math.max(0, Math.floor(budget.drawCalls * fraction));
 }
 

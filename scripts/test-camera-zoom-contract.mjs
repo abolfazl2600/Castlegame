@@ -54,20 +54,20 @@ assert.match(
   'Load/template flows must restore a consistent reference camera before redraw.',
 );
 
-const viewModeStart = threeGame.indexOf('private setViewMode(');
-const viewModeEnd = threeGame.indexOf('private updateViewModeUI(', viewModeStart);
-assert.notEqual(viewModeStart, -1);
-assert.notEqual(viewModeEnd, -1);
-const viewMode = threeGame.slice(viewModeStart, viewModeEnd);
 assert.doesNotMatch(
-  viewMode,
-  /controls\.(?:minDistance|maxDistance)\s*=\s*\d/,
-  'View modes must not reintroduce scattered literal zoom bounds.',
+  worldStyle,
+  /planDistance/,
+  'The shared camera configuration must not retain a legacy 2D plan distance.',
+);
+assert.doesNotMatch(
+  threeGame,
+  /plan2d|setViewMode|renderPlanLayer|view-2d-button|view-3d-button/,
+  'Gameplay camera code must remain 3D-only.',
 );
 assert.match(
-  viewMode,
-  /WORLD_STYLE\.camera\.planDistance/,
-  'Plan camera distance must also come from the shared camera configuration.',
+  threeGame,
+  /private setCameraView\(view: '45' \| 'top'\): void \{/,
+  '45-degree and top-down camera presets must remain available inside the 3D renderer.',
 );
 
 console.log('Gameplay camera zoom/reference contract checks passed.');

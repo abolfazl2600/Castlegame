@@ -114,7 +114,6 @@ async function readAutosave(page: Page): Promise<SavedRecord> {
 }
 
 async function setTopQaCamera(page: Page): Promise<void> {
-  await page.locator('#view-3d-button').evaluate((button) => (button as HTMLButtonElement).click());
   await page.evaluate(() => {
     const qa = window as unknown as {
       __castleVisualCamera: (position: {

@@ -49,6 +49,11 @@ assert.match(budget, /estimatedDrawCalls/, 'estimated draw-call diagnostics are 
 assert.match(budget, /detailDrawAllowance/, 'detail draw allowance must keep normal and strategic LOD budgets distinct');
 assert.match(
   budget,
+  /band === 'gameplay'[\s\S]*?mobile \? 0\.18 : 0\.35[\s\S]*?: \(mobile \? 0 : 0\.12\)/,
+  'mobile strategic mode must reserve zero draw-call allowance for optional micro-detail',
+);
+assert.match(
+  budget,
   /budget\.drawCalls - reservedDrawCalls - protectedDrawCalls/,
   'optional detail must reserve draw-call headroom for shadow-map passes',
 );

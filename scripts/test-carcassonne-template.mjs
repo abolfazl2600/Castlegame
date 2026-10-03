@@ -72,22 +72,15 @@ assert.ok(wallPath.includes('every consecutive point is cardinally'));
 assert.ok(wallPath.includes('export function rasterizeWallPath'));
 assert.ok(wallPath.includes('closed = false'));
 
-assert.ok(
-  threeGame.includes('const wallPlanOutline = 0x3b3328;'),
-  'Plan view must keep a high-contrast fortification outline.',
-);
-assert.ok(
-  threeGame.split('wallPlanOutline').length - 1 >= 4,
-  'Plan wall runs and towers must reuse the same high-contrast outline.',
-);
-assert.ok(
-  threeGame.includes('terrainTile.renderOrder = 39;'),
-  'Plan terrain must render below fortification geometry.',
-);
 assert.doesNotMatch(
-  threeGame.slice(threeGame.indexOf('private renderPlanLayer'), threeGame.indexOf('const gridPoints: THREE.Vector3[]')),
-  /\b0\.96\b/,
-  'Plan terrain must stay opaque so transparent sorting cannot overpaint fortifications.',
+  threeGame,
+  /renderPlanLayer|wallPlanOutline|plan2d|view-2d-button/,
+  'Carcassonne must use the shared 3D renderer without a legacy plan-view path.',
+);
+assert.match(
+  threeGame,
+  /private setCameraView\(view: '45' \| 'top'\): void \{/,
+  'Carcassonne must retain 3D camera presets after removing plan view.',
 );
 
 for (const source of [
