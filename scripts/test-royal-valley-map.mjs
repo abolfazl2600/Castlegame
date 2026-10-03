@@ -1,5 +1,26 @@
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
+import { registerHooks, stripTypeScriptTypes } from 'node:module';
+
+// Execute the actual TypeScript modules while supporting the project's extensionless bundler imports.
+registerHooks({
+  resolve(specifier, context, next) {
+    try { return next(specifier, context); }
+    catch (error) {
+      if (specifier.startsWith('.') && !specifier.endsWith('.ts')) return next(specifier + '.ts', context);
+      throw error;
+    }
+  },
+  load(url, context, next) {
+    if (url.endsWith('.ts')) return {
+      format: 'module',
+      shortCircuit: true,
+      source: stripTypeScriptTypes(readFileSync(new URL(url), 'utf8'), { mode: 'transform' }),
+    };
+    return next(url, context);
+  },
+});
 
 const { TILE_SIZE, WORLD_COLS, WORLD_ROWS } = await import('../src/core/constants.ts');
 const {
