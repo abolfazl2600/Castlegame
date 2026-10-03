@@ -208,11 +208,11 @@ try {
     const record = await page.evaluate(() => JSON.parse(localStorage.getItem('castle-role.saves.v1.autosave')));
     const stateSummary = validateCrac(record);
 
-    await page.locator('#view-2d-button').evaluate((button) => button.click());
-    await page.waitForTimeout(300);
-    await captureCanvas(page, 'crac-des-chevaliers-plan-top.png');
-
-    await page.locator('#view-3d-button').evaluate((button) => button.click());
+    await setCamera(page, {
+      x: 0, y: 82, z: 0.01,
+      targetX: 0, targetY: 0, targetZ: 0,
+    });
+    await captureCanvas(page, 'crac-des-chevaliers-top-3d.png');
 
     await setCamera(page, {
       x: 52, y: 48, z: 56,
@@ -245,7 +245,7 @@ try {
       referenceState: 'Mid-13th-century Hospitaller final construction phase, before the 1271 Mamluk conquest',
       stateSummary,
       captures: [
-        'crac-des-chevaliers-plan-top.png',
+        'crac-des-chevaliers-top-3d.png',
         'crac-des-chevaliers-normal-oblique.png',
         'crac-des-chevaliers-east-approach.png',
         'crac-des-chevaliers-south-southwest.png',
@@ -262,7 +262,7 @@ Reference state: **mid-13th-century Hospitaller final construction phase, before
 
 | Review view | Game capture | Authoritative comparison source |
 | --- | --- | --- |
-| Top / plan | \`crac-des-chevaliers-plan-top.png\` | Rey plan: https://commons.wikimedia.org/wiki/File:Krak_des_chevaliers_-_plan.jpg and UNESCO maps: https://whc.unesco.org/en/list/1229/maps/ |
+| Top 3D | \`crac-des-chevaliers-top-3d.png\` | Rey plan: https://commons.wikimedia.org/wiki/File:Krak_des_chevaliers_-_plan.jpg and UNESCO maps: https://whc.unesco.org/en/list/1229/maps/ |
 | Normal gameplay | \`crac-des-chevaliers-normal-oblique.png\` | UNESCO site documentation: https://whc.unesco.org/en/list/1229 and French Ministry overview: https://archeologie.culture.gouv.fr/crac-chevaliers/en/about-castle |
 | East approach | \`crac-des-chevaliers-east-approach.png\` | French Ministry fortification study: https://archeologie.culture.gouv.fr/crac-chevaliers/en/strengthening-fortifications-13th-century |
 | South / south-west | \`crac-des-chevaliers-south-southwest.png\` | French Ministry final construction phase: https://archeologie.culture.gouv.fr/crac-chevaliers/en/final-construction-phase |
