@@ -1558,6 +1558,9 @@ export class ThreeGame {
     this.towerBridgeStart = null;
     this.towerBridgeHover = null;
     this.clearGroup(this.wallPreviewLayer);
+    this.relocationState = null;
+    this.relocationHover = null;
+    this.selectionVisual.clear();
     this.selectedCell = null;
     this.selectedKeepId = null;
     this.terrainOverrides.clear();
@@ -8719,6 +8722,9 @@ export class ThreeGame {
     this.syncMilitaryUI();
     this.syncEconomyUI();
 
+    this.relocationState = null;
+    this.relocationHover = null;
+    this.selectionVisual.clear();
     this.selectedCell = null;
     this.selectedKeepId = null;
     this.selectedTowerBridgeId = null;
@@ -8731,6 +8737,7 @@ export class ThreeGame {
   }
 
   private undo(): void {
+    if (this.relocationState) this.cancelRelocation(false);
     const snapshot = this.undoStack.pop();
     if (!snapshot) {
       this.syncHistoryActions();
@@ -8745,6 +8752,7 @@ export class ThreeGame {
   }
 
   private redo(): void {
+    if (this.relocationState) this.cancelRelocation(false);
     const snapshot = this.redoStack.pop();
     if (!snapshot) {
       this.syncHistoryActions();
@@ -12339,6 +12347,9 @@ export class ThreeGame {
     get<HTMLButtonElement>('load-button').onclick = () => {
       this.clearSettlementAgents();
       this.load();
+      this.relocationState = null;
+      this.relocationHover = null;
+      this.selectionVisual.clear();
       this.selectedCell = null;
       this.selectedKeepId = null;
       this.selectedTowerBridgeId = null;
@@ -13063,6 +13074,11 @@ export class ThreeGame {
     }
   }
 
+  private confirmDemolition(label: string): boolean {
+    if (!this.settingsStore.get().interface.confirmDestructiveActions) return true;
+    return confirm(`Demolish ${label}? This action can be undone.`);
+  }
+
   private removeSelected(): void {
     if (this.battleSystem.isActive()) {
       this.setStatus('Finish or reset the battle before editing buildings');
@@ -13071,13 +13087,11 @@ export class ThreeGame {
 
     if (this.selectedTowerBridgeId !== null) {
       this.removeSelectedTowerBridge();
-      this.syncArmyCampUpgradeUI();
       return;
     }
 
     if (this.selectedKeepId !== null) {
       this.removeSelectedKeep();
-      this.syncArmyCampUpgradeUI();
       return;
     }
 
@@ -13086,23 +13100,28 @@ export class ThreeGame {
       return;
     }
 
-    const point = this.selectedCell;
+    const point = { ...this.selectedCell };
     const cell = this.services.state.getCell(point.x, point.y);
     if (!cell) {
-      this.setStatus('Select a building first');
-      this.syncArmyCampUpgradeUI();
+      this.clearSelection();
+      this.setStatus('Selected building no longer exists');
+      return;
+    }
+
+    const label = this.selectedBuildingDescriptor()?.name ?? 'building';
+    if (!this.confirmDemolition(label)) {
+      this.setStatus('Demolition cancelled');
       return;
     }
 
     this.recordHistory();
     if (cell.kind === 'tower') this.removeTowerBridgesAt(point.x, point.y);
     this.services.state.removeCell(point.x, point.y);
-    this.selectedCell = null;
+    this.clearSelection();
     this.redraw();
     this.scheduleSave();
-    this.syncArmyCampUpgradeUI();
     audioEvents.emit({ action: 'play_sfx', assetId: 'building.destroyed' });
-    this.setStatus('Building removed · Undo available');
+    this.setStatus(`${label} demolished · Undo available`);
   }
 
   private removeSelectedKeep(): void {
@@ -13111,12 +13130,24 @@ export class ThreeGame {
       return;
     }
 
+    const keep = this.services.keepSystem.get(this.selectedKeepId);
+    if (!keep) {
+      this.clearSelection();
+      this.setStatus('Selected Keep no longer exists');
+      return;
+    }
+    if (!this.confirmDemolition('Keep')) {
+      this.setStatus('Demolition cancelled');
+      return;
+    }
+
     this.recordHistory();
-    this.services.keepSystem.remove(this.selectedKeepId);
-    this.selectedKeepId = null;
+    this.services.keepSystem.remove(keep.id);
+    this.clearSelection();
     this.redraw();
     this.scheduleSave();
-    this.setStatus('Keep removed');
+    audioEvents.emit({ action: 'play_sfx', assetId: 'building.destroyed' });
+    this.setStatus('Keep demolished · Undo available');
   }
 
   private keepUpgradeLevel(keep: KeepState): number {
@@ -13386,19 +13417,23 @@ export class ThreeGame {
       return;
     }
     if (this.selectedTowerBridgeId === null || !this.towerBridges.has(this.selectedTowerBridgeId)) {
-      this.selectedTowerBridgeId = null;
-      this.syncFortificationUpgradeUI();
+      this.clearSelection();
       this.setStatus('Select a Tower Bridge first');
       return;
     }
+    if (!this.confirmDemolition('Tower Bridge')) {
+      this.setStatus('Demolition cancelled');
+      return;
+    }
 
+    const bridgeId = this.selectedTowerBridgeId;
     this.recordHistory();
-    this.towerBridges.delete(this.selectedTowerBridgeId);
-    this.selectedTowerBridgeId = null;
+    this.towerBridges.delete(bridgeId);
+    this.clearSelection();
     this.redraw();
     this.scheduleSave();
     audioEvents.emit({ action: 'play_sfx', assetId: 'building.destroyed' });
-    this.setStatus('Tower Bridge removed · Undo available');
+    this.setStatus('Tower Bridge demolished · Undo available');
   }
 
   private mosqueLevelDefinition(level: number): (typeof MOSQUE_LEVELS)[number] {
@@ -15654,6 +15689,9 @@ export class ThreeGame {
       placeHarborTemplate(1,'fishingBoat',4,center);
     }
 
+    this.relocationState = null;
+    this.relocationHover = null;
+    this.selectionVisual.clear();
     this.selectedCell = null;
     this.selectedKeepId = null;
     const stoneSelect = document.getElementById('castle-stone-style') as HTMLSelectElement | null;
@@ -15677,6 +15715,9 @@ export class ThreeGame {
     this.towerBridgeStart = null;
     this.towerBridgeHover = null;
     this.clearGroup(this.wallPreviewLayer);
+    this.relocationState = null;
+    this.relocationHover = null;
+    this.selectionVisual.clear();
     this.selectedKeepId = null;
     this.selectedCell = null;
     this.terrainOverrides.clear();
