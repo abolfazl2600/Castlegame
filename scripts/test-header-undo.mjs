@@ -15,7 +15,7 @@ assert.match(
 );
 assert.match(
   desktopHeader,
-  /id="header-undo-button"[\s\S]*?<span aria-hidden="true">↶<\/span>/,
+  /id="header-undo-button"[\s\S]*?<span class="history-undo-icon" aria-hidden="true"><svg[\s\S]*?<\/svg><\/span>/,
   'Desktop Undo control must render as an icon rather than a text-only action.',
 );
 
