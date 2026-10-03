@@ -1,6 +1,8 @@
 export const TILE_SIZE = 4;
-export const WORLD_COLS = 22;
-export const WORLD_ROWS = 22;
+// 23×23 is the smallest square gameplay grid that can contain authored maps up to 92 world units per axis.
+// This removes the former 22-tile/88-unit clipping that truncated 89–90 unit authored grounds.
+export const WORLD_COLS = 23;
+export const WORLD_ROWS = 23;
 export const WORLD_WIDTH = WORLD_COLS * TILE_SIZE;
 export const WORLD_HEIGHT = WORLD_ROWS * TILE_SIZE;
 
