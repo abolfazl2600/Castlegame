@@ -32,11 +32,11 @@ function between(source, startMarker, endMarker) {
 
 assert.match(
   types,
-  /export type MapLayoutId = [^;]*'himeji-46x90';/,
-  'Map layouts must have a persisted finite ID type including the Himeji 46×90 footprint.',
+  /export type MapLayoutId = [^;]*'himeji-46x90'[^;]*'royal-valley-50x89';/,
+  'Map layouts must have persisted finite IDs including Himeji and Royal Valley.',
 );
 
-for (const id of ['island', 'mainland', 'peninsula', 'twin-isles', 'urban-60x80', 'twin-fortresses-90x95', 'himeji-46x90']) {
+for (const id of ['island', 'mainland', 'peninsula', 'twin-isles', 'urban-60x80', 'twin-fortresses-90x95', 'himeji-46x90', 'royal-valley-50x89']) {
   assert.match(
     mapLayouts,
     new RegExp(`id: '${id}'`),
@@ -111,6 +111,10 @@ assert.match(
 assert.match(mapLayouts, /export const HIMEJI_LAND_WIDTH = 46;/);
 assert.match(mapLayouts, /export const HIMEJI_LAND_DEPTH = 90;/);
 assert.match(mapLayouts, /if \(layout === 'himeji-46x90'\) {[\s\S]*?himejiLandBounds\(size\)/);
+assert.match(mapLayouts, /export const ROYAL_VALLEY_LAND_WIDTH = 50;/);
+assert.match(mapLayouts, /export const ROYAL_VALLEY_LAND_DEPTH = 89;/);
+assert.match(mapLayouts, /export function royalValleyLandBounds\(size: number\)/);
+assert.match(mapLayouts, /if \(layout === 'royal-valley-50x89'\) {[\s\S]*?royalValleyLandBounds\(size\)/);
 
 const baseTerrain = between(
   threeGame,
@@ -192,6 +196,7 @@ assert.match(
   'Loading must restore layout and default old saves to Classic Island.',
 );
 assert.match(saveSystem, /value === 'himeji-46x90'/, 'Himeji layout IDs must survive save/load validation.');
+assert.match(saveSystem, /value === 'royal-valley-50x89'/, 'Royal Valley layout IDs must survive save/load validation.');
 
 const templateCompatibility = between(
   threeGame,
