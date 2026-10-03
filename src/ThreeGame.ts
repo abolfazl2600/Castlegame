@@ -690,12 +690,13 @@ export class ThreeGame {
     this.riverWaterMaterial = new THREE.MeshStandardMaterial({
       color: WORLD_STYLE.palette.riverWater,
       map: this.riverTexture,
-      roughness: 0.16,
-      metalness: 0.08,
+      roughness: 0.2,
+      metalness: 0.04,
       transparent: true,
-      opacity: 0.92,
+      opacity: 0.9,
+      depthWrite: false,
       emissive: 0x0b4050,
-      emissiveIntensity: 0.16,
+      emissiveIntensity: 0.14,
     });
     this.oceanWaterMaterial = new THREE.MeshStandardMaterial({
       color: this.environmentSystem.visualState().deepWater,
@@ -1871,7 +1872,7 @@ export class ThreeGame {
 
     if (grass.length > 0) {
       const top = new THREE.InstancedMesh(
-        new THREE.BoxGeometry(TILE * 1.012, 0.16, TILE * 1.012),
+        new THREE.BoxGeometry(TILE, 0.16, TILE),
         grassMaterial,
         grass.length,
       );
@@ -1887,7 +1888,7 @@ export class ThreeGame {
 
     if (shore.length > 0) {
       const top = new THREE.InstancedMesh(
-        new THREE.BoxGeometry(TILE * 1.012, 0.12, TILE * 1.012),
+        new THREE.BoxGeometry(TILE, 0.12, TILE),
         shoreMaterial,
         shore.length,
       );
@@ -3246,7 +3247,7 @@ export class ThreeGame {
     patch.rotation.x = -Math.PI / 2;
     patch.position.set(
       ((hash % 5) - 2) * 0.18,
-      2.215 + this.terrainElevation(gx, gy),
+      2.255 + this.terrainElevation(gx, gy),
       (((hash * 3) % 5) - 2) * 0.2,
     );
     patch.scale.y = 0.62;
@@ -3452,96 +3453,53 @@ export class ThreeGame {
     return this.terrainAt(x, y) === 'river';
   }
 
-  private addRiverSurface(
-    group: THREE.Group,
-    width: number,
-    depth: number,
-    x: number,
-    z: number,
-    rotationY = 0,
-  ): void {
-    const geometry = new THREE.PlaneGeometry(width, depth, 1, 1);
-    geometry.rotateX(-Math.PI / 2);
-
-    const water = new THREE.Mesh(geometry, this.riverWaterMaterial);
-    water.position.set(x, 2.075, z);
-    water.rotation.y = rotationY;
-    water.receiveShadow = true;
-    group.add(water);
-  }
-
   private renderRiverTile(group: THREE.Group, gx: number, gy: number): void {
     const left = this.isRiverAt(gx - 1, gy);
     const right = this.isRiverAt(gx + 1, gy);
     const up = this.isRiverAt(gx, gy - 1);
     const down = this.isRiverAt(gx, gy + 1);
-    const connections = Number(left) + Number(right) + Number(up) + Number(down);
     const hash = Math.abs((gx * 157 + gy * 263 + gx * gy * 17) % 997);
-    const width = 2.3 + (hash % 5) * 0.11;
-    const radius = width * 0.57;
 
-    const riverBed = this.environmentMaterial('river-bed', 0x4b463e, 1);
-    const wetEarth = this.environmentMaterial('river-wet-earth', 0x625948, 1);
-    const bankSand = this.environmentMaterial('river-bank-sand', 0x9d8b64, 1);
-    const bankGrass = this.environmentMaterial('river-bank-grass', 0x829d50, 0.98);
-    const stoneMaterial = this.environmentMaterial('river-stone', 0x7f7b74, 1);
+    const riverBed = this.environmentMaterial('river-bed', 0x514b43, 1);
+    const wetEarth = this.environmentMaterial('river-wet-earth', 0x665d4e, 1);
+    const bankSand = this.environmentMaterial('river-bank-sand', 0xaa976d, 1);
+    const bankGrass = this.environmentMaterial('river-bank-grass', 0x8da75a, 0.98);
+    const stoneMaterial = this.environmentMaterial('river-stone', 0x85817a, 1);
 
+    // One opaque bed and one water surface per logical tile. The previous river
+    // used a center disc plus several coplanar connector planes; those surfaces
+    // overlapped and produced camera-dependent z-fighting / transparency flicker.
     this.addBox(group, TILE, 0.34, TILE, wetEarth, 0, 1.86, 0);
-    const bed = new THREE.Mesh(new THREE.CircleGeometry(radius + 0.28, 24), riverBed);
-    bed.rotation.x = -Math.PI / 2;
-    bed.position.y = 2.005;
+
+    const bedGeometry = new THREE.PlaneGeometry(TILE, TILE, 1, 1);
+    bedGeometry.rotateX(-Math.PI / 2);
+    const bed = new THREE.Mesh(bedGeometry, riverBed);
+    bed.position.y = 2.015;
+    bed.receiveShadow = true;
     group.add(bed);
 
-    const centerGeometry = new THREE.CircleGeometry(radius, 30);
-    centerGeometry.rotateX(-Math.PI / 2);
-    const centerWater = new THREE.Mesh(centerGeometry, this.riverWaterMaterial);
-    centerWater.position.y = 2.055;
-    group.add(centerWater);
+    const waterGeometry = new THREE.PlaneGeometry(TILE, TILE, 1, 1);
+    waterGeometry.rotateX(-Math.PI / 2);
+    const water = new THREE.Mesh(waterGeometry, this.riverWaterMaterial);
+    water.position.y = 2.075;
+    water.receiveShadow = true;
+    water.renderOrder = 2;
+    group.add(water);
 
-    const connectorLength = TILE / 2 + radius * 0.68;
-    const addConnection = (dx: number, dz: number, rotation: number, scale = 1): void => {
-      this.addRiverSurface(
-        group,
-        connectorLength,
-        width * scale,
-        dx,
-        dz,
-        rotation,
-      );
-    };
-
-    if (left) addConnection(-1.22, 0, Math.PI / 2, 0.98);
-    if (right) addConnection(1.22, 0, Math.PI / 2, 1.02);
-    if (up) addConnection(0, -1.22, 0, 0.96);
-    if (down) addConnection(0, 1.22, 0, 1.04);
-
-    if (connections === 0) {
-      this.addRiverSurface(group, width, TILE + 0.4, 0, 0);
-    }
-
-    const bankWidth = 0.5 + (hash % 4) * 0.04;
+    const bankWidth = 0.48 + (hash % 4) * 0.035;
     const addBank = (x: number, z: number, bw: number, bd: number, rotation = 0): void => {
-      const bank = this.addBox(group, bw, 0.38, bd, bankSand, x, 2.17, z);
+      const bank = this.addBox(group, bw, 0.34, bd, bankSand, x, 2.17, z);
       bank.rotation.y = rotation;
-      const cap = this.addBox(group, bw * 0.9, 0.08, bd * 0.92, bankGrass, x, 2.39, z);
+      const cap = this.addBox(group, bw * 0.88, 0.075, bd * 0.9, bankGrass, x, 2.385, z);
       cap.rotation.y = rotation;
     };
 
-    if (!left) addBank(-1.72, 0, bankWidth, TILE * 1.04, 0.04 * ((hash % 3) - 1));
-    if (!right) addBank(1.72, 0, bankWidth, TILE * 1.04, -0.05 * ((hash % 3) - 1));
-    if (!up) addBank(0, -1.72, TILE * 1.04, bankWidth, -0.04);
-    if (!down) addBank(0, 1.72, TILE * 1.04, bankWidth, 0.05);
-
-    if ((left && down) || (right && up) || (left && up) || (right && down)) {
-      const turnFoam = new THREE.Mesh(
-        new THREE.RingGeometry(radius * 0.82, radius * 0.94, 20, 1, 0, Math.PI * 0.75),
-        this.planMaterial(0xd7fbff, 0.18),
-      );
-      turnFoam.rotation.x = -Math.PI / 2;
-      turnFoam.rotation.z = (hash % 4) * Math.PI / 2;
-      turnFoam.position.y = 2.07;
-      group.add(turnFoam);
-    }
+    // Banks only exist on exposed river edges. Adjacent river tiles meet exactly
+    // at the grid boundary, so the water never stacks on top of itself.
+    if (!left) addBank(-TILE * 0.43, 0, bankWidth, TILE * 0.98, 0.025 * ((hash % 3) - 1));
+    if (!right) addBank(TILE * 0.43, 0, bankWidth, TILE * 0.98, -0.025 * ((hash % 3) - 1));
+    if (!up) addBank(0, -TILE * 0.43, TILE * 0.98, bankWidth, -0.025);
+    if (!down) addBank(0, TILE * 0.43, TILE * 0.98, bankWidth, 0.025);
 
     const pebbleCount = hash % 4 === 0 ? 2 : hash % 5 === 0 ? 1 : 0;
     for (let i = 0; i < pebbleCount; i += 1) {
@@ -3550,7 +3508,7 @@ export class ThreeGame {
         stoneMaterial,
       );
       const side = (hash + i) % 2 === 0 ? -1 : 1;
-      pebble.position.set(side * (1.38 + i * 0.18), 2.32, -0.75 + i * 0.9);
+      pebble.position.set(side * (1.28 + i * 0.18), 2.31, -0.72 + i * 0.88);
       pebble.scale.y = 0.52;
       pebble.castShadow = true;
       group.add(pebble);
@@ -3607,7 +3565,7 @@ export class ThreeGame {
 
     const material = new THREE.MeshStandardMaterial({
       color: 0xffffff,
-      roughness: 0.98,
+      roughness: 0.9,
       metalness: 0,
       flatShading: true,
       vertexColors: true,
@@ -3627,10 +3585,10 @@ export class ThreeGame {
     const faceHeight = topY - bottomY;
     if (faceHeight <= 0.14) return;
 
-    const segments = faceHeight > 2.8 ? 6 : 5;
-    const rows = faceHeight > 3.2 ? 5 : 4;
-    const half = TILE * 0.505;
-    const tangentHalf = TILE * 0.53;
+    const segments = faceHeight > 3.2 ? 5 : 4;
+    const rows = faceHeight > 3.2 ? 4 : 3;
+    const half = TILE * 0.5;
+    const tangentHalf = TILE * 0.5;
     const vertices: number[] = [];
     const indices: number[] = [];
 
@@ -3644,8 +3602,8 @@ export class ThreeGame {
 
     for (let row = 0; row < rows; row += 1) {
       const vertical = row / (rows - 1);
-      const baseTaper = (1 - vertical) * Math.min(0.42, 0.2 + faceHeight * 0.075);
-      const shoulder = Math.sin(vertical * Math.PI) * 0.08;
+      const baseTaper = (1 - vertical) * Math.min(0.34, 0.16 + faceHeight * 0.055);
+      const shoulder = Math.sin(vertical * Math.PI) * 0.055;
 
       for (let column = 0; column <= segments; column += 1) {
         const edgeColumn = column === 0 || column === segments;
@@ -3692,12 +3650,12 @@ export class ThreeGame {
 
     const position = geometry.getAttribute('position');
     const colors = new Float32Array(position.count * 3);
-    const rockPalette = [0x756f67, 0x837a70, 0x67635e, 0x91877a, 0x706b65];
+    const rockPalette = [0x8e887f, 0x9b9185, 0x817c75, 0xa59a8d, 0x756f69];
 
     for (let triangle = 0; triangle < position.count / 3; triangle += 1) {
       const paletteIndex = Math.floor(this.cliffNoise(seed, 100 + triangle * 5) * rockPalette.length) % rockPalette.length;
       const color = new THREE.Color(rockPalette[paletteIndex]);
-      color.offsetHSL(0, 0, (this.cliffNoise(seed, 200 + triangle * 7) - 0.5) * 0.075);
+      color.offsetHSL(0, 0, (this.cliffNoise(seed, 200 + triangle * 7) - 0.5) * 0.045);
       for (let vertex = 0; vertex < 3; vertex += 1) {
         const offset = (triangle * 3 + vertex) * 3;
         colors[offset] = color.r;
@@ -3716,7 +3674,7 @@ export class ThreeGame {
     // Short, broken rock shelves replace the old full-width horizontal bands.
     // This keeps stratification readable without making the cliff look man-made.
     if (faceHeight > 1.35) {
-      const ledgeMaterial = this.environmentMaterial('terrain-cliff-rock-ledge', 0x8b8176, 1);
+      const ledgeMaterial = this.environmentMaterial('terrain-cliff-rock-ledge', 0xa39a8e, 1);
       const ledgeRows = faceHeight > 3.1 ? 2 : 1;
       for (let row = 0; row < ledgeRows; row += 1) {
         const ledgeCount = 1 + (this.cliffNoise(seed, 310 + row) > 0.62 ? 1 : 0);
@@ -3747,7 +3705,7 @@ export class ThreeGame {
 
     // Sparse talus at the foot visually anchors tall cliffs into beaches/ground.
     if (faceHeight > 0.9 && this.cliffNoise(seed, 501) > 0.54) {
-      const debrisMaterial = this.environmentMaterial('terrain-cliff-rock-debris', 0x746f69, 1);
+      const debrisMaterial = this.environmentMaterial('terrain-cliff-rock-debris', 0x817c75, 1);
       const count = this.cliffNoise(seed, 503) > 0.72 ? 2 : 1;
       for (let i = 0; i < count; i += 1) {
         const debris = new THREE.Mesh(
@@ -3781,7 +3739,7 @@ export class ThreeGame {
     elevation: number,
   ): void {
     const topY = 2.2 + elevation;
-    const half = TILE * 0.515;
+    const half = TILE * 0.5;
     const seed = gx * 73856093 ^ gy * 19349663;
 
     const northSurface = this.terrainSurfaceYForCliff(gx, gy - 1);
@@ -3795,15 +3753,15 @@ export class ThreeGame {
       west: topY - westSurface > 0.16,
     };
 
-    const northJitter = exposed.north ? (this.cliffNoise(seed, 701) - 0.35) * 0.24 : -0.025;
-    const eastJitter = exposed.east ? (this.cliffNoise(seed, 703) - 0.35) * 0.24 : 0.025;
-    const southJitter = exposed.south ? (this.cliffNoise(seed, 705) - 0.35) * 0.24 : 0.025;
-    const westJitter = exposed.west ? (this.cliffNoise(seed, 707) - 0.35) * 0.24 : -0.025;
+    const northJitter = exposed.north ? (this.cliffNoise(seed, 701) - 0.5) * 0.14 : 0;
+    const eastJitter = exposed.east ? (this.cliffNoise(seed, 703) - 0.5) * 0.14 : 0;
+    const southJitter = exposed.south ? (this.cliffNoise(seed, 705) - 0.5) * 0.14 : 0;
+    const westJitter = exposed.west ? (this.cliffNoise(seed, 707) - 0.5) * 0.14 : 0;
 
-    const nwCut = exposed.north && exposed.west ? 0.12 + this.cliffNoise(seed, 711) * 0.14 : 0;
-    const neCut = exposed.north && exposed.east ? 0.12 + this.cliffNoise(seed, 713) * 0.14 : 0;
-    const seCut = exposed.south && exposed.east ? 0.12 + this.cliffNoise(seed, 715) * 0.14 : 0;
-    const swCut = exposed.south && exposed.west ? 0.12 + this.cliffNoise(seed, 717) * 0.14 : 0;
+    const nwCut = exposed.north && exposed.west ? 0.08 + this.cliffNoise(seed, 711) * 0.12 : 0;
+    const neCut = exposed.north && exposed.east ? 0.08 + this.cliffNoise(seed, 713) * 0.12 : 0;
+    const seCut = exposed.south && exposed.east ? 0.08 + this.cliffNoise(seed, 715) * 0.12 : 0;
+    const swCut = exposed.south && exposed.west ? 0.08 + this.cliffNoise(seed, 717) * 0.12 : 0;
 
     // A single irregular grass plane is enough for plateau cores. Rock geometry
     // is generated only on truly exposed sides, eliminating the stacked-box
@@ -3826,17 +3784,13 @@ export class ThreeGame {
     }
     shape.closePath();
 
-    const grassPalette = [0x95ad5d, 0x9fb466, 0x8fa858];
-    const grassVariant = Math.floor(this.cliffNoise(seed, 731) * grassPalette.length) % grassPalette.length;
-    const grass = this.environmentMaterial(
-      `terrain-cliff-cap-grass-${grassVariant}`,
-      grassPalette[grassVariant],
-      0.96,
-    );
+    // Keep a single plateau tone across neighboring cells. Per-cell cap colors
+    // exposed the grid and made large shelves look patched instead of continuous.
+    const grass = this.environmentMaterial('terrain-cliff-cap-grass', 0x9bb45f, 0.96);
     const capGeometry = new THREE.ShapeGeometry(shape);
     capGeometry.rotateX(-Math.PI / 2);
     const cap = new THREE.Mesh(capGeometry, grass);
-    cap.position.y = topY + 0.015;
+    cap.position.y = topY + 0.025;
     cap.receiveShadow = true;
     cap.userData.terrainCliffCap = true;
     group.add(cap);
@@ -3865,6 +3819,29 @@ export class ThreeGame {
       );
     }
 
+    const rimMaterial = this.environmentMaterial('terrain-cliff-weathered-rim', 0xaaa092, 1);
+    for (const [index, edge] of edges.entries()) {
+      if (!edge.isExposed || this.cliffNoise(seed, 740 + index) < 0.46) continue;
+      const slab = new THREE.Mesh(new THREE.DodecahedronGeometry(0.32, 0), rimMaterial);
+      const along = (this.cliffNoise(seed, 760 + index) - 0.5) * TILE * 0.48;
+      const edgeOffset = half - 0.055;
+      slab.position.set(
+        edge.direction === 'east' ? edgeOffset : edge.direction === 'west' ? -edgeOffset : along,
+        topY - 0.035,
+        edge.direction === 'south' ? edgeOffset : edge.direction === 'north' ? -edgeOffset : along,
+      );
+      const run = 1.25 + this.cliffNoise(seed, 780 + index) * 0.9;
+      slab.scale.set(
+        edge.direction === 'north' || edge.direction === 'south' ? run : 0.52,
+        0.2,
+        edge.direction === 'east' || edge.direction === 'west' ? run : 0.52,
+      );
+      slab.rotation.y = (this.cliffNoise(seed, 800 + index) - 0.5) * 0.22;
+      slab.castShadow = true;
+      slab.receiveShadow = true;
+      group.add(slab);
+    }
+
     // A few top-edge boulders and chips are enough to break the perfect grid
     // silhouette while staying cheap on mobile.
     const exposedDirections: Array<'north' | 'east' | 'south' | 'west'> = [];
@@ -3874,7 +3851,7 @@ export class ThreeGame {
     if (exposed.west) exposedDirections.push('west');
 
     if (exposedDirections.length > 0 && this.cliffNoise(seed, 801) > 0.5) {
-      const topRock = this.environmentMaterial('terrain-cliff-top-rock', 0x7f7971, 1);
+      const topRock = this.environmentMaterial('terrain-cliff-top-rock', 0x918b82, 1);
       const count = this.cliffNoise(seed, 803) > 0.78 ? 2 : 1;
       for (let i = 0; i < count; i += 1) {
         const direction = exposedDirections[
