@@ -14576,7 +14576,7 @@ export class ThreeGame {
 
       // Porte d'Aude descends toward the river on the western/south-west side.
       place(3, 13, 'gate', 2);
-      place(6, 13, 'gate', 3);
+      place(5, 13, 'gate', 3);
       place(4, 12, 'tower', 3, { towerShape: 'round', towerTop: 'conical' });
       place(5, 15, 'tower', 3, { towerShape: 'round', towerTop: 'conical' });
 
