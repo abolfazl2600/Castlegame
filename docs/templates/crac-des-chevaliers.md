@@ -66,6 +66,17 @@ There is no separate static historical-scene mesh. After loading the template, e
 | South / south-west | French Ministry keep/final-phase material | dominant high inner towers/keep, lower outer enceinte, ditch/cistern and southern outwork |
 | Normal gameplay | UNESCO + French Ministry aerial/site views | pale limestone mass, round-tower rhythm, deep defensive layering and exposed ridge silhouette |
 
+## Automated browser and matched-view QA
+
+Issue #59 now has a dedicated WebGL QA path in addition to the static historical-template contract:
+
+- `npm run test:crac-des-chevaliers-browser` loads the template through the real template picker, validates the authored eastern gates, chapel, Keep, tower rhythm, southern cistern, road route and elevation serialization, then verifies edit + Auto Save + reload + gate interaction through the normal UI.
+- `npm run visual:crac-des-chevaliers-qa` captures deterministic plan, normal oblique, east-approach and south/south-west views from the live renderer.
+- `.github/workflows/crac-des-chevaliers-template-qa.yml` runs the static contract, castle-access navigation regression, production build, browser QA and matched-view capture, then uploads `visual-baselines/issue-59/` as a review artifact.
+- The evidence pack includes `summary.md` with authoritative comparison links and `metrics.json` with serialized structure counts and renderer/resource metrics.
+
+The automation verifies live behavior and produces the comparison evidence. Historical visual fidelity still requires reviewing the four generated captures against the documented UNESCO, French Ministry and Rey references.
+
 ### Final visual review status
 
 - [ ] Top-view screenshot compared with the historical plan.
