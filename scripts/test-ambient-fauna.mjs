@@ -3,7 +3,7 @@ import { AmbientFaunaSystem } from '../src/rendering/AmbientFaunaSystem.ts';
 
 const blocked = new Set(['6,6', '7,6', '8,6']);
 const world = {
-  size: 18, seed: 425,
+  cols: 18, rows: 18, seed: 425,
   terrainAt: (x, y) => x < 4 ? 'water' : y === 3 ? 'river' : 'plains',
   elevationAt: (x, y) => x === 12 ? 5 : 0,
   blockedAt: (x, y) => blocked.has(`${x},${y}`),
