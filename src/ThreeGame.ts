@@ -2727,7 +2727,10 @@ export class ThreeGame {
         const elevation = this.terrainElevation(x, y);
         const tone = styleTone(elevation);
         const base = new THREE.Color(terrainColors[terrain]).multiplyScalar(tone);
-        this.addPlanRect(
+        // Keep plan terrain in the opaque pass and below fortifications.
+        // Transparent terrain is rendered after opaque structures by Three.js,
+        // which can wash out wall/tower silhouettes even with higher Y values.
+        const terrainTile = this.addPlanRect(
           this.planLayer,
           TILE - 0.08,
           TILE - 0.08,
@@ -2735,8 +2738,9 @@ export class ThreeGame {
           position.x,
           position.z,
           10,
-          0.96,
+          1,
         );
+        terrainTile.renderOrder = 39;
       }
     }
 
