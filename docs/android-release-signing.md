@@ -103,6 +103,7 @@ If the upload key might be exposed: suspend releases; review Actions logs/runs a
 - The JKS and its Base64 copy must never appear in Git history, CI artifacts/caches, issues, PRs, screenshots, or logs.
 - The **real** production upload key is only owner-created and backed up outside GitHub. Any disposable CI signing test key is **not** a substitute for the real key and must not be registered with Google Play.
 - Review changes to the release workflow, Git history, upload fingerprint, and protected environment rules before each release.
+- Run `npm run test:android-release-signing-contract` after release-signing changes. It fails if the protected workflow gains automatic PR/push/schedule triggers, loses the owner/main/environment gates, uses unpinned external Actions, stops cleaning the temporary JKS, stops verifying the upload certificate, or if a JKS/keystore/key.properties file becomes tracked. This is a repository guard only; it cannot verify GitHub environment settings, secret values, offline backups, or Google Play acceptance.
 
 This issue does not cover automatic store publishing, store listing, privacy/content declarations or production rollout.
 
