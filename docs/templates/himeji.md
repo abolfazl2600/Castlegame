@@ -22,7 +22,7 @@ The UNESCO description establishes the white-plastered defensive architecture, l
 
 ## Game-scale plan
 
-The starting world now uses a dedicated **46×90 authored castle ground** rather than the generic square mainland layout. At the current 4-unit tile resolution and 22×22 simulation grid, that authored footprint is rasterized to the nearest complete-cell envelope (12×22 cells, approximately 48×88 rendered units). The authored 46×90 dimensions remain explicit in the map-layout metadata and selector so the template does not silently revert to the old square footprint.
+The starting world now uses a dedicated **46×90 authored castle ground** rather than the generic square mainland layout. At the current 4-unit tile resolution and 22×22 simulation grid, that authored footprint is rasterized to the nearest complete-cell envelope (12×23 cells, approximately 48×88 rendered units). The authored 46×90 dimensions remain explicit in the map-layout metadata and selector so the template does not silently revert to the old square footprint.
 
 | Historic feature | Reference evidence | Castle Role representation |
 | --- | --- | --- |
@@ -49,7 +49,7 @@ The starting world now uses a dedicated **46×90 authored castle ground** rather
 
 ## Fidelity and scale compromises
 
-- The requested 46×90 plot is explicit map metadata. Because the current renderer only supports complete 4-unit cells on a 22×22 grid, its terrain raster is the nearest 12×22-cell envelope (approximately 48×88 rendered units). The castle composition is authored inside that tall footprint, and the mismatch is limited to the outer plot boundary rather than the castle hierarchy itself.
+- The requested 46×90 plot is explicit map metadata. Because the current renderer only supports complete 4-unit cells on a 22×22 grid, its terrain raster is the nearest 12×23-cell envelope (approximately 48×88 rendered units). The castle composition is authored inside that tall footprint, and the mismatch is limited to the outer plot boundary rather than the castle hierarchy itself.
 - The 22 × 22 gameplay grid cannot reproduce every surviving wall turn, gate, corridor, turret or historical outer moat. The model prioritizes the defensive hierarchy and approach sequence over one-cell-to-one-building survey accuracy.
 - The main keep is represented as six gameplay floors to preserve its dominant height and tier rhythm; real internal/visible storey counting and roof composition are more complex than the game's floor abstraction.
 - The three subsidiary keeps are separated enough to remain readable and editable. Their connecting corridors are implied by the compact inner precinct rather than reproduced as dedicated roofed gallery geometry.
