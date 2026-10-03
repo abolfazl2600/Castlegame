@@ -22,7 +22,8 @@ registerHooks({
   },
 });
 
-const { TILE_SIZE, WORLD_COLS, WORLD_ROWS } = await import('../src/core/constants.ts');
+const { WORLD_COLS, WORLD_ROWS } = await import('../src/core/constants.ts');
+const { worldGridForLayout } = await import('../src/world/WorldGrid.ts');
 const {
   ROYAL_VALLEY_LAND_WIDTH,
   ROYAL_VALLEY_LAND_DEPTH,
@@ -34,23 +35,30 @@ const {
 const threeGame = await readFile(new URL('../src/ThreeGame.ts', import.meta.url), 'utf8');
 const html = await readFile(new URL('../index.html', import.meta.url), 'utf8');
 
-assert.equal(WORLD_COLS, 23, 'The world grid must provide the 23 columns required by authored 89–90 unit maps.');
-assert.equal(WORLD_ROWS, 23, 'The world grid must provide the 23 rows required by authored 89–90 unit maps.');
+assert.equal(WORLD_COLS, 23, 'Legacy/default worlds must remain 23 columns.');
+assert.equal(WORLD_ROWS, 23, 'Legacy/default worlds must remain 23 rows.');
 assert.equal(ROYAL_VALLEY_LAND_WIDTH, 50);
 assert.equal(ROYAL_VALLEY_LAND_DEPTH, 89);
 assert.equal(normalizeMapLayoutId('royal-valley-50x89'), 'royal-valley-50x89');
 
-const bounds = royalValleyLandBounds(WORLD_COLS);
-assert.equal(bounds.cols, Math.ceil(ROYAL_VALLEY_LAND_WIDTH / TILE_SIZE));
-assert.equal(bounds.rows, Math.ceil(ROYAL_VALLEY_LAND_DEPTH / TILE_SIZE));
-assert.equal(bounds.cols, 13, '50 world units must rasterize to a 13-cell playable width.');
-assert.equal(bounds.rows, 23, '89 world units must rasterize to a 23-cell playable depth.');
-assert.equal(bounds.minY, 0, 'Royal Valley should use the full north-south depth without clipping.');
+const royalGrid = worldGridForLayout('royal-valley-50x89');
+assert.deepEqual(
+  { cols: royalGrid.cols, rows: royalGrid.rows },
+  { cols: 50, rows: 89 },
+  'Royal Valley must use a true 50×89 tile runtime grid.',
+);
+assert.equal(royalGrid.chunkSize, 12, 'Royal Valley terrain must use the shared 12-tile chunk budget.');
+
+const bounds = royalValleyLandBounds(royalGrid);
+assert.equal(bounds.cols, 50);
+assert.equal(bounds.rows, 89);
+assert.equal(bounds.minX, 0);
+assert.equal(bounds.minY, 0);
 
 const counts = new Map();
-for (let y = 0; y < WORLD_ROWS; y += 1) {
-  for (let x = 0; x < WORLD_COLS; x += 1) {
-    const terrain = terrainForMapLayout('royal-valley-50x89', x, y, WORLD_COLS);
+for (let y = 0; y < royalGrid.rows; y += 1) {
+  for (let x = 0; x < royalGrid.cols; x += 1) {
+    const terrain = terrainForMapLayout('royal-valley-50x89', x, y, royalGrid);
     counts.set(terrain, (counts.get(terrain) ?? 0) + 1);
     const inside =
       x >= bounds.minX && x <= bounds.maxX &&
@@ -62,8 +70,9 @@ for (let y = 0; y < WORLD_ROWS; y += 1) {
 for (const kind of ['plains', 'shore', 'river', 'forest', 'mountain', 'water']) {
   assert.ok((counts.get(kind) ?? 0) > 0, `Royal Valley must contain ${kind} terrain.`);
 }
-assert.ok((counts.get('plains') ?? 0) > 80, 'The map needs substantial contiguous buildable plains.');
-assert.ok((counts.get('river') ?? 0) >= 10, 'The north-south river must be visually and strategically meaningful.');
+assert.ok((counts.get('plains') ?? 0) > 1800, 'The 50×89 map needs substantial contiguous buildable plains.');
+assert.ok((counts.get('river') ?? 0) >= 120, 'The north-south river must be visually and strategically meaningful.');
+assert.ok((counts.get('water') ?? 0) >= 200, 'The eastern ocean margin must provide real maritime water cells.');
 
 assert.equal(html.split('data-template="royal-valley-50x89"').length - 1, 1, 'Royal Valley must appear once as a prepared starting world.');
 assert.match(html, /Royal Valley 50×89/);
@@ -101,4 +110,7 @@ for (const feature of requiredFeatures) {
   assert.ok(royalBranch.includes(feature), `Royal Valley prepared world is missing feature contract: ${feature}`);
 }
 
-console.log('Royal Valley 50×89 map contract checks passed.');
+assert.match(threeGame, /TerrainChunkRenderer/, 'ThreeGame must render large terrain through the chunk renderer.');
+assert.doesNotMatch(threeGame, /const SIZE =/, 'ThreeGame must not regress to a single square SIZE constant.');
+
+console.log('Royal Valley 50×89 tile + chunked-world contract checks passed.');
