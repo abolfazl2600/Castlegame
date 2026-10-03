@@ -28,6 +28,7 @@ import { WORLD_STYLE } from './rendering/WorldStyle';
 import { AmbientMotionSystem } from './rendering/AmbientMotionSystem';
 import { EnvironmentSystem } from './systems/EnvironmentSystem';
 import { DistanceDetailBudgetSystem } from './rendering/DistanceDetailBudget';
+import { graphicsQualityPreset } from './rendering/GraphicsQualityPreset';
 import { AdaptiveRenderProfile } from './rendering/AdaptiveRenderProfile';
 import { PerformanceDebugOverlay } from './debug/PerformanceDebugOverlay';
 import { captureGameScreenshot } from './capture/ScreenshotCapture';
@@ -937,8 +938,10 @@ export class ThreeGame {
         wallWeaponVisuals: () => this.getWallWeaponVisuals(),
         effectsEnabled: () => {
           const settings = this.settingsStore.get();
-          return settings.graphics.effectsEnabled && !settings.interface.reducedMotion && settings.graphics.quality !== 'low';
+          const preset = graphicsQualityPreset(settings.graphics.quality);
+          return settings.graphics.effectsEnabled && !settings.interface.reducedMotion && preset.battle.decorativeEffectsEnabled;
         },
+        presentationBudget: () => graphicsQualityPreset(this.settingsStore.get().graphics.quality).battle,
       },
       (status) => this.updateBattleUI(status),
     );
