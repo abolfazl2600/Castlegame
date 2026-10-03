@@ -1884,8 +1884,9 @@ export class ThreeGame {
   }
 
   private createWorld(): void {
+    // Water covers the largest supported runtime grid. Land remains layout-specific.
     const deepWater = new THREE.Mesh(
-      new THREE.CircleGeometry(WORLD * 3, 128),
+      new THREE.CircleGeometry(MAX_WORLD_SPAN * 3, 160),
       this.oceanWaterMaterial,
     );
     deepWater.rotation.x = -Math.PI / 2;
@@ -1894,11 +1895,8 @@ export class ThreeGame {
     deepWater.userData.waterLayer = 'deep';
     this.scene.add(deepWater);
 
-    // A continuous shallow-water shelf sits below every possible layout.
-    // The authoritative land surface is rebuilt from the same tile generator
-    // used by terrain, selection and navigation.
     const shallowWater = new THREE.Mesh(
-      new THREE.CircleGeometry(WORLD * 0.69, 112),
+      new THREE.CircleGeometry(MAX_WORLD_SPAN * 0.9, 144),
       this.shallowWaterMaterial,
     );
     shallowWater.rotation.x = -Math.PI / 2;
@@ -1908,13 +1906,9 @@ export class ThreeGame {
     this.scene.add(shallowWater);
 
     this.scene.add(this.worldLayoutLayer);
+    this.scene.add(this.worldGridLayer);
+    this.syncWorldRuntimeBounds();
     this.rebuildWorldLayoutSurface();
-
-    const grid = new THREE.GridHelper(WORLD, SIZE, 0xe8f7ff, 0x7eb8bd);
-    grid.position.y = 2.18;
-    (grid.material as THREE.Material).opacity = 0.075;
-    (grid.material as THREE.Material).transparent = true;
-    this.scene.add(grid);
   }
 
   private currentWorldLayoutSurfaceSignature(): string {
@@ -1922,7 +1916,7 @@ export class ThreeGame {
       .sort(([left], [right]) => left.localeCompare(right))
       .map(([key, terrain]) => `${key}:${terrain}`)
       .join('|');
-    return `${this.mapLayoutId}|${overrides}`;
+    return `${this.mapLayoutId}:${this.worldCols}x${this.worldRows}|${overrides}`;
   }
 
   private rebuildWorldLayoutSurface(): void {
@@ -1930,80 +1924,22 @@ export class ThreeGame {
     if (signature === this.worldLayoutSurfaceSignature) return;
     this.worldLayoutSurfaceSignature = signature;
 
-    this.clearGroup(this.worldLayoutLayer);
-
-    const land: GridPoint[] = [];
-    const grass: GridPoint[] = [];
-    const shore: GridPoint[] = [];
-
-    for (let y = 0; y < SIZE; y += 1) {
-      for (let x = 0; x < SIZE; x += 1) {
-        // Use effective terrain, not only the immutable map base. Otherwise a
-        // manually carved river keeps the original grass slab above its water.
-        const terrain = this.terrainAt(x, y);
-        if (terrain === 'water' || terrain === 'river') continue;
-        land.push({ x, y });
-        if (terrain === 'shore') shore.push({ x, y });
-        else grass.push({ x, y });
-      }
-    }
-
     const soilMaterial = this.environmentMaterial('layout-soil', WORLD_STYLE.palette.soil, 1);
     const grassMaterial = this.environmentMaterial('layout-grass', WORLD_STYLE.palette.grassSunlit, 0.94);
     const shoreMaterial = this.environmentMaterial('layout-shore', 0xb8a878, 0.98);
-    const matrix = new THREE.Matrix4();
 
-    if (land.length > 0) {
-      const soil = new THREE.InstancedMesh(
-        new THREE.BoxGeometry(TILE * 1.015, 1.55, TILE * 1.015),
-        soilMaterial,
-        land.length,
-      );
-      land.forEach((point, index) => {
-        const world = this.gridToWorld(point.x, point.y);
-        matrix.makeTranslation(world.x, 1.31, world.z);
-        soil.setMatrixAt(index, matrix);
-      });
-      soil.instanceMatrix.needsUpdate = true;
-      soil.receiveShadow = true;
-      this.worldLayoutLayer.add(soil);
-    }
-
-    if (grass.length > 0) {
-      const top = new THREE.InstancedMesh(
-        new THREE.BoxGeometry(TILE, 0.16, TILE),
-        grassMaterial,
-        grass.length,
-      );
-      grass.forEach((point, index) => {
-        const world = this.gridToWorld(point.x, point.y);
-        matrix.makeTranslation(world.x, 2.125, world.z);
-        top.setMatrixAt(index, matrix);
-      });
-      top.instanceMatrix.needsUpdate = true;
-      top.receiveShadow = true;
-      this.worldLayoutLayer.add(top);
-    }
-
-    if (shore.length > 0) {
-      const top = new THREE.InstancedMesh(
-        new THREE.BoxGeometry(TILE, 0.12, TILE),
-        shoreMaterial,
-        shore.length,
-      );
-      shore.forEach((point, index) => {
-        const world = this.gridToWorld(point.x, point.y);
-        matrix.makeTranslation(world.x, 2.105, world.z);
-        top.setMatrixAt(index, matrix);
-      });
-      top.instanceMatrix.needsUpdate = true;
-      top.receiveShadow = true;
-      this.worldLayoutLayer.add(top);
-    }
+    this.terrainChunks.rebuild({
+      grid: this.worldGrid,
+      terrainAt: (x, y) => this.terrainAt(x, y),
+      gridToWorld: (x, y) => this.gridToWorld(x, y),
+      soilMaterial,
+      grassMaterial,
+      shoreMaterial,
+    });
   }
 
   private baseTerrainAt(x: number, y: number): TerrainKind {
-    return terrainForMapLayout(this.mapLayoutId, x, y, SIZE);
+    return terrainForMapLayout(this.mapLayoutId, x, y, this.worldGrid);
   }
 
   private terrainAt(x: number, y: number): TerrainKind {
