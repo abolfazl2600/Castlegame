@@ -34,8 +34,8 @@ const {
 const threeGame = await readFile(new URL('../src/ThreeGame.ts', import.meta.url), 'utf8');
 const html = await readFile(new URL('../index.html', import.meta.url), 'utf8');
 
-assert.equal(WORLD_COLS, 23, 'The world grid must provide the 23 columns required by authored 89–90 unit maps.');
-assert.equal(WORLD_ROWS, 23, 'The world grid must provide the 23 rows required by authored 89–90 unit maps.');
+assert.equal(WORLD_COLS, 25, 'The world grid must provide 25 columns for a full 100-unit map width.');
+assert.equal(WORLD_ROWS, 25, 'The world grid must provide 25 rows for a full 100-unit map depth.');
 assert.equal(ROYAL_VALLEY_LAND_WIDTH, 50);
 assert.equal(ROYAL_VALLEY_LAND_DEPTH, 89);
 assert.equal(normalizeMapLayoutId('royal-valley-50x89'), 'royal-valley-50x89');
@@ -45,7 +45,7 @@ assert.equal(bounds.cols, Math.ceil(ROYAL_VALLEY_LAND_WIDTH / TILE_SIZE));
 assert.equal(bounds.rows, Math.ceil(ROYAL_VALLEY_LAND_DEPTH / TILE_SIZE));
 assert.equal(bounds.cols, 13, '50 world units must rasterize to a 13-cell playable width.');
 assert.equal(bounds.rows, 23, '89 world units must rasterize to a 23-cell playable depth.');
-assert.equal(bounds.minY, 0, 'Royal Valley should use the full north-south depth without clipping.');
+assert.equal(bounds.minY, 1, 'Royal Valley should stay centered inside the 100×100 world without clipping.');
 
 const counts = new Map();
 for (let y = 0; y < WORLD_ROWS; y += 1) {
