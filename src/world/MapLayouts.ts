@@ -20,6 +20,10 @@ export const TWIN_FORTRESSES_LAND_DEPTH = 95;
 export const HIMEJI_LAND_WIDTH = 46;
 export const HIMEJI_LAND_DEPTH = 90;
 
+/** Large handcrafted north-south valley. Dimensions are world units, matching the other authored layouts. */
+export const ROYAL_VALLEY_LAND_WIDTH = 50;
+export const ROYAL_VALLEY_LAND_DEPTH = 89;
+
 export function urbanLandBounds(size: number) {
   const cols = URBAN_LAND_WIDTH / TILE_SIZE;
   const rows = URBAN_LAND_DEPTH / TILE_SIZE;
@@ -37,8 +41,16 @@ export function urbanLandBounds(size: number) {
  * the historic template from falling back to the old square mainland footprint.
  */
 export function himejiLandBounds(size: number) {
-  const cols = Math.min(size, Math.ceil(HIMEJI_LAND_WIDTH / TILE_SIZE));
-  const rows = Math.min(size, Math.ceil(HIMEJI_LAND_DEPTH / TILE_SIZE));
+  const cols = Math.ceil(HIMEJI_LAND_WIDTH / TILE_SIZE);
+  const rows = Math.ceil(HIMEJI_LAND_DEPTH / TILE_SIZE);
+  const minX = Math.floor((size - cols) / 2);
+  const minY = Math.floor((size - rows) / 2);
+  return { minX, minY, cols, rows, maxX: minX + cols - 1, maxY: minY + rows - 1 };
+}
+
+export function royalValleyLandBounds(size: number) {
+  const cols = Math.ceil(ROYAL_VALLEY_LAND_WIDTH / TILE_SIZE);
+  const rows = Math.ceil(ROYAL_VALLEY_LAND_DEPTH / TILE_SIZE);
   const minX = Math.floor((size - cols) / 2);
   const minY = Math.floor((size - rows) / 2);
   return { minX, minY, cols, rows, maxX: minX + cols - 1, maxY: minY + rows - 1 };
@@ -87,6 +99,12 @@ export const MAP_LAYOUTS: readonly MapLayoutDefinition[] = [
     description: 'A narrow 46×90 authored historic-castle plot used by the Himeji Castle starting world.',
     preview: '🏯',
   },
+  {
+    id: 'royal-valley-50x89',
+    label: 'Royal Valley 50×89',
+    description: 'A long 50×89 coastal valley with a navigable river, mountain ridge, forests, open farmland, and room for a complete kingdom.',
+    preview: '♜≈🌲',
+  },
 ] as const;
 
 export function isMapLayoutId(value: unknown): value is MapLayoutId {
@@ -96,7 +114,8 @@ export function isMapLayoutId(value: unknown): value is MapLayoutId {
     value === 'twin-isles' ||
     value === 'urban-60x80' ||
     value === 'twin-fortresses-90x95' ||
-    value === 'himeji-46x90';
+    value === 'himeji-46x90' ||
+    value === 'royal-valley-50x89';
 }
 
 export function normalizeMapLayoutId(value: unknown): MapLayoutId {
@@ -410,6 +429,58 @@ export function terrainForMapLayout(
   size: number,
 ): TerrainKind {
   if (x < 0 || y < 0 || x >= size || y >= size) return 'water';
+
+  if (layout === 'royal-valley-50x89') {
+    const bounds = royalValleyLandBounds(size);
+    if (x < bounds.minX || x > bounds.maxX || y < bounds.minY || y > bounds.maxY) return 'water';
+
+    const localX = x - bounds.minX;
+    const localY = y - bounds.minY;
+    const edgeDistance = Math.min(
+      localX,
+      bounds.cols - 1 - localX,
+      localY,
+      bounds.rows - 1 - localY,
+    );
+
+    // Continuous sandy rim keeps both long coasts readable and guarantees harbor access.
+    if (edgeDistance <= 0) return 'shore';
+
+    // A narrow navigable river runs north-south along the eastern side of the valley,
+    // leaving a large uninterrupted western plain for settlement and fortification.
+    const t = localY / Math.max(1, bounds.rows - 1);
+    const riverCenter =
+      bounds.cols * 0.73 +
+      Math.sin(t * Math.PI * 2 * 1.35 + 0.4) * 0.72 +
+      Math.sin(t * Math.PI * 2 * 3.1) * 0.24;
+    if (
+      localY >= 2 &&
+      localY <= bounds.rows - 3 &&
+      Math.abs(localX - riverCenter) <= (localY % 7 === 0 ? 0.78 : 0.56)
+    ) {
+      return 'river';
+    }
+
+    const ridgeNoise = Math.sin(localY * 0.72) + Math.cos((localX + localY) * 0.37);
+    if (
+      localX <= 2 &&
+      localY >= 2 &&
+      localY <= bounds.rows - 3 &&
+      ridgeNoise > -0.38
+    ) {
+      return 'mountain';
+    }
+
+    const forestNoise =
+      Math.sin(localX * 0.91 + localY * 0.21) +
+      Math.cos(localY * 0.54 - localX * 0.27);
+    const northernForest = localY >= 2 && localY <= 7 && localX >= 3 && localX <= 7;
+    const southernForest = localY >= bounds.rows - 8 && localY <= bounds.rows - 3 && localX >= 3 && localX <= 8;
+    const riverWoodland = localX >= 7 && localX <= 9 && localY >= 10 && localY <= 17;
+    if ((northernForest || southernForest || riverWoodland) && forestNoise > -0.48) return 'forest';
+
+    return 'plains';
+  }
 
   if (layout === 'himeji-46x90') {
     const bounds = himejiLandBounds(size);
