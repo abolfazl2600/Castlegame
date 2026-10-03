@@ -3,6 +3,7 @@ import { audioEvents } from '../audio/AudioEventBus';
 import type { GridCell, KeepState, TerrainKind, TileKind, TowerBridgeState, WallDirection } from '../core/types';
 import { BattleNavigation, type NavPoint, type WallNavNode } from './BattleNavigation';
 import { WallSystem } from '../building/WallSystem';
+import type { AutomaticWallAccess } from '../building/CastleDetailGenerator';
 import { FactionRelations } from './FactionRelations';
 import type {
   BattleMissileLaunchOptions,
@@ -33,6 +34,7 @@ export interface BattleWorldContext {
   castleLinksAt?: (x: number, y: number) => WallDirection[] | undefined;
   keeps: () => KeepState[];
   towerBridges: () => TowerBridgeState[];
+  automaticWallAccess?: () => AutomaticWallAccess[];
   setWallBattleVisibility: (x: number, y: number, visible: boolean) => void;
   buildingDamageAt?: (x: number, y: number) => number;
   onWallDamage?: (x: number, y: number, damage: number) => void;
@@ -481,6 +483,7 @@ export class BattleSystem {
       castleLinksAt: world.castleLinksAt,
       keeps: world.keeps,
       towerBridges: world.towerBridges,
+      automaticWallAccess: world.automaticWallAccess,
       temporaryGroundPassable: (x, y) => this.breachedWalls.has(this.gridKey(x, y)),
       gatePassable: world.gatePassable,
     });
