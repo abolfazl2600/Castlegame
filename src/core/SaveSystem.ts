@@ -787,6 +787,7 @@ function validMapLayoutId(value: unknown): value is MapLayoutId {
     value === 'mainland' ||
     value === 'peninsula' ||
     value === 'twin-isles' ||
+    value === 'triple-isles-100x100' ||
     value === 'urban-60x80' ||
     value === 'twin-fortresses-90x95' ||
     value === 'himeji-46x90' ||

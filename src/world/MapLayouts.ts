@@ -24,6 +24,10 @@ export const HIMEJI_LAND_DEPTH = 90;
 export const ROYAL_VALLEY_LAND_WIDTH = 50;
 export const ROYAL_VALLEY_LAND_DEPTH = 89;
 
+/** Full-map dimensions for the three-island archipelago. */
+export const TRIPLE_ISLES_MAP_WIDTH = 100;
+export const TRIPLE_ISLES_MAP_DEPTH = 100;
+
 export function urbanLandBounds(size: number) {
   const cols = URBAN_LAND_WIDTH / TILE_SIZE;
   const rows = URBAN_LAND_DEPTH / TILE_SIZE;
@@ -35,9 +39,9 @@ export function urbanLandBounds(size: number) {
 /**
  * Raster bounds for the authored 46×90 Himeji plot.
  *
- * The engine uses 4-unit cells and now provides a 23×23 grid (92×92 rendered units),
- * so the complete authored depth fits without the former 22-row clipping:
- * 12×23 cells. Keeping the 46×90 dimensions as first-class map metadata prevents
+ * The engine uses 4-unit cells and now provides a 25×25 grid (100×100 rendered units),
+ * so the complete authored depth fits with ocean margin and without the former clipping:
+ * 12×23 authored cells. Keeping the 46×90 dimensions as first-class map metadata prevents
  * the historic template from falling back to a generic square mainland footprint.
  */
 export function himejiLandBounds(size: number) {
@@ -82,6 +86,12 @@ export const MAP_LAYOUTS: readonly MapLayoutDefinition[] = [
     preview: '◯ ◯',
   },
   {
+    id: 'triple-isles-100x100',
+    label: 'Three Isles 100×100',
+    description: 'A full 100×100 archipelago with three separated islands: a forest-rich western island, a rocky northern island, and an open southern island with broad beaches.',
+    preview: '◉ ◈ ◯',
+  },
+  {
     id: 'urban-60x80',
     label: 'Urban Land 60×80',
     description: 'A flat rectangular plot, 60×80 world units (15×20 building tiles), with ocean outside its boundaries.',
@@ -112,6 +122,7 @@ export function isMapLayoutId(value: unknown): value is MapLayoutId {
     value === 'mainland' ||
     value === 'peninsula' ||
     value === 'twin-isles' ||
+    value === 'triple-isles-100x100' ||
     value === 'urban-60x80' ||
     value === 'twin-fortresses-90x95' ||
     value === 'himeji-46x90' ||
@@ -185,10 +196,57 @@ function twinIslesScore(x: number, y: number, size: number): number {
   return Math.max(left, right) + coastlineNoise(x, y) * 0.7;
 }
 
+type TripleIslandRegion = 'verdant' | 'rocky' | 'southern';
+
+interface TripleIslandScores {
+  verdant: number;
+  rocky: number;
+  southern: number;
+}
+
+function ellipseIslandScore(
+  nx: number,
+  ny: number,
+  centerX: number,
+  centerY: number,
+  radiusX: number,
+  radiusY: number,
+): number {
+  const dx = (nx - centerX) / radiusX;
+  const dy = (ny - centerY) / radiusY;
+  return (1 - Math.sqrt(dx * dx + dy * dy)) * 0.2;
+}
+
+function tripleIslandScores(x: number, y: number, size: number): TripleIslandScores {
+  const nx = (x + 0.5) / size - 0.5;
+  const ny = (y + 0.5) / size - 0.5;
+  return {
+    // Broad, fertile western island with the most continuous construction space.
+    verdant: ellipseIslandScore(nx, ny, -0.24, -0.18, 0.21, 0.18),
+    // Smaller northern/eastern highland island with tighter rocky terrain.
+    rocky: ellipseIslandScore(nx, ny, 0.26, -0.2, 0.145, 0.18),
+    // Wide southern island with open plains and a long sandy coastline.
+    southern: ellipseIslandScore(nx, ny, 0.06, 0.27, 0.22, 0.145),
+  };
+}
+
+function tripleIslesRegion(x: number, y: number, size: number): TripleIslandRegion {
+  const scores = tripleIslandScores(x, y, size);
+  if (scores.rocky > scores.verdant && scores.rocky > scores.southern) return 'rocky';
+  if (scores.southern > scores.verdant) return 'southern';
+  return 'verdant';
+}
+
+function tripleIslesScore(x: number, y: number, size: number): number {
+  const scores = tripleIslandScores(x, y, size);
+  return Math.max(scores.verdant, scores.rocky, scores.southern) + coastlineNoise(x, y) * 0.45;
+}
+
 function landScore(layout: MapLayoutId, x: number, y: number, size: number): number {
   if (layout === 'mainland') return mainlandScore(x, y, size);
   if (layout === 'peninsula') return peninsulaScore(x, y, size);
   if (layout === 'twin-isles') return twinIslesScore(x, y, size);
+  if (layout === 'triple-isles-100x100') return tripleIslesScore(x, y, size);
   return islandScore(x, y, size);
 }
 
@@ -386,6 +444,13 @@ function layoutMountain(layout: MapLayoutId, x: number, y: number, size: number)
     return y < size * 0.28 && Math.abs(x - size * 0.5) < size * 0.14 && rockyNoise > 0.28;
   }
 
+  if (layout === 'triple-isles-100x100') {
+    const region = tripleIslesRegion(x, y, size);
+    if (region === 'rocky') return rockyNoise > -0.72;
+    if (region === 'southern') return rockyNoise > 1.48;
+    return rockyNoise > 1.62;
+  }
+
   return (
     ((x < size * 0.36 && y < size * 0.42) ||
       (x > size * 0.62 && y > size * 0.48)) &&
@@ -417,6 +482,13 @@ function layoutForest(layout: MapLayoutId, x: number, y: number, size: number): 
 
   if (layout === 'peninsula') {
     return y > size * 0.38 && y < size * 0.75 && forestNoise > 0.1;
+  }
+
+  if (layout === 'triple-isles-100x100') {
+    const region = tripleIslesRegion(x, y, size);
+    if (region === 'verdant') return forestNoise > -0.5;
+    if (region === 'southern') return forestNoise > 1.0;
+    return false;
   }
 
   return forestNoise > 0.45;

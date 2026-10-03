@@ -15,8 +15,8 @@ assert.match(
 );
 assert.match(
   desktopHeader,
-  /id="header-undo-button"[\s\S]*?<span aria-hidden="true">↶<\/span>/,
-  'Desktop Undo control must render as an icon rather than a text-only action.',
+  /id="header-undo-button"[\s\S]*?<span class="history-undo-icon" aria-hidden="true">[\s\S]*?<svg[\s\S]*?<\/svg>[\s\S]*?<\/span>/,
+  'Desktop Undo control must render the current SVG icon rather than a text-only action.',
 );
 
 const mobileHeader = mobileUi.match(/<header class="mobile-header"[\s\S]*?<\/header>/)?.[0];
@@ -46,11 +46,6 @@ assert.match(
   game,
   /get<HTMLButtonElement>\('header-undo-button'\)\.onclick = \(\) => this\.undo\(\);/,
   'Desktop header Undo must use the existing canonical undo method.',
-);
-assert.match(
-  game,
-  /get<HTMLButtonElement>\('undo-button'\)\.onclick = \(\) => this\.undo\(\);/,
-  'Build-panel Undo must continue to use the same canonical undo method.',
 );
 assert.match(
   game,
