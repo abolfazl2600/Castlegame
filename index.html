@@ -37,11 +37,6 @@
           <span aria-hidden="true">✓</span><strong>Screenshot saved</strong>
         </div>
 
-        <div class="view-mode-switch" role="group" aria-label="Castle view mode">
-          <button id="view-2d-button" class="view-mode-button" type="button" aria-pressed="false">2D Plan</button>
-          <button id="view-3d-button" class="view-mode-button is-active" type="button" aria-pressed="true">3D View</button>
-        </div>
-
         <div class="camera-view-controls" role="group" aria-label="Camera view controls">
           <button id="camera-45-button" class="camera-view-button" type="button" title="Set camera to 45 degree view">45° View</button>
           <button id="camera-top-button" class="camera-view-button" type="button" title="Set camera to top-down view">Top View</button>
@@ -246,8 +241,8 @@
                 <div class="help-quick-grid">
                   <article class="help-quick-card">
                     <span class="help-step-number">01</span>
-                    <strong>Choose a view</strong>
-                    <span>Use 2D Plan for precise layout work and 3D View to inspect the finished castle and settlement.</span>
+                    <strong>Use the 3D world</strong>
+                    <span>The game runs exclusively in 3D. Use 45° View or Top View to change the camera angle without changing render modes.</span>
                   </article>
                   <article class="help-quick-card">
                     <span class="help-step-number">02</span>
@@ -262,7 +257,7 @@
                   <article class="help-quick-card">
                     <span class="help-step-number">04</span>
                     <strong>Move the camera</strong>
-                    <span>In 3D, one finger or mouse drag orbits; two fingers pan/zoom. In 2D, drag to pan and pinch or wheel to zoom.</span>
+                    <span>One finger or mouse drag orbits; two fingers pan/zoom. Use 45° View or Top View for quick camera presets.</span>
                   </article>
                 </div>
               </section>
@@ -315,11 +310,11 @@
                   </details>
 
                   <details class="help-section">
-                    <summary><span>2D Plan → 3D Castle</span></summary>
+                    <summary><span>3D World & Camera Views</span></summary>
                     <div class="help-section-body">
-                      <span>Use 2D Plan for a clean top-down layout of walls, towers, roads, terrain, houses, and the Keep.</span>
-                      <span>All edits use the same game state, so switching to 3D View immediately shows the constructed result.</span>
-                      <span>New saves open in 2D Plan; existing saves keep their normal 3D start.</span>
+                      <span>The 3D world is the only gameplay renderer on desktop, mobile web, and Android.</span>
+                      <span>Use 45° View for an angled overview or Top View for an overhead camera without leaving 3D.</span>
+                      <span>If 3D initialization fails, the game reports an error instead of falling back to a legacy renderer.</span>
                     </div>
                   </details>
 
@@ -446,8 +441,8 @@
                   <details class="help-section">
                     <summary><span>Camera & Mobile UI</span></summary>
                     <div class="help-section-body">
-                      <span>2D Plan locks the camera overhead; drag to pan and pinch to zoom. On desktop, right drag pans and the wheel zooms.</span>
-                      <span>3D View uses one finger to orbit and two fingers to pan or zoom.</span>
+                      <span>The game stays in 3D at all times. One finger or mouse drag orbits the camera.</span>
+                      <span>Use two fingers to pan or zoom, and use 45° View or Top View for fixed camera presets.</span>
                       <span>The Build panel can be closed at any time and automatically collapses after choosing a tool on mobile.</span>
                     </div>
                   </details>

@@ -187,12 +187,12 @@ export class SettingsUI {
               <div class="settings-control-reference">
                 <span><strong>Touch gestures</strong><small>Tap to select or place. With Wall, Road or Terrain selected, drag one finger to edit.</small></span>
                 <span><strong>Touch camera</strong><small>Use two fingers to pan and pinch to zoom, even while a build tool is selected. Adding a second finger cancels the unfinished edit.</small></span>
-                <span><strong>Single-finger navigation</strong><small>In Inspect, drag to rotate in 3D or pan in 2D. Battle uses camera navigation; in God Mode, tap to choose a target.</small></span>
+                <span><strong>Single-finger navigation</strong><small>In Inspect, drag to orbit the 3D camera. Battle uses camera navigation; in God Mode, tap to choose a target.</small></span>
                 <span><kbd>Esc</kbd><strong>Clear / Close</strong><small>Clear the active build tool or close help.</small></span>
                 <span><kbd>Ctrl/Cmd + Z</kbd><strong>Undo</strong><small>Undo the latest architectural change.</small></span>
                 <span><kbd>Ctrl/Cmd + Y</kbd><strong>Redo</strong><small>Restore the last undone change.</small></span>
                 <span><kbd>1–0 · F · W · Y · A · T · N · M</kbd><strong>Build shortcuts</strong><small>Select common build tools directly.</small></span>
-                <span><kbd>Mouse / Touch</kbd><strong>Camera</strong><small>Orbit, pan and zoom using the active view mode.</small></span>
+                <span><kbd>Mouse / Touch</kbd><strong>Camera</strong><small>Orbit, pan and zoom in the 3D world.</small></span>
               </div>
             </section>
 

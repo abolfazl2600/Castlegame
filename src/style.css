@@ -792,12 +792,7 @@ h1 { margin: 3px 0 0; font-size: 22px; line-height: 1; letter-spacing: -.035em; 
     padding: 9px 13px;
     font-weight: 800;
   }
-  .view-mode-switch {
-    top: 9px;
-    right: 9px;
-  }
-  .view-mode-button { min-height: 40px; padding: 8px 10px; }
-  .camera-view-controls { top: 57px; right: 9px; }
+  .camera-view-controls { top: 9px; right: 9px; }
   .status-group { gap: 4px; }
   .secondary-button, .danger-button { padding: 6px 8px; }
   .help-grid { grid-template-columns: 1fr; }
@@ -809,48 +804,16 @@ h1 { margin: 3px 0 0; font-size: 22px; line-height: 1; letter-spacing: -.035em; 
   .topbar h1 { font-size: 17px; }
   .status-pill { display: none; }
   .status-group button:nth-of-type(n+3) { display: none; }
-  .view-mode-switch { max-width: calc(100% - 108px); }
-  .view-mode-button { padding-inline: 9px; font-size: 9px; }
   .camera-view-button { padding: 7px 8px; font-size: 8px; }
 }
 
 #game canvas { cursor: grab; }
 #game canvas:active { cursor: grabbing; }
-.view-mode-switch {
-  position: absolute;
-  right: 16px;
-  top: 16px;
-  z-index: 7;
-  display: inline-grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 4px;
-  padding: 4px;
-  border: 1px solid rgba(126,225,255,.18);
-  border-radius: 13px;
-  background: rgba(5,23,36,.78);
-  backdrop-filter: blur(14px);
-  box-shadow: 0 12px 32px rgba(0,0,0,.24);
-}
-.view-mode-button {
-  border: 0;
-  border-radius: 9px;
-  padding: 8px 11px;
-  color: rgba(226,246,252,.68);
-  background: transparent;
-  cursor: pointer;
-  font-size: 10px;
-  font-weight: 800;
-}
-.view-mode-button.is-active {
-  color: #071b2a;
-  background: #9be7ee;
-  box-shadow: 0 4px 12px rgba(92,214,227,.22);
-}
 
 .camera-view-controls {
   position: absolute;
   right: 16px;
-  top: 62px;
+  top: 16px;
   z-index: 7;
   display: inline-flex;
   gap: 4px;
@@ -1933,10 +1896,6 @@ h1 { margin: 3px 0 0; font-size: 22px; line-height: 1; letter-spacing: -.035em; 
   line-height: 1.5;
 }
 
-#game-shell.battle-mode .view-mode-switch #view-2d-button {
-  opacity: .38;
-  pointer-events: none;
-}
 
 #game-shell.battle-mode .toolbar-open {
   display: none !important;
@@ -2255,23 +2214,11 @@ kbd {
   gap: 4px;
 }
 
-.view-mode-switch {
-  right: 9px;
-  top: 9px;
-  gap: 2px;
-  padding: 3px;
-  border-radius: 10px;
-}
 
-.view-mode-button {
-  padding: 6px 8px;
-  border-radius: 7px;
-  font-size: 9px;
-}
 
 .camera-view-controls {
   right: 9px;
-  top: 48px;
+  top: 9px;
   gap: 2px;
   padding: 3px;
   border-radius: 10px;
@@ -2362,13 +2309,9 @@ kbd {
     font-size: 10px;
   }
 
-  .view-mode-switch {
-    top: 7px;
-    right: 7px;
-  }
 
   .camera-view-controls {
-    top: 47px;
+    top: 7px;
     right: 7px;
   }
 }
@@ -2388,9 +2331,6 @@ kbd {
     font-size: 9px;
   }
 
-  .view-mode-button {
-    padding: 5px 7px;
-  }
 }
 
 /* Fullscreen should devote the entire viewport to the game shell. */
@@ -2542,7 +2482,7 @@ html[dir="rtl"] #templates-modal .starting-map-layout-grid .map-layout-card {
   .settings-row,.settings-check { font-size:10px; }
   .settings-row select { min-height:42px; }
   .range-wrap input[type=range] { min-height:32px; }
-  .view-mode-switch,.camera-view-controls { display:none; }
+  .camera-view-controls { display:none; }
   .battle-panel,.god-mode-panel { left:max(8px,var(--mobile-safe-left)); right:max(8px,var(--mobile-safe-right)); bottom:calc(var(--mobile-dock-height) + var(--mobile-safe-bottom) + 7px); width:auto; max-width:none; max-height:min(70dvh,680px); padding:12px; }
   .battle-close,.battle-stepper button,.battle-actions button { min-width:44px; min-height:44px; }
 .help-modal,
@@ -3502,7 +3442,7 @@ button:focus-visible, select:focus-visible, input:focus-visible, [tabindex]:focu
 button:disabled, button[aria-disabled="true"] { cursor: not-allowed; opacity: .5; transform: none; }
 .tool-category-header, .tool-button, .secondary-button, .camera-view-button { color: var(--ui-text); }
 .tool-category-header:hover, .tool-category-header:focus-visible { background: rgba(59,132,182,.24); }
-.tool-button.is-selected, .view-mode-button.is-active { border-color: var(--ui-focus); }
+.tool-button.is-selected { border-color: var(--ui-focus); }
 .minimap {
   position: absolute;
   left: 16px;
@@ -3762,7 +3702,6 @@ html.mobile-ui-active .settings-check { font-size: 10px; }
 html.mobile-ui-active .settings-row select { min-height: 42px; }
 html.mobile-ui-active .range-wrap input[type=range] { min-height: 32px; }
 
-html.mobile-ui-active .view-mode-switch,
 html.mobile-ui-active .camera-view-controls { display: none; }
 
 html.mobile-ui-active .battle-panel,
@@ -4724,24 +4663,17 @@ html.mobile-ui-active #templates-modal .icon-button {
     backdrop-filter: blur(12px) saturate(1.04);
   }
 
-  .view-mode-switch {
-    top: 76px;
-    right: max(16px, var(--safe-area-right));
-  }
 
   .camera-view-controls {
-    top: 124px;
+    top: 76px;
     right: max(16px, var(--safe-area-right));
   }
 }
 
 @media (min-width: 761px) and (max-width: 840px) {
-  .view-mode-switch {
-    top: 112px;
-  }
 
   .camera-view-controls {
-    top: 160px;
+    top: 112px;
   }
 }
 
