@@ -14366,7 +14366,7 @@ export class ThreeGame {
         { x: 8, y: 5 }, { x: 11, y: 4 }, { x: 14, y: 5 },
         { x: 16, y: 7 }, { x: 17, y: 11 }, { x: 15, y: 14 },
         { x: 13, y: 16 }, { x: 9, y: 16 }, { x: 6, y: 14 },
-        { x: 6, y: 12 }, { x: 5, y: 11 }, { x: 5, y: 8 }, { x: 7, y: 6 },
+        { x: 5, y: 11 }, { x: 5, y: 8 }, { x: 7, y: 6 },
       ];
 
       placeWallPath(outerRampart, 'wall1', 2, {
@@ -14411,7 +14411,7 @@ export class ThreeGame {
 
       // Porte d'Aude descends toward the river on the western/south-west side.
       place(3, 13, 'gate', 2);
-      place(6, 13, 'gate', 3);
+      place(5, 13, 'gate', 3);
       place(4, 12, 'tower', 3, { towerShape: 'round', towerTop: 'conical' });
       place(5, 15, 'tower', 3, { towerShape: 'round', towerTop: 'conical' });
 
