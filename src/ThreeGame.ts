@@ -2664,11 +2664,11 @@ export class ThreeGame {
 
     const wallPlanOutline = 0x3b3328;
     const colors: Record<string, number> = {
-      wall1: 0xd1c2a3,
-      wall2: 0x8e6544,
-      wall3: 0x9ba4a7,
-      gate: 0x9e7041,
-      tower: 0xb7ab91,
+      wall1: 0x6f604d,
+      wall2: 0x795438,
+      wall3: 0x5a6265,
+      gate: 0x4f3824,
+      tower: 0x766a55,
       road: 0x9a7658,
       dirtRoad: 0x8a6142,
       stoneRoad: 0xa9a195,
