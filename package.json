@@ -98,7 +98,9 @@
     "test:touch-gestures-ui": "playwright test tests/touch-gestures.spec.ts",
     "test:urban-city-template": "node scripts/test-urban-city-template.mjs",
     "test:screenshot-capture": "node scripts/test-screenshot-capture.mjs",
-    "test:sky-ocean-atmosphere": "node scripts/test-sky-ocean-atmosphere.mjs"
+    "test:sky-ocean-atmosphere": "node scripts/test-sky-ocean-atmosphere.mjs",
+    "test:crac-des-chevaliers-browser": "playwright test tests/crac-des-chevaliers.spec.ts",
+    "visual:crac-des-chevaliers-qa": "node scripts/crac-des-chevaliers-visual-qa.mjs"
   },
   "dependencies": {
     "@capacitor/android": "^8.5.2",
