@@ -79,8 +79,11 @@ assert.doesNotMatch(gradle, /keyPassword\s+['"][^'"]+['"]/,
 assert.match(verify, /jarsigner -verify -verbose/, 'AAB JAR signature verification is required');
 assert.match(verify, /keytool -printcert -jarfile/, 'signed AAB certificate extraction is required');
 assert.match(verify, /ANDROID_EXPECTED_UPLOAD_SHA256/, 'verification must compare the owner-approved fingerprint');
-assert.match(verify, /signed_fingerprint.*upload_fingerprint.*expected|upload_fingerprint.*signed_fingerprint.*expected/s,
-  'verification must bind signed bundle, keystore certificate, and expected fingerprint');
+assert.match(
+  verify,
+  /if \[\[ "\$signed_fingerprint" != "\$upload_fingerprint" \|\| "\$signed_fingerprint" != "\$expected" \]\]/,
+  'verification must bind signed bundle, keystore certificate, and expected fingerprint',
+);
 
 for (const ignorePattern of ['*.jks', '*.keystore', 'android/key.properties', 'android/**/key.properties']) {
   assert.ok(gitignore.includes(ignorePattern), `.gitignore must block signing material: ${ignorePattern}`);
