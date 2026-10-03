@@ -80,6 +80,15 @@ assert.ok(
   threeGame.split('wallPlanOutline').length - 1 >= 4,
   'Plan wall runs and towers must reuse the same high-contrast outline.',
 );
+assert.ok(
+  threeGame.includes('terrainTile.renderOrder = 39;'),
+  'Plan terrain must render below fortification geometry.',
+);
+assert.doesNotMatch(
+  threeGame.slice(threeGame.indexOf('private renderPlanLayer'), threeGame.indexOf('const grid = new THREE.GridHelper')),
+  /\b0\.96\b/,
+  'Plan terrain must stay opaque so transparent sorting cannot overpaint fortifications.',
+);
 
 for (const source of [
   'whc.unesco.org/en/list/345',
