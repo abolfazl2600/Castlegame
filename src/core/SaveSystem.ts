@@ -6,9 +6,8 @@ import {
   SAVE_SLOT_COUNT,
   SAVE_STORAGE_PREFIX,
   SAVE_VERSION,
-  WORLD_COLS,
-  WORLD_ROWS,
 } from './constants';
+import { worldGridCellCount, worldGridForLayout } from '../world/WorldGrid';
 import type { GameMode } from './GameMode';
 import { normalizeGameMode } from './GameMode';
 import type { GameState } from '../state/GameState';
@@ -506,12 +505,13 @@ export class SaveSystem {
 
   private applyData(data: SavedGame): void {
     const loadedMode: GameMode = normalizeGameMode(data.gameMode);
-    this.host.setMapLayoutId(validMapLayoutId(data.mapLayoutId) ? data.mapLayoutId : 'island');
+    const layoutId = validMapLayoutId(data.mapLayoutId) ? data.mapLayoutId : 'island';
+    this.host.setMapLayoutId(layoutId);
     this.host.setWorldSeed(normalizeWorldSeed(data.worldSeed));
     const cells: Array<ReturnType<GameState['entries']>[number]> = [];
 
     for (const cell of data.cells ?? []) {
-      if (!validGrid(cell.x, cell.y)) continue;
+      if (!validGrid(cell.x, cell.y, layoutId)) continue;
       const migration = this.host.migrateKind(cell.kind, cell.level ?? 1, Math.max(0, Math.floor(data.version ?? 0)));
       if (!migration || !this.host.isBuildingAvailable(migration.kind)) continue;
       cells.push({
@@ -540,7 +540,7 @@ export class SaveSystem {
 
     this.host.towerBridges.clear();
     for (const bridge of data.towerBridges ?? []) {
-      if (!Number.isInteger(bridge.id) || !validGrid(bridge.ax, bridge.ay) || !validGrid(bridge.bx, bridge.by)) continue;
+      if (!Number.isInteger(bridge.id) || !validGrid(bridge.ax, bridge.ay, layoutId) || !validGrid(bridge.bx, bridge.by, layoutId)) continue;
       if (bridge.kind !== 'stone' && bridge.kind !== 'wood') continue;
       this.host.towerBridges.set(bridge.id, {
         ...bridge,
@@ -552,13 +552,13 @@ export class SaveSystem {
     this.host.elevationOverrides.clear();
 
     for (const terrainCell of data.terrain ?? []) {
-      if (!validGrid(terrainCell.x, terrainCell.y)) continue;
+      if (!validGrid(terrainCell.x, terrainCell.y, layoutId)) continue;
       if (terrainCell.kind !== 'plains' && terrainCell.kind !== 'river') continue;
       this.host.terrainOverrides.set(this.host.key(terrainCell.x, terrainCell.y), terrainCell.kind);
     }
 
     for (const elevationCell of data.elevations ?? []) {
-      if (!validGrid(elevationCell.x, elevationCell.y) || !Number.isFinite(elevationCell.value)) continue;
+      if (!validGrid(elevationCell.x, elevationCell.y, layoutId) || !Number.isFinite(elevationCell.value)) continue;
       this.host.elevationOverrides.set(
         this.host.key(elevationCell.x, elevationCell.y),
         clamp(elevationCell.value, -6, 6),
@@ -591,7 +591,10 @@ export class SaveSystem {
       return { ok: false, message: 'Incompatible save version' };
     }
     if (!Array.isArray(data.cells)) return { ok: false, message: 'Invalid save data' };
-    if (data.cells.length > WORLD_COLS * WORLD_ROWS * 4) return { ok: false, message: 'Save is too large or malformed' };
+    const layoutId = validMapLayoutId(data.mapLayoutId) ? data.mapLayoutId : 'island';
+    if (data.cells.length > worldGridCellCount(worldGridForLayout(layoutId)) * 4) {
+      return { ok: false, message: 'Save is too large or malformed' };
+    }
     return { ok: true };
   }
 
@@ -727,8 +730,9 @@ function normalizeBattleSetup(input: SavedBattleSetup): SavedBattleSetup {
   return result;
 }
 
-function validGrid(x: number, y: number): boolean {
-  return Number.isInteger(x) && Number.isInteger(y) && x >= 0 && y >= 0 && x < WORLD_COLS && y < WORLD_ROWS;
+function validGrid(x: number, y: number, layoutId: MapLayoutId): boolean {
+  const grid = worldGridForLayout(layoutId);
+  return Number.isInteger(x) && Number.isInteger(y) && x >= 0 && y >= 0 && x < grid.cols && y < grid.rows;
 }
 
 function normalizeWorldSeed(value: unknown): number {
