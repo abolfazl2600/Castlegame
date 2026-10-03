@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import type { SettingsData } from '../settings/SettingsModel';
 import type { ActiveRenderProfile } from './AdaptiveRenderProfile';
 import { WORLD_STYLE } from './WorldStyle';
+import { graphicsQualityPreset } from './GraphicsQualityPreset';
 
 export type DistanceDetailBand = 'inspection' | 'gameplay' | 'strategic';
 export type MemoryPressureLevel = 'normal' | 'elevated' | 'critical';
@@ -125,6 +126,21 @@ function budgetForProfile(
   };
 }
 
+function qualityAdjustedBudget(
+  budget: VisualPerformanceBudget,
+  settings: SettingsData,
+): VisualPerformanceBudget {
+  const preset = graphicsQualityPreset(settings.graphics.quality);
+  return {
+    ...budget,
+    animatedObjects: Math.max(1, Math.floor(budget.animatedObjects * preset.animationBudgetScale)),
+    particles: Math.max(0, Math.floor(budget.particles * preset.particleBudgetScale)),
+    shadowCasters: Math.max(0, Math.floor(budget.shadowCasters * preset.shadowBudgetScale)),
+    highDetailMeshes: Math.max(0, Math.floor(budget.highDetailMeshes * preset.microDetailBudgetScale)),
+    animationScale: budget.animationScale * preset.animationBudgetScale,
+  };
+}
+
 const BAND_HYSTERESIS = 4;
 const GENERIC_MICRO_DETAIL_RADIUS = 2.4;
 const PROP_HEAVY_MICRO_DETAIL_RADIUS = 3.4;
@@ -178,15 +194,12 @@ function shouldSuppressDetail(
     pressure !== 'normal' ||
     band === 'strategic' ||
     mobile ||
-    settings.graphics.quality === 'low'
+    settings.graphics.quality !== 'high'
   );
 }
 
 function settingsPixelRatioScale(settings: SettingsData, profile: ActiveRenderProfile): number {
-  const quality =
-    settings.graphics.quality === 'low' ? 0.75 :
-    settings.graphics.quality === 'medium' ? 1 :
-    1.35;
+  const quality = graphicsQualityPreset(settings.graphics.quality).resolutionScale;
   const performance =
     profile === 'performance' ? 0.75 :
     profile === 'quality' ? 1.15 :
@@ -382,7 +395,8 @@ export class DistanceDetailBudgetSystem {
     const mobile = profile === 'performance';
     const heapBytes = currentHeapBytes();
     const memoryPressure = resolveMemoryPressure(heapBytes);
-    const baseBudget = budgetForProfile(profile, this.band);
+    const profileBudget = budgetForProfile(profile, this.band);
+    const baseBudget = qualityAdjustedBudget(profileBudget, settings);
     const budget = memoryAdjustedBudget(baseBudget, memoryPressure);
     const detailSuppressionActive = shouldSuppressDetail(
       settings,
@@ -412,7 +426,7 @@ export class DistanceDetailBudgetSystem {
       renderer.setPixelRatio(ratio);
       renderer.shadowMap.enabled =
         settings.graphics.shadowsEnabled &&
-        settings.graphics.quality !== 'low' &&
+        graphicsQualityPreset(settings.graphics.quality).allowDynamicShadows &&
         budget.shadowCasters > 0;
 
       let detail = this.applyDetailBudget(
