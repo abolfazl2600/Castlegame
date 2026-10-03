@@ -46,10 +46,10 @@ assert.equal(translate('Wave 6 cleared · next wave incoming', 'fa'), 'موج ۶
 assert.equal(translate('Endless Defense · Wave 7 · 45 enemies', 'fa'), 'دفاع بی‌پایان · موج ۷ · ۴۵ دشمن');
 assert.equal(translate('Missile strike hit farm · damage 72%', 'fa'), 'موشک به مزرعه برخورد کرد · آسیب ۷۲٪');
 assert.equal(translate('Army Camp · Level 2', 'fa'), 'اردوگاه ارتش · سطح ۲');
-assert.equal(translate('Move House · choose a valid destination · Esc cancels', 'fa'),
-  'جابه‌جایی خانه · مقصد معتبری انتخاب کنید · Esc لغو می‌کند');
-assert.equal(translate('House moved · Undo available', 'fa'), 'خانه جابه‌جا شد · امکان بازگردانی وجود دارد');
-assert.equal(translate('House demolished · Undo available', 'fa'), 'خانه تخریب شد · امکان بازگردانی وجود دارد');
+assert.equal(translate('Move House Cluster · choose a valid destination · Esc cancels', 'fa'),
+  'جابه‌جایی مجموعه خانه‌ها · مقصد معتبری انتخاب کنید · Esc لغو می‌کند');
+assert.equal(translate('House Cluster moved · Undo available', 'fa'), 'مجموعه خانه‌ها جابه‌جا شد · امکان بازگردانی وجود دارد');
+assert.equal(translate('House Cluster demolished · Undo available', 'fa'), 'مجموعه خانه‌ها تخریب شد · امکان بازگردانی وجود دارد');
 assert.equal(translate('Save Slot 3', 'en'), 'Save Slot 3');
 assert.equal(translate('A custom player-provided castle name', 'fa'), 'A custom player-provided castle name');
 assert.equal(translate('Endless Defense · Wave 2', 'fa'), 'دفاع بی‌پایان · موج ۲');
