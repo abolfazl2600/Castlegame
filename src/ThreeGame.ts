@@ -2662,6 +2662,7 @@ export class ThreeGame {
     }
     this.planLayer.add(grid);
 
+    const wallPlanOutline = 0x3b3328;
     const colors: Record<string, number> = {
       wall1: 0xd1c2a3,
       wall2: 0x8e6544,
@@ -2700,6 +2701,15 @@ export class ThreeGame {
         const thickness = CASTLE_ARCHITECTURE_STYLE.wall.thickness;
         this.addPlanRect(
           this.planLayer,
+          thickness * 1.16,
+          thickness * 1.16,
+          wallPlanOutline,
+          position.x,
+          position.z,
+          10.17,
+        );
+        this.addPlanRect(
+          this.planLayer,
           thickness * 0.9,
           thickness * 0.9,
           color,
@@ -2718,6 +2728,17 @@ export class ThreeGame {
           const centerZ = position.z + vector.y * TILE * 0.25;
           this.addPlanRect(
             this.planLayer,
+            thickness * 1.04,
+            length + 0.18,
+            wallPlanOutline,
+            centerX,
+            centerZ,
+            10.16,
+            1,
+            angle,
+          );
+          this.addPlanRect(
+            this.planLayer,
             thickness * 0.78,
             length,
             color,
@@ -2733,14 +2754,23 @@ export class ThreeGame {
 
       if (cell.kind === 'tower') {
         const radius = (cell.towerShape ?? 'round') === 'watch' ? 1.7 : 2.08;
+        const segments = (cell.towerShape ?? 'round') === 'octagonal' ? 8 : 20;
+        const towerOutline = new THREE.Mesh(
+          new THREE.CircleGeometry(radius + 0.24, segments),
+          this.planMaterial(wallPlanOutline),
+        );
+        towerOutline.rotation.x = -Math.PI / 2;
+        towerOutline.position.set(position.x, 10.17, position.z);
+        towerOutline.renderOrder = 43;
+        this.planLayer.add(towerOutline);
+
         const tower = new THREE.Mesh(
-          new THREE.CircleGeometry(
-            radius,
-            (cell.towerShape ?? 'round') === 'octagonal' ? 8 : 20,
-          ),
+          new THREE.CircleGeometry(radius, segments),
           this.planMaterial(color),
         );
-        tower.position.set(position.x, 0.08, position.z);
+        tower.rotation.x = -Math.PI / 2;
+        tower.position.set(position.x, 10.23, position.z);
+        tower.renderOrder = 44;
         this.planLayer.add(tower);
         continue;
       }

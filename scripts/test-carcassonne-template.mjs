@@ -72,6 +72,15 @@ assert.ok(wallPath.includes('every consecutive point is cardinally'));
 assert.ok(wallPath.includes('export function rasterizeWallPath'));
 assert.ok(wallPath.includes('closed = false'));
 
+assert.ok(
+  threeGame.includes('const wallPlanOutline = 0x3b3328;'),
+  'Plan view must keep a high-contrast fortification outline.',
+);
+assert.ok(
+  threeGame.split('wallPlanOutline').length - 1 >= 4,
+  'Plan wall runs and towers must reuse the same high-contrast outline.',
+);
+
 for (const source of [
   'whc.unesco.org/en/list/345',
   'remparts-carcassonne.fr/en/discover/history-of-the-monument',
