@@ -13081,9 +13081,9 @@ export class ThreeGame {
     }
   }
 
-  private confirmDemolition(label: string): boolean {
+  private confirmDemolition(): boolean {
     if (!this.settingsStore.get().interface.confirmDestructiveActions) return true;
-    return confirm(`Demolish ${label}? This action can be undone.`);
+    return confirm(t('Demolish selected building? This action can be undone.'));
   }
 
   private removeSelected(): void {
@@ -13116,7 +13116,7 @@ export class ThreeGame {
     }
 
     const label = this.selectedBuildingDescriptor()?.name ?? 'building';
-    if (!this.confirmDemolition(label)) {
+    if (!this.confirmDemolition()) {
       this.setStatus('Demolition cancelled');
       return;
     }
@@ -13143,7 +13143,7 @@ export class ThreeGame {
       this.setStatus('Selected Keep no longer exists');
       return;
     }
-    if (!this.confirmDemolition('Keep')) {
+    if (!this.confirmDemolition()) {
       this.setStatus('Demolition cancelled');
       return;
     }
@@ -13428,7 +13428,7 @@ export class ThreeGame {
       this.setStatus('Select a Tower Bridge first');
       return;
     }
-    if (!this.confirmDemolition('Tower Bridge')) {
+    if (!this.confirmDemolition()) {
       this.setStatus('Demolition cancelled');
       return;
     }
