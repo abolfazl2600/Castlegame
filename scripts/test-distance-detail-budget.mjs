@@ -13,6 +13,18 @@ for (const band of ['inspection', 'gameplay', 'strategic']) {
   assert.match(budget, new RegExp(`\\b${band}: \\{`), `missing ${band} distance budget`);
 }
 
+assert.match(budget, /QUALITY_DRAW_CALL_CAP\s*=\s*1000/, 'quality mode draw-call cap must be 1000');
+assert.match(budget, /PERFORMANCE_DRAW_CALL_CAP\s*=\s*500/, 'performance mode draw-call cap must be 500');
+assert.match(
+  budget,
+  /if \(profile === 'performance'\) return MOBILE_BUDGETS\[band\]/,
+  'performance mode must use the 500-draw-call profile budget',
+);
+assert.match(
+  budget,
+  /if \(profile === 'quality'\) return DESKTOP_BUDGETS\[band\]/,
+  'quality mode must use the 1000-draw-call profile budget',
+);
 assert.match(budget, /BAND_HYSTERESIS\s*=\s*4/, 'distance bands must use hysteresis');
 assert.match(budget, /maximumStrategic/, 'strategic distance must use the shared camera contract');
 assert.match(budget, /shadowCasters:\s*40/, 'desktop strategic shadow budget changed unexpectedly');
