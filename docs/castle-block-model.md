@@ -7,7 +7,7 @@ The authoritative gameplay storage remains the existing grid cell state in `Game
 - `wall1`, `wall2`, `wall3` -> `CastleBlockState.kind = "wall"`
 - `gate` -> `CastleBlockState.kind = "gate"`
 - `tower` -> `CastleBlockState.kind = "tower"`
-- `level` -> structural stack (walls 1–12; gates/towers 1–4), local top, and terrain-adjusted world top
+- `level` -> gates/towers retain their 1–4 upgrade progression; legacy/manual wall levels are ignored and walls resolve through the canonical automatic wall-height rule
 - `damage` -> persistent normalized intact/cracked/heavy/partial-breach/collapsed state; collapsed walls become passable rubble
 - `wallLinks` -> reciprocal diagonal connectivity; adjacent cardinal castle blocks connect automatically
 - `gateOpen` -> saved manual gate preference (missing value means open); attack mode temporarily closes gates without erasing that preference
@@ -18,7 +18,7 @@ Stable block IDs are coordinate-derived (`castle-block:x:y`). Connected structur
 
 ## Source of truth
 
-Edits continue to mutate `GameState`. Rendering, navigation, siege, and future castle-block UX should consume `CastleBlockSystem.build(...)`. This prevents duplicate logical castles and keeps old saves compatible without a destructive migration.
+Edits continue to mutate `GameState`. Rendering, navigation, siege, and future castle-block UX should consume `CastleBlockSystem.build(...)`. Wall height is not editable state: `AUTOMATIC_WALL_LEVEL` is the canonical structural level, while each wall family supplies its own base architectural height and terrain differences are handled by foundations/world elevation. Legacy saves are normalized to that rule when loaded. Towers and gates keep their independent upgrade levels.
 
 ## Connected editing and traversal
 
