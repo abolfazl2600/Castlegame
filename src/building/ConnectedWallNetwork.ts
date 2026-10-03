@@ -3,7 +3,8 @@ import type { GridPoint } from './WallSystem';
 import { WallSystem } from './WallSystem';
 
 export interface DefensiveNetworkContext {
-  size: number;
+  cols: () => number;
+  rows: () => number;
   cellAt: (x: number, y: number) => GridCell | undefined;
   elevationAt: (x: number, y: number) => number;
   fortificationTopAt: (x: number, y: number, cell: GridCell) => number;
@@ -44,8 +45,8 @@ export class ConnectedWallNetwork {
   nodes(): DefensiveNetworkNode[] {
     const result: DefensiveNetworkNode[] = [];
 
-    for (let y = 0; y < this.context.size; y += 1) {
-      for (let x = 0; x < this.context.size; x += 1) {
+    for (let y = 0; y < this.context.rows(); y += 1) {
+      for (let x = 0; x < this.context.cols(); x += 1) {
         const node = this.nodeAt(x, y);
         if (node) result.push(node);
       }
