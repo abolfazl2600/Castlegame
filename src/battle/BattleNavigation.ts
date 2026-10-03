@@ -1,5 +1,6 @@
 import type { GridCell, KeepState, TerrainKind, TileKind, TowerBridgeState, WallDirection } from '../core/types';
 import { ConnectedWallNetwork } from '../building/ConnectedWallNetwork';
+import type { AutomaticWallAccess } from '../building/CastleDetailGenerator';
 
 export interface NavPoint {
   x: number;
@@ -21,6 +22,7 @@ export interface BattleNavigationContext {
   castleLinksAt?: (x: number, y: number) => WallDirection[] | undefined;
   keeps: () => KeepState[];
   towerBridges?: () => TowerBridgeState[];
+  automaticWallAccess?: () => AutomaticWallAccess[];
   temporaryGroundPassable?: (x: number, y: number) => boolean;
   gatePassable?: (x: number, y: number) => boolean;
 }
@@ -380,8 +382,7 @@ export class BattleNavigation {
       worldY: node.worldY + 0.28,
     }));
     const byKey = new Map(nodes.map((node) => [this.key(node.x, node.y), node]));
-    const queue = nodes.filter((node) =>
-      (node.kind === 'tower' || node.kind === 'gate') && this.accessGroundCell(node) !== null);
+    const queue = nodes.filter((node) => this.accessGroundCell(node) !== null);
     const visited = new Set<string>();
     while (queue.length) {
       const node = queue.shift()!;
@@ -396,6 +397,15 @@ export class BattleNavigation {
   }
 
   accessGroundCell(node: NavPoint): NavPoint | null {
+    const automatic = this.automaticAccessAt(node);
+    if (automatic) {
+      const ground = { x: automatic.groundX, y: automatic.groundY };
+      return this.isGroundWalkable(ground.x, ground.y) ? ground : null;
+    }
+
+    const kind = this.context.kindAt(node.x, node.y);
+    if (kind !== 'tower' && kind !== 'gate') return null;
+
     const keep = this.context.keeps()[0];
     const center = keep ?? { x: Math.floor(this.context.size / 2), y: Math.floor(this.context.size / 2) };
     const candidates = DIRS.slice(0, 4)
@@ -403,6 +413,12 @@ export class BattleNavigation {
       .filter((point) => this.isGroundWalkable(point.x, point.y));
     candidates.sort((a, b) => this.heuristic(a, center) - this.heuristic(b, center) || a.y - b.y || a.x - b.x);
     return candidates[0] ?? null;
+  }
+
+  private automaticAccessAt(node: NavPoint): AutomaticWallAccess | undefined {
+    return this.context.automaticWallAccess?.().find(
+      (access) => access.targetX === node.x && access.targetY === node.y,
+    );
   }
 
   accessRouteTo(target: WallNavNode): WallNavNode[] {
@@ -416,7 +432,7 @@ export class BattleNavigation {
     while (queue.length) {
       const node = queue.shift()!;
       const key = this.key(node.x, node.y);
-      if ((node.kind === 'gate' || node.kind === 'tower') && this.accessGroundCell(node)) {
+      if (this.accessGroundCell(node)) {
         const route: WallNavNode[] = [node];
         let current = key;
         while (parent.has(current)) {
