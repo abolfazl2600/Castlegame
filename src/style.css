@@ -5055,3 +5055,131 @@ html[dir="rtl"] #help-modal .help-block-heading {
     min-height: 48px;
   }
 }
+
+
+/* Building selection contextual actions (#286) */
+.world-selection-panel {
+  position: fixed;
+  left: 50%;
+  bottom: calc(18px + env(safe-area-inset-bottom, 0px));
+  z-index: 72;
+  width: min(680px, calc(100vw - 28px));
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 12px 14px;
+  border: 1px solid rgba(132, 221, 235, 0.42);
+  border-radius: 16px;
+  background: linear-gradient(180deg, rgba(17, 34, 43, 0.96), rgba(8, 20, 27, 0.97));
+  box-shadow: 0 18px 50px rgba(0, 0, 0, 0.34), inset 0 1px rgba(255, 255, 255, 0.045);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+}
+
+.world-selection-panel[hidden] {
+  display: none;
+}
+
+.world-selection-summary {
+  min-width: 0;
+  display: grid;
+  gap: 2px;
+}
+
+.world-selection-summary .eyebrow {
+  color: rgba(118, 232, 255, 0.82);
+  font-size: 0.64rem;
+  letter-spacing: 0.12em;
+}
+
+.world-selection-summary strong {
+  overflow: hidden;
+  color: #f5fbfc;
+  font-size: 0.98rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.world-selection-summary small {
+  color: rgba(220, 237, 241, 0.68);
+  font-size: 0.75rem;
+}
+
+.world-selection-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 7px;
+}
+
+.world-selection-actions button {
+  min-height: 42px;
+  padding: 0 13px;
+  border: 1px solid rgba(139, 218, 230, 0.24);
+  border-radius: 10px;
+  background: rgba(95, 193, 211, 0.09);
+  color: #edf9fb;
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 700;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.world-selection-actions button:hover:not(:disabled),
+.world-selection-actions button:focus-visible:not(:disabled) {
+  border-color: rgba(119, 231, 249, 0.62);
+  background: rgba(95, 213, 232, 0.17);
+}
+
+.world-selection-actions button:disabled {
+  cursor: default;
+  opacity: 0.45;
+}
+
+.world-selection-actions .is-danger {
+  border-color: rgba(244, 111, 102, 0.34);
+  background: rgba(184, 68, 61, 0.12);
+  color: #ffd8d4;
+}
+
+@media (max-width: 700px) {
+  .world-selection-panel {
+    bottom: calc(10px + env(safe-area-inset-bottom, 0px));
+    align-items: stretch;
+    gap: 10px;
+    padding: 11px;
+  }
+
+  .world-selection-summary {
+    max-width: 35%;
+    align-content: center;
+  }
+
+  .world-selection-actions {
+    flex: 1;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(92px, 1fr));
+  }
+
+  .world-selection-actions button {
+    min-height: 46px;
+    padding-inline: 10px;
+  }
+}
+
+@media (max-width: 440px) {
+  .world-selection-panel {
+    width: calc(100vw - 16px);
+  }
+
+  .world-selection-summary {
+    max-width: 30%;
+  }
+
+  .world-selection-actions {
+    grid-template-columns: repeat(2, minmax(82px, 1fr));
+  }
+}
