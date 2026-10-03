@@ -1,9 +1,11 @@
 import type { Scene, WebGLRenderer } from 'three';
 import type { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import type { SettingsData } from './SettingsModel';
+import { graphicsQualityPreset } from '../rendering/GraphicsQualityPreset';
 
 export function applyGraphicsSettings(renderer: WebGLRenderer, settings: SettingsData): void {
-  const qualityScale = settings.graphics.quality === 'low' ? 0.75 : settings.graphics.quality === 'medium' ? 1 : 1.35;
+  const qualityPreset = graphicsQualityPreset(settings.graphics.quality);
+  const qualityScale = qualityPreset.resolutionScale;
   const performanceScale =
     settings.graphics.performanceMode === 'performance'
       ? 0.75
@@ -13,7 +15,7 @@ export function applyGraphicsSettings(renderer: WebGLRenderer, settings: Setting
 
   const maxPixelRatio = Math.min(window.devicePixelRatio, 2);
   renderer.setPixelRatio(Math.max(0.75, Math.min(maxPixelRatio, qualityScale * performanceScale)));
-  renderer.shadowMap.enabled = settings.graphics.shadowsEnabled && settings.graphics.quality !== 'low';
+  renderer.shadowMap.enabled = settings.graphics.shadowsEnabled && qualityPreset.allowDynamicShadows;
 }
 
 export function applySceneGraphicsSettings(scene: Scene, settings: SettingsData): void {
