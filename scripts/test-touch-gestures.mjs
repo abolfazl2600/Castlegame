@@ -203,7 +203,7 @@ check('Battle is camera-only even with a construction tool selected', () => {
   touch(h, 'pointerdown', 1, 100); touch(h, 'pointermove', 1, 140); touch(h, 'pointerup', 1, 140);
   assert.ok(!h.camera.position.equals(before)); assert.equal(h.runtime.builds ?? 0, 0);
 });
-check('real camera pan/pinch remains bounded through extreme zoom and 2D pan', () => {
+check('real 3D camera pan/pinch remains bounded through extreme zoom and pan', () => {
   const h = harness(); h.controls.enableRotate = false;
   const before = h.controls.target.clone();
   applyTouchCameraDelta(h.camera, h.controls, { fingers: 1, dx: 30, dy: 10, scale: 1 }, 400);

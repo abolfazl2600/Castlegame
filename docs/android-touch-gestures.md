@@ -9,7 +9,7 @@ The touch camera updates the same camera/target, sensitivity and release bounds.
 
 | Context | One finger | Two fingers |
 | --- | --- | --- |
-| Inspect / single-placement tools | Tap selects/places; drag past 6 CSS pixels navigates (3D rotates, 2D pans). A drag that returns to its origin is still not a tap. | Pan + bounded pinch zoom |
+| Inspect / single-placement tools | Tap selects/places; drag past 6 CSS pixels navigates the 3D camera. A drag that returns to its origin is still not a tap. | Pan + bounded pinch zoom |
 | Wall / Road / Mountain Range | Drag previews, release commits one edit | Cancel unfinished edit, rebase, then pan/pinch |
 | Raise / Lower / Flatten / other terrain brushes | Drag edits elevation provisionally; release creates one Undo/save entry | Roll elevation back, then pan/pinch; do not rewind live population/economy |
 | God targeting | Tap chooses target; moving past the threshold navigates without choosing a target | Pan/pinch without choosing/firing a target |

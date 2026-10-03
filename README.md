@@ -27,7 +27,7 @@ You design the important architecture — walls, towers, Keeps, gates, terrain, 
 - **Living settlement** — housing, farms, orchards, workers, civilians, resources, storage, and food production.
 - **Castle battles** — Attackers vs Defenders with melee units, ranged units, navigation, breaches, ladders, and capture objectives.
 - **Procedural medieval detail** — foundations, arrow slits, windows, buttresses, stairs, flags, and other architecture are generated from the castle state.
-- **2D + 3D workflow** — plan the fortress from above, then switch directly to the 3D view.
+- **3D-only world** — build and inspect in one WebGL world, with 45° and top-down camera presets instead of a separate 2D renderer.
 - **Templates and sandbox play** — start from prepared castle, settlement, and terrain layouts or build from scratch.
 - **Persistence** — Save / Load, Undo / Redo, and deterministic regeneration of procedural details.
 - **Web and Android** — the game runs in the browser and includes a Capacitor-based Android project.

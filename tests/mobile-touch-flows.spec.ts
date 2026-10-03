@@ -46,11 +46,12 @@ test('touch controls reach management, templates, and save/load without stacked 
 });
 
 
-test('phone header exposes Build while omitting redundant 3D and desktop-only actions', async ({ page }) => {
+test('phone header exposes Build while omitting retired view-mode and desktop-only actions', async ({ page }) => {
   await expect(page.locator('html')).toHaveClass(/mobile-ui-active/);
   await expect(page.locator('.mobile-bottom-dock')).toHaveCount(0);
   await expect(page.locator('.mobile-header [data-mobile-proxy="toolbar-open"]')).toBeVisible();
-  await expect(page.locator('[data-mobile-proxy="view-3d-button"]')).toHaveCount(0);
+  await expect(page.locator('#view-2d-button')).toHaveCount(0);
+  await expect(page.locator('#view-3d-button')).toHaveCount(0);
   await expect(page.locator('.mobile-bottom-dock [data-mobile-proxy="settings-button"]')).toHaveCount(0);
   await expect(page.locator('.mobile-header [data-mobile-proxy="settings-button"]')).toBeVisible();
 
@@ -59,7 +60,7 @@ test('phone header exposes Build while omitting redundant 3D and desktop-only ac
   await page.locator('#settings-close').click();
   await expect(page.locator('#settings-modal')).toBeHidden();
 
-  for (const id of ['view-2d-button', 'camera-45-button', 'camera-top-button', 'fullscreen-button']) {
+  for (const id of ['camera-45-button', 'camera-top-button', 'fullscreen-button']) {
     await expect(page.locator(`[data-mobile-proxy="${id}"]`)).toHaveCount(0);
     await expect(page.locator(`#${id}`)).toBeHidden();
   }
@@ -68,8 +69,8 @@ test('phone header exposes Build while omitting redundant 3D and desktop-only ac
 test('desktop retains its original camera and fullscreen controls', async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
   await expect(page.locator('html')).not.toHaveClass(/mobile-ui-active/);
-  await expect(page.locator('#view-2d-button')).toBeVisible();
-  await expect(page.locator('#view-3d-button')).toBeVisible();
+  await expect(page.locator('#view-2d-button')).toHaveCount(0);
+  await expect(page.locator('#view-3d-button')).toHaveCount(0);
   await expect(page.locator('#camera-45-button')).toBeVisible();
   await expect(page.locator('#camera-top-button')).toBeVisible();
   await expect(page.locator('#fullscreen-button')).toBeVisible();
@@ -83,7 +84,9 @@ test.describe('Android landscape', () => {
     await expect(page.locator('html')).toHaveClass(/mobile-ui-active/);
     await expect(page.locator('.mobile-bottom-dock')).toHaveCount(0);
     await expect(page.locator('.mobile-header [data-mobile-proxy="toolbar-open"]')).toBeVisible();
-    for (const id of ['view-2d-button', 'camera-45-button', 'camera-top-button', 'fullscreen-button']) {
+    await expect(page.locator('#view-2d-button')).toHaveCount(0);
+    await expect(page.locator('#view-3d-button')).toHaveCount(0);
+    for (const id of ['camera-45-button', 'camera-top-button', 'fullscreen-button']) {
       await expect(page.locator(`#${id}`)).toBeHidden();
       await expect(page.locator(`[data-mobile-proxy="${id}"]`)).toHaveCount(0);
     }
