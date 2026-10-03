@@ -42,7 +42,8 @@ export interface AutomaticWallAccess {
 }
 
 export interface AutomaticWallAccessContext {
-  size: number;
+  cols: number;
+  rows: number;
   terrainBuildable: (x: number, y: number) => boolean;
   isOccupied: (x: number, y: number) => boolean;
   linksAt?: (x: number, y: number) => WallDirection[] | undefined;
@@ -364,8 +365,8 @@ export class CastleDetailGenerator {
         if (
           groundX < 0 ||
           groundY < 0 ||
-          groundX >= context.size ||
-          groundY >= context.size ||
+          groundX >= context.cols ||
+          groundY >= context.rows ||
           context.isOccupied(groundX, groundY) ||
           !context.terrainBuildable(groundX, groundY)
         ) {
@@ -377,8 +378,8 @@ export class CastleDetailGenerator {
         const outwardClear =
           outwardX >= 0 &&
           outwardY >= 0 &&
-          outwardX < context.size &&
-          outwardY < context.size &&
+          outwardX < context.cols &&
+          outwardY < context.rows &&
           !context.isOccupied(outwardX, outwardY) &&
           context.terrainBuildable(outwardX, outwardY);
 
@@ -389,8 +390,8 @@ export class CastleDetailGenerator {
           (point) =>
             point.x < 0 ||
             point.y < 0 ||
-            point.x >= context.size ||
-            point.y >= context.size ||
+            point.x >= context.cols ||
+            point.y >= context.rows ||
             context.isOccupied(point.x, point.y) ||
             !context.terrainBuildable(point.x, point.y),
         ).length;

@@ -40,8 +40,8 @@ assert.match(
 );
 assert.match(
   threeGame,
-  /WORLD \/ 2 - WORLD_STYLE\.camera\.targetPadding/,
-  'Camera target bounds must derive from the playable map extent.',
+  /this\.worldWidth \/ 2 - WORLD_STYLE\.camera\.targetPadding[\s\S]*?this\.worldHeight \/ 2 - WORLD_STYLE\.camera\.targetPadding/,
+  'Camera target bounds must derive independently from rectangular playable extents.',
 );
 assert.match(
   threeGame,

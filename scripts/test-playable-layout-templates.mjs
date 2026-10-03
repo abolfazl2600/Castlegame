@@ -8,7 +8,7 @@ const html = await readFile(new URL('../index.html', import.meta.url), 'utf8');
 
 const templates = [
   ['urban-city-60x80', 'urban-60x80', '6001', '60×80 world units: connected streets, central square, homes, market, parks, and farms.'],
-  ['royal-valley-50x89', 'royal-valley-50x89', '5089', '50×89 world units: royal fortress, river crossing, village, farms, forests, mountain resources, army camps, and working harbors.'],
+  ['royal-valley-50x89', 'royal-valley-50x89', '5089', '50×89 tiles: royal fortress, river crossing, village, farms, forests, mountain resources, army camps, and working harbors.'],
   ['mainland-frontier', 'mainland', '5501', 'Coast, fortified town, farms, roads, camp, and pier.'],
   ['coastal-peninsula', 'peninsula', '5502', 'Narrow peninsula, cross-wall, town, farms, and harbors.'],
   ['split-isles', 'twin-isles', '5503', 'Castle island + village island with sea transport.'],

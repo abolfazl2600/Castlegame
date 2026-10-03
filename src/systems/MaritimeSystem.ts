@@ -8,7 +8,8 @@ export interface CoastDirection {
 }
 
 export interface MaritimeContext {
-  size: number;
+  cols: () => number;
+  rows: () => number;
   terrainAt: (x: number, y: number) => TerrainKind;
 }
 
@@ -41,8 +42,8 @@ export class MaritimeSystem {
       const farWater =
         farX >= 0 &&
         farY >= 0 &&
-        farX < this.context.size &&
-        farY < this.context.size &&
+        farX < this.context.cols() &&
+        farY < this.context.rows() &&
         this.context.terrainAt(farX, farY) === 'water';
 
       const candidate: CoastDirection = {

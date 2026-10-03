@@ -85,7 +85,7 @@ assert.ok(
   'Plan terrain must render below fortification geometry.',
 );
 assert.doesNotMatch(
-  threeGame.slice(threeGame.indexOf('private renderPlanLayer'), threeGame.indexOf('const grid = new THREE.GridHelper')),
+  threeGame.slice(threeGame.indexOf('private renderPlanLayer'), threeGame.indexOf('const gridPoints: THREE.Vector3[]')),
   /\b0\.96\b/,
   'Plan terrain must stay opaque so transparent sorting cannot overpaint fortifications.',
 );

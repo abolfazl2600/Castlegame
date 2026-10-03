@@ -180,7 +180,8 @@ function navigationFor(record: SavedRecord): BattleNavigation {
   const elevations = new Map((record.data.elevations ?? []).map((cell) => [key(cell.x, cell.y), cell.value]));
 
   return new BattleNavigation({
-    size: 22,
+    cols: () => 22,
+    rows: () => 22,
     terrainAt: (x, y) => (terrain.get(key(x, y)) ?? 'plains') as any,
     elevationAt: (x, y) => elevations.get(key(x, y)) ?? 0,
     kindAt: (x, y) => cells.get(key(x, y))?.kind as any,

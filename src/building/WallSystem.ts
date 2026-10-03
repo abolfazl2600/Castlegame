@@ -37,7 +37,7 @@ export class WallSystem {
     return angleOrder[normalized];
   }
 
-  static createSnappedPath(start: GridPoint, end: GridPoint, size: number): GridPoint[] {
+  static createSnappedPath(start: GridPoint, end: GridPoint, cols: number, rows = cols): GridPoint[] {
     const dx = end.x - start.x;
     const dy = end.y - start.y;
 
@@ -54,7 +54,7 @@ export class WallSystem {
         y: start.y + vector.y * i,
       };
 
-      if (point.x < 0 || point.y < 0 || point.x >= size || point.y >= size) break;
+      if (point.x < 0 || point.y < 0 || point.x >= cols || point.y >= rows) break;
       points.push(point);
     }
 

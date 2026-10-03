@@ -23,7 +23,8 @@ import { WALL_DAMAGE_READABILITY } from '../rendering/DefenseVisualLanguage';
 export type CoreUnitType = 'swordsman' | 'archer' | 'spearman' | 'crossbowman' | 'modernSoldier';
 
 export interface BattleWorldContext {
-  size: number;
+  cols: () => number;
+  rows: () => number;
   tileSize: number;
   gridToWorld: (x: number, y: number) => { x: number; z: number };
   terrainAt: (x: number, y: number) => TerrainKind;
@@ -304,13 +305,14 @@ export class BattleSystem {
    * BattleSystem owns both placement and runtime wall-defense behavior.
    */
   static wallWeaponPositions(
-    size: number,
+    cols: number,
+    rows: number,
     cellAt: (x: number, y: number) => GridCell | undefined,
   ): WallWeaponPosition[] {
     const candidates: WallWeaponPosition[] = [];
 
-    for (let y = 0; y < size; y += 1) {
-      for (let x = 0; x < size; x += 1) {
+    for (let y = 0; y < rows; y += 1) {
+      for (let x = 0; x < cols; x += 1) {
         const cell = cellAt(x, y);
         if (!cell || !this.isSuitableWall(cell)) continue;
 
@@ -551,7 +553,8 @@ export class BattleSystem {
     private readonly onStatus: (status: BattleStatus) => void,
   ) {
     this.navigation = new BattleNavigation({
-      size: world.size,
+      cols: world.cols,
+      rows: world.rows,
       terrainAt: world.terrainAt,
       elevationAt: world.elevationAt,
       kindAt: world.kindAt,
@@ -737,8 +740,8 @@ export class BattleSystem {
     ]);
     const parts: string[] = [];
 
-    for (let y = 0; y < this.world.size; y += 1) {
-      for (let x = 0; x < this.world.size; x += 1) {
+    for (let y = 0; y < this.world.rows(); y += 1) {
+      for (let x = 0; x < this.world.cols(); x += 1) {
         const kind = this.world.kindAt(x, y);
         if (kind && defensiveKinds.has(kind)) parts.push(`${x},${y},${kind}`);
       }
@@ -1124,7 +1127,7 @@ export class BattleSystem {
   private spawnPendingAttacker(entry: { unitType: CoreUnitType; index: number }): void {
     const cell =
       this.attackerSpawnCells[this.attackerSpawnCursor % Math.max(1, this.attackerSpawnCells.length)] ??
-      { x: 1, y: this.world.size - 2 };
+      { x: 1, y: this.world.rows() - 2 };
     this.attackerSpawnCursor += 1;
     this.spawnGroundUnit('attacker', entry.unitType, cell, entry.index, true);
   }
@@ -1289,8 +1292,8 @@ export class BattleSystem {
 
   private findArmyCamps(): NavPoint[] {
     const camps: NavPoint[] = [];
-    for (let y = 0; y < this.world.size; y += 1) {
-      for (let x = 0; x < this.world.size; x += 1) {
+    for (let y = 0; y < this.world.rows(); y += 1) {
+      for (let x = 0; x < this.world.cols(); x += 1) {
         if (this.world.kindAt(x, y) === 'armyCamp') camps.push({ x, y });
       }
     }
@@ -1305,8 +1308,8 @@ export class BattleSystem {
     let best: NavPoint | null = null;
     let bestDistance = Number.POSITIVE_INFINITY;
 
-    for (let y = 0; y < this.world.size; y += 1) {
-      for (let x = 0; x < this.world.size; x += 1) {
+    for (let y = 0; y < this.world.rows(); y += 1) {
+      for (let x = 0; x < this.world.cols(); x += 1) {
         if (this.world.kindAt(x, y) !== 'armyCamp') continue;
         const distance = this.gridDistance({ x, y }, this.capturePointGrid);
         if (distance < bestDistance) {
@@ -2244,8 +2247,8 @@ export class BattleSystem {
 
   private worldToGrid(position: THREE.Vector3): NavPoint {
     return {
-      x: Math.floor(position.x / this.world.tileSize + this.world.size / 2),
-      y: Math.floor(position.z / this.world.tileSize + this.world.size / 2),
+      x: Math.floor(position.x / this.world.tileSize + this.world.cols() / 2),
+      y: Math.floor(position.z / this.world.tileSize + this.world.rows() / 2),
     };
   }
 
@@ -2379,9 +2382,9 @@ export class BattleSystem {
     this.rotateUnitToward(runtime, Math.atan2(planar.x, planar.z), delta, 11);
     runtime.moving = true;
 
-    const gx = Math.floor(runtime.position.x / this.world.tileSize + this.world.size / 2);
-    const gy = Math.floor(runtime.position.z / this.world.tileSize + this.world.size / 2);
-    if (gx >= 0 && gy >= 0 && gx < this.world.size && gy < this.world.size) {
+    const gx = Math.floor(runtime.position.x / this.world.tileSize + this.world.cols() / 2);
+    const gy = Math.floor(runtime.position.z / this.world.tileSize + this.world.rows() / 2);
+    if (gx >= 0 && gy >= 0 && gx < this.world.cols() && gy < this.world.rows()) {
       runtime.gridX = gx;
       runtime.gridY = gy;
       runtime.position.y = 2.22 + this.world.elevationAt(gx, gy);
@@ -2395,8 +2398,8 @@ export class BattleSystem {
     this.breachedWalls.clear();
     this.wallNodes.clear();
 
-    for (let y = 0; y < this.world.size; y += 1) {
-      for (let x = 0; x < this.world.size; x += 1) {
+    for (let y = 0; y < this.world.rows(); y += 1) {
+      for (let x = 0; x < this.world.cols(); x += 1) {
         const cell = this.world.cellAt(x, y);
         if (!cell) continue;
         if (cell.kind !== 'wall1' && cell.kind !== 'wall2' && cell.kind !== 'wall3') continue;
@@ -4532,7 +4535,8 @@ export class BattleSystem {
 
   private initializeWallWeapons(): void {
     this.wallWeapons = BattleSystem.wallWeaponPositions(
-      this.world.size,
+      this.world.cols(),
+      this.world.rows(),
       (x, y) => this.world.cellAt(x, y),
     );
     this.wallWeaponTimers.clear();

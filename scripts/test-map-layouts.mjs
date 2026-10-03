@@ -115,11 +115,11 @@ assert.match(
 
 assert.match(mapLayouts, /export const HIMEJI_LAND_WIDTH = 46;/);
 assert.match(mapLayouts, /export const HIMEJI_LAND_DEPTH = 90;/);
-assert.match(mapLayouts, /if \(layout === 'himeji-46x90'\) {[\s\S]*?himejiLandBounds\(size\)/);
+assert.match(mapLayouts, /if \(layout === 'himeji-46x90'\) {[\s\S]*?himejiLandBounds\(grid\)/);
 assert.match(mapLayouts, /export const ROYAL_VALLEY_LAND_WIDTH = 50;/);
 assert.match(mapLayouts, /export const ROYAL_VALLEY_LAND_DEPTH = 89;/);
-assert.match(mapLayouts, /export function royalValleyLandBounds\(size: number\)/);
-assert.match(mapLayouts, /if \(layout === 'royal-valley-50x89'\) {[\s\S]*?royalValleyLandBounds\(size\)/);
+assert.match(mapLayouts, /export function royalValleyLandBounds\(size: GridSizeInput\)/);
+assert.match(mapLayouts, /if \(layout === 'royal-valley-50x89'\) {[\s\S]*?royalValleyLandBounds\(grid\)/);
 
 const baseTerrain = between(
   threeGame,
@@ -128,19 +128,19 @@ const baseTerrain = between(
 );
 assert.match(
   baseTerrain,
-  /terrainForMapLayout\(this\.mapLayoutId, x, y, SIZE\)/,
-  'Tile terrain must delegate to the selected whole-map layout.',
+  /terrainForMapLayout\(this\.mapLayoutId, x, y, this\.worldGrid\)/,
+  'Tile terrain must delegate to the selected rectangular whole-map layout.',
 );
 
 assert.match(
   threeGame,
-  /private readonly worldLayoutLayer = new THREE\.Group\(\)/,
-  'World silhouette rendering must have a replaceable layout layer.',
+  /private readonly worldLayoutLayer = this\.terrainChunks\.layer/,
+  'World silhouette rendering must use the chunked terrain layer.',
 );
 assert.match(
   threeGame,
-  /private rebuildWorldLayoutSurface\(\): void \{[\s\S]*?this\.baseTerrainAt\(x, y\)/,
-  'Rendered land must be rebuilt from the same tile-level terrain source.',
+  /private rebuildWorldLayoutSurface\(\): void \{[\s\S]*?this\.terrainChunks\.rebuild\([\s\S]*?terrainAt: \(x, y\) => this\.terrainAt\(x, y\)/,
+  'Rendered land must be rebuilt through terrain chunks from the same effective terrain source.',
 );
 assert.doesNotMatch(
   threeGame,
@@ -197,8 +197,8 @@ assert.match(
 );
 assert.match(
   saveSystem,
-  /setMapLayoutId\(validMapLayoutId\(data\.mapLayoutId\) \? data\.mapLayoutId : 'island'\)/,
-  'Loading must restore layout and default old saves to Classic Island.',
+  /const layoutId = validMapLayoutId\(data\.mapLayoutId\) \? data\.mapLayoutId : 'island';[\s\S]*?this\.host\.setMapLayoutId\(layoutId\)/,
+  'Loading must restore layout before applying layout-specific rectangular bounds.',
 );
 assert.match(saveSystem, /value === 'himeji-46x90'/, 'Himeji layout IDs must survive save/load validation.');
 assert.match(saveSystem, /value === 'royal-valley-50x89'/, 'Royal Valley layout IDs must survive save/load validation.');

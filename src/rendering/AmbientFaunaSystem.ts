@@ -2,7 +2,8 @@ import * as THREE from 'three';
 import type { TerrainKind } from '../core/types';
 
 export interface FaunaWorld {
-  size: number;
+  cols: number;
+  rows: number;
   seed: number;
   terrainAt: (x: number, y: number) => TerrainKind;
   elevationAt: (x: number, y: number) => number;
@@ -69,11 +70,11 @@ export class AmbientFaunaSystem {
     const valid: Array<{ x: number; y: number; score: number }> = [];
     let fingerprint = world.seed | 0;
     const farms: Array<{ x: number; y: number }> = [];
-    for (let y = 2; y < world.size - 2; y += 1) {
-      for (let x = 2; x < world.size - 2; x += 1) {
+    for (let y = 2; y < world.rows - 2; y += 1) {
+      for (let x = 2; x < world.cols - 2; x += 1) {
         if (world.farmAt(x, y)) farms.push({ x, y });
         if (!this.isValid(world, x, y)) continue;
-        fingerprint = Math.imul(fingerprint ^ (x + y * world.size), 16777619);
+        fingerprint = Math.imul(fingerprint ^ (x + y * world.cols), 16777619);
         valid.push({ x, y, score: hash(world.seed, x, y) });
       }
     }
@@ -165,7 +166,7 @@ export class AmbientFaunaSystem {
   }
 
   private isValid(world: FaunaWorld, x: number, y: number): boolean {
-    if (x < 1 || y < 1 || x >= world.size - 1 || y >= world.size - 1) return false;
+    if (x < 1 || y < 1 || x >= world.cols - 1 || y >= world.rows - 1) return false;
     const terrain = world.terrainAt(x, y);
     if (terrain !== 'plains' && terrain !== 'forest' && terrain !== 'shore') return false;
     if (world.blockedAt(x, y)) return false;
@@ -240,7 +241,7 @@ export class AmbientFaunaSystem {
     left.add(leftWing);
     right.add(rightWing);
     root.add(left, right);
-    const center = world.toWorld(Math.floor(world.size / 2), Math.floor(world.size / 2));
+    const center = world.toWorld(Math.floor(world.cols / 2), Math.floor(world.rows / 2));
     const phase = hash(world.seed, index, 0, 73) * Math.PI * 2;
     this.birds.push({ root, left, right, centerX: center.x, centerZ: center.z,
       radius: 17 + index * 3, phase, altitude: 19 + index * 1.4 });

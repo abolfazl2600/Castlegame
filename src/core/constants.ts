@@ -1,8 +1,7 @@
 export const TILE_SIZE = 4;
-// 25×25 provides a full 100×100 world-unit gameplay grid while preserving the 4-unit building tile.
-// Existing authored layouts keep their own dimensions and are centered inside the larger ocean-backed world.
-export const WORLD_COLS = 25;
-export const WORLD_ROWS = 25;
+// Legacy/default world dimensions. Runtime layouts may override these through world/WorldGrid.ts.
+export const WORLD_COLS = 23;
+export const WORLD_ROWS = 23;
 export const WORLD_WIDTH = WORLD_COLS * TILE_SIZE;
 export const WORLD_HEIGHT = WORLD_ROWS * TILE_SIZE;
 

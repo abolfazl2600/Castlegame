@@ -20,7 +20,8 @@ registerHooks({
   },
 });
 
-const { TILE_SIZE, WORLD_COLS, WORLD_ROWS } = await import('../src/core/constants.ts');
+const { TILE_SIZE } = await import('../src/core/constants.ts');
+const { worldGridForLayout } = await import('../src/world/WorldGrid.ts');
 const {
   TRIPLE_ISLES_MAP_WIDTH,
   TRIPLE_ISLES_MAP_DEPTH,
@@ -28,23 +29,24 @@ const {
   normalizeMapLayoutId,
 } = await import('../src/world/MapLayouts.ts');
 
-assert.equal(WORLD_COLS * TILE_SIZE, 100, 'World width must support the requested 100 world units.');
-assert.equal(WORLD_ROWS * TILE_SIZE, 100, 'World depth must support the requested 100 world units.');
+const grid = worldGridForLayout('triple-isles-100x100');
+assert.equal(grid.cols * TILE_SIZE, 100, 'Three Isles width must support the requested 100 world units.');
+assert.equal(grid.rows * TILE_SIZE, 100, 'Three Isles depth must support the requested 100 world units.');
 assert.equal(TRIPLE_ISLES_MAP_WIDTH, 100);
 assert.equal(TRIPLE_ISLES_MAP_DEPTH, 100);
 assert.equal(normalizeMapLayoutId('triple-isles-100x100'), 'triple-isles-100x100');
 
-const terrain = Array.from({ length: WORLD_ROWS }, (_, y) =>
-  Array.from({ length: WORLD_COLS }, (_, x) =>
-    terrainForMapLayout('triple-isles-100x100', x, y, WORLD_COLS),
+const terrain = Array.from({ length: grid.rows }, (_, y) =>
+  Array.from({ length: grid.cols }, (_, x) =>
+    terrainForMapLayout('triple-isles-100x100', x, y, grid),
   ),
 );
 
 const visited = new Set();
 const components = [];
 const key = (x, y) => `${x},${y}`;
-for (let y = 0; y < WORLD_ROWS; y += 1) {
-  for (let x = 0; x < WORLD_COLS; x += 1) {
+for (let y = 0; y < grid.rows; y += 1) {
+  for (let x = 0; x < grid.cols; x += 1) {
     if (terrain[y][x] === 'water' || visited.has(key(x, y))) continue;
     const queue = [[x, y]];
     const cells = [];
@@ -55,7 +57,7 @@ for (let y = 0; y < WORLD_ROWS; y += 1) {
       for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
         const nx = cx + dx;
         const ny = cy + dy;
-        if (nx < 0 || ny < 0 || nx >= WORLD_COLS || ny >= WORLD_ROWS) continue;
+        if (nx < 0 || ny < 0 || nx >= grid.cols || ny >= grid.rows) continue;
         if (terrain[ny][nx] === 'water' || visited.has(key(nx, ny))) continue;
         visited.add(key(nx, ny));
         queue.push([nx, ny]);

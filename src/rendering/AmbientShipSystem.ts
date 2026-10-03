@@ -2,7 +2,8 @@ import * as THREE from 'three';
 import type { TerrainKind } from '../core/types';
 
 export interface AmbientShipContext {
-  size: number;
+  cols: () => number;
+  rows: () => number;
   tileSize: number;
   terrainAt: (x: number, y: number) => TerrainKind;
   gridToWorld: (x: number, y: number) => { x: number; z: number };
@@ -141,8 +142,10 @@ export class AmbientShipSystem {
 
   private findWaterRoute(seed: number): WaterRoute | null {
     const candidates: WaterRoute[] = [];
-    const size = this.context.size;
-    const center = (size - 1) / 2;
+    const cols = this.context.cols();
+    const rows = this.context.rows();
+    const centerX = (cols - 1) / 2;
+    const centerY = (rows - 1) / 2;
 
     const addRun = (
       horizontal: boolean,
@@ -166,7 +169,9 @@ export class AmbientShipSystem {
       const end = new THREE.Vector3(endWorld.x, 0, endWorld.z);
       const length = start.distanceTo(end);
       const runCenter = (startIndex + endIndex) * 0.5;
-      const proximity = Math.abs(fixed - center) + Math.abs(runCenter - center) * 0.35;
+      const proximity = horizontal
+        ? Math.abs(fixed - centerY) + Math.abs(runCenter - centerX) * 0.35
+        : Math.abs(fixed - centerX) + Math.abs(runCenter - centerY) * 0.35;
       const score = cells * 10 - proximity * 2.4;
 
       candidates.push({
@@ -182,10 +187,10 @@ export class AmbientShipSystem {
       });
     };
 
-    for (let y = 0; y < size; y += 1) {
+    for (let y = 0; y < rows; y += 1) {
       let runStart = -1;
-      for (let x = 0; x <= size; x += 1) {
-        const water = x < size && this.context.terrainAt(x, y) === 'water';
+      for (let x = 0; x <= cols; x += 1) {
+        const water = x < cols && this.context.terrainAt(x, y) === 'water';
         if (water && runStart < 0) runStart = x;
         if (!water && runStart >= 0) {
           addRun(true, y, runStart, x - 1);
@@ -194,10 +199,10 @@ export class AmbientShipSystem {
       }
     }
 
-    for (let x = 0; x < size; x += 1) {
+    for (let x = 0; x < cols; x += 1) {
       let runStart = -1;
-      for (let y = 0; y <= size; y += 1) {
-        const water = y < size && this.context.terrainAt(x, y) === 'water';
+      for (let y = 0; y <= rows; y += 1) {
+        const water = y < rows && this.context.terrainAt(x, y) === 'water';
         if (water && runStart < 0) runStart = y;
         if (!water && runStart >= 0) {
           addRun(false, x, runStart, y - 1);
