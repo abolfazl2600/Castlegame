@@ -1,5 +1,6 @@
 import { TILE_SIZE } from '../core/constants';
 import type { MapLayoutId, TerrainKind } from '../core/types';
+import type { WorldGridDimensions } from './WorldGrid';
 
 export interface MapLayoutDefinition {
   id: MapLayoutId;
@@ -20,15 +21,24 @@ export const TWIN_FORTRESSES_LAND_DEPTH = 95;
 export const HIMEJI_LAND_WIDTH = 46;
 export const HIMEJI_LAND_DEPTH = 90;
 
-/** Large handcrafted north-south valley. Dimensions are world units, matching the other authored layouts. */
+/** Royal Valley is the first large rectangular gameplay grid: 50×89 actual build tiles. */
 export const ROYAL_VALLEY_LAND_WIDTH = 50;
 export const ROYAL_VALLEY_LAND_DEPTH = 89;
 
-export function urbanLandBounds(size: number) {
+type GridSizeInput = number | Pick<WorldGridDimensions, 'cols' | 'rows'>;
+
+function resolveGrid(size: GridSizeInput): { cols: number; rows: number } {
+  return typeof size === 'number'
+    ? { cols: size, rows: size }
+    : { cols: size.cols, rows: size.rows };
+}
+
+export function urbanLandBounds(size: GridSizeInput) {
+  const grid = resolveGrid(size);
   const cols = URBAN_LAND_WIDTH / TILE_SIZE;
   const rows = URBAN_LAND_DEPTH / TILE_SIZE;
-  const minX = Math.floor((size - cols) / 2);
-  const minY = Math.floor((size - rows) / 2);
+  const minX = Math.floor((grid.cols - cols) / 2);
+  const minY = Math.floor((grid.rows - rows) / 2);
   return { minX, minY, cols, rows, maxX: minX + cols - 1, maxY: minY + rows - 1 };
 }
 
@@ -40,20 +50,25 @@ export function urbanLandBounds(size: number) {
  * 12×23 cells. Keeping the 46×90 dimensions as first-class map metadata prevents
  * the historic template from falling back to a generic square mainland footprint.
  */
-export function himejiLandBounds(size: number) {
+export function himejiLandBounds(size: GridSizeInput) {
+  const grid = resolveGrid(size);
   const cols = Math.ceil(HIMEJI_LAND_WIDTH / TILE_SIZE);
   const rows = Math.ceil(HIMEJI_LAND_DEPTH / TILE_SIZE);
-  const minX = Math.floor((size - cols) / 2);
-  const minY = Math.floor((size - rows) / 2);
+  const minX = Math.floor((grid.cols - cols) / 2);
+  const minY = Math.floor((grid.rows - rows) / 2);
   return { minX, minY, cols, rows, maxX: minX + cols - 1, maxY: minY + rows - 1 };
 }
 
-export function royalValleyLandBounds(size: number) {
-  const cols = Math.ceil(ROYAL_VALLEY_LAND_WIDTH / TILE_SIZE);
-  const rows = Math.ceil(ROYAL_VALLEY_LAND_DEPTH / TILE_SIZE);
-  const minX = Math.floor((size - cols) / 2);
-  const minY = Math.floor((size - rows) / 2);
-  return { minX, minY, cols, rows, maxX: minX + cols - 1, maxY: minY + rows - 1 };
+export function royalValleyLandBounds(size: GridSizeInput) {
+  const grid = resolveGrid(size);
+  return {
+    minX: 0,
+    minY: 0,
+    cols: grid.cols,
+    rows: grid.rows,
+    maxX: grid.cols - 1,
+    maxY: grid.rows - 1,
+  };
 }
 
 export const MAP_LAYOUTS: readonly MapLayoutDefinition[] = [
@@ -102,7 +117,7 @@ export const MAP_LAYOUTS: readonly MapLayoutDefinition[] = [
   {
     id: 'royal-valley-50x89',
     label: 'Royal Valley 50×89',
-    description: 'A long 50×89 coastal valley with a navigable river, mountain ridge, forests, open farmland, and room for a complete kingdom.',
+    description: 'A large 50×89-tile coastal valley with a navigable river, mountain ridge, forests, open farmland, and room for a complete kingdom.',
     preview: '♜≈🌲',
   },
 ] as const;
@@ -426,12 +441,14 @@ export function terrainForMapLayout(
   layout: MapLayoutId,
   x: number,
   y: number,
-  size: number,
+  size: GridSizeInput,
 ): TerrainKind {
-  if (x < 0 || y < 0 || x >= size || y >= size) return 'water';
+  const grid = resolveGrid(size);
+  const { cols, rows } = grid;
+  if (x < 0 || y < 0 || x >= cols || y >= rows) return 'water';
 
   if (layout === 'royal-valley-50x89') {
-    const bounds = royalValleyLandBounds(size);
+    const bounds = royalValleyLandBounds(grid);
     if (x < bounds.minX || x > bounds.maxX || y < bounds.minY || y > bounds.maxY) return 'water';
 
     const localX = x - bounds.minX;
@@ -482,32 +499,34 @@ export function terrainForMapLayout(
     return 'plains';
   }
 
+  const squareSize = Math.min(cols, rows);
+
   if (layout === 'himeji-46x90') {
-    const bounds = himejiLandBounds(size);
+    const bounds = himejiLandBounds(grid);
     return x >= bounds.minX && x <= bounds.maxX && y >= bounds.minY && y <= bounds.maxY
       ? 'plains' : 'water';
   }
 
   if (layout === 'twin-fortresses-90x95') {
-    const edgeMountain = (x <= 2 && y <= 4) || (x >= size - 3 && y >= size - 5);
+    const edgeMountain = (x <= 2 && y <= 4) || (x >= cols - 3 && y >= rows - 5);
     if (edgeMountain) return 'mountain';
-    const forestPocket = (x >= 9 && x <= 11 && y <= 4) || (x >= 10 && x <= 12 && y >= size - 5);
+    const forestPocket = (x >= 9 && x <= 11 && y <= 4) || (x >= 10 && x <= 12 && y >= rows - 5);
     if (forestPocket) return 'forest';
     return 'plains';
   }
 
   if (layout === 'urban-60x80') {
-    const bounds = urbanLandBounds(size);
+    const bounds = urbanLandBounds(grid);
     return x >= bounds.minX && x <= bounds.maxX && y >= bounds.minY && y <= bounds.maxY
       ? 'plains' : 'water';
   }
 
-  const score = landScore(layout, x, y, size);
+  const score = landScore(layout, x, y, squareSize);
   if (score < -0.035) return 'water';
   if (score < 0.025) return 'shore';
 
-  if (layoutRiver(layout, x, y, size, score)) return 'river';
-  if (layoutMountain(layout, x, y, size)) return 'mountain';
-  if (layoutForest(layout, x, y, size)) return 'forest';
+  if (layoutRiver(layout, x, y, squareSize, score)) return 'river';
+  if (layoutMountain(layout, x, y, squareSize)) return 'mountain';
+  if (layoutForest(layout, x, y, squareSize)) return 'forest';
   return 'plains';
 }
