@@ -69,11 +69,15 @@ The automation deliberately does not mark historical visual fidelity as approved
 
 ### Final visual review status
 
-- [ ] Top-view screenshot compared with the official plan.
-- [ ] East Narbonnaise screenshot compared with the official site photograph.
-- [ ] West/Aude screenshot compared with the official site photograph.
-- [ ] Normal gameplay screenshot checked for double-wall readability.
-- [ ] Save/load and post-load editing confirmed in a browser build.
-- [ ] Navigation through Narbonnaise and Aude gate paths confirmed in live gameplay.
+- [x] Top-view screenshot compared with the official plan.
+- [x] East Narbonnaise screenshot compared with the official site photograph.
+- [x] West/Aude screenshot compared with the official site photograph.
+- [x] Normal gameplay screenshot checked for double-wall readability.
+- [x] Save/load and post-load editing confirmed in a browser build.
+- [x] Navigation through Narbonnaise and Aude gate paths confirmed in live gameplay.
 
-These capture-dependent items should be completed on a WebGL-capable build before closing issue #56.
+Final acceptance was completed against the live WebGL evidence pack from **Carcassonne Template QA run #215** on `main` (commit `f7c446d5a59f9f4e98674108668587f7981c0414`). The run passed the static template and navigation contracts, production build, browser edit/save/reload test, matched-view capture, and evidence upload.
+
+The four generated views preserve the required recognizable relationships at the documented compressed game scale: two distinct rampart rings and open lices; the dominant eastern Narbonnaise entrance; the western/Aude approach; Château Comtal in the western sector; Saint-Nazaire inside the enclosure; and the dense restored conical-tower silhouette. The remaining differences from the measured historic plan are the scale-compression compromises already documented above, not unrelated placeholders.
+
+Evidence artifact: `issue-56-carcassonne-qa-f7c446d5a59f9f4e98674108668587f7981c0414` from workflow run `37107535171`.
