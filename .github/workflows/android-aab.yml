@@ -82,9 +82,25 @@ jobs:
             exit 1
           fi
 
+      - name: Generate unique Android version code
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Seconds since 2020-01-01 UTC. Monotonic across release builds and
+          # independent from workflow-specific run counters.
+          EPOCH_2020=1577836800
+          NOW="$(date +%s)"
+          VERSION_CODE=$((NOW - EPOCH_2020))
+          if (( VERSION_CODE < 1 || VERSION_CODE > 2100000000 )); then
+            echo "::error::Generated Android versionCode is outside the valid range: $VERSION_CODE"
+            exit 1
+          fi
+          echo "ANDROID_VERSION_CODE=$VERSION_CODE" >> "$GITHUB_ENV"
+          echo "Android versionCode: $VERSION_CODE"
+
       - name: Assemble unsigned release AAB
         working-directory: android
-        run: ./gradlew --no-daemon bundleRelease
+        run: ./gradlew --no-daemon -PandroidVersionCode="$ANDROID_VERSION_CODE" bundleRelease
 
       - name: Validate AAB and read Android version
         id: bundle_version
@@ -98,9 +114,9 @@ jobs:
           fi
           unzip -t "$AAB" > /dev/null
           VERSION_NAME="$(sed -nE 's/^[[:space:]]*versionName "([^"]+)".*/\1/p' android/app/build.gradle | head -n 1)"
-          VERSION_CODE="$(sed -nE 's/^[[:space:]]*versionCode ([0-9]+).*/\1/p' android/app/build.gradle | head -n 1)"
+          VERSION_CODE="${ANDROID_VERSION_CODE:-}"
           if [[ -z "$VERSION_NAME" || -z "$VERSION_CODE" ]]; then
-            echo "::error::Could not read Android versionName/versionCode from android/app/build.gradle."
+            echo "::error::Could not read Android versionName or generated versionCode."
             exit 1
           fi
           VERSION_NAME="${VERSION_NAME//[^a-zA-Z0-9._-]/-}"
