@@ -1,7 +1,7 @@
 import type { GridCell, MissileInventoryState, TileKind } from '../core/types';
 import type { GameMode } from '../core/GameMode';
 import { defaultMissileState, normalizeMissileState } from '../battle/MissileCapability';
-import { MAX_WALL_LEVEL } from '../building/CastleBlockSystem';
+import { AUTOMATIC_WALL_LEVEL, isCastleWallKind } from '../building/CastleBlockSystem';
 
 export interface CellEntry extends GridCell {
   x: number;
@@ -88,7 +88,7 @@ export class GameState {
   }
 
   private normalizeCellOptions(kind: TileKind, options: Partial<GridCell>): Partial<GridCell> {
-    if (kind === 'wall1' || kind === 'wall2' || kind === 'wall3') {
+    if (isCastleWallKind(kind)) {
       return { ...options, battlement: true, walkway: true };
     }
     return options;
@@ -96,7 +96,7 @@ export class GameState {
 
   private normalizeLevel(kind: TileKind, value: number): number {
     const level = Number.isFinite(value) ? Math.max(1, Math.floor(value)) : 1;
-    if (kind === 'wall1' || kind === 'wall2' || kind === 'wall3') return Math.min(MAX_WALL_LEVEL, level);
+    if (isCastleWallKind(kind)) return AUTOMATIC_WALL_LEVEL;
     if (kind === 'tower' || kind === 'gate' || kind === 'cottage' || kind === 'mosque') return Math.min(4, level);
     return level;
   }

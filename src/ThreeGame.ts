@@ -12,7 +12,7 @@ import type { GameExtension } from './core/GameExtension';
 import type { GameState } from './state/GameState';
 import { SAVE_KEY, SAVE_VERSION, TILE_SIZE, WORLD_COLS } from './core/constants';
 import { WallSystem } from './building/WallSystem';
-import { CastleBlockSystem, MAX_WALL_LEVEL, castleDamageStage, castleHeightFor, type CastleBlockState } from './building/CastleBlockSystem';
+import { AUTOMATIC_WALL_LEVEL, CastleBlockSystem, castleDamageStage, castleHeightFor, type CastleBlockState } from './building/CastleBlockSystem';
 import { ConstructionAnimationSystem } from './rendering/ConstructionAnimationSystem';
 import { AmbientFaunaSystem } from './rendering/AmbientFaunaSystem';
 import { AmbientShipSystem } from './rendering/AmbientShipSystem';
@@ -8510,7 +8510,7 @@ export class ThreeGame {
           this.wallDragEnd = cell;
           this.controls.enabled = false;
           canvas.setPointerCapture(event.pointerId);
-          this.renderWallPreview([cell], event.shiftKey);
+          this.renderWallPreview([cell]);
           this.setStatus(this.wallPreviewStatus);
           event.preventDefault();
           event.stopPropagation();
@@ -8606,7 +8606,7 @@ export class ThreeGame {
           if (cell) {
             this.wallDragEnd = cell;
             const path = this.wallPath(this.wallDragStart, cell);
-            this.renderWallPreview(path, event.shiftKey);
+            this.renderWallPreview(path);
             this.setStatus(this.wallPreviewStatus);
           }
           event.preventDefault();
@@ -8729,7 +8729,7 @@ export class ThreeGame {
           this.controls.enabled = true;
 
           if (canvas.hasPointerCapture(event.pointerId)) canvas.releasePointerCapture(event.pointerId);
-          this.buildWallDrag(startPoint, end, event.shiftKey);
+          this.buildWallDrag(startPoint, end);
 
           event.preventDefault();
           event.stopPropagation();
@@ -9361,7 +9361,7 @@ export class ThreeGame {
     return WallSystem.createSnappedPath(start, end, SIZE);
   }
 
-  private renderWallPreview(path: GridPoint[], decrease = false): void {
+  private renderWallPreview(path: GridPoint[]): void {
     this.clearGroup(this.wallPreviewLayer);
     if (path.length === 0) return;
 
@@ -9412,16 +9412,13 @@ export class ThreeGame {
           x: point.x,
           y: point.y,
           kind: wallKind,
-          level: 1,
+          level: AUTOMATIC_WALL_LEVEL,
           thickness: this.wallThickness,
           battlement: true,
           walkway: true,
         });
       } else if (single && existing.kind === wallKind) {
-        const currentLevel = Math.max(1, Math.floor(existing.level ?? 1));
-        existing.level = decrease
-          ? Math.max(1, currentLevel - 1)
-          : Math.min(MAX_WALL_LEVEL, currentLevel + 1);
+        existing.level = AUTOMATIC_WALL_LEVEL;
         existing.damage = 0;
         existing.thickness = this.wallThickness;
         existing.battlement = true;
@@ -9449,17 +9446,10 @@ export class ThreeGame {
       (x, y) => this.terrainElevation(x, y),
     ).blocks.map((block) => [this.key(block.x, block.y), block]));
     const invalidSegments = validity.filter((valid) => !valid).length;
-    const heightTarget = single && path[0]
-      ? draftBlocks.get(this.key(path[0].x, path[0].y))?.level
-      : undefined;
-    const heightSuffix = heightTarget !== undefined &&
-      this.services.state.getCell(path[0].x, path[0].y)?.kind === wallKind
-      ? ` · target height L${heightTarget}`
-      : '';
     this.wallPreviewStatus =
       `Wall preview · ${path.length} segment${path.length === 1 ? '' : 's'} · ` +
       `${costedSegments} new/replace · cost ${this.constructionCostPreviewLabel(wallKind, costedSegments)}` +
-      `${invalidSegments > 0 ? ` · ${invalidSegments} invalid` : ''}${heightSuffix}`;
+      `${invalidSegments > 0 ? ` · ${invalidSegments} invalid` : ''} · height automatic`;
 
     for (let i = 0; i < path.length; i += 1) {
       const point = path[i];
@@ -9572,7 +9562,7 @@ export class ThreeGame {
     }
   }
 
-  private buildWallDrag(start: GridPoint, end: GridPoint, decrease: boolean): void {
+  private buildWallDrag(start: GridPoint, end: GridPoint): void {
     const wallKind = this.selectedTool as WallKind;
     const path = this.wallPath(start, end);
     const single = path.length === 1;
@@ -9604,18 +9594,18 @@ export class ThreeGame {
       if (!cell && this.isStructureFootprintReserved(point.x, point.y)) continue;
 
       if (single && cell?.kind === wallKind) {
-        const nextLevel = decrease
-          ? Math.max(1, (cell.level ?? 1) - 1)
-          : Math.min(MAX_WALL_LEVEL, (cell.level ?? 1) + 1);
-
+        const changedExisting =
+          (cell.damage ?? 0) > 0 ||
+          cell.level !== AUTOMATIC_WALL_LEVEL ||
+          cell.thickness !== this.wallThickness;
         this.services.state.updateCell(point.x, point.y, {
-          level: nextLevel,
+          level: AUTOMATIC_WALL_LEVEL,
           damage: 0,
           thickness: this.wallThickness,
           battlement: true,
           walkway: true,
         });
-        changed = true;
+        changed ||= changedExisting;
         continue;
       }
 
@@ -9627,7 +9617,7 @@ export class ThreeGame {
       if (cell && !WALL_KINDS.includes(cell.kind as WallKind)) continue;
       if (!cell && !this.canBuildFortificationOnTerrain(terrain)) continue;
 
-      this.services.state.setCell(point.x, point.y, wallKind, cell?.level ?? 1, {
+      this.services.state.setCell(point.x, point.y, wallKind, AUTOMATIC_WALL_LEVEL, {
         thickness: this.wallThickness,
         battlement: true,
         walkway: true,
@@ -11362,7 +11352,6 @@ export class ThreeGame {
       '<label class="settings-row"><span>Thickness</span><select id="wall-thickness">' +
       '<option value="thin">Thin</option><option value="medium" selected>Medium</option><option value="thick">Thick</option>' +
       '</select></label>' +
-      '<div class="settings-actions"><button id="selected-down" type="button">− Height</button><button id="selected-up" type="button">+ Height</button></div>' +
       '<div class="settings-title">Castle Architecture</div>' +
       '<label class="settings-row"><span>Stone Style</span><select id="castle-stone-style">' +
       '<option value="limestone" selected>Limestone</option><option value="darkStone">Dark Stone</option>' +
@@ -11654,9 +11643,6 @@ export class ThreeGame {
     keepCornerTowers.onchange = updateKeepDraft;
     keepBattlements.onchange = updateKeepDraft;
 
-    get<HTMLButtonElement>('selected-down').onclick = () => this.adjustSelectedHeight(-1);
-    get<HTMLButtonElement>('selected-up').onclick = () => this.adjustSelectedHeight(1);
-
     const brushSize = get<HTMLSelectElement>('brush-size');
     brushSize.onchange = () => {
       this.brushSize = Number(brushSize.value);
@@ -11926,9 +11912,6 @@ export class ThreeGame {
 
       const selected = shortcutMap[key];
       if (selected) this.selectTool(selected);
-      if (event.key === '[') this.adjustSelectedHeight(-1);
-      if (event.key === ']') this.adjustSelectedHeight(1);
-
       if (event.key === 'Escape') {
         help.hidden = true;
         templates.hidden = true;
@@ -12169,29 +12152,6 @@ export class ThreeGame {
       this.selectKeep(updated);
       this.redraw();
       this.scheduleSave();
-    }
-  }
-
-  private adjustSelectedKeepFloors(delta: number): void {
-    if (this.selectedKeepId === null) {
-      this.keepFloors = THREE.MathUtils.clamp(this.keepFloors + delta, 1, 9);
-      const floors = document.getElementById('keep-floors') as HTMLSelectElement | null;
-      if (floors) floors.value = String(Math.min(9, this.keepFloors));
-      this.setStatus(`Keep draft floors: ${this.keepFloors}`);
-      return;
-    }
-
-    const keep = this.services.keepSystem.get(this.selectedKeepId);
-    if (!keep) return;
-
-    this.keepFloors = Math.max(1, keep.floors + delta);
-    this.recordHistory();
-    const updated = this.services.keepSystem.update(keep.id, { floors: this.keepFloors });
-    if (updated) {
-      this.selectKeep(updated);
-      this.redraw();
-      this.scheduleSave();
-      this.setStatus(`Keep floors: ${updated.floors}`);
     }
   }
 
@@ -13069,54 +13029,6 @@ export class ThreeGame {
     this.scheduleSave();
     audioEvents.emit({ action: 'play_sfx', assetId: 'building.upgrade' });
       this.setStatus(`Army Camp upgraded to Level ${nextLevel} · ${this.armyCampLevelDefinition(nextLevel).name}`);
-  }
-
-  private adjustSelectedHeight(delta: number): void {
-    if (this.selectedKeepId !== null) {
-      this.adjustSelectedKeepFloors(delta);
-      return;
-    }
-
-    if (!this.selectedCell) {
-      this.setStatus('Click a wall or tower first');
-      return;
-    }
-
-    const cell = this.services.state.getCell(this.selectedCell.x, this.selectedCell.y);
-    if (!cell || (!WALL_KINDS.includes(cell.kind as WallKind) && cell.kind !== 'tower')) {
-      this.setStatus(
-        cell?.kind === 'armyCamp'
-          ? 'Use the Army Camp Upgrade button in Build Settings'
-          : cell && this.residentialLevelForCell(cell) !== null
-            ? 'Use the Residential Upgrade button in Build Settings'
-          : cell?.kind === 'mosque'
-            ? 'Use the Mosque Upgrade button in Build Settings'
-          : cell?.kind === 'farm' || cell?.kind === 'cowBarn'
-            ? 'Use the agriculture Upgrade button in Build Settings'
-            : cell?.kind === 'harbor'
-              ? 'Use the Harbor Upgrade button in Build Settings'
-              : cell?.kind === 'carpenter'
-                ? 'Use the Carpenter Upgrade button in Build Settings'
-                : 'Selected tile is not a wall or tower',
-      );
-      return;
-    }
-
-    const currentLevel = Math.max(1, Math.floor(cell.level ?? 1));
-    const nextLevel = cell.kind === 'tower'
-      ? Math.max(1, Math.min(FORTIFICATION_MAX_LEVEL, currentLevel + delta))
-      : Math.max(1, Math.min(MAX_WALL_LEVEL, currentLevel + delta));
-    if (nextLevel === currentLevel) {
-      this.setStatus(cell.kind === 'tower' ? 'Tower levels are limited to 1–4' : `Wall levels are limited to 1–${MAX_WALL_LEVEL}`);
-      return;
-    }
-
-    this.recordHistory();
-    this.services.state.setLevel(this.selectedCell.x, this.selectedCell.y, nextLevel);
-    if (WALL_KINDS.includes(cell.kind as WallKind)) this.redrawCastleNeighborhood([this.selectedCell]);
-    else this.redraw();
-    this.scheduleSave();
-    this.setStatus(`Height level: ${nextLevel}`);
   }
 
   private applyTemplate(template: string): void {

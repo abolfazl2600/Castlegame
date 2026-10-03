@@ -3,16 +3,24 @@ import { readFile } from 'node:fs/promises';
 
 const game = await readFile(new URL('../src/ThreeGame.ts', import.meta.url), 'utf8');
 
-// Wall placement must preview the actual resulting connected topology and height
-// before pointer-up confirms the edit.
-assert.match(game, /private renderWallPreview\(path: GridPoint\[\], decrease = false\): void/);
-assert.match(game, /existing\.level = decrease[\s\S]*?MAX_WALL_LEVEL/);
+// Wall placement previews automatic structural height from the authoritative
+// CastleBlockSystem. No pointer modifier, button, or keyboard path may change
+// an individual wall's height.
+assert.match(game, /AUTOMATIC_WALL_LEVEL, CastleBlockSystem/);
+assert.match(game, /private renderWallPreview\(path: GridPoint\[\]\): void/);
+assert.match(game, /existing\.level = AUTOMATIC_WALL_LEVEL/);
 assert.match(game, /marker\.userData\.previewTopology = draftBlock\?\.topology/);
 assert.match(game, /body\.userData\.previewLevel = draftBlock\.level/);
 assert.match(game, /Wall preview · \$\{path\.length\} segment/);
 assert.match(game, /constructionCostPreviewLabel\(wallKind, costedSegments\)/);
 assert.match(game, /invalidSegments > 0/);
-assert.match(game, /target height L\$\{heightTarget\}/);
+assert.match(game, /height automatic/);
+assert.match(game, /private buildWallDrag\(start: GridPoint, end: GridPoint\): void/);
+assert.match(game, /level: AUTOMATIC_WALL_LEVEL/);
+assert.doesNotMatch(game, /target height L/);
+assert.doesNotMatch(game, /selected-down|selected-up|adjustSelectedHeight/);
+assert.doesNotMatch(game, /renderWallPreview\([^\n]*event\.shiftKey/);
+assert.doesNotMatch(game, /buildWallDrag\([^\n]*event\.shiftKey/);
 
 // Gate and tower replacement/upgrade previews must come from the same
 // authoritative CastleBlockSystem used by the final rendered castle.

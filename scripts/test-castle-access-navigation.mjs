@@ -190,8 +190,8 @@ assert.match(
 );
 assert.match(
   constants,
-  /export const SAVE_VERSION = 17;/,
-  'Battlement canonicalization must advance the persistent save schema.',
+  /export const SAVE_VERSION = 18;/,
+  'Wall-height canonicalization must advance the persistent save schema.',
 );
 
 console.log('Wall-connected access removal/navigation regression checks passed.');
