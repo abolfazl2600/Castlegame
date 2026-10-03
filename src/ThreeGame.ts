@@ -9298,6 +9298,11 @@ export class ThreeGame {
           } else {
             this.clearBuildPlacementPreview();
           }
+        } else if (this.relocationState) {
+          // Camera drag must never leave a relocation preview looking like a
+          // committed selection. Restore the original selection footprint.
+          this.relocationHover = null;
+          this.renderSelectionVisual();
         }
       },
       true,
@@ -12542,7 +12547,9 @@ export class ThreeGame {
 
     const origin = relocation.origin;
     const cell = relocation.cell;
-    const cells = getStructureFootprint(cell.kind, point.x, point.y);
+    const cells = cell.kind === 'market'
+      ? this.buildPlacementFootprint('market', point)
+      : getStructureFootprint(cell.kind, point.x, point.y);
     if (point.x === origin.x && point.y === origin.y) {
       return { valid: false, reason: 'Choose a different tile', cells };
     }
