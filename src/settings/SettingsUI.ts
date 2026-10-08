@@ -36,6 +36,7 @@ export class SettingsUI {
 
     this.bindOpenCloseActions(settingsButton);
     this.bindNavigation();
+    window.addEventListener('resize', () => this.syncNavigationOrientation());
     this.bindCoreControls();
     this.store.subscribe((settings) => this.render(settings));
     void this.installOptionalSections();
@@ -333,7 +334,13 @@ export class SettingsUI {
     });
   }
 
+  private syncNavigationOrientation(): void {
+    const nav = this.panel.querySelector<HTMLElement>('.settings-nav');
+    if (nav) nav.setAttribute('aria-orientation', getComputedStyle(nav).flexDirection === 'row' ? 'horizontal' : 'vertical');
+  }
+
   private activatePane(pane: SettingsPane): void {
+    this.syncNavigationOrientation();
     this.activePane = pane;
     this.panel.querySelectorAll<HTMLElement>('[data-settings-pane]').forEach((section) => {
       section.classList.toggle('is-active', section.dataset.settingsPane === pane);
