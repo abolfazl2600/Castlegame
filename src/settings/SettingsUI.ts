@@ -14,6 +14,7 @@ export class SettingsUI {
   private readonly panel: HTMLElement;
   private readonly backdrop: HTMLElement;
   private activePane: SettingsPane = 'overview';
+  private lastFocusedElement: HTMLElement | null = null;
 
   constructor(
     private readonly store: SettingsStore,
@@ -41,12 +42,15 @@ export class SettingsUI {
   }
 
   open(): void {
+    if (this.panel.hidden) {
+      this.lastFocusedElement = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    }
     this.backdrop.hidden = false;
     this.backdrop.setAttribute('aria-hidden', 'false');
     this.panel.hidden = false;
     this.panel.setAttribute('aria-hidden', 'false');
     this.activatePane(this.activePane);
-    this.panel.querySelector<HTMLElement>('[data-settings-autofocus]')?.focus();
+    this.panel.querySelector<HTMLButtonElement>(`[data-settings-nav="${this.activePane}"]`)?.focus();
   }
 
   close(): void {
@@ -54,6 +58,8 @@ export class SettingsUI {
     this.panel.setAttribute('aria-hidden', 'true');
     this.backdrop.hidden = true;
     this.backdrop.setAttribute('aria-hidden', 'true');
+    if (this.lastFocusedElement?.isConnected) this.lastFocusedElement.focus();
+    this.lastFocusedElement = null;
   }
 
   appendSection(section: HTMLElement): void {
@@ -93,11 +99,14 @@ export class SettingsUI {
             <h2 id="settings-title">Settings</h2>
             <p>Game actions, visuals, sound and accessibility in one place.</p>
           </div>
-          <button id="settings-close" type="button" aria-label="Close settings">×</button>
+          <div class="settings-header-actions">
+            <span class="settings-live-indicator"><span aria-hidden="true"></span>Changes apply instantly</span>
+            <button id="settings-close" type="button" aria-label="Close settings"><span aria-hidden="true">×</span></button>
+          </div>
         </header>
 
         <div class="settings-layout">
-          <nav class="settings-nav" aria-label="Settings sections">
+          <nav class="settings-nav" role="tablist" aria-orientation="vertical" aria-label="Settings sections">
             ${this.navButton('overview', '⌂', 'Overview', true)}
             ${this.navButton('general', '⚙', 'General')}
             ${this.navButton('graphics', '◈', 'Graphics')}
@@ -109,7 +118,20 @@ export class SettingsUI {
           </nav>
 
           <div class="settings-scroll">
-            <section class="settings-pane is-active" data-settings-pane="overview">
+            <section class="settings-pane is-active" data-settings-pane="overview" id="settings-panel-overview" role="tabpanel" aria-labelledby="settings-tab-overview" tabindex="0">
+              <div class="settings-overview-hero">
+                <div class="settings-overview-hero-copy">
+                  <span class="settings-hero-eyebrow">YOUR REALM · YOUR RULES</span>
+                  <h3>Make the game yours.</h3>
+                  <p>Personalize your experience or jump straight back into your castle.</p>
+                </div>
+                <button type="button" data-action="continue-game" class="settings-continue-button">Continue playing <span aria-hidden="true">↗</span></button>
+              </div>
+              <div class="settings-quick-settings" aria-label="Current preferences">
+                <button type="button" data-settings-jump="graphics"><span>Graphics</span><strong data-settings-summary="graphics">High</strong><small>Visual quality</small></button>
+                <button type="button" data-settings-jump="audio"><span>Audio</span><strong data-settings-summary="audio">100%</strong><small>Master volume</small></button>
+                <button type="button" data-settings-jump="general"><span>Language</span><strong data-settings-summary="language">فارسی</strong><small>Interface language</small></button>
+              </div>
               <div class="settings-pane-heading">
                 <div><span class="settings-section-eyebrow">QUICK ACCESS</span><h3>Game Actions</h3></div>
                 <span class="settings-section-badge">LIVE</span>
@@ -128,7 +150,7 @@ export class SettingsUI {
               </div>
             </section>
 
-            <section class="settings-pane" data-settings-pane="general">
+            <section class="settings-pane" data-settings-pane="general" id="settings-panel-general" role="tabpanel" aria-labelledby="settings-tab-general" tabindex="0">
               ${this.paneHeading('GENERAL', 'Interface & Preferences', 'Tune the interface without changing your world.')}
               <div class="settings-control-card">
                 ${this.rangeRow('UI scale', 'Scale menus and HUD elements.', 'uiScale', 0.75, 1.5, 0.05)}
@@ -138,7 +160,7 @@ export class SettingsUI {
               </div>
             </section>
 
-            <section class="settings-pane" data-settings-pane="graphics">
+            <section class="settings-pane" data-settings-pane="graphics" id="settings-panel-graphics" role="tabpanel" aria-labelledby="settings-tab-graphics" tabindex="0">
               ${this.paneHeading('VISUALS', 'Graphics', 'Balance scene detail and performance.')}
               <div class="settings-control-card">
                 ${this.selectRow('Graphics quality', 'Overall rendering quality preset.', 'quality', '<option value="low">Low</option><option value="medium">Medium</option><option value="high">High</option>')}
@@ -150,7 +172,7 @@ export class SettingsUI {
               </div>
             </section>
 
-            <section class="settings-pane" data-settings-pane="audio">
+            <section class="settings-pane" data-settings-pane="audio" id="settings-panel-audio" role="tabpanel" aria-labelledby="settings-tab-audio" tabindex="0">
               ${this.paneHeading('SOUND', 'Audio', 'Procedural ambience and game feedback. Audio unlocks after your first interaction.')}
               <div class="settings-audio-status"><span>♪</span><div><strong>Procedural sound engine</strong><small>No external audio download is required.</small></div></div>
               <div class="settings-control-card">
@@ -165,7 +187,7 @@ export class SettingsUI {
               </div>
             </section>
 
-            <section class="settings-pane" data-settings-pane="gameplay">
+            <section class="settings-pane" data-settings-pane="gameplay" id="settings-panel-gameplay" role="tabpanel" aria-labelledby="settings-tab-gameplay" tabindex="0">
               ${this.paneHeading('GAMEPLAY', 'Controls & Feedback', 'Adjust camera behavior and combat feedback.')}
               <div class="settings-control-card">
                 ${this.selectRow('Control preference', 'Only changes controls and layout; graphics quality is configured separately.', 'controlScheme', '<option value="standard">Standard</option><option value="touch">Touch / Mobile</option>')}
@@ -174,7 +196,7 @@ export class SettingsUI {
               </div>
             </section>
 
-            <section class="settings-pane" data-settings-pane="accessibility">
+            <section class="settings-pane" data-settings-pane="accessibility" id="settings-panel-accessibility" role="tabpanel" aria-labelledby="settings-tab-accessibility" tabindex="0">
               ${this.paneHeading('ACCESSIBILITY', 'Comfort & Visibility', 'Reduce motion and improve visual contrast.')}
               <div class="settings-control-card">
                 ${this.toggleRow('Reduced motion', 'Minimize non-essential animation and smooth scrolling.', 'reducedMotion')}
@@ -182,7 +204,7 @@ export class SettingsUI {
               </div>
             </section>
 
-            <section class="settings-pane" data-settings-pane="controls">
+            <section class="settings-pane" data-settings-pane="controls" id="settings-panel-controls" role="tabpanel" aria-labelledby="settings-tab-controls" tabindex="0">
               ${this.paneHeading('REFERENCE', 'Controls', 'A compact reference for touch and desktop controls.')}
               <div class="settings-control-reference">
                 <span><strong>Touch gestures</strong><small>Tap to select or place. With Wall, Road or Terrain selected, drag one finger to edit.</small></span>
@@ -196,7 +218,7 @@ export class SettingsUI {
               </div>
             </section>
 
-            <section class="settings-pane" data-settings-pane="data">
+            <section class="settings-pane" data-settings-pane="data" id="settings-panel-data" role="tabpanel" aria-labelledby="settings-tab-data" tabindex="0">
               ${this.paneHeading('LOCAL DATA', 'Data & Privacy', 'Saves and settings are stored locally in this browser.')}
               <div class="settings-data-actions">
                 <button type="button" data-action="open-privacy" disabled aria-busy="true"><span>Data & Privacy</span><small>Review what the game stores and how to delete it</small></button>
@@ -214,7 +236,7 @@ export class SettingsUI {
   }
 
   private navButton(pane: SettingsPane, icon: string, label: string, autofocus = false): string {
-    return `<button type="button" class="settings-nav-button${pane === this.activePane ? ' is-active' : ''}" data-settings-nav="${pane}" aria-selected="${String(pane === this.activePane)}"${autofocus ? ' data-settings-autofocus' : ''}><span aria-hidden="true">${icon}</span><strong>${label}</strong></button>`;
+    return `<button type="button" id="settings-tab-${pane}" role="tab" aria-controls="settings-panel-${pane}" tabindex="${pane === this.activePane ? 0 : -1}" class="settings-nav-button${pane === this.activePane ? ' is-active' : ''}" data-settings-nav="${pane}" aria-selected="${String(pane === this.activePane)}"${autofocus ? ' data-settings-autofocus' : ''}><span aria-hidden="true">${icon}</span><strong>${label}</strong></button>`;
   }
 
   private actionButton(action: SystemAction, icon: string, title: string, description: string): string {
@@ -251,15 +273,62 @@ export class SettingsUI {
     });
 
     document.addEventListener('keydown', (event) => {
-      if (event.key === 'Escape' && !this.panel.hidden) this.close();
+      if (this.panel.hidden) return;
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        this.close();
+        return;
+      }
+      if (event.key !== 'Tab') return;
+
+      const focusable = Array.from(this.panel.querySelectorAll<HTMLElement>(
+        'button, input, select, textarea, [tabindex="0"]',
+      )).filter((element) => element.tabIndex >= 0 && element.getClientRects().length > 0);
+      if (!focusable.length) return;
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (event.shiftKey && (document.activeElement === first || !this.panel.contains(document.activeElement))) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && (document.activeElement === last || !this.panel.contains(document.activeElement))) {
+        event.preventDefault();
+        first.focus();
+      }
     });
   }
 
   private bindNavigation(): void {
-    this.panel.querySelectorAll<HTMLButtonElement>('[data-settings-nav]').forEach((button) => {
+    const tabs = Array.from(this.panel.querySelectorAll<HTMLButtonElement>('[data-settings-nav]'));
+    tabs.forEach((button) => {
       button.addEventListener('click', () => {
         const pane = button.dataset.settingsNav as SettingsPane | undefined;
         if (pane) this.activatePane(pane);
+      });
+    });
+
+    this.panel.querySelector<HTMLElement>('.settings-nav')?.addEventListener('keydown', (event) => {
+      if (!(event.target instanceof HTMLButtonElement) || !event.target.matches('[data-settings-nav]')) return;
+      const index = tabs.indexOf(event.target);
+      const rtl = document.documentElement.dir === 'rtl';
+      const horizontal = getComputedStyle(event.currentTarget as HTMLElement).flexDirection === 'row';
+      let next = index;
+      if (event.key === 'Home') next = 0;
+      else if (event.key === 'End') next = tabs.length - 1;
+      else if (event.key === (horizontal ? 'ArrowRight' : 'ArrowDown')) next = (index + (horizontal && rtl ? -1 : 1) + tabs.length) % tabs.length;
+      else if (event.key === (horizontal ? 'ArrowLeft' : 'ArrowUp')) next = (index + (horizontal && rtl ? 1 : -1) + tabs.length) % tabs.length;
+      else return;
+      event.preventDefault();
+      tabs[next].click();
+      tabs[next].focus();
+    });
+
+    this.panel.querySelectorAll<HTMLButtonElement>('[data-settings-jump]').forEach((button) => {
+      button.addEventListener('click', () => {
+        const pane = button.dataset.settingsJump as SettingsPane | undefined;
+        if (pane) {
+          this.activatePane(pane);
+          this.panel.querySelector<HTMLButtonElement>(`[data-settings-nav="${pane}"]`)?.focus();
+        }
       });
     });
   }
@@ -273,11 +342,13 @@ export class SettingsUI {
       const active = button.dataset.settingsNav === pane;
       button.classList.toggle('is-active', active);
       button.setAttribute('aria-selected', String(active));
+      button.tabIndex = active ? 0 : -1;
     });
     this.panel.querySelector<HTMLElement>('.settings-scroll')?.scrollTo({ top: 0, behavior: 'auto' });
   }
 
   private bindCoreControls(): void {
+    this.panel.querySelector('[data-action="continue-game"]')?.addEventListener('click', () => this.close());
     // Reuse the desktop reset control so confirmation and world-mode selection stay authoritative.
     this.panel.querySelector('[data-action="reset-world"]')?.addEventListener('click', () => {
       const resetButton = document.getElementById('reset-button');
@@ -543,6 +614,15 @@ export class SettingsUI {
 
     const touchQaButton = this.panel.querySelector<HTMLButtonElement>('[data-action="copy-touch-qa"]');
     if (touchQaButton) touchQaButton.hidden = !settings.graphics.debugMode;
+
+    const locale = resolveLocale(settings.interface.language);
+    const summary = (key: string, value: string): void => {
+      const target = this.panel.querySelector<HTMLElement>(`[data-settings-summary="${key}"]`);
+      if (target) target.textContent = translate(value, locale);
+    };
+    summary('graphics', settings.graphics.quality === 'low' ? 'Low' : settings.graphics.quality === 'medium' ? 'Medium' : 'High');
+    summary('audio', settings.audio.muted ? 'Muted' : `${Math.round(settings.audio.masterVolume * 100)}%`);
+    summary('language', settings.interface.language === 'system' ? 'System language' : settings.interface.language === 'fa' ? 'فارسی' : 'English');
   }
 
   private formatOutput(key: string, value: number): string {
