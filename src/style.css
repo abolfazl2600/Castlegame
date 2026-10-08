@@ -5811,3 +5811,133 @@ html.mobile-ui-active .mobile-undo-action:disabled {
     grid-template-columns: repeat(2, minmax(82px, 1fr));
   }
 }
+
+/* Settings experience refresh: clear hierarchy, readable controls and touch-first targets. */
+#settings-backdrop.settings-backdrop {
+  background: rgba(1, 8, 16, .76);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+#settings-modal .settings-card {
+  border: 1px solid rgba(146, 212, 233, .23);
+  box-shadow: 0 30px 100px rgba(0, 0, 0, .7), 0 0 0 1px rgba(255,255,255,.025) inset;
+  background: radial-gradient(ellipse at 85% 0%, rgba(40, 112, 150, .17), transparent 45%),
+    linear-gradient(150deg, #0c2030 0%, #071824 53%, #05131d 100%);
+}
+#settings-modal .settings-header {
+  border-bottom: 1px solid rgba(146, 212, 233, .13);
+  background: linear-gradient(90deg, rgba(18, 49, 67, .6), rgba(6, 22, 33, .86));
+}
+#settings-modal .settings-header-copy h2 { font-size: clamp(22px, 2vw, 28px); font-weight: 800; letter-spacing: -.03em; }
+#settings-modal .settings-header-copy p { font-size: 12px; line-height: 1.5; color: #a8c1d0; }
+#settings-modal .settings-header-actions { display: flex; align-items: center; flex-shrink: 0; gap: 16px; }
+#settings-modal .settings-live-indicator { display: inline-flex; align-items: center; gap: 7px; font-size: 11px; font-weight: 650; color: #b3dacc; white-space: nowrap; }
+#settings-modal .settings-live-indicator > span { width: 7px; height: 7px; border-radius: 50%; background: #6ce6b1; box-shadow: 0 0 0 4px rgba(108, 230, 177, .08); }
+#settings-modal #settings-close { display: grid; place-items: center; width: 42px; height: 42px; border-radius: 12px; font-size: 27px; line-height: 1; }
+#settings-modal #settings-close:hover { border-color: rgba(156, 228, 251, .48); background: rgba(156, 228, 251, .12); }
+#settings-modal .settings-nav { gap: 6px; padding: 17px 12px; background: rgba(0, 10, 17, .3); }
+#settings-modal .settings-nav-button { min-height: 46px; gap: 10px; padding-inline: 11px; border-radius: 12px; color: #aac0cd; }
+#settings-modal .settings-nav-button > span { width: 30px; height: 30px; font-size: 17px; }
+#settings-modal .settings-nav-button strong { font-size: 12px; font-weight: 700; letter-spacing: .005em; }
+#settings-modal .settings-nav-button.is-active { color: #fff; border-color: rgba(114, 209, 239, .26); background: linear-gradient(90deg, rgba(58, 150, 197, .22), rgba(51, 116, 146, .075)); box-shadow: inset 3px 0 #61d7f7; }
+#settings-modal .settings-scroll { padding: clamp(14px, 2.2vw, 24px); scrollbar-color: rgba(112, 181, 209, .4) transparent; }
+#settings-modal .settings-scroll > .settings-pane { gap: 17px; }
+#settings-modal .settings-pane-heading { padding-bottom: 15px; }
+#settings-modal .settings-pane-heading h3 { font-size: 21px; line-height: 1.3; font-weight: 780; }
+#settings-modal .settings-pane-heading p { font-size: 12px; line-height: 1.65; color: #a3b9c6; }
+#settings-modal .settings-section-eyebrow, #settings-modal .settings-hero-eyebrow { color: #74d9f3; font-size: 10px; font-weight: 850; letter-spacing: .13em; }
+#settings-modal .settings-section-note { font-size: 12px; line-height: 1.65; color: #a3b9c6; }
+#settings-modal .settings-overview-hero {
+  display: flex; justify-content: space-between; align-items: center; gap: 20px;
+  padding: clamp(18px, 2.5vw, 25px); border-radius: 18px;
+  border: 1px solid rgba(114, 209, 239, .22);
+  background: radial-gradient(circle at 96% 5%, rgba(88, 206, 234, .18), transparent 44%),
+    linear-gradient(115deg, rgba(32, 90, 122, .5), rgba(14, 47, 70, .37));
+}
+#settings-modal .settings-overview-hero-copy { display: grid; gap: 9px; min-width: 0; }
+#settings-modal .settings-overview-hero h3 { margin: 0; font-size: clamp(20px, 2.4vw, 26px); font-weight: 850; color: #f4fbff; text-transform: none; letter-spacing: -.03em; line-height: 1.25; }
+#settings-modal .settings-overview-hero p { margin: 0; font-size: 12px; line-height: 1.6; max-width: 340px; color: #bfdae7; }
+#settings-modal .settings-continue-button {
+  flex-shrink: 0; min-height: 46px; display: flex; gap: 12px; align-items: center; justify-content: center;
+  padding: 11px 15px; border: 1px solid rgba(173, 238, 250, .7); border-radius: 11px;
+  background: #a2eafa; color: #092538; cursor: pointer; font-size: 12px; font-weight: 800;
+  transition: background .15s ease, transform .15s ease;
+}
+#settings-modal .settings-continue-button:hover { background: #d3f8ff; transform: translateY(-1px); }
+#settings-modal .settings-quick-settings { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+#settings-modal .settings-quick-settings button {
+  display: flex; flex-direction: column; align-items: flex-start; min-width: 0; min-height: 95px;
+  gap: 7px; padding: 14px; border-radius: 13px;
+  border: 1px solid rgba(133, 191, 216, .14); background: rgba(255, 255, 255, .035);
+  color: #daeefa; cursor: pointer; text-align: start;
+}
+#settings-modal .settings-quick-settings button:hover { background: rgba(76, 179, 216, .09); border-color: rgba(122, 220, 250, .36); }
+#settings-modal .settings-quick-settings button > span { color: #a0bccc; font-size: 11px; }
+#settings-modal .settings-quick-settings button strong { font-size: 18px; line-height: 1.2; color: #f1fbff; font-weight: 820; }
+#settings-modal .settings-quick-settings button small { color: #88a8ba; font-size: 10px; }
+#settings-modal .settings-control-card { border-color: rgba(138, 198, 221, .14) !important; background: rgba(9, 33, 48, .62) !important; }
+#settings-modal .settings-control-row, #settings-modal .settings-toggle-row { min-height: 78px; padding: 15px 18px; border-bottom-color: rgba(161, 208, 225, .09); }
+#settings-modal .settings-control-row:hover, #settings-modal .settings-toggle-row:hover { background: rgba(112, 204, 239, .035); }
+#settings-modal .settings-control-copy { gap: 6px; }
+#settings-modal .settings-control-copy strong { font-size: 13px; line-height: 1.35; color: #f2fbff; }
+#settings-modal .settings-control-copy small { font-size: 11px; line-height: 1.55; color: #a4bccc; }
+#settings-modal .settings-control-row select { min-height: 44px; padding-inline: 12px; font-size: 12px; color: #f4fbff; background: #143247; cursor: pointer; }
+#settings-modal .settings-range-control { gap: 13px; }
+#settings-modal .settings-range-control input { min-height: 36px; cursor: pointer; }
+#settings-modal .settings-range-control output { min-width: 54px; padding: 7px 8px; font-size: 12px; color: #a8edfa; }
+#settings-modal .settings-toggle { flex: 0 0 auto; width: 48px; height: 28px; }
+#settings-modal .settings-toggle > span { width: 48px; height: 28px; }
+#settings-modal .settings-toggle > span::after { width: 20px; height: 20px; }
+#settings-modal .settings-toggle input:checked + span::after { transform: translateX(20px); }
+#settings-modal .settings-system-actions button { min-height: 80px; border-color: rgba(143, 198, 220, .17); }
+#settings-modal .settings-system-actions button:hover { border-color: rgba(131, 227, 249, .5); }
+#settings-modal .settings-action-copy strong { font-size: 13px; }
+#settings-modal .settings-action-copy small { font-size: 11px; line-height: 1.5; }
+#settings-modal .settings-control-reference strong, #settings-modal .settings-data-actions button span, #settings-modal .settings-audio-status strong { font-size: 13px; }
+#settings-modal .settings-control-reference small, #settings-modal .settings-data-actions button small, #settings-modal .settings-audio-status small { font-size: 11px; line-height: 1.5; color: #a4bccc; }
+#settings-modal .settings-data-actions button { padding: 14px 16px; min-height: 66px; }
+#settings-modal .settings-info-strip { font-size: 11px; line-height: 1.5; color: #abcbd6; }
+#settings-modal :is(button, input, select, [tabindex="0"]):focus-visible {
+  outline: 2px solid #9ceaff; outline-offset: 3px;
+}
+#settings-modal .settings-nav-button:focus-visible { outline-offset: -2px; }
+#settings-modal .settings-data-actions button:disabled { opacity: .55; cursor: not-allowed; }
+html[dir="rtl"] #settings-modal .settings-nav-button.is-active { box-shadow: inset -3px 0 #61d7f7; }
+html[dir="rtl"] #settings-modal .settings-quick-settings button { text-align: right; align-items: flex-start; }
+html[dir="rtl"] #settings-modal .settings-overview-hero-copy { text-align: right; }
+html[dir="rtl"] #settings-modal .settings-continue-button > span { transform: scaleX(-1); }
+html[data-high-contrast] #settings-modal .settings-control-copy small,
+html[data-high-contrast] #settings-modal .settings-pane-heading p { color: #ecf7ff; }
+html[data-high-contrast] #settings-modal .settings-control-card,
+html[data-high-contrast] #settings-modal .settings-quick-settings button { border-color: rgba(255,255,255,.7) !important; }
+@media (max-width: 700px), (pointer: coarse) and (max-height: 700px) {
+  #settings-modal .settings-header { padding: 10px 14px; }
+  #settings-modal .settings-header-copy h2 { font-size: 21px; }
+  #settings-modal .settings-live-indicator { display: none; }
+  #settings-modal .settings-nav { gap: 6px; padding: 8px 10px; }
+  #settings-modal .settings-nav-button { min-height: 46px; min-width: 105px; padding: 8px 10px; }
+  #settings-modal .settings-nav-button strong { font-size: 12px; }
+  #settings-modal .settings-scroll { padding: 14px; }
+  #settings-modal .settings-control-row, #settings-modal .settings-toggle-row { min-height: 78px; padding: 14px; }
+  #settings-modal .settings-system-actions button { min-height: 60px; }
+}
+@media (max-width: 490px) {
+  #settings-modal .settings-overview-hero { align-items: stretch; flex-direction: column; gap: 16px; }
+  #settings-modal .settings-continue-button { width: 100%; }
+  #settings-modal .settings-quick-settings { gap: 7px; }
+  #settings-modal .settings-quick-settings button { padding: 11px; min-height: 88px; }
+  #settings-modal .settings-quick-settings button strong { font-size: 15px; }
+  #settings-modal .settings-quick-settings button small { font-size: 10px; }
+}
+@media (orientation: landscape) and (pointer: coarse) and (max-height: 700px) {
+  #settings-modal .settings-header { padding: 5px 12px; }
+  #settings-modal .settings-overview-hero { padding: 12px 16px; }
+  #settings-modal .settings-overview-hero h3 { font-size: 18px; }
+  #settings-modal .settings-quick-settings button { min-height: 73px; padding: 10px; }
+  #settings-modal .settings-nav { padding: 4px 10px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  #settings-modal .settings-continue-button, #settings-modal .settings-toggle > span,
+  #settings-modal .settings-toggle > span::after { transition: none; }
+  #settings-modal .settings-continue-button:hover { transform: none; }
+}
