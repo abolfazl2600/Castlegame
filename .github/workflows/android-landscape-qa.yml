@@ -20,6 +20,7 @@ on:
       - src/world/**
       - tests/touch-gestures.spec.ts
       - tests/android-landscape.spec.ts
+      - tests/settings.spec.ts
   push:
     branches:
       - main
@@ -40,6 +41,7 @@ on:
       - src/world/**
       - tests/touch-gestures.spec.ts
       - tests/android-landscape.spec.ts
+      - tests/settings.spec.ts
 
 permissions:
   contents: read
@@ -83,7 +85,7 @@ jobs:
         run: npx playwright install --with-deps chromium
 
       - name: Run Android landscape viewport matrix
-        run: npx playwright test tests/android-landscape.spec.ts tests/touch-gestures.spec.ts tests/urban-city.spec.ts --reporter=line
+        run: npx playwright test tests/android-landscape.spec.ts tests/touch-gestures.spec.ts tests/urban-city.spec.ts tests/settings.spec.ts --reporter=line
 
       - name: Upload landscape screenshots and traces
         if: always()
