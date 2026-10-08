@@ -370,3 +370,58 @@ test.describe('touch Settings layouts', () => {
     await expectSettingsClosed(page);
   });
 });
+
+
+test('Settings overview offers live preferences and navigates to matching sections', async ({ page }) => {
+  await loadApp(page);
+  await openSettings(page);
+
+  const modal = page.locator('#settings-modal');
+  await expect(modal.locator('[data-settings-summary="graphics"]')).toHaveText('High');
+  await expect(modal.locator('[data-settings-summary="audio"]')).toHaveText('100%');
+  await expect(modal.locator('[data-settings-summary="language"]')).toHaveText('English');
+
+  await modal.locator('[data-settings-jump="graphics"]').click();
+  await expect(modal.locator('[data-settings-pane="graphics"]')).toBeVisible();
+  await modal.locator('[data-setting="quality"]').selectOption('low');
+  await modal.locator('[data-settings-nav="overview"]').click();
+  await expect(modal.locator('[data-settings-summary="graphics"]')).toHaveText('Low');
+
+  await modal.locator('[data-settings-jump="audio"]').click();
+  await modal.locator('[data-setting="muted"]').check();
+  await modal.locator('[data-settings-nav="overview"]').click();
+  await expect(modal.locator('[data-settings-summary="audio"]')).toHaveText('Muted');
+
+  await modal.locator('[data-action="continue-game"]').click();
+  await expectSettingsClosed(page);
+});
+
+test('Settings tabs support keyboard navigation, focus containment and focus restoration', async ({ page }) => {
+  await loadApp(page);
+  await openSettings(page);
+
+  const modal = page.locator('#settings-modal');
+  const overview = modal.locator('[data-settings-nav="overview"]');
+  const general = modal.locator('[data-settings-nav="general"]');
+  await expect(overview).toBeFocused();
+  await expect(overview).toHaveAttribute('role', 'tab');
+  await expect(overview).toHaveAttribute('aria-selected', 'true');
+  await expect(modal.locator('[data-settings-pane="overview"]')).toHaveAttribute('role', 'tabpanel');
+
+  await page.keyboard.press('ArrowDown');
+  await expect(general).toBeFocused();
+  await expect(general).toHaveAttribute('aria-selected', 'true');
+  await expect(overview).toHaveAttribute('tabindex', '-1');
+  await expect(modal.locator('[data-settings-pane="general"]')).toBeVisible();
+
+  await page.keyboard.press('Home');
+  await expect(overview).toBeFocused();
+  await page.keyboard.press('Shift+Tab');
+  await expect(modal.locator('#settings-close')).toBeFocused();
+  await page.keyboard.press('Shift+Tab');
+  await expect.poll(() => page.evaluate(() => document.activeElement?.closest('#settings-modal') !== null)).toBe(true);
+
+  await page.keyboard.press('Escape');
+  await expectSettingsClosed(page);
+  await expect(page.locator('#settings-button')).toBeFocused();
+});
