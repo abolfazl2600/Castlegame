@@ -10546,8 +10546,19 @@ export class ThreeGame {
         this.renderSelectionVisual();
         this.setStatus(`Selected: ${current}`);
       } else {
-        this.clearSelection();
-        this.setStatus('Inspect mode · click a structure');
+        const anchor = findStructureAnchorAt(this.services.state.entries(), gx, gy);
+        if (anchor) {
+          // Market satellite tiles are part of the same selectable structure.
+          this.selectedCell = { x: anchor.x, y: anchor.y };
+          this.selectedKeepId = null;
+          this.selectedTowerBridgeId = null;
+          this.syncArmyCampUpgradeUI();
+          this.renderSelectionVisual();
+          this.setStatus(`Selected: ${anchor.kind}`);
+        } else {
+          this.clearSelection();
+          this.setStatus('Inspect mode · click a structure');
+        }
       }
       return;
     }
@@ -10576,6 +10587,17 @@ export class ThreeGame {
           this.redrawCastleNeighborhood([point]);
           this.scheduleSave();
         } else this.finishBuild();
+        return;
+      }
+
+      const satelliteAnchor = findStructureAnchorAt(this.services.state.entries(), gx, gy);
+      if (satelliteAnchor) {
+        // Deleting any satellite tile removes the authoritative Market anchor,
+        // so it releases all nine occupied tiles, including pending work.
+        this.recordHistory();
+        this.services.state.removeCell(satelliteAnchor.x, satelliteAnchor.y);
+        this.selectedCell = { x: satelliteAnchor.x, y: satelliteAnchor.y };
+        this.finishBuild();
         return;
       }
 
