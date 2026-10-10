@@ -39,7 +39,7 @@ assert.doesNotMatch(game, /\b(?:ambientCloud|createAmbientWorld|ambientLayer|reg
 assert.match(game, /registerTextureFlow\(this\.riverTexture, 0\.000035, -0\.00032\)/);
 assert.match(game, /registerTextureFlow\(this\.oceanTexture, 0\.000018, -0\.000012\)/);
 
-const redraw = game.slice(game.indexOf('private redraw(): void'), game.indexOf('private renderMinimap(): void'));
+const redraw = game.slice(game.indexOf('private redraw('), game.indexOf('private renderMinimap(): void'));
 assert.match(redraw, /ambientMotion\.clearSceneBound\(\)/);
 assert.match(redraw, /ambientMotion\.registerFlag/);
 assert.match(redraw, /ambientMotion\.registerSway/);

@@ -534,6 +534,7 @@ export class ThreeGame {
   }>();
   private terrainDecorationContext = '';
   private lastTerrainDecorationRebuilds = 0;
+  private lastTerrainDecorationScannedTiles = 0;
   private readonly buildLayer = new THREE.Group();
   private readonly selectionVisual = new SelectionVisual(
     TILE,
@@ -558,6 +559,13 @@ export class ThreeGame {
   private lastRedrawMs = 0;
   private readonly settlementUnitBox = new THREE.BoxGeometry(1, 1, 1);
   private readonly buildObjectsByCell = new Map<string, THREE.Object3D>();
+  // Only a vetted set of stand-alone cell visuals can survive construction
+  // redraws. Stateful gates, walls, moats, keeps and bridges always rebuild.
+  private readonly stableBuildSignatures = new Map<string, string>();
+  private lastReusedBuildObjects = 0;
+  private lastRebuiltBuildObjects = 0;
+  private lastBuildReuseDiagnostics = { requested: false, battle: false, extensions: 0,
+    candidates: 0, matchingSignatures: 0, attachedObjects: 0 };
   private readonly battleSystem: BattleSystem;
   private readonly groundHit = new THREE.Mesh(
     new THREE.PlaneGeometry(1, 1),
@@ -830,6 +838,12 @@ export class ThreeGame {
           terrainDecoration: {
             cachedTiles: this.terrainDecorationCache.size,
             rebuiltTiles: this.lastTerrainDecorationRebuilds,
+            scannedTiles: this.lastTerrainDecorationScannedTiles,
+          },
+          constructionRedraw: {
+            reusedBuildings: this.lastReusedBuildObjects,
+            rebuiltBuildings: this.lastRebuiltBuildObjects,
+            diagnostics: this.lastBuildReuseDiagnostics,
           },
           ambientMotion: this.ambientMotion.stats(),
           visualBudget: this.distanceDetailBudget.snapshot(),
@@ -845,6 +859,10 @@ export class ThreeGame {
           },
         };
       };
+      // A/B benchmarking of construction rebuild scope is QA-only. It leaves
+      // save data and gameplay unchanged; tests can compare identical scenes.
+      (window as unknown as { __castleVisualRebuildConstruction: (reuse: boolean) => void }).__castleVisualRebuildConstruction =
+        (reuse) => this.redraw(Boolean(reuse), reuse ? [] : undefined);
       (window as unknown as { __castleVisualCamera: (position: { x: number; y: number; z: number; targetX: number; targetY: number; targetZ: number }) => void }).__castleVisualCamera = (position) => {
         this.camera.position.set(position.x, position.y, position.z);
         this.controls.target.set(position.targetX, position.targetY, position.targetZ);
@@ -2394,12 +2412,84 @@ export class ThreeGame {
     battleSystem.prepareDefenders(this.battleSetup, this.militaryTier, force);
   }
 
-  private redraw(): void {
+  /** Standalone cell kinds whose mesh geometry does not depend on runtime state. */
+  private isStableBuildKind(kind: TileKind): boolean {
+    return ROAD_KINDS.includes(kind as RoadKind) ||
+      ['cottage', 'house', 'manor', 'villa', 'tree', 'rock', 'hut'].includes(kind);
+  }
+
+  /** A conservative cache: only standalone meshes without global renderer state. */
+  private stableBuildSignature(cell: ReturnType<GameState['entries']>[number]): string | null {
+    const kind = cell.kind;
+    if (!this.isStableBuildKind(kind)) return null;
+    const graphics = this.settingsStore.get().graphics;
+    const surroundings = ROAD_KINDS.includes(kind as RoadKind)
+      ? [
+          this.isRoadFamily(this.kindAt(cell.x - 1, cell.y)),
+          this.isRoadFamily(this.kindAt(cell.x + 1, cell.y)),
+          this.isRoadFamily(this.kindAt(cell.x, cell.y - 1)),
+          this.isRoadFamily(this.kindAt(cell.x, cell.y + 1)),
+        ].join(':')
+      : '';
+    return [
+      JSON.stringify(cell), this.stoneStyle, this.mapLayoutId,
+      this.worldCols, this.worldRows, this.worldSeed,
+      graphics.quality, graphics.environmentDetail, graphics.effectsEnabled,
+      this.terrainAt(cell.x, cell.y), this.terrainElevation(cell.x, cell.y), surroundings,
+    ].join('|');
+  }
+
+  private redraw(preserveStableBuildings = false, terrainChangedCells?: GridPoint[]): void {
     const redrawStart = this.visualBenchmark ? performance.now() : 0;
+    // Road links depend on neighboring road/gate occupancy; comparing their
+    // four-way neighborhood signatures avoids stale turns after road dragging.
+    // Unknown extensions and active battles require the authoritative full path.
+    const cells = this.services.state.entries();
+    const stableCandidates = new Map<string, THREE.Object3D>();
+    const nextSignatures = new Map<string, string>();
+    const battle = Boolean(this.battleSystem?.isActive());
+    // FarmLife declares only farm/cowBarn overrides, so its presence alone
+    // must not disable caching unrelated roads and residential meshes.
+    // Unknown extensions, or those affecting reusable kinds, fall back to full.
+    const blockingExtensions = [...this.extensions].filter((extension) =>
+      extension.createBuilding && (
+        !extension.buildingKinds ||
+        extension.buildingKinds.some((kind) => this.isStableBuildKind(kind))
+      )
+    ).length;
+    const mayReuse = preserveStableBuildings && !battle && blockingExtensions === 0;
+    this.lastBuildReuseDiagnostics = {
+      requested: preserveStableBuildings, battle, extensions: blockingExtensions,
+      candidates: 0, matchingSignatures: 0, attachedObjects: 0,
+    };
+    for (const cell of cells) {
+      const key = this.key(cell.x, cell.y);
+      const signature = this.stableBuildSignature(cell);
+      if (signature === null) continue;
+      this.lastBuildReuseDiagnostics.candidates += 1;
+      nextSignatures.set(key, signature);
+      const existing = this.buildObjectsByCell.get(key);
+      if (existing?.parent === this.buildLayer) this.lastBuildReuseDiagnostics.attachedObjects += 1;
+      if (this.stableBuildSignatures.get(key) === signature) {
+        this.lastBuildReuseDiagnostics.matchingSignatures += 1;
+      }
+      if (
+        mayReuse && existing?.parent === this.buildLayer &&
+        this.stableBuildSignatures.get(key) === signature
+      ) {
+        // Remove before clearGroup so GPU geometry and mesh identities survive.
+        this.buildLayer.remove(existing);
+        stableCandidates.set(key, existing);
+      }
+    }
+    this.lastReusedBuildObjects = stableCandidates.size;
+    this.lastRebuiltBuildObjects = 0;
     this.automaticWallAccessCache = null;
     this.ambientMotion.clearSceneBound();
     // Terrain decoration cache performs per-tile invalidation in renderTerrain().
     this.clearGroup(this.buildLayer);
+    this.stableBuildSignatures.clear();
+    for (const [key, signature] of nextSignatures) this.stableBuildSignatures.set(key, signature);
     this.services.gateSystem.clear();
     this.services.windmillSystem.clear();
     this.buildObjectsByCell.clear();
@@ -2418,19 +2508,21 @@ export class ThreeGame {
     // Terrain overrides can turn land into river (or water into land). Keep the
     // instanced world surface synchronized before drawing terrain details.
     this.rebuildWorldLayoutSurface();
-    this.renderTerrain();
+    this.renderTerrain(terrainChangedCells);
     this.ambientShip.rebuild(this.worldSeed);
 
     const floodedMoats = this.computeFloodedMoats();
-    const cells = this.services.state.entries();
     this.rebuildAmbientFauna();
     const castleSnapshot = this.castleBlockSystem.build(cells, this.stoneStyle, (x, y) => this.terrainElevation(x, y));
     const castleBlocks = new Map(castleSnapshot.blocks.map((block) => [this.key(block.x, block.y), block]));
     this.castleBlocksByCell = castleBlocks;
 
     for (const cell of cells) {
-      const building = this.makeBuilding(cell, floodedMoats);
-      building.userData.cellKey = this.key(cell.x, cell.y);
+      const key = this.key(cell.x, cell.y);
+      const building = (stableCandidates.get(key) as THREE.Group | undefined) ??
+        this.makeBuilding(cell, floodedMoats);
+      if (!stableCandidates.has(key)) this.lastRebuiltBuildObjects += 1;
+      building.userData.cellKey = key;
       building.userData.cellKind = cell.kind;
       const castleBlock = castleBlocks.get(this.key(cell.x, cell.y));
       if (castleBlock?.kind === 'wall') instanceStaticCastleBoxes(building);
@@ -3070,13 +3162,14 @@ export class ThreeGame {
     if (open && document.documentElement.classList.contains('mobile-ui-active')) toolbar?.scrollTo(0, 0);
   }
 
-  private renderTerrain(): void {
+  private renderTerrain(changedCells?: GridPoint[]): void {
     const graphics = this.settingsStore.get().graphics;
     const context = [
       this.mapLayoutId, this.worldCols, this.worldRows, this.worldSeed,
       graphics.quality, graphics.environmentDetail, graphics.effectsEnabled,
     ].join(':');
-    if (context !== this.terrainDecorationContext) {
+    const contextChanged = context !== this.terrainDecorationContext;
+    if (contextChanged) {
       // Grid size/map and render-settings changes invalidate every tile,
       // including previously empty tiles which had no visible scene child.
       this.clearGroup(this.terrainLayer);
@@ -3084,9 +3177,34 @@ export class ThreeGame {
       this.terrainDecorationContext = context;
     }
 
+    // A building edit only changes tile occupancy around known locations;
+    // it does not require recomputing 4,450 terrain signatures. Unknown/global
+    // operations, changed graphics context or incomplete caches scan all tiles.
+    const fullScan = changedCells === undefined || contextChanged ||
+      this.terrainDecorationCache.size !== this.worldCols * this.worldRows;
+    const candidates: GridPoint[] = [];
+    if (fullScan) {
+      for (let y = 0; y < this.worldRows; y += 1) {
+        for (let x = 0; x < this.worldCols; x += 1) candidates.push({ x, y });
+      }
+    } else {
+      const visited = new Set<string>();
+      for (const point of changedCells) {
+        // Terrain signatures include immediate river bank/cliff neighbors.
+        for (const [dx, dy] of [[0, 0], [-1, 0], [1, 0], [0, -1], [0, 1]]) {
+          const x = point.x + dx;
+          const y = point.y + dy;
+          if (!this.isInsideWorld(x, y)) continue;
+          const key = this.key(x, y);
+          if (visited.has(key)) continue;
+          visited.add(key);
+          candidates.push({ x, y });
+        }
+      }
+    }
+    this.lastTerrainDecorationScannedTiles = candidates.length;
     let dirty = 0;
-    for (let y = 0; y < this.worldRows; y += 1) {
-      for (let x = 0; x < this.worldCols; x += 1) {
+    for (const { x, y } of candidates) {
         const key = this.key(x, y);
         const terrain = this.terrainAt(x, y);
         const base = this.baseTerrainAt(x, y);
@@ -3158,7 +3276,6 @@ export class ThreeGame {
         const active = group.children.length > 0 ? group : null;
         this.terrainDecorationCache.set(key, { signature, group: active });
         if (active) this.terrainLayer.add(active);
-      }
     }
 
     this.lastTerrainDecorationRebuilds = dirty;
@@ -8904,6 +9021,13 @@ export class ThreeGame {
         distance: this.camera.position.distanceTo(this.controls.target),
         minDistance: this.controls.minDistance, maxDistance: this.controls.maxDistance,
         cells: this.services.state.entries(), elevations: [...this.elevationOverrides.entries()],
+        buildObjectIds: [...this.buildObjectsByCell.entries()].map(([key, object]) => [key, object.uuid]),
+        terrainScanTiles: this.lastTerrainDecorationScannedTiles,
+        constructionRedraw: {
+          reusedBuildings: this.lastReusedBuildObjects,
+          rebuiltBuildings: this.lastRebuiltBuildObjects,
+          diagnostics: this.lastBuildReuseDiagnostics,
+        },
         moatTasks: this.pendingMoatTasks(),
         undoCount: this.undoStack.length, pointers: touches.pointerIds,
         dragging: Boolean(this.wallDragStart || this.roadDragStart || this.moatDragLast || this.terrainStrokeActive),
@@ -9636,7 +9760,7 @@ export class ThreeGame {
           this.startConstruction(`cell:${point.x},${point.y}`, 520);
         }
       }
-      this.redraw();
+      this.redraw(true, path);
       this.scheduleSave();
       this.setStatus(`Built ${changed} connected road tiles · preview confirmed`);
       this.deactivateBuildToolAfterCommit();
@@ -10966,7 +11090,7 @@ export class ThreeGame {
       current.kind === 'gate' || current.kind === 'tower' || current.kind === 'harbor' ? 1150 : 800);
     this.buildPreviewKey = '';
     if (placementChanged) audioEvents.emit({ action: 'play_sfx', assetId: 'building.place' });
-    this.redraw();
+    this.redraw(placementChanged, placementChanged && point ? [point] : undefined);
     this.scheduleSave();
     if (deactivateTool) this.deactivateBuildToolAfterCommit();
   }
@@ -12785,7 +12909,10 @@ export class ThreeGame {
       this.relocationState = null;
       this.relocationHover = null;
       this.selectKeep(updated);
-      this.redraw();
+      this.redraw(true, [
+        ...this.services.keepSystem.footprint(relocation.keep),
+        ...this.services.keepSystem.footprint(updated),
+      ]);
       this.scheduleSave();
       this.setStatus('Keep moved · Undo available');
       return;
@@ -12808,7 +12935,7 @@ export class ThreeGame {
     this.selectedCell = { ...point };
     this.selectedKeepId = null;
     this.selectedTowerBridgeId = null;
-    this.redraw();
+    this.redraw(true, [origin, point]);
     this.scheduleSave();
     this.setStatus(`${this.selectedBuildingDescriptor()?.name ?? 'Building'} moved · Undo available`);
   }
@@ -13355,7 +13482,7 @@ export class ThreeGame {
     const keep = this.services.keepSystem.add(draft);
     this.spendConstructionCost('keep', keepCostUnits);
     this.selectKeep(keep);
-    this.redraw();
+    this.redraw(true, this.services.keepSystem.footprint(keep));
     this.startConstruction(`keep:${keep.id}`, 1450);
     this.scheduleSave();
     this.setStatus(`Keep built · ${keep.width}×${keep.depth} · ${keep.floors} floors · details generated automatically`);
@@ -13484,7 +13611,7 @@ export class ThreeGame {
       this.towerBridges.set(bridge.id, { ...bridge, level: nextLevel });
       this.spendUpgradeCost('towerBridge', nextLevel);
       this.startConstruction(`bridge:${bridge.id}`, 1100);
-      this.redraw();
+      this.redraw(true, [{ x: bridge.ax, y: bridge.ay }, { x: bridge.bx, y: bridge.by }]);
       this.scheduleSave();
       audioEvents.emit({ action: 'play_sfx', assetId: 'building.upgrade' });
       this.setStatus(`Tower Bridge upgraded to Level ${nextLevel} · ${this.fortificationLevelDefinition('towerBridge', nextLevel).name}`);
@@ -13522,7 +13649,10 @@ export class ThreeGame {
         this.spendUpgradeCost('keep', nextLevel);
         this.selectKeep(updated);
         this.startConstruction(`keep:${keep.id}`, 1450);
-        this.redraw();
+        this.redraw(true, [
+          ...this.services.keepSystem.footprint(keep),
+          ...this.services.keepSystem.footprint(updated),
+        ]);
         this.scheduleSave();
         audioEvents.emit({ action: 'play_sfx', assetId: 'building.upgrade' });
       this.setStatus(`Keep upgraded to Level ${nextLevel} · ${this.fortificationLevelDefinition('keep', nextLevel).name}`);
@@ -13565,7 +13695,7 @@ export class ThreeGame {
     }
     this.spendUpgradeCost(kind, nextLevel);
     this.startConstruction(`cell:${this.selectedCell.x},${this.selectedCell.y}`, 1050);
-    this.redraw();
+    this.redraw(true, [this.selectedCell]);
     this.scheduleSave();
     audioEvents.emit({ action: 'play_sfx', assetId: 'building.upgrade' });
     this.setStatus(

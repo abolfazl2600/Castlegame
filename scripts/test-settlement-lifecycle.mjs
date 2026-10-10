@@ -33,7 +33,7 @@ assert.match(
 
 const redraw = between(
   threeGame,
-  'private redraw(): void {',
+  'private redraw(',
   'private getWallWeaponVisuals(',
 );
 assert.match(

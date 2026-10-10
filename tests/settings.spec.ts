@@ -1,12 +1,19 @@
 import { expect, test, type Page } from '@playwright/test';
+import { SAVE_KEY } from '../src/core/constants';
 
 const APP_PATH = '/Castlegame/';
 
 async function loadApp(page: Page): Promise<void> {
   // Legacy functional checks intentionally exercise English; Persian is covered separately.
-  await page.addInitScript(() => localStorage.setItem('castle-role.settings.v2', JSON.stringify({
-    schemaVersion: 2, interface: { language: 'en' },
-  })));
+  // These tests exercise Settings on an existing game, not the first-run map
+  // picker. Without the save marker, the asynchronous ThreeGame startup opens
+  // templates-modal over Settings, racing clicks and focus checks.
+  await page.addInitScript((saveKey) => {
+    localStorage.setItem(saveKey, '1');
+    localStorage.setItem('castle-role.settings.v2', JSON.stringify({
+      schemaVersion: 2, interface: { language: 'en' },
+    }));
+  }, SAVE_KEY);
   await page.goto(APP_PATH, { waitUntil: 'domcontentloaded' });
   await expect(page.locator('#settings-modal')).toBeAttached();
   await expect(page.locator('#settings-backdrop')).toBeAttached();

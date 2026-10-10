@@ -1,0 +1,60 @@
+name: Construction Scene Rebuild QA
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/construction-rebuild-qa.yml'
+      - 'src/ThreeGame.ts'
+      - 'src/core/GameExtension.ts'
+      - 'src/systems/FarmLifeSystem.ts'
+      - 'tests/construction-redraw-reuse.spec.ts'
+      - 'src/rendering/**'
+      - 'src/building/**'
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/construction-rebuild-qa.yml'
+      - 'src/ThreeGame.ts'
+      - 'src/core/GameExtension.ts'
+      - 'src/systems/FarmLifeSystem.ts'
+      - 'tests/construction-redraw-reuse.spec.ts'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  construction-rebuild:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      NODE_OPTIONS: --max-old-space-size=2048
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - name: Verify existing geometry and building behavior
+        run: |
+          npm run test:castle-build-edit-ux
+          npm run test:construction-animation
+          npm run test:worker-construction
+          npm run test:market-footprint
+          npm run test:terrain-localized
+          npm run test:terrain-resource-lifecycle
+          npm run test:mobile-render-performance
+          npx tsc --noEmit
+      - run: npx vite build
+      - run: npx playwright install --with-deps chromium
+      - name: Exercise road, upgrade and relocation with identical-scene A/B
+        run: npx playwright test tests/construction-redraw-reuse.spec.ts --reporter=line
+      - name: Upload browser traces on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: construction-scene-310-${{ github.sha }}
+          path: test-results/
+          if-no-files-found: warn
+          retention-days: 14
