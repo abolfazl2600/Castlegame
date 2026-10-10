@@ -68,7 +68,7 @@ import { GAME_DEFINITION, isBuildingAvailable, isToolAvailable } from './core/Ga
 import type { SettingsStore } from './settings/SettingsStore';
 import { resolveLocale, t } from './i18n/localization';
 import { applyGraphicsSettings, applyInputSettings, applySceneGraphicsSettings } from './settings/SettingsSubsystems';
-import { getStructureFootprint } from './building/StructureFootprints';
+import { findStructureAnchorAt, getStructureFootprint } from './building/StructureFootprints';
 import { SelectionVisual } from './selection/SelectionVisual';
 import { MAP_LAYOUTS, himejiLandBounds, normalizeMapLayoutId, terrainForMapLayout } from './world/MapLayouts';
 import {
@@ -2090,9 +2090,12 @@ export class ThreeGame {
    * Save/load therefore reconstructs it automatically, and erasing the fortress
    * releases the footprint immediately.
    */
-  private isStructureFootprintReserved(x: number, y: number): boolean {
+  private isStructureFootprintReserved(x: number, y: number, ignoreAnchor?: GridPoint): boolean {
     if (this.moatTasks.has(this.key(x, y))) return true;
     for (const anchor of this.services.state.entries()) {
+      // A moving Market is permitted to reuse any part of its old footprint;
+      // other structures (including overlapping legacy anchors) still block it.
+      if (ignoreAnchor?.x === anchor.x && ignoreAnchor.y === anchor.y) continue;
       const footprint = getStructureFootprint(anchor.kind, anchor.x, anchor.y);
       if (footprint.length <= 1) continue;
       if (footprint.some((cell) => cell.x === x && cell.y === y)) return true;
@@ -10110,13 +10113,7 @@ export class ThreeGame {
   }
 
   private buildPlacementFootprint(tool: ToolKind, point: GridPoint): GridPoint[] {
-    if (tool === 'market') {
-      const cells: GridPoint[] = [];
-      for (let y = point.y - 1; y <= point.y + 1; y += 1) {
-        for (let x = point.x - 1; x <= point.x + 1; x += 1) cells.push({ x, y });
-      }
-      return cells;
-    }
+    if (tool === 'market') return getStructureFootprint('market', point.x, point.y);
 
     if (tool === 'keep') {
       return this.services.keepSystem.footprint(this.keepDraftForPlacement(point.x, point.y));
@@ -10845,20 +10842,14 @@ export class ThreeGame {
   }
 
   private canBuildMarketAt(gx: number, gy: number, ignoreCell?: GridPoint): boolean {
-    const radius = 1;
-    for (let y = gy - radius; y <= gy + radius; y += 1) {
-      for (let x = gx - radius; x <= gx + radius; x += 1) {
-        if (x < 0 || y < 0 || x >= this.worldCols || y >= this.worldRows) return false;
-        const ignored = ignoreCell?.x === x && ignoreCell.y === y;
-        if (
-          !ignored &&
-          (this.services.state.getCell(x, y) ||
-            this.services.keepSystem.findAtCell(x, y) ||
-            this.isStructureFootprintReserved(x, y))
-        ) return false;
-        const terrain = this.terrainAt(x, y);
-        if (terrain === 'water' || terrain === 'river' || terrain === 'mountain' || terrain === 'forest') return false;
-      }
+    for (const { x, y } of getStructureFootprint('market', gx, gy)) {
+      if (x < 0 || y < 0 || x >= this.worldCols || y >= this.worldRows) return false;
+      const ownAnchor = ignoreCell?.x === x && ignoreCell.y === y;
+      if ((!ownAnchor && this.services.state.getCell(x, y)) ||
+          this.services.keepSystem.findAtCell(x, y) ||
+          this.isStructureFootprintReserved(x, y, ignoreCell)) return false;
+      const terrain = this.terrainAt(x, y);
+      if (terrain === 'water' || terrain === 'river' || terrain === 'mountain' || terrain === 'forest') return false;
     }
     return true;
   }
@@ -12621,7 +12612,7 @@ export class ThreeGame {
     if (this.services.keepSystem.findAtCell(point.x, point.y)) {
       return { valid: false, reason: 'Destination overlaps a Keep', cells };
     }
-    if (this.isStructureFootprintReserved(point.x, point.y)) {
+    if (this.isStructureFootprintReserved(point.x, point.y, origin)) {
       return { valid: false, reason: 'Destination overlaps another structure footprint', cells };
     }
 
