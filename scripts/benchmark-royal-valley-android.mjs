@@ -180,15 +180,6 @@ try {
       if (layout.stateCellCount < input.cells.length * 0.75) {
         throw new Error('Large-map saved settlement failed to load: ' + JSON.stringify(layout));
       }
-      await page.evaluate(({ x, y }) => {
-        const m = window.__castleVisualMetrics();
-        const distance = 105;
-        window.__castleVisualCamera({
-          x: distance * 0.52, y: distance * 0.75, z: distance * 0.55,
-          targetX: (x + 0.5) * 4 - (m ? (window.__castleTouchQA ? 0 : 0) : 0),
-          targetY: 0, targetZ: 0,
-        });
-      }, { x: input.centerX, y: input.centerY });
       // Reset to stable origin-centered camera and warm up the renderer.
       await page.evaluate(() => window.__castleVisualCamera({
         x: 63, y: 83, z: 65, targetX: 0, targetY: 0, targetZ: 0,
@@ -227,9 +218,9 @@ try {
         return { point, status: await page.locator('#save-status').textContent() };
       };
       const beforeCells = (await page.evaluate(() => window.__castleTouchQA().cells.length));
-      const construction = await placeTile('house', 0, 0);
+      const construction = await placeTile('cottage', 0, 0);
       const afterCells = (await page.evaluate(() => window.__castleTouchQA().cells.length));
-      if (afterCells <= beforeCells) throw new Error('House construction did not complete: ' + JSON.stringify(construction));
+      if (afterCells <= beforeCells) throw new Error('Cottage construction did not complete: ' + JSON.stringify(construction));
       phases.push(await collect(page, 'after_construction'));
 
       const terrainEdit = await placeTile('river', 2, 0);
