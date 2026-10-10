@@ -1,0 +1,56 @@
+name: Terrain Foundation Protection QA
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/terrain-foundation-protection-qa.yml'
+      - 'src/ThreeGame.ts'
+      - 'src/building/KeepSystem.ts'
+      - 'src/building/StructureFootprints.ts'
+      - 'tests/terrain-foundation-protection.spec.ts'
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/terrain-foundation-protection-qa.yml'
+      - 'src/ThreeGame.ts'
+      - 'src/building/KeepSystem.ts'
+      - 'src/building/StructureFootprints.ts'
+      - 'tests/terrain-foundation-protection.spec.ts'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  foundation-editing:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 28
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - name: Run foundation, structure and terrain contracts
+        run: |
+          npm run test:castle-build-edit-ux
+          npm run test:market-footprint
+          npm run test:terrain-localized
+          npm run test:terrain-resource-lifecycle
+          npm run test:river-water-visibility
+          npx tsc --noEmit
+      - name: Compile game
+        run: npx vite build
+      - name: Install browser
+        run: npx playwright install --with-deps chromium
+      - name: Verify real editing and persistence
+        run: npx playwright test tests/terrain-foundation-protection.spec.ts --reporter=line
+      - name: Upload traces on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: terrain-foundation-309-${{ github.sha }}
+          path: test-results/
+          if-no-files-found: warn
+          retention-days: 14
