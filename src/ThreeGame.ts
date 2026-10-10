@@ -8792,6 +8792,9 @@ export class ThreeGame {
     this.wallDragEnd = null;
     this.roadDragStart = null;
     this.roadDragEnd = null;
+    this.moatDragPath = [];
+    this.moatDragLast = null;
+    this.moatDragExceededLimit = false;
     this.mountainRangeStart = null;
     this.mountainRangeEnd = null;
     this.terrainStrokeActive = false;
@@ -8833,7 +8836,7 @@ export class ThreeGame {
         minDistance: this.controls.minDistance, maxDistance: this.controls.maxDistance,
         cells: this.services.state.entries(), elevations: [...this.elevationOverrides.entries()],
         undoCount: this.undoStack.length, pointers: touches.pointerIds,
-        dragging: Boolean(this.wallDragStart || this.roadDragStart || this.terrainStrokeActive),
+        dragging: Boolean(this.wallDragStart || this.roadDragStart || this.moatDragLast || this.terrainStrokeActive),
         preview: this.wallPreviewLayer.children.length,
       });
     }
@@ -8854,7 +8857,8 @@ export class ThreeGame {
           canvas.setPointerCapture(event.pointerId);
           const stroke = !this.isGodModeTargeting() && this.selectedTool !== null &&
             (this.isWallTool(this.selectedTool) || this.isRoadTool(this.selectedTool) ||
-              this.isTerrainTool(this.selectedTool) || this.selectedTool === 'mountainRange');
+              this.isTerrainTool(this.selectedTool) || this.selectedTool === 'mountainRange' ||
+              this.selectedTool === 'moat');
           const intent = !this.controls.enabled && !touches.pointerIds.length ? 'blocked' :
             this.battleSystem.isActive() ? 'camera' : stroke ? 'stroke' : 'tap';
           if (!touches.down(event, intent)) return;
@@ -8879,7 +8883,7 @@ export class ThreeGame {
           event.stopPropagation();
           return;
         }
-        if (cell && this.selectedTool !== null && this.selectedTool !== 'towerBridge') this.beginLongPress(event, cell);
+        if (cell && this.selectedTool !== null && this.selectedTool !== 'towerBridge' && this.selectedTool !== 'moat') this.beginLongPress(event, cell);
 
         if (this.selectedTool !== null && this.isWallTool(this.selectedTool)) {
           if (!cell) return;
@@ -8902,6 +8906,19 @@ export class ThreeGame {
           canvas.setPointerCapture(event.pointerId);
           this.renderRoadPreview([cell]);
           this.setStatus('Road drag: choose end point · release to confirm');
+          event.preventDefault();
+          event.stopPropagation();
+          return;
+        }
+
+        if (this.selectedTool === 'moat') {
+          if (!cell) return;
+          this.moatDragPath = [{ ...cell }];
+          this.moatDragLast = { ...cell };
+          this.moatDragExceededLimit = false;
+          this.controls.enabled = false;
+          canvas.setPointerCapture(event.pointerId);
+          this.renderMoatStrokePreview();
           event.preventDefault();
           event.stopPropagation();
           return;
@@ -8971,6 +8988,7 @@ export class ThreeGame {
         if (
           !this.wallDragStart &&
           !this.roadDragStart &&
+          !this.moatDragLast &&
           !this.mountainRangeStart &&
           !this.terrainStrokeActive &&
           !(this.selectedTool === 'towerBridge' && this.towerBridgeStart)
@@ -9000,6 +9018,22 @@ export class ThreeGame {
             const path = this.roadPath(this.roadDragStart, cell);
             this.renderRoadPreview(path);
             this.setStatus(`Road drag: ${path.length} tiles · release to build`);
+          }
+          event.preventDefault();
+          event.stopPropagation();
+          return;
+        }
+
+        if (this.moatDragLast) {
+          const cell = this.pickGridCell(event);
+          if (cell && (cell.x !== this.moatDragLast.x || cell.y !== this.moatDragLast.y)) {
+            const updated = extendMoatRoute(this.moatDragPath, this.moatDragLast, cell);
+            if (updated.length >= 1024 && (updated.at(-1)?.x !== cell.x || updated.at(-1)?.y !== cell.y)) {
+              this.moatDragExceededLimit = true;
+            }
+            this.moatDragPath = updated;
+            this.moatDragLast = { ...cell };
+            this.renderMoatStrokePreview();
           }
           event.preventDefault();
           event.stopPropagation();
@@ -9126,6 +9160,23 @@ export class ThreeGame {
           if (canvas.hasPointerCapture(event.pointerId)) canvas.releasePointerCapture(event.pointerId);
           this.buildRoadDrag(startPoint, end);
 
+          event.preventDefault();
+          event.stopPropagation();
+          return;
+        }
+
+        if (this.moatDragLast) {
+          const last = this.moatDragLast;
+          const end = this.pickGridCell(event) ?? last;
+          const path = extendMoatRoute(this.moatDragPath, last, end);
+          const exceeded = this.moatDragExceededLimit ||
+            (path.length >= 1024 && (path.at(-1)?.x !== end.x || path.at(-1)?.y !== end.y));
+          this.moatDragPath = [];
+          this.moatDragLast = null;
+          this.moatDragExceededLimit = false;
+          this.controls.enabled = true;
+          if (canvas.hasPointerCapture(event.pointerId)) canvas.releasePointerCapture(event.pointerId);
+          this.buildMoatStroke(path, exceeded);
           event.preventDefault();
           event.stopPropagation();
           return;
@@ -9352,6 +9403,9 @@ export class ThreeGame {
     this.wallDragEnd = null;
     this.roadDragStart = null;
     this.roadDragEnd = null;
+    this.moatDragPath = [];
+    this.moatDragLast = null;
+    this.moatDragExceededLimit = false;
     this.clearGroup(this.wallPreviewLayer);
     this.controls.enabled = true;
     this.selectedCell = point;
@@ -10624,12 +10678,7 @@ export class ThreeGame {
     }
 
     if (this.selectedTool === 'moat') {
-      if (current || this.moatTasks.has(overrideKey)) return;
-      if (terrain !== 'plains' && terrain !== 'shore') return;
-      this.moatTasks.set(overrideKey, { x: gx, y: gy, progressMs: 0 });
-      this.setStatus('Workers assigned to dig moat');
-      this.redraw();
-      this.deactivateBuildToolAfterCommit();
+      this.buildMoatStroke([point], false);
       return;
     }
 
@@ -11570,7 +11619,7 @@ export class ThreeGame {
       worker.view.rotation.y += Math.sin(task.progressMs * 0.018) * 0.012;
 
       if (task.progressMs >= 1800) {
-        this.recordHistory();
+        // Tile completion belongs to its route transaction; do not fragment undo history.
         this.services.state.setCell(task.x, task.y, 'moat', 1);
         this.moatTasks.delete(worker.taskKey);
         worker.taskKey = undefined;
@@ -16635,6 +16684,9 @@ export class ThreeGame {
     this.wallDragEnd = null;
     this.roadDragStart = null;
     this.roadDragEnd = null;
+    this.moatDragPath = [];
+    this.moatDragLast = null;
+    this.moatDragExceededLimit = false;
     this.mountainRangeStart = null;
     this.mountainRangeEnd = null;
     this.terrainStrokeActive = false;
