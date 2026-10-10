@@ -28,6 +28,7 @@ import { WORLD_STYLE } from './rendering/WorldStyle';
 import { AmbientMotionSystem } from './rendering/AmbientMotionSystem';
 import { EnvironmentSystem } from './systems/EnvironmentSystem';
 import { ConstructionProjectSystem, type ConstructionProject } from './systems/ConstructionProjectSystem';
+import { assessMoatRoute, computeMoatFlooding, extendMoatRoute, restoreMoatTasks, type MoatPoint, type PendingMoatTask, type MoatSegmentStatus } from './systems/MoatRouteSystem';
 import { SeasonalMaterialTint } from './rendering/SeasonalMaterialTint';
 import { DistanceDetailBudgetSystem } from './rendering/DistanceDetailBudget';
 import { graphicsQualityPreset } from './rendering/GraphicsQualityPreset';
@@ -371,6 +372,7 @@ interface HistorySnapshot {
   economy: EconomyResourceState;
   population: PopulationSimulationState;
   constructionProjects: ConstructionProject[];
+  moatTasks: PendingMoatTask[];
 }
 
 const TOOL_GROUPS: Array<{ label: string; tools: ToolDefinition[] }> = [
@@ -553,6 +555,8 @@ export class ThreeGame {
     new THREE.MeshBasicMaterial({ visible: false }),
   );
   private readonly moatTasks = new Map<string, MoatTask>();
+  private moatDragPath: MoatPoint[] = [];
+  private moatDragLast: MoatPoint | null = null;
   private readonly workers: WorkerAgent[] = [];
   private readonly settlementAgents: SettlementAgent[] = [];
   private nextSettlementAgentId = 1;
@@ -699,6 +703,8 @@ export class ThreeGame {
       getMissionState: () => this.missionSystem.getState(),
       getConstructionProjects: () => this.constructionProjects.snapshot(),
       setConstructionProjects: (value) => { this.constructionProjects.restore(value); },
+      getMoatTasks: () => this.pendingMoatTasks(),
+      setMoatTasks: (value) => this.restorePendingMoatTasks(value),
       setMissionState: (value) => { this.missionSystem.setState(value); },
       setWorldSeeded: (value) => { this.worldSeeded = value; },
       setLoadedSaveVersion: (value) => { this.loadedSaveVersion = value; },
@@ -1714,6 +1720,8 @@ export class ThreeGame {
     this.terrainOverrides.clear();
     this.elevationOverrides.clear();
     this.moatTasks.clear();
+    this.moatDragPath = [];
+    this.moatDragLast = null;
     this.constructionProjects.clear();
     this.constructionAnimation.clear();
     document.getElementById('construction-progress-panel')?.setAttribute('hidden', '');
@@ -2082,6 +2090,7 @@ export class ThreeGame {
    * releases the footprint immediately.
    */
   private isStructureFootprintReserved(x: number, y: number): boolean {
+    if (this.moatTasks.has(this.key(x, y))) return true;
     for (const anchor of this.services.state.entries()) {
       const footprint = getStructureFootprint(anchor.kind, anchor.x, anchor.y);
       if (footprint.length <= 1) continue;
@@ -8502,6 +8511,7 @@ export class ThreeGame {
       economy: this.services.economySystem.getState(),
       population: this.services.populationSystem.getState(),
       constructionProjects: this.constructionProjects.snapshot(),
+      moatTasks: this.pendingMoatTasks(),
     };
   }
 
@@ -8550,6 +8560,7 @@ export class ThreeGame {
     this.services.economySystem.setState(snapshot.economy);
     this.services.populationSystem.setState(snapshot.population);
     this.constructionProjects.restore(snapshot.constructionProjects);
+    this.restorePendingMoatTasks(snapshot.moatTasks);
     for (const worker of this.workers) worker.projectKey = undefined;
     this.populationBattleCommitted = false;
     this.populationBattleStart = null;
@@ -13952,6 +13963,8 @@ export class ThreeGame {
     this.terrainOverrides.clear();
     this.elevationOverrides.clear();
     this.moatTasks.clear();
+    this.moatDragPath = [];
+    this.moatDragLast = null;
     this.constructionProjects.clear();
     this.constructionAnimation.clear();
     this.services.economySystem.reset();
@@ -15765,6 +15778,8 @@ export class ThreeGame {
     this.terrainOverrides.clear();
     this.elevationOverrides.clear();
     this.moatTasks.clear();
+    this.moatDragPath = [];
+    this.moatDragLast = null;
     this.constructionProjects.clear();
     this.constructionAnimation.clear();
     this.services.economySystem.reset();
