@@ -854,6 +854,10 @@ export class ThreeGame {
           },
         };
       };
+      // A/B benchmarking of construction rebuild scope is QA-only. It leaves
+      // save data and gameplay unchanged; tests can compare identical scenes.
+      (window as unknown as { __castleVisualRebuildConstruction: (reuse: boolean) => void }).__castleVisualRebuildConstruction =
+        (reuse) => this.redraw(Boolean(reuse));
       (window as unknown as { __castleVisualCamera: (position: { x: number; y: number; z: number; targetX: number; targetY: number; targetZ: number }) => void }).__castleVisualCamera = (position) => {
         this.camera.position.set(position.x, position.y, position.z);
         this.controls.target.set(position.targetX, position.targetY, position.targetZ);
@@ -13422,7 +13426,7 @@ export class ThreeGame {
     const keep = this.services.keepSystem.add(draft);
     this.spendConstructionCost('keep', keepCostUnits);
     this.selectKeep(keep);
-    this.redraw();
+    this.redraw(true);
     this.startConstruction(`keep:${keep.id}`, 1450);
     this.scheduleSave();
     this.setStatus(`Keep built · ${keep.width}×${keep.depth} · ${keep.floors} floors · details generated automatically`);
@@ -13551,7 +13555,7 @@ export class ThreeGame {
       this.towerBridges.set(bridge.id, { ...bridge, level: nextLevel });
       this.spendUpgradeCost('towerBridge', nextLevel);
       this.startConstruction(`bridge:${bridge.id}`, 1100);
-      this.redraw();
+      this.redraw(true);
       this.scheduleSave();
       audioEvents.emit({ action: 'play_sfx', assetId: 'building.upgrade' });
       this.setStatus(`Tower Bridge upgraded to Level ${nextLevel} · ${this.fortificationLevelDefinition('towerBridge', nextLevel).name}`);
@@ -13589,7 +13593,7 @@ export class ThreeGame {
         this.spendUpgradeCost('keep', nextLevel);
         this.selectKeep(updated);
         this.startConstruction(`keep:${keep.id}`, 1450);
-        this.redraw();
+        this.redraw(true);
         this.scheduleSave();
         audioEvents.emit({ action: 'play_sfx', assetId: 'building.upgrade' });
       this.setStatus(`Keep upgraded to Level ${nextLevel} · ${this.fortificationLevelDefinition('keep', nextLevel).name}`);
@@ -13632,7 +13636,7 @@ export class ThreeGame {
     }
     this.spendUpgradeCost(kind, nextLevel);
     this.startConstruction(`cell:${this.selectedCell.x},${this.selectedCell.y}`, 1050);
-    this.redraw();
+    this.redraw(true);
     this.scheduleSave();
     audioEvents.emit({ action: 'play_sfx', assetId: 'building.upgrade' });
     this.setStatus(
