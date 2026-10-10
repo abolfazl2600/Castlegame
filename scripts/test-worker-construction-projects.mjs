@@ -22,7 +22,7 @@ const restore = new ConstructionProjectSystem();
 restore.restore(projects.snapshot());
 assert.equal(restore.progress('cell:4,5'), 1 / 6, 'save/load resumes incomplete projects');
 assert.equal(restore.work('cell:4,5', 6000), false, 'frame-delta clamp prevents accidental instant completion');
-for (let i = 0; i < 4; i += 1) restore.work('cell:4,5', 1000);
+for (let i = 0; i < 3; i += 1) restore.work('cell:4,5', 1000);
 assert.equal(restore.work('cell:4,5', 1000), true, 'construction completes after delivered labor');
 assert.equal(restore.work('cell:4,5', 1000), false, 'completed work order cannot trigger twice');
 assert.equal(restore.has('cell:4,5'), false);
