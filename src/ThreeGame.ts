@@ -734,6 +734,7 @@ export class ThreeGame {
       afterLoad: () => {
         this.rebuildWorldLayoutSurface();
         this.normalizeRiverElevations();
+        this.redraw();
         this.applyEnvironmentVisuals(true);
       },
       setStatus: (message) => this.setStatus(message),
@@ -2547,7 +2548,17 @@ export class ThreeGame {
   private operationalCells(
     cells: ReturnType<GameState['entries']> = this.services.state.entries(),
   ): ReturnType<GameState['entries']> {
-    return cells.filter((cell) => !this.constructionProjects.has(`cell:${cell.x},${cell.y}`));
+    return cells.flatMap((cell) => {
+      const pending = this.constructionProjects.get(`cell:${cell.x},${cell.y}`);
+      if (!pending) return [cell];
+      // Upgrades retain their previous economic, housing and garrison levels
+      // until the new tier has been completed by construction workers.
+      if (pending.previous) return [{ ...cell,
+        kind: pending.previous.kind as TileKind,
+        level: pending.previous.level,
+      }];
+      return [];
+    });
   }
 
   private operationalKeeps(): KeepState[] {
@@ -2586,7 +2597,18 @@ export class ThreeGame {
     const y = cellMatch ? Number(cellMatch[2]) : keep?.y ?? Math.round(((bridge?.ay ?? 0) + (bridge?.by ?? 0)) / 2);
     const kind = cell?.kind ?? (keep ? 'keep' : 'towerBridge');
     const units = keep ? Math.max(1, (keep.width * keep.depth) / 9) : bridge ? 1.5 : 1;
-    this.constructionProjects.begin(key, kind, x, y, duration * 12 * units);
+    const previousCell = cellMatch
+      ? this.undoStack.at(-1)?.cells.find((entry) => entry.x === x && entry.y === y)
+      : undefined;
+    const upgrading = previousCell && cell && (
+      previousCell.kind === cell.kind ||
+      (cell.kind === 'cottage' && ['house', 'manor', 'villa'].includes(previousCell.kind))
+    ) && (previousCell.level ?? 1) < (cell.level ?? 1);
+    const previous = upgrading && previousCell
+      ? { kind: previousCell.kind === 'cottage' || cell?.kind === 'cottage' ? 'cottage' : previousCell.kind,
+          level: previousCell.level ?? 1 }
+      : undefined;
+    this.constructionProjects.begin(key, kind, x, y, duration * 12 * units, previous);
     this.constructionAnimation.cancel(key);
     const object = this.constructionObjects.get(key);
     if (object) this.constructionAnimation.start(key, object, performance.now(), duration * 12 * units, true);
@@ -11450,6 +11472,15 @@ export class ThreeGame {
       }
     }
     if (completedProjects.length) {
+      for (const key of completedProjects) {
+        if (!key.startsWith('cell:')) continue;
+        const [x, y] = key.slice(5).split(',').map(Number);
+        const cell = this.services.state.getCell(x, y);
+        if (cell?.kind === 'armyCamp' && (cell.level ?? 1) > this.militaryTier) {
+          this.militaryTier = normalizeMilitaryTier(cell.level ?? 1);
+          this.syncMilitaryUI();
+        }
+      }
       this.redraw();
       this.scheduleSave();
       for (const key of completedProjects) {
@@ -13446,7 +13477,6 @@ export class ThreeGame {
     if (!this.ensureUpgradeAffordable('carpenter', nextLevel)) return;
     this.recordHistory();
     this.services.state.setLevel(this.selectedCell.x, this.selectedCell.y, nextLevel);
-    this.services.populationSystem.reconcile(this.services.state.entries());
     this.spendUpgradeCost('carpenter', nextLevel);
     this.startConstruction(`cell:${this.selectedCell.x},${this.selectedCell.y}`, 950);
     this.redraw();
@@ -13804,10 +13834,6 @@ export class ThreeGame {
     if (!this.ensureUpgradeAffordable('armyCamp', nextLevel)) return;
     this.recordHistory();
     this.services.state.setLevel(this.selectedCell.x, this.selectedCell.y, nextLevel);
-    if (nextLevel > this.militaryTier) {
-      this.militaryTier = normalizeMilitaryTier(nextLevel);
-      this.syncMilitaryUI();
-    }
     this.spendUpgradeCost('armyCamp', nextLevel);
     this.startConstruction(`cell:${this.selectedCell.x},${this.selectedCell.y}`, 1150);
     this.redraw();
