@@ -41,7 +41,8 @@ jobs:
           cache: npm
       - run: npm ci --no-audit --no-fund
       - run: npm run test:worker-construction
-      - run: npm run test:settlement-economy
+      - run: npm run test:settlement-lifecycle
+      - run: npm run test:living-population
       - run: npm run test:camp-garrison
       - run: npx tsc --noEmit
       - run: npm run build
