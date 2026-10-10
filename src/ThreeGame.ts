@@ -2440,7 +2440,7 @@ export class ThreeGame {
     const stableCandidates = new Map<string, THREE.Object3D>();
     const nextSignatures = new Map<string, string>();
     const mayReuse = preserveStableBuildings &&
-      !this.battleSystem?.isActive() && this.extensions.length === 0;
+      !this.battleSystem?.isActive() && this.extensions.size === 0;
     for (const cell of cells) {
       const key = this.key(cell.x, cell.y);
       const signature = this.stableBuildSignature(cell);
