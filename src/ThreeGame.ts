@@ -658,7 +658,11 @@ export class ThreeGame {
     const hadSave = storage.getItem(SAVE_KEY) !== null;
     this.root = root;
     this.settingsStore = settingsStore;
-    this.audioManager = new AudioManager();
+    // SettingsStore is the sole source of in-game audio preferences.
+    this.audioManager = new AudioManager({
+      settingsStorageKey: null,
+      initialSettings: this.settingsStore.get().audio,
+    });
     this.saveSystem = new SaveSystem({
       state: this.services.state,
       keepSystem: this.services.keepSystem,
@@ -876,14 +880,7 @@ export class ThreeGame {
       applySceneGraphicsSettings(this.scene, settings);
       this.renderer.toneMappingExposure = settings.graphics.effectsEnabled ? 1.0 : 1;
       applyInputSettings(this.controls, settings);
-      this.audioManager.setMasterVolume(settings.audio.masterVolume);
-      this.audioManager.setMusicEnabled(settings.audio.musicEnabled);
-      this.audioManager.setMusicVolume(settings.audio.musicVolume);
-      this.audioManager.setAmbientEnabled(settings.audio.ambientEnabled);
-      this.audioManager.setAmbientVolume(settings.audio.ambientVolume);
-      this.audioManager.setSfxEnabled(settings.audio.sfxEnabled);
-      this.audioManager.setSfxVolume(settings.audio.sfxVolume);
-      this.audioManager.setMuted(settings.audio.muted);
+      this.audioManager.applySettings(settings.audio);
       document.documentElement.style.setProperty('--castle-ui-scale', String(settings.interface.uiScale));
       document.documentElement.toggleAttribute('data-reduced-motion', settings.interface.reducedMotion);
       document.documentElement.toggleAttribute('data-high-contrast', settings.interface.highContrast);
