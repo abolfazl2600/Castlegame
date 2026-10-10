@@ -1,0 +1,57 @@
+name: River Elevation and Persistence QA
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/river-elevation-qa.yml'
+      - 'src/ThreeGame.ts'
+      - 'src/core/SaveSystem.ts'
+      - 'tests/river-elevation-consistency.spec.ts'
+      - 'scripts/test-river-water-visibility.mjs'
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/river-elevation-qa.yml'
+      - 'src/ThreeGame.ts'
+      - 'src/core/SaveSystem.ts'
+      - 'tests/river-elevation-consistency.spec.ts'
+      - 'scripts/test-river-water-visibility.mjs'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  river-elevation:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    env:
+      NODE_OPTIONS: --max-old-space-size=2048
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - name: Verify existing river rendering and map invariants
+        run: |
+          npm run test:river-water-visibility
+          npm run test:royal-valley-map
+          npm run test:terrain-localized
+          npm run test:terrain-resource-lifecycle
+          npx tsc --noEmit
+      - name: Build game
+        run: npx vite build
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+      - name: Exercise river elevation, undo/redo and reloaded games
+        run: npx playwright test tests/river-elevation-consistency.spec.ts --reporter=line
+      - name: Upload browser traces on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: river-elevation-debug-${{ github.sha }}
+          path: test-results/
+          retention-days: 14
+          if-no-files-found: warn

@@ -10658,8 +10658,14 @@ export class ThreeGame {
           return;
         }
         this.recordHistory();
+        // Erasing a filled/raised tile over a naturally occurring river must
+        // restore the original water level, not carry the former land height
+        // into the water plane. User-authored elevated river tiles elsewhere
+        // are unaffected, and undo retains the previous filled-land snapshot.
+        const restoresNaturalRiver = this.baseTerrainAt(gx, gy) === 'river';
         this.terrainOverrides.delete(overrideKey);
-        this.normalizeRiverElevationAt(gx, gy);
+        if (restoresNaturalRiver) this.elevationOverrides.delete(overrideKey);
+        else this.normalizeRiverElevationAt(gx, gy);
         this.finishBuild();
       }
       return;
