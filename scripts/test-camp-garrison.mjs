@@ -8,7 +8,9 @@ const game = await readFile(new URL('../src/ThreeGame.ts', import.meta.url), 'ut
 assert.doesNotMatch(html, /battle-faction battle-defenders|data-battle-field="defender/);
 assert.match(html, /battle-faction battle-attackers/);
 assert.doesNotMatch(endlessDefense, /survival-hud|ensureHud|renderHud/);
-assert.match(game, /recruitForNewCampCapacity\(cells\)/);
+assert.match(game, /recruitForNewCampCapacity\(readyCells\)/);
+assert.match(game, /const readyCells = this.operationalCells\(cells\)/,
+  'unfinished camps must not recruit guards until construction finishes');
 assert.match(game, /professionalArmyComposition\(\)/);
 assert.match(game, /if \(String\(field\)\.startsWith\('defender'\)\) return;/);
 
