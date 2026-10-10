@@ -42,7 +42,7 @@ async function start(page: Page) {
         cells.push({ x, y, kind: 'cottage', level: 1 });
       }
     }
-    cells.push({ ...upgradeTower, kind: 'tower', level: 1 });
+    cells.push({ x: 20, y: 40, kind: 'tower', level: 1 });
     const now = 1700000000000;
     localStorage.setItem(autosave, JSON.stringify({
       metadata: { id: 'construction-310', name: 'Construction 310 QA', slot: 'autosave',
