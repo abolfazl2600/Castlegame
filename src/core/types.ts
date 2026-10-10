@@ -185,6 +185,8 @@ export interface PopulationSimulationState {
   nextCitizenId: number;
   nextSoldierId: number;
   housingCapacityHighWater: number;
+  /** Last observed Army Camp capacity. Missing in legacy saves and initialized on first sync. */
+  garrisonCapacityBaseline?: number;
   citizens: SavedCitizenState[];
   professionalArmy: SavedProfessionalSoldierState[];
 }

@@ -80,6 +80,7 @@ export class PopulationSystem {
     nextCitizenId: 1,
     nextSoldierId: 1,
     housingCapacityHighWater: 0,
+    garrisonCapacityBaseline: 0,
     citizens: [],
     professionalArmy: [],
   };
@@ -177,6 +178,7 @@ export class PopulationSystem {
       nextCitizenId: this.state.nextCitizenId,
       nextSoldierId: this.state.nextSoldierId,
       housingCapacityHighWater: this.state.housingCapacityHighWater,
+      garrisonCapacityBaseline: this.state.garrisonCapacityBaseline,
       citizens: this.state.citizens.map((citizen) => ({
         ...citizen,
         home: clonePoint(citizen.home),
@@ -196,6 +198,7 @@ export class PopulationSystem {
         nextCitizenId: 1,
         nextSoldierId: 1,
         housingCapacityHighWater: 0,
+        garrisonCapacityBaseline: 0,
         citizens: [],
         professionalArmy: [],
       };
@@ -241,6 +244,11 @@ export class PopulationSystem {
         Number(value.housingCapacityHighWater) || 0,
         citizens.filter((citizen) => citizen.alive).length,
       ),
+      // Older saves have no baseline. Preserve their existing roster without
+      // treating the first load as newly constructed military capacity.
+      garrisonCapacityBaseline: Number.isFinite(value.garrisonCapacityBaseline)
+        ? Math.max(0, Math.floor(Number(value.garrisonCapacityBaseline)))
+        : Array.isArray(value.professionalArmy) ? undefined : 0,
       citizens,
       professionalArmy,
     };
@@ -434,6 +442,18 @@ export class PopulationSystem {
       (sum, camp) => sum + this.armyCampCapacity(camp.level),
       0,
     );
+  }
+
+  /** New or upgraded camps add guards only for newly created slots.
+   * Casualties are persistent; routine UI redraws and save/load never replace them.
+   */
+  recruitForNewCampCapacity(cells: CellEntry[] = this.lastCells): number {
+    const capacity = this.professionalArmyCapacity(cells);
+    const previous = this.state.garrisonCapacityBaseline;
+    this.state.garrisonCapacityBaseline = capacity;
+    const living = this.state.professionalArmy.filter((soldier) => soldier.alive).length;
+    if (previous === undefined || capacity <= previous) return living;
+    return this.setProfessionalArmyCount(living + capacity - previous, cells);
   }
 
   professionalArmyComposition(): MilitiaComposition {

@@ -65,6 +65,7 @@ const CONSTRUCTION_COSTS: Partial<Record<ToolKind, ResourceCost>> = {
   mine: { wood: 4, stone: 2 },
   carpenter: { wood: 6, stone: 2 },
   market: { wood: 6, stone: 4 },
+  mosque: { wood: 8, stone: 12 },
   basilica: { wood: 8, stone: 14 },
   armyCamp: { wood: 8, stone: 2 },
   hut: { wood: 2 },
@@ -168,6 +169,12 @@ export class EconomySystem {
       wood: Math.max(0, (base.wood ?? 0) * multiplier),
       stone: Math.max(0, (base.stone ?? 0) * multiplier),
     };
+  }
+
+  /** Upgrades have an increasing materials cost based on their destination level. */
+  upgradeCost(tool: ToolKind, nextLevel: number): ResourceCost {
+    const level = Number.isFinite(nextLevel) ? Math.max(2, Math.floor(nextLevel)) : 2;
+    return this.constructionCost(tool, level);
   }
 
   canAfford(cost: ResourceCost): boolean {
