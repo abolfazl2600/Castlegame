@@ -79,6 +79,7 @@ assert.equal(animation.count, 1);
 assert.equal(root.children[2].visible, false, 'unfinished roof must remain hidden');
 assert.deepEqual(animation.update(100_000, true), [], 'reduced motion does not finish real work');
 assert.equal(animation.count, 1);
+assert.equal(root.children[2].visible, false, 'reduced motion must retain unfinished stages until workers complete them');
 animation.setProgress('cell:4,5', 0.9, true);
 assert.equal(root.children[2].visible, true, 'later stages become visible as workers progress');
 const redrawn = building();
