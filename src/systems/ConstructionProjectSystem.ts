@@ -8,28 +8,32 @@ export interface ConstructionProject {
   y: number;
   workMs: number;
   requiredMs: number;
+  /** Previously working level remains operational while an upgrade is built. */
+  previous?: { kind: string; level: number };
 }
 
 export class ConstructionProjectSystem {
   private readonly projects = new Map<string, ConstructionProject>();
 
-  begin(key: string, kind: string, x: number, y: number, requiredMs: number): ConstructionProject {
+  begin(key: string, kind: string, x: number, y: number, requiredMs: number,
+    previous?: { kind: string; level: number }): ConstructionProject {
     const project: ConstructionProject = {
       key, kind, x, y,
       workMs: 0,
       requiredMs: Math.max(3000, Math.min(90000, Math.round(requiredMs))),
+      previous: previous ? { ...previous } : undefined,
     };
     this.projects.set(key, project);
-    return { ...project };
+    return { ...project, previous: project.previous ? { ...project.previous } : undefined };
   }
 
   has(key: string): boolean { return this.projects.has(key); }
   get(key: string): ConstructionProject | undefined {
     const project = this.projects.get(key);
-    return project ? { ...project } : undefined;
+    return project ? { ...project, previous: project.previous ? { ...project.previous } : undefined } : undefined;
   }
   get count(): number { return this.projects.size; }
-  entries(): ConstructionProject[] { return [...this.projects.values()].map((project) => ({ ...project })); }
+  entries(): ConstructionProject[] { return [...this.projects.values()].map((project) => ({ ...project, previous: project.previous ? { ...project.previous } : undefined })); }
 
   progress(key: string): number {
     const project = this.projects.get(key);
@@ -69,6 +73,11 @@ export class ConstructionProjectSystem {
         x: candidate.x, y: candidate.y,
         workMs: candidate.workMs,
         requiredMs: candidate.requiredMs,
+        previous: candidate.previous && typeof candidate.previous.kind === 'string' &&
+          candidate.previous.kind.length <= 64 && Number.isInteger(candidate.previous.level) &&
+          candidate.previous.level > 0 && candidate.previous.level <= 20
+          ? { kind: candidate.previous.kind, level: candidate.previous.level }
+          : undefined,
       });
     }
   }
