@@ -5941,3 +5941,21 @@ html[data-high-contrast] #settings-modal .settings-quick-settings button { borde
   #settings-modal .settings-toggle > span::after { transition: none; }
   #settings-modal .settings-continue-button:hover { transform: none; }
 }
+
+/* Lightweight, non-interactive progress feedback for worker construction sites. */
+.construction-progress-panel:not([hidden]) {
+  position: fixed;
+  left: calc(12px + var(--safe-area-left, 0px));
+  bottom: calc(12px + var(--safe-area-bottom, 0px));
+  z-index: 24;
+  max-width: min(390px, calc(100vw - 32px));
+  padding: 8px 12px;
+  color: #f8e5bc;
+  background: rgba(22, 27, 31, 0.88);
+  border: 1px solid rgba(219, 171, 83, 0.55);
+  border-radius: 10px;
+  box-shadow: 0 5px 18px rgba(0, 0, 0, 0.22);
+  font-size: calc(12px * var(--castle-ui-scale, 1));
+  line-height: 1.4;
+  pointer-events: none;
+}
