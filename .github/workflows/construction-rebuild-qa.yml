@@ -5,6 +5,8 @@ on:
     paths:
       - '.github/workflows/construction-rebuild-qa.yml'
       - 'src/ThreeGame.ts'
+      - 'src/core/GameExtension.ts'
+      - 'src/systems/FarmLifeSystem.ts'
       - 'tests/construction-redraw-reuse.spec.ts'
       - 'src/rendering/**'
       - 'src/building/**'
@@ -13,6 +15,8 @@ on:
     paths:
       - '.github/workflows/construction-rebuild-qa.yml'
       - 'src/ThreeGame.ts'
+      - 'src/core/GameExtension.ts'
+      - 'src/systems/FarmLifeSystem.ts'
       - 'tests/construction-redraw-reuse.spec.ts'
   workflow_dispatch:
 
