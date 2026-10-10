@@ -1154,6 +1154,15 @@ export class ThreeGame {
   }
 
   private ensureUpgradeAffordable(tool: ToolKind, nextLevel: number): boolean {
+    const selectedKey = this.selectedTowerBridgeId !== null
+      ? `bridge:${this.selectedTowerBridgeId}`
+      : this.selectedKeepId !== null
+        ? `keep:${this.selectedKeepId}`
+        : this.selectedCell ? `cell:${this.selectedCell.x},${this.selectedCell.y}` : null;
+    if (selectedKey && this.constructionProjects.has(selectedKey)) {
+      this.setStatus('Finish the active construction project before upgrading again');
+      return false;
+    }
     if (!this.economyConstructionEnabled()) return true;
     const cost = this.services.economySystem.upgradeCost(tool, nextLevel);
     if (this.services.economySystem.canAfford(cost)) return true;
@@ -13169,6 +13178,7 @@ export class ThreeGame {
       this.recordHistory();
       this.towerBridges.set(bridge.id, { ...bridge, level: nextLevel });
       this.spendUpgradeCost('towerBridge', nextLevel);
+      this.startConstruction(`bridge:${bridge.id}`, 1100);
       this.redraw();
       this.scheduleSave();
       audioEvents.emit({ action: 'play_sfx', assetId: 'building.upgrade' });
@@ -13206,6 +13216,7 @@ export class ThreeGame {
       if (updated) {
         this.spendUpgradeCost('keep', nextLevel);
         this.selectKeep(updated);
+        this.startConstruction(`keep:${keep.id}`, 1450);
         this.redraw();
         this.scheduleSave();
         audioEvents.emit({ action: 'play_sfx', assetId: 'building.upgrade' });
@@ -13248,6 +13259,7 @@ export class ThreeGame {
       this.services.state.setLevel(this.selectedCell.x, this.selectedCell.y, nextLevel);
     }
     this.spendUpgradeCost(kind, nextLevel);
+    this.startConstruction(`cell:${this.selectedCell.x},${this.selectedCell.y}`, 1050);
     this.redraw();
     this.scheduleSave();
     audioEvents.emit({ action: 'play_sfx', assetId: 'building.upgrade' });
@@ -13358,8 +13370,8 @@ export class ThreeGame {
     this.recordHistory();
     this.services.state.setLevel(point.x, point.y, nextLevel);
     this.spendUpgradeCost('mosque', nextLevel);
-    this.redraw();
     this.startConstruction(`cell:${point.x},${point.y}`, 1050);
+    this.redraw();
     this.scheduleSave();
     audioEvents.emit({ action: 'play_sfx', assetId: 'building.upgrade' });
     this.setStatus(`Mosque upgraded to Level ${nextLevel} · ${this.mosqueLevelDefinition(nextLevel).name}`);
@@ -13436,6 +13448,7 @@ export class ThreeGame {
     this.services.state.setLevel(this.selectedCell.x, this.selectedCell.y, nextLevel);
     this.services.populationSystem.reconcile(this.services.state.entries());
     this.spendUpgradeCost('carpenter', nextLevel);
+    this.startConstruction(`cell:${this.selectedCell.x},${this.selectedCell.y}`, 950);
     this.redraw();
     this.syncEconomyUI();
     this.updatePopulationUI();
@@ -13523,6 +13536,7 @@ export class ThreeGame {
       shipKind: this.maritimeSystem.defaultShipForLevel(nextLevel),
     });
     this.spendUpgradeCost('harbor', nextLevel);
+    this.startConstruction(`cell:${this.selectedCell.x},${this.selectedCell.y}`, 1150);
     this.redraw();
     this.scheduleSave();
     audioEvents.emit({ action: 'play_sfx', assetId: 'building.upgrade' });
@@ -13614,8 +13628,8 @@ export class ThreeGame {
       level: nextLevel,
     });
     this.spendUpgradeCost('cottage', nextLevel);
-    this.redraw();
     this.startConstruction(`cell:${point.x},${point.y}`, 950);
+    this.redraw();
     this.scheduleSave();
     audioEvents.emit({ action: 'play_sfx', assetId: 'building.upgrade' });
     this.setStatus(
@@ -13703,6 +13717,7 @@ export class ThreeGame {
     this.recordHistory();
     this.services.state.setLevel(this.selectedCell.x, this.selectedCell.y, nextLevel);
     this.spendUpgradeCost(kind, nextLevel);
+    this.startConstruction(`cell:${this.selectedCell.x},${this.selectedCell.y}`, 1050);
     this.redraw();
     this.scheduleSave();
     audioEvents.emit({ action: 'play_sfx', assetId: 'building.upgrade' });
@@ -13794,6 +13809,7 @@ export class ThreeGame {
       this.syncMilitaryUI();
     }
     this.spendUpgradeCost('armyCamp', nextLevel);
+    this.startConstruction(`cell:${this.selectedCell.x},${this.selectedCell.y}`, 1150);
     this.redraw();
     this.scheduleSave();
     audioEvents.emit({ action: 'play_sfx', assetId: 'building.upgrade' });
