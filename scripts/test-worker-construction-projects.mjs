@@ -31,6 +31,28 @@ restore.cancel('keep:9');
 assert.equal(restore.has('keep:9'), false, 'demolition cancels an unfinished site');
 restore.reconcile((project) => project.key === 'cell:4,5');
 assert.equal(restore.count, 0, 'stale projects after world changes are removed');
+const upgrading = new ConstructionProjectSystem();
+upgrading.begin('cell:10,11', 'armyCamp', 10, 11, 9000,
+  { kind: 'armyCamp', level: 2 });
+upgrading.work('cell:10,11', 750);
+assert.deepEqual(upgrading.get('cell:10,11')?.previous, { kind: 'armyCamp', level: 2 },
+  'an unfinished upgrade keeps its old operating level');
+assert.deepEqual(new ConstructionProjectSystem().snapshot(), [],
+  'a fresh/legacy game has no pending work');
+assert.equal(upgrading.relocate('cell:10,11', 'cell:15,16', 15, 16), true);
+assert.equal(upgrading.has('cell:10,11'), false);
+assert.equal(upgrading.get('cell:15,16')?.x, 15);
+assert.equal(upgrading.get('cell:15,16')?.y, 16);
+assert.ok(upgrading.progress('cell:15,16') > 0, 'relocating preserves already delivered labor');
+const movedSave = upgrading.snapshot();
+const movedLoaded = new ConstructionProjectSystem();
+movedLoaded.restore(movedSave);
+assert.deepEqual(movedLoaded.get('cell:15,16')?.previous, { kind: 'armyCamp', level: 2 },
+  'save/load keeps previous operating tier while upgrading');
+assert.equal(movedLoaded.progress('cell:15,16'), upgrading.progress('cell:15,16'));
+upgrading.cancel('cell:15,16');
+assert.equal(upgrading.count, 0, 'demolishing a relocated site cancels work');
+
 restore.restore(undefined);
 assert.equal(restore.count, 0);
 
