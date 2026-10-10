@@ -283,6 +283,8 @@ export class PerformanceDebugOverlay {
       ]),
       this.section('LOD & Memory', [
         this.row('Detail suppression', budget.detailSuppressionActive ? 'ACTIVE' : 'OFF', budget.detailSuppressionActive),
+        this.row('LOD scene recalculations', this.formatInteger(budget.lodRecalculations)),
+        this.row('Over-budget LOD retries', this.formatInteger(budget.overBudgetRechecks)),
         this.row('High-detail meshes', `${budget.activeHighDetailMeshes} / ${budget.baselineHighDetailMeshes}`),
         this.row('Suppressed meshes', this.formatInteger(budget.suppressedHighDetailMeshes)),
         this.row('Shadow casters active', this.formatInteger(budget.activeShadowCasters)),
