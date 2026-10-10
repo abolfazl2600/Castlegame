@@ -1,5 +1,6 @@
 import type { GameMode } from './GameMode';
 import type { ConstructionProject } from '../systems/ConstructionProjectSystem';
+import type { PendingMoatTask } from '../systems/MoatRouteSystem';
 
 export type WallKind = 'wall1' | 'wall2' | 'wall3';
 export type RoadKind = 'road' | 'dirtRoad' | 'stoneRoad';
@@ -245,6 +246,8 @@ export interface SavedGame {
   missions?: MissionProgressState;
   /** Active worker-driven construction; missing in old saves means every structure is finished. */
   constructionProjects?: ConstructionProject[];
+  /** Queued moat excavation, absent in legacy saves. */
+  moatTasks?: PendingMoatTask[];
 }
 
 export interface SaveMetadata {

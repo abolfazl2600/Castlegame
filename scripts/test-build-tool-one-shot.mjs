@@ -49,8 +49,13 @@ assert.match(
 
 assert.match(
   click,
-  /selectedTool === 'moat'[\s\S]*moatTasks\.set[\s\S]*deactivateBuildToolAfterCommit\(\)/,
-  'successful moat assignment must be one-shot',
+  /selectedTool === 'moat'[\s\S]*buildMoatStroke\(\[point\], false\)/,
+  'single-tap moat placement delegates to the route transaction',
+);
+assert.match(
+  method('buildMoatStroke'),
+  /this\.moatTasks\.set[\s\S]*this\.deactivateBuildToolAfterCommit\(\)/,
+  'successful connected moat excavation must be one-shot',
 );
 
 console.log('one-shot build tool contract checks passed');

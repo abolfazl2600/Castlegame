@@ -28,6 +28,7 @@ import { WORLD_STYLE } from './rendering/WorldStyle';
 import { AmbientMotionSystem } from './rendering/AmbientMotionSystem';
 import { EnvironmentSystem } from './systems/EnvironmentSystem';
 import { ConstructionProjectSystem, type ConstructionProject } from './systems/ConstructionProjectSystem';
+import { assessMoatRoute, computeMoatFlooding, extendMoatRoute, restoreMoatTasks, type MoatPoint, type PendingMoatTask, type MoatSegmentStatus } from './systems/MoatRouteSystem';
 import { SeasonalMaterialTint } from './rendering/SeasonalMaterialTint';
 import { DistanceDetailBudgetSystem } from './rendering/DistanceDetailBudget';
 import { graphicsQualityPreset } from './rendering/GraphicsQualityPreset';
@@ -371,6 +372,7 @@ interface HistorySnapshot {
   economy: EconomyResourceState;
   population: PopulationSimulationState;
   constructionProjects: ConstructionProject[];
+  moatTasks: PendingMoatTask[];
 }
 
 const TOOL_GROUPS: Array<{ label: string; tools: ToolDefinition[] }> = [
@@ -384,7 +386,7 @@ const TOOL_GROUPS: Array<{ label: string; tools: ToolDefinition[] }> = [
       { id: 'tower', icon: '🏰', label: 'Tower', detail: 'Place a tower · appearance evolves automatically', shortcut: '5' },
       { id: 'towerBridge', icon: '🌉', label: 'Tower Bridge', detail: 'Build or select between two compatible towers', shortcut: 'D' },
       { id: 'keep', icon: '🏯', label: 'Keep', detail: 'Place a keep · size and detail grow with upgrades', shortcut: 'P' },
-      { id: 'moat', icon: '💧', label: 'Moat', detail: 'Workers excavate queued tiles', shortcut: 'Q' },
+      { id: 'moat', icon: '💧', label: 'Moat', detail: 'Drag a connected moat · workers excavate the route', shortcut: 'Q' },
     ],
   },
   {
@@ -553,6 +555,9 @@ export class ThreeGame {
     new THREE.MeshBasicMaterial({ visible: false }),
   );
   private readonly moatTasks = new Map<string, MoatTask>();
+  private moatDragPath: MoatPoint[] = [];
+  private moatDragLast: MoatPoint | null = null;
+  private moatDragExceededLimit = false;
   private readonly workers: WorkerAgent[] = [];
   private readonly settlementAgents: SettlementAgent[] = [];
   private nextSettlementAgentId = 1;
@@ -699,6 +704,8 @@ export class ThreeGame {
       getMissionState: () => this.missionSystem.getState(),
       getConstructionProjects: () => this.constructionProjects.snapshot(),
       setConstructionProjects: (value) => { this.constructionProjects.restore(value); },
+      getMoatTasks: () => this.pendingMoatTasks(),
+      setMoatTasks: (value) => this.restorePendingMoatTasks(value),
       setMissionState: (value) => { this.missionSystem.setState(value); },
       setWorldSeeded: (value) => { this.worldSeeded = value; },
       setLoadedSaveVersion: (value) => { this.loadedSaveVersion = value; },
@@ -1714,6 +1721,8 @@ export class ThreeGame {
     this.terrainOverrides.clear();
     this.elevationOverrides.clear();
     this.moatTasks.clear();
+    this.moatDragPath = [];
+    this.moatDragLast = null;
     this.constructionProjects.clear();
     this.constructionAnimation.clear();
     document.getElementById('construction-progress-panel')?.setAttribute('hidden', '');
@@ -2082,6 +2091,7 @@ export class ThreeGame {
    * releases the footprint immediately.
    */
   private isStructureFootprintReserved(x: number, y: number): boolean {
+    if (this.moatTasks.has(this.key(x, y))) return true;
     for (const anchor of this.services.state.entries()) {
       const footprint = getStructureFootprint(anchor.kind, anchor.x, anchor.y);
       if (footprint.length <= 1) continue;
@@ -8443,46 +8453,88 @@ export class ThreeGame {
   }
 
   private computeFloodedMoats(): Set<string> {
-    const flooded = new Set<string>();
-    const queue: GridPoint[] = [];
+    return computeMoatFlooding(
+      this.services.state.entries()
+        .filter((cell) => cell.kind === 'moat')
+        .map((cell) => ({ x: cell.x, y: cell.y })),
+      (x, y) => x < 0 || y < 0 || x >= this.worldCols || y >= this.worldRows
+        ? 'outside' : this.terrainAt(x, y),
+    );
+  }
 
-    for (const cell of this.services.state.entries()) {
-      if (cell.kind !== 'moat') continue;
+  private pendingMoatTasks(): PendingMoatTask[] {
+    return [...this.moatTasks.values()].map(({ x, y, progressMs }) => ({ x, y, progressMs }));
+  }
 
-      const neighbors = [
-        [cell.x - 1, cell.y],
-        [cell.x + 1, cell.y],
-        [cell.x, cell.y - 1],
-        [cell.x, cell.y + 1],
-      ];
+  private restorePendingMoatTasks(saved?: PendingMoatTask[] | null): void {
+    this.moatTasks.clear();
+    for (const worker of this.workers) worker.taskKey = undefined;
+    for (const task of restoreMoatTasks(saved, (point) =>
+      this.moatSegmentStatusAt(point) === 'new')) {
+      this.moatTasks.set(this.key(task.x, task.y), task);
+    }
+  }
 
-      if (neighbors.some(([x, y]) => this.terrainAt(x, y) === 'river')) {
-        flooded.add(this.key(cell.x, cell.y));
-        queue.push({ x: cell.x, y: cell.y });
-      }
+  private moatSegmentStatusAt(point: MoatPoint): MoatSegmentStatus {
+    if (point.x < 0 || point.y < 0 || point.x >= this.worldCols || point.y >= this.worldRows) return 'blocked';
+    if (this.moatTasks.has(this.key(point.x, point.y))) return 'existing';
+    const cell = this.services.state.getCell(point.x, point.y);
+    if (cell?.kind === 'moat') return 'existing';
+    if (cell || this.services.keepSystem.findAtCell(point.x, point.y) ||
+        this.isStructureFootprintReserved(point.x, point.y)) return 'blocked';
+    const terrain = this.terrainAt(point.x, point.y);
+    return terrain === 'plains' || terrain === 'shore' ? 'new' : 'blocked';
+  }
+
+  private renderMoatStrokePreview(): void {
+    this.clearGroup(this.wallPreviewLayer);
+    const assessment = assessMoatRoute(this.moatDragPath, (point) => this.moatSegmentStatusAt(point));
+    const materials = {
+      new: new THREE.MeshBasicMaterial({ color: 0x64dfa8, transparent: true, opacity: 0.53, depthTest: false, depthWrite: false }),
+      existing: new THREE.MeshBasicMaterial({ color: 0x5bbbdc, transparent: true, opacity: 0.45, depthTest: false, depthWrite: false }),
+      blocked: new THREE.MeshBasicMaterial({ color: 0xff625f, transparent: true, opacity: 0.64, depthTest: false, depthWrite: false }),
+    };
+    const geometry = new THREE.BoxGeometry(TILE * 0.81, 0.11, TILE * 0.81);
+    for (const { point, status } of assessment.segments) {
+      const world = this.gridToWorld(point.x, point.y);
+      const marker = new THREE.Mesh(geometry, materials[status]);
+      marker.position.set(world.x, 2.42 + this.terrainElevation(point.x, point.y), world.z);
+      marker.renderOrder = 92;
+      this.wallPreviewLayer.add(marker);
+    }
+    this.setStatus(this.moatDragExceededLimit
+      ? 'Moat route too long · shorten the drag'
+      : `Moat drag: ${assessment.newCount} tiles · ${assessment.blockedCount} blocked · release to confirm`);
+  }
+
+  private buildMoatStroke(path: MoatPoint[], exceededLimit: boolean): void {
+    this.clearGroup(this.wallPreviewLayer);
+    const assessment = assessMoatRoute(path, (point) => this.moatSegmentStatusAt(point));
+    if (exceededLimit) {
+      this.setStatus('Moat route too long · shorten the drag');
+      return;
+    }
+    if (!assessment.valid) {
+      audioEvents.emit({ action: 'play_sfx', assetId: 'building.invalid' });
+      this.setStatus(assessment.blockedCount > 0
+        ? 'Moat route blocked · no excavation queued'
+        : 'Moat route already excavated or queued');
+      return;
     }
 
-    while (queue.length > 0) {
-      const current = queue.shift();
-      if (!current) break;
-
-      const neighbors = [
-        [current.x - 1, current.y],
-        [current.x + 1, current.y],
-        [current.x, current.y - 1],
-        [current.x, current.y + 1],
-      ];
-
-      for (const [x, y] of neighbors) {
-        if (this.kindAt(x, y) !== 'moat') continue;
-        const cellKey = this.key(x, y);
-        if (flooded.has(cellKey)) continue;
-        flooded.add(cellKey);
-        queue.push({ x, y });
-      }
+    // One history transaction for the entire route, never per worker/tile.
+    this.recordHistory();
+    for (const { point, status } of assessment.segments) {
+      if (status !== 'new') continue;
+      this.moatTasks.set(this.key(point.x, point.y), {
+        x: point.x, y: point.y, progressMs: 0,
+      });
     }
-
-    return flooded;
+    this.selectedCell = assessment.segments.at(-1)?.point ?? null;
+    this.redraw();
+    this.scheduleSave();
+    this.setStatus(`Moat excavation queued · ${assessment.newCount} connected tiles`);
+    this.deactivateBuildToolAfterCommit();
   }
 
   private captureSnapshot(): HistorySnapshot {
@@ -8502,6 +8554,7 @@ export class ThreeGame {
       economy: this.services.economySystem.getState(),
       population: this.services.populationSystem.getState(),
       constructionProjects: this.constructionProjects.snapshot(),
+      moatTasks: this.pendingMoatTasks(),
     };
   }
 
@@ -8550,6 +8603,7 @@ export class ThreeGame {
     this.services.economySystem.setState(snapshot.economy);
     this.services.populationSystem.setState(snapshot.population);
     this.constructionProjects.restore(snapshot.constructionProjects);
+    this.restorePendingMoatTasks(snapshot.moatTasks);
     for (const worker of this.workers) worker.projectKey = undefined;
     this.populationBattleCommitted = false;
     this.populationBattleStart = null;
@@ -8738,6 +8792,9 @@ export class ThreeGame {
     this.wallDragEnd = null;
     this.roadDragStart = null;
     this.roadDragEnd = null;
+    this.moatDragPath = [];
+    this.moatDragLast = null;
+    this.moatDragExceededLimit = false;
     this.mountainRangeStart = null;
     this.mountainRangeEnd = null;
     this.terrainStrokeActive = false;
@@ -8773,13 +8830,21 @@ export class ThreeGame {
     if (new URLSearchParams(window.location.search).has('touchQA')) {
       // Read-only, opt-in diagnostics for CDP touch tests; normal release bounds
       // remain enabled (unlike visualBaseline's fixed-camera benchmark mode).
+      // Read-only hit testing is gated behind touchQA and lets mobile tests
+      // choose real diggable land instead of brittle hard-coded screen pixels.
+      (window as unknown as { __castleMoatProbe: (x: number, y: number) => object | null }).__castleMoatProbe =
+        (x, y) => {
+          const cell = this.pickGridCell({ clientX: x, clientY: y } as PointerEvent);
+          return cell ? { ...cell, status: this.moatSegmentStatusAt(cell) } : null;
+        };
       (window as unknown as { __castleTouchQA: () => object }).__castleTouchQA = () => ({
         camera: this.camera.position.toArray(), target: this.controls.target.toArray(),
         distance: this.camera.position.distanceTo(this.controls.target),
         minDistance: this.controls.minDistance, maxDistance: this.controls.maxDistance,
         cells: this.services.state.entries(), elevations: [...this.elevationOverrides.entries()],
+        moatTasks: this.pendingMoatTasks(),
         undoCount: this.undoStack.length, pointers: touches.pointerIds,
-        dragging: Boolean(this.wallDragStart || this.roadDragStart || this.terrainStrokeActive),
+        dragging: Boolean(this.wallDragStart || this.roadDragStart || this.moatDragLast || this.terrainStrokeActive),
         preview: this.wallPreviewLayer.children.length,
       });
     }
@@ -8800,7 +8865,8 @@ export class ThreeGame {
           canvas.setPointerCapture(event.pointerId);
           const stroke = !this.isGodModeTargeting() && this.selectedTool !== null &&
             (this.isWallTool(this.selectedTool) || this.isRoadTool(this.selectedTool) ||
-              this.isTerrainTool(this.selectedTool) || this.selectedTool === 'mountainRange');
+              this.isTerrainTool(this.selectedTool) || this.selectedTool === 'mountainRange' ||
+              this.selectedTool === 'moat');
           const intent = !this.controls.enabled && !touches.pointerIds.length ? 'blocked' :
             this.battleSystem.isActive() ? 'camera' : stroke ? 'stroke' : 'tap';
           if (!touches.down(event, intent)) return;
@@ -8825,7 +8891,7 @@ export class ThreeGame {
           event.stopPropagation();
           return;
         }
-        if (cell && this.selectedTool !== null && this.selectedTool !== 'towerBridge') this.beginLongPress(event, cell);
+        if (cell && this.selectedTool !== null && this.selectedTool !== 'towerBridge' && this.selectedTool !== 'moat') this.beginLongPress(event, cell);
 
         if (this.selectedTool !== null && this.isWallTool(this.selectedTool)) {
           if (!cell) return;
@@ -8848,6 +8914,19 @@ export class ThreeGame {
           canvas.setPointerCapture(event.pointerId);
           this.renderRoadPreview([cell]);
           this.setStatus('Road drag: choose end point · release to confirm');
+          event.preventDefault();
+          event.stopPropagation();
+          return;
+        }
+
+        if (this.selectedTool === 'moat') {
+          if (!cell) return;
+          this.moatDragPath = [{ ...cell }];
+          this.moatDragLast = { ...cell };
+          this.moatDragExceededLimit = false;
+          this.controls.enabled = false;
+          canvas.setPointerCapture(event.pointerId);
+          this.renderMoatStrokePreview();
           event.preventDefault();
           event.stopPropagation();
           return;
@@ -8917,6 +8996,7 @@ export class ThreeGame {
         if (
           !this.wallDragStart &&
           !this.roadDragStart &&
+          !this.moatDragLast &&
           !this.mountainRangeStart &&
           !this.terrainStrokeActive &&
           !(this.selectedTool === 'towerBridge' && this.towerBridgeStart)
@@ -8946,6 +9026,22 @@ export class ThreeGame {
             const path = this.roadPath(this.roadDragStart, cell);
             this.renderRoadPreview(path);
             this.setStatus(`Road drag: ${path.length} tiles · release to build`);
+          }
+          event.preventDefault();
+          event.stopPropagation();
+          return;
+        }
+
+        if (this.moatDragLast) {
+          const cell = this.pickGridCell(event);
+          if (cell && (cell.x !== this.moatDragLast.x || cell.y !== this.moatDragLast.y)) {
+            const updated = extendMoatRoute(this.moatDragPath, this.moatDragLast, cell);
+            if (updated.length >= 1024 && (updated.at(-1)?.x !== cell.x || updated.at(-1)?.y !== cell.y)) {
+              this.moatDragExceededLimit = true;
+            }
+            this.moatDragPath = updated;
+            this.moatDragLast = { ...cell };
+            this.renderMoatStrokePreview();
           }
           event.preventDefault();
           event.stopPropagation();
@@ -9077,6 +9173,23 @@ export class ThreeGame {
           return;
         }
 
+        if (this.moatDragLast) {
+          const last = this.moatDragLast;
+          const end = this.pickGridCell(event) ?? last;
+          const path = extendMoatRoute(this.moatDragPath, last, end);
+          const exceeded = this.moatDragExceededLimit ||
+            (path.length >= 1024 && (path.at(-1)?.x !== end.x || path.at(-1)?.y !== end.y));
+          this.moatDragPath = [];
+          this.moatDragLast = null;
+          this.moatDragExceededLimit = false;
+          this.controls.enabled = true;
+          if (canvas.hasPointerCapture(event.pointerId)) canvas.releasePointerCapture(event.pointerId);
+          this.buildMoatStroke(path, exceeded);
+          event.preventDefault();
+          event.stopPropagation();
+          return;
+        }
+
         if (this.mountainRangeStart) {
           const end = this.pickGridCell(event) ?? this.mountainRangeEnd ?? this.mountainRangeStart;
           const startPoint = this.mountainRangeStart;
@@ -9152,6 +9265,7 @@ export class ThreeGame {
       if (
         !this.wallDragStart &&
         !this.roadDragStart &&
+        !this.moatDragLast &&
         !this.mountainRangeStart &&
         !this.terrainStrokeActive &&
         !(this.selectedTool === 'towerBridge' && this.towerBridgeStart)
@@ -9298,6 +9412,9 @@ export class ThreeGame {
     this.wallDragEnd = null;
     this.roadDragStart = null;
     this.roadDragEnd = null;
+    this.moatDragPath = [];
+    this.moatDragLast = null;
+    this.moatDragExceededLimit = false;
     this.clearGroup(this.wallPreviewLayer);
     this.controls.enabled = true;
     this.selectedCell = point;
@@ -10570,12 +10687,7 @@ export class ThreeGame {
     }
 
     if (this.selectedTool === 'moat') {
-      if (current || this.moatTasks.has(overrideKey)) return;
-      if (terrain !== 'plains' && terrain !== 'shore') return;
-      this.moatTasks.set(overrideKey, { x: gx, y: gy, progressMs: 0 });
-      this.setStatus('Workers assigned to dig moat');
-      this.redraw();
-      this.deactivateBuildToolAfterCommit();
+      this.buildMoatStroke([point], false);
       return;
     }
 
@@ -11516,7 +11628,7 @@ export class ThreeGame {
       worker.view.rotation.y += Math.sin(task.progressMs * 0.018) * 0.012;
 
       if (task.progressMs >= 1800) {
-        this.recordHistory();
+        // Tile completion belongs to its route transaction; do not fragment undo history.
         this.services.state.setCell(task.x, task.y, 'moat', 1);
         this.moatTasks.delete(worker.taskKey);
         worker.taskKey = undefined;
@@ -13952,6 +14064,8 @@ export class ThreeGame {
     this.terrainOverrides.clear();
     this.elevationOverrides.clear();
     this.moatTasks.clear();
+    this.moatDragPath = [];
+    this.moatDragLast = null;
     this.constructionProjects.clear();
     this.constructionAnimation.clear();
     this.services.economySystem.reset();
@@ -15765,6 +15879,8 @@ export class ThreeGame {
     this.terrainOverrides.clear();
     this.elevationOverrides.clear();
     this.moatTasks.clear();
+    this.moatDragPath = [];
+    this.moatDragLast = null;
     this.constructionProjects.clear();
     this.constructionAnimation.clear();
     this.services.economySystem.reset();
@@ -16577,6 +16693,9 @@ export class ThreeGame {
     this.wallDragEnd = null;
     this.roadDragStart = null;
     this.roadDragEnd = null;
+    this.moatDragPath = [];
+    this.moatDragLast = null;
+    this.moatDragExceededLimit = false;
     this.mountainRangeStart = null;
     this.mountainRangeEnd = null;
     this.terrainStrokeActive = false;

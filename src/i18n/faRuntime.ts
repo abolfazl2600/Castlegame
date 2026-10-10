@@ -206,5 +206,9 @@ export const RUNTIME_TRANSLATIONS: Readonly<Record<string, string>> = {
   "Demolish selected building? This action can be undone.": "ساختمان انتخاب‌شده تخریب شود؟ این کار قابل بازگردانی است",
   "Finish the active construction project before upgrading again": "برای ارتقای دوباره، ابتدا پروژه ساخت فعال را کامل کنید",
   "Construction sites": "کارگاه‌های ساخت",
-  "Finish active construction sites before starting a battle": "پیش از شروع نبرد، کارگاه‌های ساخت فعال را کامل کنید"
+  "Finish active construction sites before starting a battle": "پیش از شروع نبرد، کارگاه‌های ساخت فعال را کامل کنید",
+  "Moat route too long · shorten the drag": "مسیر خندق بیش از حد طولانی است · مسیر کوتاه‌تری بکشید",
+  "Moat route blocked · no excavation queued": "مسیر خندق مسدود است · هیچ حفاری ثبت نشد",
+  "Moat route already excavated or queued": "مسیر خندق از قبل حفاری شده یا در صف حفاری است",
+  "Drag a connected moat · workers excavate the route": "یک خندق پیوسته بکشید · کارگران مسیر را حفاری می‌کنند"
 };
