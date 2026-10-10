@@ -386,7 +386,7 @@ const TOOL_GROUPS: Array<{ label: string; tools: ToolDefinition[] }> = [
       { id: 'tower', icon: '🏰', label: 'Tower', detail: 'Place a tower · appearance evolves automatically', shortcut: '5' },
       { id: 'towerBridge', icon: '🌉', label: 'Tower Bridge', detail: 'Build or select between two compatible towers', shortcut: 'D' },
       { id: 'keep', icon: '🏯', label: 'Keep', detail: 'Place a keep · size and detail grow with upgrades', shortcut: 'P' },
-      { id: 'moat', icon: '💧', label: 'Moat', detail: 'Workers excavate queued tiles', shortcut: 'Q' },
+      { id: 'moat', icon: '💧', label: 'Moat', detail: 'Drag a connected moat · workers excavate the route', shortcut: 'Q' },
     ],
   },
   {
@@ -9257,6 +9257,7 @@ export class ThreeGame {
       if (
         !this.wallDragStart &&
         !this.roadDragStart &&
+        !this.moatDragLast &&
         !this.mountainRangeStart &&
         !this.terrainStrokeActive &&
         !(this.selectedTool === 'towerBridge' && this.towerBridgeStart)
