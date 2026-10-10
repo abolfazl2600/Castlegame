@@ -91,6 +91,9 @@ function lerpColor(a: number, b: number, t: number): number {
 }
 
 export class EnvironmentSystem {
+  // Preserve sub-minute elapsed time across the regular <=50ms frame updates.
+  // It can be reconstructed from seasonal progress in existing saved games.
+  private minuteRemainderMs = 0;
   private state: EnvironmentState = {
     cycleDays: 48,
     day: 0,
@@ -110,6 +113,9 @@ export class EnvironmentSystem {
       day: Number.isFinite(day) ? Math.max(0, Math.floor(day)) : 0,
       progress: Number.isFinite(progress) ? clamp01(progress) : 0,
     };
+    // Keep the saved format unchanged. Fractional minutes are encoded by
+    // progress; reconstructing them prevents a lost minute at save/load.
+    this.minuteRemainderMs = (this.state.progress * this.state.cycleDays * 60_000) % 60_000;
   }
 
   advance(deltaMs: number): boolean {
@@ -119,8 +125,15 @@ export class EnvironmentSystem {
     const delta = deltaMs / cycleMs;
     const total = before + delta;
     const wrapped = total >= 1;
+
+    // Explicitly supplied elapsed time may span many minutes or cycles.
+    // The actual game loop caps frame deltas at 50ms, avoiding background
+    // time jumps; here we retain the full positive finite elapsed duration.
     this.state.progress = total % 1;
-    this.state.day += Math.floor(deltaMs / 60_000);
+    const elapsed = this.minuteRemainderMs + deltaMs;
+    const completedMinutes = Math.floor(elapsed / 60_000);
+    this.minuteRemainderMs = elapsed % 60_000;
+    this.state.day = Math.min(Number.MAX_SAFE_INTEGER, this.state.day + completedMinutes);
     return wrapped || Math.abs(this.state.progress - before) > 0.000001;
   }
 
