@@ -1,0 +1,55 @@
+name: LOD Performance Regression QA
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/lod-performance-qa.yml'
+      - 'src/rendering/**'
+      - 'src/debug/PerformanceDebugOverlay.ts'
+      - 'src/ThreeGame.ts'
+      - 'scripts/test-lod-*.mjs'
+      - 'scripts/test-distance-detail-budget.mjs'
+      - 'package.json'
+      - 'package-lock.json'
+  push:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/lod-performance-qa.yml'
+      - 'src/rendering/**'
+      - 'src/debug/PerformanceDebugOverlay.ts'
+      - 'src/ThreeGame.ts'
+      - 'scripts/test-lod-*.mjs'
+      - 'scripts/test-distance-detail-budget.mjs'
+      - 'package.json'
+      - 'package-lock.json'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: lod-budget-qa-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lod-budget:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - name: Install locked dependencies
+        run: npm ci --no-audit --no-fund
+      - name: Verify synthetic over-budget stress and real Three.js scene behavior
+        run: npm run test:lod-recheck
+      - name: Run existing render-budget and mobile safety contracts
+        run: |
+          npm run test:distance-detail-budget
+          npm run test:mobile-render-performance
+          npm run test:adaptive-render-profile
+      - name: Type-check source
+        run: npx tsc --noEmit
