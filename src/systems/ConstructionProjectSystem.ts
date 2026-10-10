@@ -50,6 +50,16 @@ export class ConstructionProjectSystem {
     return true;
   }
 
+  /** Moving an unfinished building preserves labor already delivered. */
+  relocate(oldKey: string, newKey: string, x: number, y: number): boolean {
+    const current = this.projects.get(oldKey);
+    if (!current || !Number.isInteger(x) || !Number.isInteger(y) ||
+        (newKey !== oldKey && this.projects.has(newKey))) return false;
+    this.projects.delete(oldKey);
+    this.projects.set(newKey, { ...current, key: newKey, x, y });
+    return true;
+  }
+
   cancel(key: string): void { this.projects.delete(key); }
   clear(): void { this.projects.clear(); }
   snapshot(): ConstructionProject[] { return this.entries(); }
