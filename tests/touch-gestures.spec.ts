@@ -4,7 +4,7 @@ import { SAVE_AUTOSAVE_KEY, SAVE_KEY, SAVE_VERSION } from '../src/core/constants
 test.use({ hasTouch: true, isMobile: true, viewport: { width: 915, height: 412 } });
 interface QA {
   camera: number[]; target: number[]; distance: number; minDistance: number; maxDistance: number;
-  cells: unknown[]; elevations: unknown[]; undoCount: number; pointers: number[]; dragging: boolean; preview: number;
+  cells: unknown[]; elevations: unknown[]; moatTasks: Array<{ x: number; y: number; progressMs: number }>; undoCount: number; pointers: number[]; dragging: boolean; preview: number;
 }
 const state = (page: Page): Promise<QA> => page.evaluate(() =>
   (window as unknown as { __castleTouchQA: () => QA }).__castleTouchQA());
@@ -36,7 +36,7 @@ test.beforeEach(async ({ page }) => {
   await page.waitForFunction(() => typeof (window as unknown as { __castleTouchQA?: unknown }).__castleTouchQA === 'function');
 });
 
-for (const tool of ['wall1', 'road', 'raise']) {
+for (const tool of ['wall1', 'road', 'raise', 'moat']) {
   test(`${tool}: native touch drag → pinch → remaining finger never commits`, async ({ page }, info) => {
     await chooseTool(page, tool);
     const before = await state(page);
@@ -67,6 +67,32 @@ for (const tool of ['wall1', 'road', 'raise']) {
     }
   });
 }
+
+test('moat: native single-finger drag queues an atomic connected route and Undo removes it', async ({ page }) => {
+  await chooseTool(page, 'moat');
+  const before = await state(page);
+  const cdp = await page.context().newCDPSession(page);
+  await dispatch(cdp, 'touchStart', [finger(1, 470)]);
+  await dispatch(cdp, 'touchMove', [finger(1, 490)]);
+  await dispatch(cdp, 'touchMove', [finger(1, 520)]);
+  const preview = await state(page);
+  expect(preview.dragging).toBe(true);
+  expect(preview.preview).toBeGreaterThan(0);
+  expect(preview.moatTasks).toEqual(before.moatTasks);
+  await dispatch(cdp, 'touchEnd', []);
+  const queued = await state(page);
+  expect(queued.dragging).toBe(false);
+  expect(queued.preview).toBe(0);
+  expect(queued.moatTasks.length).toBeGreaterThan(before.moatTasks.length);
+  expect(queued.undoCount).toBe(before.undoCount + 1);
+  const tileKeys = new Set(queued.moatTasks.map(({ x, y }) => `${x},${y}`));
+  expect(tileKeys.size).toBe(queued.moatTasks.length, 'a dragged path must not double schedule tiles');
+
+  await page.locator('#header-undo-button').evaluate((element) => (element as HTMLButtonElement).click());
+  const undone = await state(page);
+  expect(undone.moatTasks).toEqual(before.moatTasks);
+  expect(undone.cells).toEqual(before.cells);
+});
 
 test('native pointer cancellation rolls terrain back; the next stroke commits once', async ({ page }) => {
   await chooseTool(page, 'raise'); const before = await state(page);
