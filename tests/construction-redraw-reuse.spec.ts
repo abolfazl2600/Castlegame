@@ -77,6 +77,7 @@ async function snap(page: Page) {
       gpuGeometries: visual.gpuGeometries as number,
       sceneGeometries: visual.sceneGeometries as number,
       drawCalls: visual.drawCalls as number,
+      jsHeapBytes: (performance as Performance & { memory?: { usedJSHeapSize: number } }).memory?.usedJSHeapSize ?? null,
     };
   });
 }
@@ -132,6 +133,9 @@ test('road placement reuses unrelated meshes and rebuilds only road connection n
     reusedRedrawMs:reused.redrawMs, reusedBuildings:reused.stats.reusedBuildings,
     rebuiltBuildings:reused.stats.rebuiltBuildings,
     sceneGeometries:reused.sceneGeometries,
+    fullGpuGeometries:full.gpuGeometries, reusedGpuGeometries:reused.gpuGeometries,
+    fullDrawCalls:full.drawCalls, reusedDrawCalls:reused.drawCalls,
+    fullJsHeapBytes:full.jsHeapBytes, reusedJsHeapBytes:reused.jsHeapBytes,
     fullTerrainScan:full.terrainScannedTiles, reusedTerrainScan:reused.terrainScannedTiles,
   }));
 });
