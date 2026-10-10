@@ -93,18 +93,18 @@ test('restoring naturally occurring river removes raised land height, undo/redo 
   await useToolAt(page, 'erase', elevatedNaturalRiver);
   const erased = await readTerrain(page, elevatedNaturalRiver);
   expect(erased.elevation, 'erasing a filled river must also restore natural river water elevation').toBeNull();
-  expect(erased.status, 'natural river is again recognized as water').toBe('existing');
+  expect(erased.status, 'restored natural river must block new moat excavation').toBe('blocked');
 
   await page.keyboard.press('Control+z');
   const undone = await readTerrain(page, elevatedNaturalRiver);
   expect(undone.elevation).toBeCloseTo(1.6);
   expect(undone.undoCount).toBe(before.undoCount);
-  expect(undone.status).not.toBe('existing');
+  expect(undone.status).not.toBe('blocked');
 
   await page.keyboard.press('Control+y');
   const redone = await readTerrain(page, elevatedNaturalRiver);
   expect(redone.elevation).toBeNull();
-  expect(redone.status).toBe('existing');
+  expect(redone.status).toBe('blocked');
   expect((await readTerrain(page, authoredHighRiver)).elevation).toBeCloseTo(0.85);
 
   // Undo/redo invokes a save; verify persistent state survives reload.
@@ -115,7 +115,7 @@ test('restoring naturally occurring river removes raised land height, undo/redo 
   }));
   const restored = await readTerrain(page, elevatedNaturalRiver);
   expect(restored.elevation).toBeNull();
-  expect(restored.status).toBe('existing');
+  expect(restored.status).toBe('blocked');
   expect((await readTerrain(page, authoredHighRiver)).elevation).toBeCloseTo(0.85);
 });
 
@@ -132,13 +132,13 @@ test('lower -> carve river -> undo/redo preserves terrain and clears submerged h
   await useToolAt(page, 'river', land);
   const carved = await readTerrain(page, land);
   expect(carved.elevation).toBeNull();
-  expect(carved.status).toBe('existing');
+  expect(carved.status).toBe('blocked');
   await page.keyboard.press('Control+z');
   const undo = await readTerrain(page, land);
   expect(undo.elevation).toBeCloseTo(lowered.elevation!);
-  expect(undo.status).not.toBe('existing');
+  expect(undo.status).not.toBe('blocked');
   await page.keyboard.press('Control+y');
   const redo = await readTerrain(page, land);
   expect(redo.elevation).toBeNull();
-  expect(redo.status).toBe('existing');
+  expect(redo.status).toBe('blocked');
 });
