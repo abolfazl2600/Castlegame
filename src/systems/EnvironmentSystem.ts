@@ -131,8 +131,10 @@ export class EnvironmentSystem {
     // time jumps; here we retain the full positive finite elapsed duration.
     this.state.progress = total % 1;
     const elapsed = this.minuteRemainderMs + deltaMs;
-    const completedMinutes = Math.floor(elapsed / 60_000);
-    this.minuteRemainderMs = elapsed % 60_000;
+    // Restoring the remainder from fractional seasonal progress can land a
+    // fraction of a microsecond below a minute boundary due to floating point.
+    const completedMinutes = Math.floor((elapsed + 0.000001) / 60_000);
+    this.minuteRemainderMs = Math.max(0, elapsed - completedMinutes * 60_000);
     this.state.day = Math.min(Number.MAX_SAFE_INTEGER, this.state.day + completedMinutes);
     return wrapped || Math.abs(this.state.progress - before) > 0.000001;
   }
