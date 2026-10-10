@@ -59,7 +59,7 @@ interface ProceduralVoice {
 
 export class AudioManager {
   private readonly registry = createAudioAssetRegistry();
-  private readonly settingsStorageKey: string;
+  private readonly settingsStorageKey: string | null;
   private readonly sfxVoiceLimit: number;
   private readonly sfxVoices = new Map<string, SfxVoice[]>();
   private readonly proceduralNodes = new Map<OscillatorNode, ProceduralVoice>();
@@ -98,10 +98,10 @@ export class AudioManager {
   };
 
   constructor(options: AudioManagerOptions = {}) {
-    this.settingsStorageKey = options.settingsStorageKey ?? 'castle-role-audio-settings';
+    this.settingsStorageKey = options.settingsStorageKey === null ? null : options.settingsStorageKey ?? 'castle-role-audio-settings';
     const mobileDefault = /Android|iPhone|iPad|Mobile/i.test(navigator.userAgent) ? 20 : 24;
     this.sfxVoiceLimit = Math.max(4, Math.min(48, Math.trunc(options.sfxVoiceLimit ?? mobileDefault)));
-    this.settings = this.loadSettings();
+    this.settings = options.initialSettings ? { ...options.initialSettings } : this.loadSettings();
 
     this.unsubscribeEvents = audioEvents.on((event) => this.handleEvent(event));
     window.addEventListener('pointerdown', this.gestureHandler, { passive: true });
@@ -135,8 +135,22 @@ export class AudioManager {
     return this.initialized;
   }
 
+  /** Synchronize a validated settings snapshot without replaying unchanged setters. */
+  applySettings(settings: AudioSettings): void {
+    if (this.settings.masterVolume !== settings.masterVolume) this.setMasterVolume(settings.masterVolume);
+    if (this.settings.musicEnabled !== settings.musicEnabled) this.setMusicEnabled(settings.musicEnabled);
+    if (this.settings.musicVolume !== settings.musicVolume) this.setMusicVolume(settings.musicVolume);
+    if (this.settings.ambientEnabled !== settings.ambientEnabled) this.setAmbientEnabled(settings.ambientEnabled);
+    if (this.settings.ambientVolume !== settings.ambientVolume) this.setAmbientVolume(settings.ambientVolume);
+    if (this.settings.sfxEnabled !== settings.sfxEnabled) this.setSfxEnabled(settings.sfxEnabled);
+    if (this.settings.sfxVolume !== settings.sfxVolume) this.setSfxVolume(settings.sfxVolume);
+    if (this.settings.muted !== settings.muted) this.setMuted(settings.muted);
+  }
+
   setMasterVolume(value: number): void {
-    this.settings.masterVolume = clamp01(value);
+    const next = clamp01(value);
+    if (this.settings.masterVolume === next) return;
+    this.settings.masterVolume = next;
     this.persistSettings();
     this.applyVolumes();
   }
@@ -151,7 +165,9 @@ export class AudioManager {
   }
 
   setMusicVolume(value: number): void {
-    this.settings.musicVolume = clamp01(value);
+    const next = clamp01(value);
+    if (this.settings.musicVolume === next) return;
+    this.settings.musicVolume = next;
     this.persistSettings();
     this.applyVolumes();
   }
@@ -165,7 +181,9 @@ export class AudioManager {
   }
 
   setAmbientVolume(value: number): void {
-    this.settings.ambientVolume = clamp01(value);
+    const next = clamp01(value);
+    if (this.settings.ambientVolume === next) return;
+    this.settings.ambientVolume = next;
     this.persistSettings();
     this.applyVolumes();
   }
@@ -182,7 +200,9 @@ export class AudioManager {
   }
 
   setSfxVolume(value: number): void {
-    this.settings.sfxVolume = clamp01(value);
+    const next = clamp01(value);
+    if (this.settings.sfxVolume === next) return;
+    this.settings.sfxVolume = next;
     this.persistSettings();
     this.applyVolumes();
   }
@@ -769,6 +789,7 @@ export class AudioManager {
   }
 
   private loadSettings(): AudioSettings {
+    if (!this.settingsStorageKey) return { ...DEFAULT_SETTINGS };
     try {
       const raw = localStorage.getItem(this.settingsStorageKey);
       if (!raw) return { ...DEFAULT_SETTINGS };
@@ -789,6 +810,7 @@ export class AudioManager {
   }
 
   private persistSettings(): void {
+    if (!this.settingsStorageKey) return;
     try {
       localStorage.setItem(this.settingsStorageKey, JSON.stringify(this.settings));
     } catch {
