@@ -39,7 +39,11 @@ assert.match(settingsStore, /input\.audio\.sfxEnabled/);
 assert.match(settingsUI, /data-setting=\"\$\{key\}\"/);
 assert.match(settingsUI, /Music enabled/);
 assert.match(settingsUI, /Sound effects enabled/);
-assert.match(threeGame, /setMusicEnabled\(settings\.audio\.musicEnabled\)/);
-assert.match(threeGame, /setSfxEnabled\(settings\.audio\.sfxEnabled\)/);
+assert.match(threeGame, /settingsStorageKey: null/, 'game uses the shared SettingsStore for persistence');
+assert.match(threeGame, /initialSettings: this.settingsStore.get\(\).audio/);
+assert.match(threeGame, /this.audioManager.applySettings\(settings.audio\)/,
+  'audio preferences must still react to SettingsStore changes');
+assert.match(manager, /setMusicEnabled\(settings.musicEnabled\)/);
+assert.match(manager, /setSfxEnabled\(settings.sfxEnabled\)/);
 
 console.log('Android audio lifecycle and persistent sound settings regression checks passed.');

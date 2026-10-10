@@ -70,6 +70,9 @@ export interface AudioDiagnostics {
 }
 
 export interface AudioManagerOptions {
-  settingsStorageKey?: string;
+  /** Null disables AudioManager persistence when SettingsStore owns preferences. */
+  settingsStorageKey?: string | null;
+  /** Pass the validated SettingsStore audio snapshot to avoid a legacy-key read. */
+  initialSettings?: AudioSettings;
   sfxVoiceLimit?: number;
 }

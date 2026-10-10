@@ -11,6 +11,7 @@ import {
 
 export const SETTINGS_STORAGE_KEY = 'castle-role.settings.v2';
 const LEGACY_SETTINGS_STORAGE_KEY = 'castle-role.settings.v1';
+const LEGACY_AUDIO_STORAGE_KEY = 'castle-role-audio-settings';
 
 export type SettingsListener = (settings: SettingsData) => void;
 
@@ -64,6 +65,7 @@ export class SettingsStore {
   resetSettings(): void {
     this.storage?.removeItem(SETTINGS_STORAGE_KEY);
     this.storage?.removeItem(LEGACY_SETTINGS_STORAGE_KEY);
+    this.storage?.removeItem(LEGACY_AUDIO_STORAGE_KEY);
     this.settings = createDefaultSettings();
     this.persist();
     this.emit();
@@ -85,11 +87,13 @@ export class SettingsStore {
   clearSettingsStorage(): void {
     this.storage?.removeItem(SETTINGS_STORAGE_KEY);
     this.storage?.removeItem(LEGACY_SETTINGS_STORAGE_KEY);
+    this.storage?.removeItem(LEGACY_AUDIO_STORAGE_KEY);
   }
 
   clearAllLocalData(): void {
     this.storage?.removeItem(SETTINGS_STORAGE_KEY);
     this.storage?.removeItem(LEGACY_SETTINGS_STORAGE_KEY);
+    this.storage?.removeItem(LEGACY_AUDIO_STORAGE_KEY);
     this.storage?.removeItem(SAVE_KEY);
     this.storage?.removeItem(SAVE_LEGACY_KEY);
     this.storage?.removeItem(SAVE_AUTOSAVE_KEY);
@@ -104,25 +108,46 @@ export class SettingsStore {
     if (!this.storage) return defaults;
 
     try {
-      const raw = this.storage.getItem(SETTINGS_STORAGE_KEY) ?? this.storage.getItem(LEGACY_SETTINGS_STORAGE_KEY);
-      if (!raw) return defaults;
+      const canonical = this.storage.getItem(SETTINGS_STORAGE_KEY);
+      const legacySettings = canonical === null ? this.storage.getItem(LEGACY_SETTINGS_STORAGE_KEY) : null;
+      const raw = canonical ?? legacySettings;
+      if (!raw) {
+        // Only migrate the former AudioManager key when no shared settings exist.
+        // An existing SettingsStore record always takes precedence over stale audio.
+        const legacyAudioRaw = this.storage.getItem(LEGACY_AUDIO_STORAGE_KEY);
+        if (!legacyAudioRaw) return defaults;
+        const audio = JSON.parse(legacyAudioRaw) as Partial<AudioSettings> | null;
+        if (!audio || typeof audio !== 'object' || Array.isArray(audio)) return defaults;
+        const settings = validateSettings(mergeSettings(defaults, { audio }));
+        this.persistMigration(settings);
+        return settings;
+      }
 
       const parsed = JSON.parse(raw) as StoredSettings;
       const migrated = migrate(parsed);
       const settings = validateSettings(mergeSettings(defaults, migrated));
 
-      if (this.storage.getItem(SETTINGS_STORAGE_KEY) === null) {
-        try {
-          this.storage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(settings));
-          this.storage.removeItem(LEGACY_SETTINGS_STORAGE_KEY);
-        } catch {
-          // Continue with the validated in-memory settings.
-        }
+      if (canonical === null) {
+        this.persistMigration(settings);
+      } else {
+        // The canonical record is authoritative; retire the unused old copy.
+        try { this.storage.removeItem(LEGACY_AUDIO_STORAGE_KEY); } catch { /* Non-critical storage. */ }
       }
 
       return settings;
     } catch {
       return defaults;
+    }
+  }
+
+  private persistMigration(settings: SettingsData): void {
+    if (!this.storage) return;
+    try {
+      this.storage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(settings));
+      this.storage.removeItem(LEGACY_SETTINGS_STORAGE_KEY);
+      this.storage.removeItem(LEGACY_AUDIO_STORAGE_KEY);
+    } catch {
+      // Do not delete the old records unless the canonical write succeeds.
     }
   }
 

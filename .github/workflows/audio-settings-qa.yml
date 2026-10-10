@@ -1,0 +1,45 @@
+name: Audio Settings Persistence QA
+
+on:
+  pull_request:
+    paths:
+      - 'src/audio/AudioManager.ts'
+      - 'src/audio/types.ts'
+      - 'src/settings/SettingsStore.ts'
+      - 'src/ThreeGame.ts'
+      - 'scripts/test-audio-settings-persistence.mjs'
+      - 'scripts/test-android-audio-lifecycle.mjs'
+      - 'package.json'
+      - '.github/workflows/audio-settings-qa.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'src/audio/AudioManager.ts'
+      - 'src/audio/types.ts'
+      - 'src/settings/SettingsStore.ts'
+      - 'src/ThreeGame.ts'
+      - 'scripts/test-audio-settings-persistence.mjs'
+      - 'scripts/test-android-audio-lifecycle.mjs'
+      - 'package.json'
+      - '.github/workflows/audio-settings-qa.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  audio-settings:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - run: npm run test:audio-settings-persistence
+      - run: npm run test:android-audio-lifecycle
+      - run: npm run test:adaptive-audio
+      - run: npm run test:settings-bootstrap-order
+      - run: npx tsc --noEmit
