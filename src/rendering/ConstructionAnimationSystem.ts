@@ -113,7 +113,7 @@ export class ConstructionAnimationSystem {
     for (const part of animation.parts) {
       const start = part.stage * 0.22;
       const local = Math.min(1, Math.max(0, (progress - start) / 0.22));
-      part.mesh.visible = part.visible && (progress >= start || reducedMotion);
+      part.mesh.visible = part.visible && (progress >= start || (!animation.manual && reducedMotion));
       part.mesh.userData.constructionHidden = !part.mesh.visible;
       part.mesh.position.y = part.y - (reducedMotion ? 0 : (1 - local) * 0.22);
       if (progress >= 1) {
