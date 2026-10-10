@@ -2109,7 +2109,15 @@ export class ThreeGame {
   }
 
   private canEditTerrainAt(x: number, y: number): boolean {
-    return !this.isStructureFootprintReserved(x, y);
+    // Terrain strokes must not deform an already-built foundation after its
+    // original placement validation. The reservation helper covers satellite
+    // cells (e.g. Market) and queued moats, but does not include ordinary
+    // occupied anchors or Keep foundations, including rotated Keep footprints.
+    return (
+      !this.services.state.getCell(x, y) &&
+      !this.services.keepSystem.findAtCell(x, y) &&
+      !this.isStructureFootprintReserved(x, y)
+    );
   }
 
   private isTerrainTool(tool: ToolKind): tool is TerrainToolKind {
