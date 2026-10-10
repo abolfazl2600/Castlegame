@@ -259,7 +259,7 @@ test('Mission Journal translates cached cards, static labels and numerals on liv
   await expect(journal.locator('.mission-journal__section-heading strong').first()).toHaveText('اهداف در دسترس');
   await expect(journal.locator('.mission-card').first()).toContainText(translate('A Growing Settlement', 'fa'));
   await expect(journal.locator('.mission-card__progress-copy strong').first()).toHaveText(/[۰-۹]+ \/ [۰-۹]+/);
-  await expect(journal.locator('.mission-card__pin').first()).toHaveText('سنجاق کردن هدف');
+  await expect(journal.locator('.mission-card__pin').first()).toHaveText('هدف اصلی');
 
   // Change through real Settings controls, then reopen without changing mission progress.
   await journal.locator('[data-mission-action="close"]').click();
@@ -278,7 +278,7 @@ test('Mission Journal translates cached cards, static labels and numerals on liv
   await expect(journal.locator('.mission-journal__section-heading strong').first()).toHaveText('Available objectives');
   await expect(journal.locator('.mission-card').first()).toContainText('A Growing Settlement');
   await expect(journal.locator('.mission-card__progress-copy strong').first()).toHaveText(/[0-9]+ \/ [0-9]+/);
-  await expect(journal.locator('.mission-card__pin').first()).toHaveText('Pin objective');
+  await expect(journal.locator('.mission-card__pin').first()).toHaveText('Primary objective');
 
   // Exercise the same Settings change event with the journal still open.
   // This covers visible content, even if the game render loop is paused.
@@ -292,7 +292,7 @@ test('Mission Journal translates cached cards, static labels and numerals on liv
   await expect(journal.locator('.mission-journal__section-heading strong').first()).toHaveText('اهداف در دسترس');
   await expect(journal.locator('.mission-card').first()).toContainText(translate('A Growing Settlement', 'fa'));
   await expect(journal.locator('.mission-card__progress-copy strong').first()).toHaveText(/[۰-۹]+ \/ [۰-۹]+/);
-  await expect(journal.locator('.mission-card__pin').first()).toHaveText('سنجاق کردن هدف');
+  await expect(journal.locator('.mission-card__pin').first()).toHaveText('هدف اصلی');
   await expect(journal.locator('[data-mission-action="close"]')).toHaveAttribute('aria-label', translate('Close', 'fa'));
 
   // Unchanged view/state should still reuse the rendered cards between routine ticks.
