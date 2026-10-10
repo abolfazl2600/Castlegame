@@ -42,8 +42,16 @@ export class TerrainChunkRenderer {
     return { ...this.lastStats };
   }
 
-  rebuild(context: TerrainChunkRenderContext): void {
+  /** Remove per-InstancedMesh GPU buffers without disposing shared geometry or materials. */
+  private clearChunks(): void {
+    for (const object of this.layer.children) {
+      if (object instanceof THREE.InstancedMesh) object.dispose();
+    }
     this.layer.clear();
+  }
+
+  rebuild(context: TerrainChunkRenderContext): void {
+    this.clearChunks();
 
     const { cols, rows, chunkSize } = context.grid;
     const matrix = new THREE.Matrix4();
@@ -105,7 +113,8 @@ export class TerrainChunkRenderer {
   }
 
   dispose(): void {
-    this.layer.clear();
+    this.clearChunks();
+    this.lastStats = { chunks: 0, instances: 0 };
     this.soilGeometry.dispose();
     this.grassGeometry.dispose();
     this.shoreGeometry.dispose();

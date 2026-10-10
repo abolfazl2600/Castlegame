@@ -2214,6 +2214,9 @@ export class ThreeGame {
 
   private clearGroup(group: THREE.Group): void {
     group.traverse((object) => {
+      // Instanced meshes own GPU-side instance buffers in addition to geometry.
+      // Clearing scene children or disposing geometry alone does not free them.
+      if (object instanceof THREE.InstancedMesh) object.dispose();
       const mesh = object as THREE.Mesh;
       if (mesh.geometry && mesh.geometry !== this.settlementUnitBox) mesh.geometry.dispose();
 
