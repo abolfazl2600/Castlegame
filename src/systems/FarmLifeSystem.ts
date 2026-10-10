@@ -30,6 +30,7 @@ export class FarmLifeSystem {
   constructor(game: unknown) {
     this.game = game as GameRuntime;
     this.game.registerExtension({
+      buildingKinds: ['cowBarn', 'farm'],
       createBuilding: (cell) =>
         cell.kind === 'cowBarn' || (cell.kind === 'farm' && cell.level === COW_BARN_LEVEL)
           ? this.makeCowBarn(this.game, cell.x, cell.y)
