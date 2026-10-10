@@ -99,6 +99,7 @@ test('road placement reuses unrelated meshes and rebuilds only road connection n
   await page.locator('[data-tool="stoneRoad"]').evaluate(el=>(el as HTMLButtonElement).click());
   await clickGrid(page,gap);
   const after = await snap(page);
+  console.log(JSON.stringify({phase:'road-diagnostics',stats:after.stats}));
   expect(after.cells.some(c=>c.x===gap.x && c.y===gap.y && c.kind==='stoneRoad')).toBeTruthy();
   expect(after.stats.reusedBuildings).toBeGreaterThan(110);
   expect(after.stats.rebuiltBuildings).toBeLessThan(12);
@@ -139,6 +140,7 @@ test('fortification upgrade and cottage relocation preserve unrelated road meshe
   await expect(page.locator('#fortification-upgrade-button')).toBeEnabled();
   await page.locator('#fortification-upgrade-button').evaluate(el=>(el as HTMLButtonElement).click());
   const upgraded = await snap(page);
+  console.log(JSON.stringify({phase:'tower-diagnostics',stats:upgraded.stats}));
   expect(upgraded.cells.find(c=>c.x===upgradeTower.x && c.y===upgradeTower.y)?.level).toBe(2);
   expect(id(upgraded,distantRoad)).toBe(id(before,distantRoad));
   expect(upgraded.stats.reusedBuildings).toBeGreaterThan(100);
