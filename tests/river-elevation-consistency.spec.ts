@@ -20,7 +20,7 @@ async function openFixture(page: Page): Promise<void> {
       interface: { language: 'en', showHelp: false, reducedMotion: true },
       audio: { muted: true, masterVolume: 0 },
     }));
-    localStorage.setItem(autosaveKey, JSON.stringify({
+    if (!localStorage.getItem(autosaveKey)) localStorage.setItem(autosaveKey, JSON.stringify({
       metadata: {
         id: 'river-307', slot: 'autosave', name: 'River elevation QA',
         createdAt: when, updatedAt: when, schemaVersion: version, gameMode: 'unified',
@@ -110,6 +110,9 @@ test('restoring naturally occurring river removes raised land height, undo/redo 
   // Undo/redo invokes a save; verify persistent state survives reload.
   await page.reload({ waitUntil: 'domcontentloaded' });
   await page.waitForFunction(() => typeof (window as any).__castleTouchQA === 'function');
+  await page.evaluate(() => (window as any).__castleVisualCamera({
+    x: 90, y: 117, z: 103, targetX: 0, targetY: 0, targetZ: 0,
+  }));
   const restored = await readTerrain(page, elevatedNaturalRiver);
   expect(restored.elevation).toBeNull();
   expect(restored.status).toBe('existing');
