@@ -1138,6 +1138,15 @@ export class ThreeGame {
     this.syncEconomyUI();
   }
 
+  private upgradeCostPreviewLabel(tool: ToolKind, nextLevel: number): string {
+    if (!this.economyConstructionEnabled()) return 'free build';
+    const cost = this.services.economySystem.upgradeCost(tool, nextLevel);
+    const parts: string[] = [];
+    if ((cost.wood ?? 0) > 0) parts.push(`${Math.ceil(cost.wood ?? 0)} wood`);
+    if ((cost.stone ?? 0) > 0) parts.push(`${Math.ceil(cost.stone ?? 0)} stone`);
+    return parts.join(' + ') || 'no material cost';
+  }
+
   private ensureUpgradeAffordable(tool: ToolKind, nextLevel: number): boolean {
     if (!this.economyConstructionEnabled()) return true;
     const cost = this.services.economySystem.upgradeCost(tool, nextLevel);
@@ -13008,6 +13017,7 @@ export class ThreeGame {
       button.textContent = next
         ? `Upgrade ${labels[kind]} to Level ${next.level} · ${next.name}`
         : 'Maximum Level';
+      if (next) button.textContent += ` · ${this.upgradeCostPreviewLabel(kind, next.level)}`;
     }
     if (removeButton) {
       removeButton.hidden = kind !== 'towerBridge';
@@ -13197,6 +13207,7 @@ export class ThreeGame {
       button.textContent = next
         ? `Upgrade to Level ${next.level} · ${next.name}`
         : 'Maximum Level';
+      if (next) button.textContent += ` · ${this.upgradeCostPreviewLabel('mosque', next.level)}`;
     }
   }
 
@@ -13274,6 +13285,7 @@ export class ThreeGame {
     if (button) {
       button.disabled = !next || this.battleSystem.isActive();
       button.textContent = next ? `Upgrade to Level ${next.level} · ${next.name}` : 'Maximum Level';
+      if (next) button.textContent += ` · ${this.upgradeCostPreviewLabel('carpenter', next.level)}`;
     }
   }
 
@@ -13358,6 +13370,7 @@ export class ThreeGame {
       button.textContent = next
         ? `Upgrade to Level ${next.level} · ${next.name}`
         : 'Maximum Level';
+      if (next) button.textContent += ` · ${this.upgradeCostPreviewLabel('harbor', next.level)}`;
     }
   }
 
@@ -13446,6 +13459,7 @@ export class ThreeGame {
       button.textContent = next
         ? `Upgrade to Level ${next.level} · ${next.name}`
         : 'Maximum Level';
+      if (next) button.textContent += ` · ${this.upgradeCostPreviewLabel('cottage', next.level)}`;
     }
   }
 
@@ -13538,6 +13552,7 @@ export class ThreeGame {
       button.textContent = next
         ? `Upgrade ${buildingLabel} to Level ${next.level} · ${next.name}`
         : 'Maximum Level';
+      if (next) button.textContent += ` · ${this.upgradeCostPreviewLabel(kind, next.level)}`;
     }
   }
 
@@ -13625,6 +13640,7 @@ export class ThreeGame {
     if (button) {
       button.disabled = !next || this.battleSystem.isActive();
       button.textContent = next ? `Upgrade to Level ${next.level} · ${next.name}` : 'Maximum Level';
+      if (next) button.textContent += ` · ${this.upgradeCostPreviewLabel('armyCamp', next.level)}`;
     }
   }
 
