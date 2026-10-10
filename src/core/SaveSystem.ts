@@ -10,6 +10,7 @@ import {
 import { worldGridCellCount, worldGridForLayout } from '../world/WorldGrid';
 import type { GameMode } from './GameMode';
 import type { ConstructionProject } from '../systems/ConstructionProjectSystem';
+import type { PendingMoatTask } from '../systems/MoatRouteSystem';
 import { normalizeGameMode } from './GameMode';
 import type { GameState } from '../state/GameState';
 import { AUTOMATIC_WALL_LEVEL, isCastleWallKind } from '../building/CastleBlockSystem';
@@ -63,6 +64,8 @@ export interface SaveLoadHost {
   setMissionState?(value?: Partial<MissionProgressState> | null): void;
   getConstructionProjects?(): ConstructionProject[];
   setConstructionProjects?(value?: ConstructionProject[] | null): void;
+  getMoatTasks?(): PendingMoatTask[];
+  setMoatTasks?(value?: PendingMoatTask[] | null): void;
   setWorldSeeded(value: boolean): void;
   setLoadedSaveVersion(value: number): void;
   setStoneStyle(value: StoneStyle): void;
@@ -98,6 +101,7 @@ interface RawSave {
   environment?: EnvironmentSimulationState;
   missions?: MissionProgressState;
   constructionProjects?: ConstructionProject[];
+  moatTasks?: PendingMoatTask[];
 }
 
 export class SaveSystem {
@@ -523,6 +527,7 @@ export class SaveSystem {
       environment: this.host.getEnvironmentState?.(),
       missions: this.host.getMissionState?.(),
       constructionProjects: this.host.getConstructionProjects?.(),
+      moatTasks: this.host.getMoatTasks?.(),
     };
   }
 
@@ -630,6 +635,7 @@ export class SaveSystem {
     this.host.setEnvironmentState?.(data.environment);
     this.host.setMissionState?.(data.missions);
     this.host.setConstructionProjects?.(data.constructionProjects);
+    this.host.setMoatTasks?.(data.moatTasks);
     this.host.syncLoadedWorldUI();
   }
 
@@ -700,6 +706,7 @@ export class SaveSystem {
         environment: parsed.environment,
         missions: parsed.missions,
         constructionProjects: parsed.constructionProjects,
+        moatTasks: parsed.moatTasks,
       };
       const data: SavedGame = parsed.data ?? legacyData;
       if (!validMapLayoutId(data.mapLayoutId)) data.mapLayoutId = 'island';
@@ -750,6 +757,7 @@ function normalizeRecord(raw: RawSave, target: SaveTarget): SaveRecord | null {
     environment: raw.environment,
     missions: raw.missions,
     constructionProjects: raw.constructionProjects,
+    moatTasks: raw.moatTasks,
   } : undefined);
   if (!data || !Array.isArray(data.cells)) return null;
 
