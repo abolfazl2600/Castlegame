@@ -1,5 +1,6 @@
 import type { GridCell, KeepState, TerrainKind, TileKind, TowerBridgeState, WallDirection } from '../core/types';
 import { ConnectedWallNetwork } from '../building/ConnectedWallNetwork';
+import { PathOpenHeap } from './PathOpenHeap';
 import type { AutomaticWallAccess } from '../building/CastleDetailGenerator';
 
 export interface NavPoint {
@@ -118,7 +119,9 @@ export class BattleNavigation {
     const cached = this.pathCache.get(cacheKey);
     if (cached) return cached.map((point) => ({ ...point }));
 
-    const open = new Map<string, SearchNode>();
+    const open = new Map<string, { node: SearchNode; order: number }>();
+    const frontier = new PathOpenHeap<SearchNode>();
+    let insertionOrder = 1;
     const closed = new Set<string>();
     const nodes = new Map<string, SearchNode>();
     const startKey = this.key(start.x, start.y);
@@ -128,7 +131,8 @@ export class BattleNavigation {
       f: this.heuristic(start, goal),
     };
 
-    open.set(startKey, first);
+    open.set(startKey, { node: first, order: 0 });
+    frontier.push({ key: startKey, node: first, priority: first.f, order: 0 });
     nodes.set(startKey, first);
 
     let bestKey = startKey;
@@ -136,18 +140,13 @@ export class BattleNavigation {
     let iterations = 0;
 
     while (open.size > 0 && iterations < this.context.cols() * this.context.rows() * 6) {
+      const entry = frontier.pop();
+      if (!entry) break;
+      // Improved paths leave obsolete heap entries behind; skip them safely.
+      if (open.get(entry.key)?.node !== entry.node) continue;
       iterations += 1;
-
-      let currentKey = '';
-      let current: SearchNode | null = null;
-      for (const [key, candidate] of open) {
-        if (!current || candidate.f < current.f) {
-          current = candidate;
-          currentKey = key;
-        }
-      }
-
-      if (!current) break;
+      const currentKey = entry.key;
+      const current = entry.node;
       open.delete(currentKey);
       closed.add(currentKey);
 
@@ -200,8 +199,10 @@ export class BattleNavigation {
           parent: currentKey,
         };
 
+        const order = open.get(key)?.order ?? insertionOrder++;
         nodes.set(key, next);
-        open.set(key, next);
+        open.set(key, { node: next, order });
+        frontier.push({ key, node: next, priority: next.f, order });
       }
     }
 
