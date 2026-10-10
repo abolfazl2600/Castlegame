@@ -557,6 +557,7 @@ export class ThreeGame {
   private readonly moatTasks = new Map<string, MoatTask>();
   private moatDragPath: MoatPoint[] = [];
   private moatDragLast: MoatPoint | null = null;
+  private moatDragExceededLimit = false;
   private readonly workers: WorkerAgent[] = [];
   private readonly settlementAgents: SettlementAgent[] = [];
   private nextSettlementAgentId = 1;
@@ -8452,46 +8453,88 @@ export class ThreeGame {
   }
 
   private computeFloodedMoats(): Set<string> {
-    const flooded = new Set<string>();
-    const queue: GridPoint[] = [];
+    return computeMoatFlooding(
+      this.services.state.entries()
+        .filter((cell) => cell.kind === 'moat')
+        .map((cell) => ({ x: cell.x, y: cell.y })),
+      (x, y) => x < 0 || y < 0 || x >= this.worldCols || y >= this.worldRows
+        ? 'outside' : this.terrainAt(x, y),
+    );
+  }
 
-    for (const cell of this.services.state.entries()) {
-      if (cell.kind !== 'moat') continue;
+  private pendingMoatTasks(): PendingMoatTask[] {
+    return [...this.moatTasks.values()].map(({ x, y, progressMs }) => ({ x, y, progressMs }));
+  }
 
-      const neighbors = [
-        [cell.x - 1, cell.y],
-        [cell.x + 1, cell.y],
-        [cell.x, cell.y - 1],
-        [cell.x, cell.y + 1],
-      ];
+  private restorePendingMoatTasks(saved?: PendingMoatTask[] | null): void {
+    this.moatTasks.clear();
+    for (const worker of this.workers) worker.taskKey = undefined;
+    for (const task of restoreMoatTasks(saved, (point) =>
+      this.moatSegmentStatusAt(point) === 'new')) {
+      this.moatTasks.set(this.key(task.x, task.y), task);
+    }
+  }
 
-      if (neighbors.some(([x, y]) => this.terrainAt(x, y) === 'river')) {
-        flooded.add(this.key(cell.x, cell.y));
-        queue.push({ x: cell.x, y: cell.y });
-      }
+  private moatSegmentStatusAt(point: MoatPoint): MoatSegmentStatus {
+    if (point.x < 0 || point.y < 0 || point.x >= this.worldCols || point.y >= this.worldRows) return 'blocked';
+    if (this.moatTasks.has(this.key(point.x, point.y))) return 'existing';
+    const cell = this.services.state.getCell(point.x, point.y);
+    if (cell?.kind === 'moat') return 'existing';
+    if (cell || this.services.keepSystem.findAtCell(point.x, point.y) ||
+        this.isStructureFootprintReserved(point.x, point.y)) return 'blocked';
+    const terrain = this.terrainAt(point.x, point.y);
+    return terrain === 'plains' || terrain === 'shore' ? 'new' : 'blocked';
+  }
+
+  private renderMoatStrokePreview(): void {
+    this.clearGroup(this.wallPreviewLayer);
+    const assessment = assessMoatRoute(this.moatDragPath, (point) => this.moatSegmentStatusAt(point));
+    const materials = {
+      new: new THREE.MeshBasicMaterial({ color: 0x64dfa8, transparent: true, opacity: 0.53, depthTest: false, depthWrite: false }),
+      existing: new THREE.MeshBasicMaterial({ color: 0x5bbbdc, transparent: true, opacity: 0.45, depthTest: false, depthWrite: false }),
+      blocked: new THREE.MeshBasicMaterial({ color: 0xff625f, transparent: true, opacity: 0.64, depthTest: false, depthWrite: false }),
+    };
+    const geometry = new THREE.BoxGeometry(TILE * 0.81, 0.11, TILE * 0.81);
+    for (const { point, status } of assessment.segments) {
+      const world = this.gridToWorld(point.x, point.y);
+      const marker = new THREE.Mesh(geometry, materials[status]);
+      marker.position.set(world.x, 2.42 + this.terrainElevation(point.x, point.y), world.z);
+      marker.renderOrder = 92;
+      this.wallPreviewLayer.add(marker);
+    }
+    this.setStatus(this.moatDragExceededLimit
+      ? 'Moat route too long · shorten the drag'
+      : `Moat drag: ${assessment.newCount} tiles · ${assessment.blockedCount} blocked · release to confirm`);
+  }
+
+  private buildMoatStroke(path: MoatPoint[], exceededLimit: boolean): void {
+    this.clearGroup(this.wallPreviewLayer);
+    const assessment = assessMoatRoute(path, (point) => this.moatSegmentStatusAt(point));
+    if (exceededLimit) {
+      this.setStatus('Moat route too long · shorten the drag');
+      return;
+    }
+    if (!assessment.valid) {
+      audioEvents.emit({ action: 'play_sfx', assetId: 'building.invalid' });
+      this.setStatus(assessment.blockedCount > 0
+        ? 'Moat route blocked · no excavation queued'
+        : 'Moat route already excavated or queued');
+      return;
     }
 
-    while (queue.length > 0) {
-      const current = queue.shift();
-      if (!current) break;
-
-      const neighbors = [
-        [current.x - 1, current.y],
-        [current.x + 1, current.y],
-        [current.x, current.y - 1],
-        [current.x, current.y + 1],
-      ];
-
-      for (const [x, y] of neighbors) {
-        if (this.kindAt(x, y) !== 'moat') continue;
-        const cellKey = this.key(x, y);
-        if (flooded.has(cellKey)) continue;
-        flooded.add(cellKey);
-        queue.push({ x, y });
-      }
+    // One history transaction for the entire route, never per worker/tile.
+    this.recordHistory();
+    for (const { point, status } of assessment.segments) {
+      if (status !== 'new') continue;
+      this.moatTasks.set(this.key(point.x, point.y), {
+        x: point.x, y: point.y, progressMs: 0,
+      });
     }
-
-    return flooded;
+    this.selectedCell = assessment.segments.at(-1)?.point ?? null;
+    this.redraw();
+    this.scheduleSave();
+    this.setStatus(`Moat excavation queued · ${assessment.newCount} connected tiles`);
+    this.deactivateBuildToolAfterCommit();
   }
 
   private captureSnapshot(): HistorySnapshot {
