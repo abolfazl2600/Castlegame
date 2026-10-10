@@ -241,3 +241,62 @@ test.describe('Persian Android landscape', () => {
     await captureEvidence(page, testInfo, 'mobile-landscape-settings-fa.png');
   });
 });
+
+
+test('Mission Journal translates cached cards, static labels and numerals on live language changes', async ({ page }) => {
+  await openLocalizedGame(page, 1280, 800);
+
+  const journal = page.locator('#mission-journal');
+  await expect(journal).toBeAttached();
+  await page.locator('#missions-button').click();
+  await expect(journal).toBeVisible();
+  await expect(journal.locator('#mission-journal-title')).toHaveText('دفتر مأموریت‌ها');
+  await expect(journal.locator('.mission-journal__intro')).toHaveText(translate(
+    'Choose a focus, watch progress update in real time, and unlock the next layer of challenges as your settlement grows.',
+    'fa',
+  ));
+  await expect(journal.locator('[data-mission-action="close"]')).toHaveAttribute('aria-label', translate('Close', 'fa'));
+  await expect(journal.locator('.mission-journal__section-heading strong').first()).toHaveText('اهداف در دسترس');
+  await expect(journal.locator('.mission-card').first()).toContainText(translate('A Growing Settlement', 'fa'));
+  await expect(journal.locator('.mission-card__progress-copy strong').first()).toHaveText(/[۰-۹]+ \/ [۰-۹]+/);
+  await expect(journal.locator('.mission-card__pin').first()).toHaveText('هدف اصلی');
+
+  // Change through real Settings controls, then reopen without changing mission progress.
+  await journal.locator('[data-mission-action="close"]').click();
+  await openSettings(page);
+  await page.locator('[data-settings-nav="general"]').click();
+  await page.locator('[data-setting="language"]').selectOption('en');
+  await expect(page.locator('html')).toHaveAttribute('lang', 'en');
+  await page.locator('#settings-close').click();
+  await page.locator('#missions-button').click();
+  await expect(journal).toBeVisible();
+  await expect(journal.locator('#mission-journal-title')).toHaveText('Mission Journal');
+  await expect(journal.locator('.mission-journal__intro')).toHaveText(
+    'Choose a focus, watch progress update in real time, and unlock the next layer of challenges as your settlement grows.',
+  );
+  await expect(journal.locator('[data-mission-action="close"]')).toHaveAttribute('aria-label', 'Close');
+  await expect(journal.locator('.mission-journal__section-heading strong').first()).toHaveText('Available objectives');
+  await expect(journal.locator('.mission-card').first()).toContainText('A Growing Settlement');
+  await expect(journal.locator('.mission-card__progress-copy strong').first()).toHaveText(/[0-9]+ \/ [0-9]+/);
+  await expect(journal.locator('.mission-card__pin').first()).toHaveText('Primary objective');
+
+  // Exercise the same Settings change event with the journal still open.
+  // This covers visible content, even if the game render loop is paused.
+  await page.locator('[data-setting="language"]').evaluate((input) => {
+    if (!(input instanceof HTMLSelectElement)) throw new Error('Language select is missing');
+    input.value = 'fa';
+    input.dispatchEvent(new Event('change', { bubbles: true }));
+  });
+  await expect(page.locator('html')).toHaveAttribute('lang', 'fa');
+  await expect(journal.locator('#mission-journal-title')).toHaveText('دفتر مأموریت‌ها');
+  await expect(journal.locator('.mission-journal__section-heading strong').first()).toHaveText('اهداف در دسترس');
+  await expect(journal.locator('.mission-card').first()).toContainText(translate('A Growing Settlement', 'fa'));
+  await expect(journal.locator('.mission-card__progress-copy strong').first()).toHaveText(/[۰-۹]+ \/ [۰-۹]+/);
+  await expect(journal.locator('.mission-card__pin').first()).toHaveText('هدف اصلی');
+  await expect(journal.locator('[data-mission-action="close"]')).toHaveAttribute('aria-label', translate('Close', 'fa'));
+
+  // Unchanged view/state should still reuse the rendered cards between routine ticks.
+  await journal.locator('.mission-card').first().evaluate((card) => card.setAttribute('data-render-probe', 'retained'));
+  await page.waitForTimeout(700);
+  await expect(journal.locator('.mission-card').first()).toHaveAttribute('data-render-probe', 'retained');
+});

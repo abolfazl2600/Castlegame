@@ -38,6 +38,14 @@ export function t(message: string): string {
 export function getCurrentLocale(): Locale {
   return currentLocale;
 }
+
+const localeChangeListeners = new Set<(locale: Locale) => void>();
+
+/** Subscribe to effective language changes, including system-language resolution. */
+export function subscribeLocaleChange(listener: (locale: Locale) => void): () => void {
+  localeChangeListeners.add(listener);
+  return () => localeChangeListeners.delete(listener);
+}
 const farsiDigits = '۰۱۲۳۴۵۶۷۸۹';
 const formatDigits = (text: string): string => text.replace(/[0-9]/g, digit => farsiDigits[Number(digit)]);
 
@@ -340,6 +348,7 @@ export function installLocalization(store: SettingsStore): () => void {
     document.documentElement.dir = next === 'fa' ? 'rtl' : 'ltr';
     document.title = translate(originalTitle, locale);
     walk(document.body);
+    for (const listener of localeChangeListeners) listener(next);
   });
 
   return () => {
