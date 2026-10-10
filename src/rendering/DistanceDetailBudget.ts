@@ -3,6 +3,7 @@ import type { SettingsData } from '../settings/SettingsModel';
 import type { ActiveRenderProfile } from './AdaptiveRenderProfile';
 import { WORLD_STYLE } from './WorldStyle';
 import { graphicsQualityPreset } from './GraphicsQualityPreset';
+import { OverBudgetRecheckGate } from './OverBudgetRecheckGate';
 
 export type DistanceDetailBand = 'inspection' | 'gameplay' | 'strategic';
 export type MemoryPressureLevel = 'normal' | 'elevated' | 'critical';
@@ -42,6 +43,10 @@ export interface VisualBudgetSnapshot {
   heapBytes: number | null;
   memoryPressure: MemoryPressureLevel;
   detailSuppressionActive: boolean;
+  /** Number of costly detail/shadow passes since the scene was created. */
+  lodRecalculations: number;
+  /** Passes caused by sustained draw-call pressure, excluding explicit invalidations. */
+  overBudgetRechecks: number;
 }
 
 const QUALITY_DRAW_CALL_CAP = 1000;
@@ -361,6 +366,7 @@ export class DistanceDetailBudgetSystem {
   private readonly baseShadowCaster = new WeakMap<THREE.Object3D, boolean>();
   private readonly detailHidden = new WeakSet<THREE.Object3D>();
   private lastProfileKey = '';
+  private readonly overBudgetGate = new OverBudgetRecheckGate();
   private lastSnapshot: VisualBudgetSnapshot = {
     band: 'gameplay',
     renderProfile: 'balanced',
@@ -381,6 +387,8 @@ export class DistanceDetailBudgetSystem {
     heapBytes: null,
     memoryPressure: 'normal',
     detailSuppressionActive: false,
+    lodRecalculations: 0,
+    overBudgetRechecks: 0,
   };
 
   update(
@@ -415,8 +423,15 @@ export class DistanceDetailBudgetSystem {
       detailSuppressionActive ? 'lod-on' : 'lod-off',
     ].join(':');
 
+    const profileChanged = profileKey !== this.lastProfileKey;
     const previousFrameOverBudget = detailSuppressionActive && renderer.info.render.calls > budget.drawCalls;
-    if (profileKey !== this.lastProfileKey || previousFrameOverBudget) {
+    // Rendering can stay above the nominal cap when protected castle geometry
+    // dominates. Re-running both scene traversals every frame cannot fix it.
+    // Still retry after meaningful draw-call growth (or a bounded stale period).
+    if (profileChanged || !previousFrameOverBudget) this.overBudgetGate.reset();
+    const overBudgetRecheck = !profileChanged && previousFrameOverBudget &&
+      this.overBudgetGate.shouldReapply(renderer.info.render.calls, budget.drawCalls, performance.now());
+    if (profileChanged || overBudgetRecheck) {
       const maxPixelRatio = Math.min(window.devicePixelRatio, 2);
       const ratio = THREE.MathUtils.clamp(
         settingsPixelRatioScale(settings, profile) * budget.pixelRatioScale,
@@ -445,6 +460,7 @@ export class DistanceDetailBudgetSystem {
       // even when the governor reported a compliant detail estimate.
       if (
         detailSuppressionActive &&
+        detail.activeHighDetailMeshes > 0 &&
         detail.estimatedDrawCalls + shadow.activeShadowCasters > budget.drawCalls
       ) {
         detail = this.applyDetailBudget(
@@ -475,6 +491,8 @@ export class DistanceDetailBudgetSystem {
         heapBytes,
         memoryPressure,
         detailSuppressionActive,
+        lodRecalculations: this.lastSnapshot.lodRecalculations + 1,
+        overBudgetRechecks: this.lastSnapshot.overBudgetRechecks + Number(overBudgetRecheck),
       };
       scene.userData.visualPerformanceBudget = {
         band: this.band,
@@ -490,6 +508,8 @@ export class DistanceDetailBudgetSystem {
         heapBytes,
         memoryPressure,
         detailSuppressionActive,
+        lodRecalculations: this.lastSnapshot.lodRecalculations,
+        overBudgetRechecks: this.lastSnapshot.overBudgetRechecks,
       };
       this.lastProfileKey = profileKey;
     }
@@ -503,6 +523,7 @@ export class DistanceDetailBudgetSystem {
 
   invalidate(): void {
     this.lastProfileKey = '';
+    this.overBudgetGate.reset();
   }
 
   private resolveBand(distance: number): DistanceDetailBand {
