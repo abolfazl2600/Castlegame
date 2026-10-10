@@ -13,18 +13,20 @@ interface Animation {
   startedAt: number;
   duration: number;
   parts: Part[];
+  manual: boolean;
+  progress: number;
 }
 
 /** Short-lived presentation state. The authoritative building exists before start(). */
 export class ConstructionAnimationSystem {
   private readonly active = new Map<string, Animation>();
 
-  start(key: string, root: THREE.Object3D, now: number, duration: number): void {
+  start(key: string, root: THREE.Object3D, now: number, duration: number, manual = false, progress = 0): void {
     this.cancel(key);
-    const animation: Animation = { key, root, startedAt: now, duration, parts: this.partsFor(root) };
+    const animation: Animation = { key, root, startedAt: now, duration, parts: this.partsFor(root), manual, progress };
     if (animation.parts.length === 0) return;
     this.active.set(key, animation);
-    this.apply(animation, 0, false);
+    this.apply(animation, progress, false);
   }
 
   rebind(resolve: (key: string) => THREE.Object3D | undefined): void {
@@ -37,14 +39,17 @@ export class ConstructionAnimationSystem {
       if (next === animation.root) continue;
       animation.root = next;
       animation.parts = this.partsFor(next);
+      this.apply(animation, animation.progress, false);
     }
   }
 
   update(now: number, reducedMotion: boolean): string[] {
     const completed: string[] = [];
     for (const [key, animation] of this.active) {
+      if (animation.manual) continue;
       const duration = reducedMotion ? Math.min(120, animation.duration) : animation.duration;
       const progress = Math.min(1, Math.max(0, (now - animation.startedAt) / duration));
+      animation.progress = progress;
       this.apply(animation, progress, reducedMotion);
       if (progress >= 1) {
         this.active.delete(key);
@@ -52,6 +57,15 @@ export class ConstructionAnimationSystem {
       }
     }
     return completed;
+  }
+
+  /** Real work projects advance their visuals from completed worker time.
+   * Reduced-motion changes only presentation, never project completion time. */
+  setProgress(key: string, progress: number, reducedMotion = false): void {
+    const animation = this.active.get(key);
+    if (!animation || !animation.manual) return;
+    animation.progress = Math.min(1, Math.max(0, progress));
+    this.apply(animation, animation.progress, reducedMotion);
   }
 
   cancel(key: string): void {
