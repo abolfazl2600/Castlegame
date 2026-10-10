@@ -242,6 +242,10 @@ export function translate(message: string, locale: Locale = 'fa'): string {
   if (match) return formatDigits(match[1]) + ' چوب';
   match = message.match(/^(\d+) stone$/);
   if (match) return formatDigits(match[1]) + ' سنگ';
+  match = message.match(/^Construction started · (.+) · workers assigned$/);
+  if (match) return 'ساخت آغاز شد · ' + translate(match[1], locale) + ' · کارگران مأمور شدند';
+  match = message.match(/^Construction completed · (.+)$/);
+  if (match) return 'ساخت کامل شد · ' + translate(match[1], locale);
   return message;
 }
 
