@@ -1,4 +1,4 @@
-import { getCurrentLocale, t } from '../i18n/localization';
+import { getCurrentLocale, subscribeLocaleChange, t } from '../i18n/localization';
 import type { MissionView, MissionViewEntry } from './MissionSystem';
 import './missions.css';
 
@@ -10,6 +10,7 @@ export class MissionUI {
   private modal: HTMLElement | null = null;
   private toastHost: HTMLElement | null = null;
   private lastSignature = '';
+  private lastView: MissionView | null = null;
 
   constructor(private readonly options: MissionUIOptions) {}
 
@@ -23,21 +24,24 @@ export class MissionUI {
     modal.id = 'mission-journal';
     modal.className = 'modal-backdrop mission-journal-backdrop';
     modal.hidden = true;
+    // Mission Journal owns its translations; the generic DOM translator must not cache translated text as source.
+    modal.setAttribute('data-no-localize', '');
     modal.innerHTML =
       '<section class="help-modal mission-journal" role="dialog" aria-modal="true" aria-labelledby="mission-journal-title">' +
         '<div class="mission-journal__hero">' +
-          '<div><div class="eyebrow">' + escapeHtml(t('CASTLE ROLE · OBJECTIVES')) + '</div><h2 id="mission-journal-title">' + escapeHtml(t('Mission Journal')) + '</h2></div>' +
+          '<div><div class="eyebrow" data-mission-i18n="CASTLE ROLE · OBJECTIVES">' + escapeHtml(t('CASTLE ROLE · OBJECTIVES')) + '</div><h2 id="mission-journal-title" data-mission-i18n="Mission Journal">' + escapeHtml(t('Mission Journal')) + '</h2></div>' +
           '<button type="button" class="icon-button" data-mission-action="close" aria-label="' + escapeHtml(t('Close')) + '">×</button>' +
         '</div>' +
-        '<p class="mission-journal__intro">' + escapeHtml(t('Choose a focus, watch progress update in real time, and unlock the next layer of challenges as your settlement grows.')) + '</p>' +
+        '<p class="mission-journal__intro" data-mission-i18n="Choose a focus, watch progress update in real time, and unlock the next layer of challenges as your settlement grows.">' + escapeHtml(t('Choose a focus, watch progress update in real time, and unlock the next layer of challenges as your settlement grows.')) + '</p>' +
         '<div class="mission-journal__summary" data-mission-summary></div>' +
-        '<div class="mission-journal__section"><div class="mission-journal__section-heading"><strong>' + escapeHtml(t('Available objectives')) + '</strong><small>' + escapeHtml(t('Pin any objective to make it your primary focus.')) + '</small></div><div class="mission-journal__grid" data-mission-available></div></div>' +
-        '<div class="mission-journal__section"><div class="mission-journal__section-heading"><strong>' + escapeHtml(t('Completed milestones')) + '</strong><small>' + escapeHtml(t('A permanent record of this world’s progress.')) + '</small></div><div class="mission-journal__grid mission-journal__grid--completed" data-mission-completed></div></div>' +
-        '<div class="mission-journal__section"><div class="mission-journal__section-heading"><strong>' + escapeHtml(t('Locked objectives')) + '</strong><small>' + escapeHtml(t('Complete prerequisite milestones to reveal these goals.')) + '</small></div><div class="mission-journal__grid mission-journal__grid--locked" data-mission-locked></div></div>' +
+        '<div class="mission-journal__section"><div class="mission-journal__section-heading"><strong data-mission-i18n="Available objectives">' + escapeHtml(t('Available objectives')) + '</strong><small data-mission-i18n="Pin any objective to make it your primary focus.">' + escapeHtml(t('Pin any objective to make it your primary focus.')) + '</small></div><div class="mission-journal__grid" data-mission-available></div></div>' +
+        '<div class="mission-journal__section"><div class="mission-journal__section-heading"><strong data-mission-i18n="Completed milestones">' + escapeHtml(t('Completed milestones')) + '</strong><small data-mission-i18n="A permanent record of this world’s progress.">' + escapeHtml(t('A permanent record of this world’s progress.')) + '</small></div><div class="mission-journal__grid mission-journal__grid--completed" data-mission-completed></div></div>' +
+        '<div class="mission-journal__section"><div class="mission-journal__section-heading"><strong data-mission-i18n="Locked objectives">' + escapeHtml(t('Locked objectives')) + '</strong><small data-mission-i18n="Complete prerequisite milestones to reveal these goals.">' + escapeHtml(t('Complete prerequisite milestones to reveal these goals.')) + '</small></div><div class="mission-journal__grid mission-journal__grid--locked" data-mission-locked></div></div>' +
       '</section>';
 
     const toastHost = document.createElement('div');
     toastHost.className = 'mission-toast-host';
+    toastHost.setAttribute('data-no-localize', '');
     toastHost.setAttribute('aria-live', 'polite');
     toastHost.setAttribute('aria-atomic', 'true');
 
@@ -46,6 +50,9 @@ export class MissionUI {
 
     this.modal = modal;
     this.toastHost = toastHost;
+    subscribeLocaleChange(() => {
+      if (this.lastView) this.render(this.lastView);
+    });
 
     const setOpen = (open: boolean): void => {
       modal.hidden = !open;
@@ -79,8 +86,10 @@ export class MissionUI {
   render(view: MissionView, completedIds: readonly string[] = []): void {
     this.mount();
     if (!this.modal) return;
+    this.lastView = view;
 
     const signature = JSON.stringify({
+      locale: getCurrentLocale(),
       pinned: view.pinnedMissionId,
       active: view.active.map((entry) => [entry.definition.id, entry.progress.current, entry.progress.target]),
       completed: view.completed.map((entry) => [entry.definition.id, entry.completedAt]),
@@ -89,6 +98,7 @@ export class MissionUI {
 
     if (signature !== this.lastSignature) {
       this.lastSignature = signature;
+      this.refreshLocaleCopy();
       this.renderJournal(view);
     }
 
@@ -96,6 +106,19 @@ export class MissionUI {
       const entry = view.completed.find((candidate) => candidate.definition.id === id);
       if (entry) this.showCompletionToast(entry);
     }
+  }
+
+  private refreshLocaleCopy(): void {
+    for (const root of [this.modal, this.toastHost]) {
+      root?.querySelectorAll<HTMLElement>('[data-mission-i18n]').forEach((element) => {
+        element.textContent = t(element.dataset.missionI18n ?? '');
+      });
+    }
+    this.modal?.querySelector<HTMLButtonElement>('[data-mission-action="close"]')
+      ?.setAttribute('aria-label', t('Close'));
+    this.toastHost?.querySelectorAll<HTMLElement>('[data-mission-title]').forEach((element) => {
+      element.textContent = t(element.dataset.missionTitle ?? '');
+    });
   }
 
   private renderJournal(view: MissionView): void {
@@ -157,7 +180,7 @@ export class MissionUI {
     toast.className = 'mission-toast';
     toast.innerHTML =
       '<span class="mission-toast__seal">✓</span>' +
-      '<div><small>' + escapeHtml(t('OBJECTIVE COMPLETE')) + '</small><strong>' + escapeHtml(t(entry.definition.title)) + '</strong><span>' + escapeHtml(t('A new milestone has been recorded.')) + '</span></div>';
+      '<div><small data-mission-i18n="OBJECTIVE COMPLETE">' + escapeHtml(t('OBJECTIVE COMPLETE')) + '</small><strong data-mission-title="' + escapeHtml(entry.definition.title) + '">' + escapeHtml(t(entry.definition.title)) + '</strong><span data-mission-i18n="A new milestone has been recorded.">' + escapeHtml(t('A new milestone has been recorded.')) + '</span></div>';
     this.toastHost.appendChild(toast);
     window.setTimeout(() => toast.classList.add('is-leaving'), 3600);
     window.setTimeout(() => toast.remove(), 4100);
