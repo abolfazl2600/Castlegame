@@ -533,6 +533,7 @@ export class ThreeGame {
     group: THREE.Group | null;
   }>();
   private terrainDecorationContext = '';
+  private lastTerrainDecorationRebuilds = 0;
   private readonly buildLayer = new THREE.Group();
   private readonly selectionVisual = new SelectionVisual(
     TILE,
@@ -826,6 +827,10 @@ export class ThreeGame {
           gpuGeometries: this.renderer.info.memory.geometries,
           gpuTextures: this.renderer.info.memory.textures,
           lastRedrawMs: this.lastRedrawMs,
+          terrainDecoration: {
+            cachedTiles: this.terrainDecorationCache.size,
+            rebuiltTiles: this.lastTerrainDecorationRebuilds,
+          },
           ambientMotion: this.ambientMotion.stats(),
           visualBudget: this.distanceDetailBudget.snapshot(),
           environment: this.environmentSystem.visualState(),
@@ -3148,6 +3153,7 @@ export class ThreeGame {
       }
     }
 
+    this.lastTerrainDecorationRebuilds = dirty;
     if (dirty > 0) {
       // Replacements must not reorder coplanar translucent river surfaces.
       this.terrainLayer.children.sort((a, b) =>
