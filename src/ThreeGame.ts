@@ -2410,13 +2410,16 @@ export class ThreeGame {
     battleSystem.prepareDefenders(this.battleSetup, this.militaryTier, force);
   }
 
+  /** Standalone cell kinds whose mesh geometry does not depend on runtime state. */
+  private isStableBuildKind(kind: TileKind): boolean {
+    return ROAD_KINDS.includes(kind as RoadKind) ||
+      ['cottage', 'house', 'manor', 'villa', 'tree', 'rock', 'hut'].includes(kind);
+  }
+
   /** A conservative cache: only standalone meshes without global renderer state. */
   private stableBuildSignature(cell: ReturnType<GameState['entries']>[number]): string | null {
     const kind = cell.kind;
-    if (
-      !ROAD_KINDS.includes(kind as RoadKind) &&
-      !['cottage', 'house', 'manor', 'villa', 'tree', 'rock', 'hut'].includes(kind)
-    ) return null;
+    if (!this.isStableBuildKind(kind)) return null;
     const graphics = this.settingsStore.get().graphics;
     const surroundings = ROAD_KINDS.includes(kind as RoadKind)
       ? [
@@ -2443,9 +2446,18 @@ export class ThreeGame {
     const stableCandidates = new Map<string, THREE.Object3D>();
     const nextSignatures = new Map<string, string>();
     const battle = Boolean(this.battleSystem?.isActive());
-    const mayReuse = preserveStableBuildings && !battle && this.extensions.size === 0;
+    // FarmLife declares only farm/cowBarn overrides, so its presence alone
+    // must not disable caching unrelated roads and residential meshes.
+    // Unknown extensions, or those affecting reusable kinds, fall back to full.
+    const blockingExtensions = [...this.extensions].filter((extension) =>
+      extension.createBuilding && (
+        !extension.buildingKinds ||
+        extension.buildingKinds.some((kind) => this.isStableBuildKind(kind))
+      )
+    ).length;
+    const mayReuse = preserveStableBuildings && !battle && blockingExtensions === 0;
     this.lastBuildReuseDiagnostics = {
-      requested: preserveStableBuildings, battle, extensions: this.extensions.size,
+      requested: preserveStableBuildings, battle, extensions: blockingExtensions,
       candidates: 0, matchingSignatures: 0, attachedObjects: 0,
     };
     for (const cell of cells) {
