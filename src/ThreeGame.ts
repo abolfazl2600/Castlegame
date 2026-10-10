@@ -2024,7 +2024,7 @@ export class ThreeGame {
     const grassMaterial = this.environmentMaterial('layout-grass', WORLD_STYLE.palette.grassSunlit, 0.94);
     const shoreMaterial = this.environmentMaterial('layout-shore', 0xb8a878, 0.98);
 
-    this.terrainChunks.rebuild({
+    this.terrainChunks.update({
       grid: this.worldGrid,
       terrainAt: (x, y) => this.terrainAt(x, y),
       gridToWorld: (x, y) => this.gridToWorld(x, y),
