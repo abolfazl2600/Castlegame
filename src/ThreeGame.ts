@@ -8835,6 +8835,7 @@ export class ThreeGame {
         distance: this.camera.position.distanceTo(this.controls.target),
         minDistance: this.controls.minDistance, maxDistance: this.controls.maxDistance,
         cells: this.services.state.entries(), elevations: [...this.elevationOverrides.entries()],
+        moatTasks: this.pendingMoatTasks(),
         undoCount: this.undoStack.length, pointers: touches.pointerIds,
         dragging: Boolean(this.wallDragStart || this.roadDragStart || this.moatDragLast || this.terrainStrokeActive),
         preview: this.wallPreviewLayer.children.length,
