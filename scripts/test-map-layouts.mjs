@@ -139,8 +139,8 @@ assert.match(
 );
 assert.match(
   threeGame,
-  /private rebuildWorldLayoutSurface\(\): void \{[\s\S]*?this\.terrainChunks\.rebuild\([\s\S]*?terrainAt: \(x, y\) => this\.terrainAt\(x, y\)/,
-  'Rendered land must be rebuilt through terrain chunks from the same effective terrain source.',
+  /private rebuildWorldLayoutSurface\(\): void \{[\s\S]*?this\.terrainChunks\.(?:rebuild|update)\([\s\S]*?terrainAt: \(x, y\) => this\.terrainAt\(x, y\)/,
+  'Rendered land must synchronize through terrain chunks from the same effective terrain source.',
 );
 assert.doesNotMatch(
   threeGame,
