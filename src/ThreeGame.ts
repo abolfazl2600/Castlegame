@@ -563,6 +563,8 @@ export class ThreeGame {
   private readonly stableBuildSignatures = new Map<string, string>();
   private lastReusedBuildObjects = 0;
   private lastRebuiltBuildObjects = 0;
+  private lastBuildReuseDiagnostics = { requested: false, battle: false, extensions: 0,
+    candidates: 0, matchingSignatures: 0, attachedObjects: 0 };
   private readonly battleSystem: BattleSystem;
   private readonly groundHit = new THREE.Mesh(
     new THREE.PlaneGeometry(1, 1),
@@ -839,6 +841,7 @@ export class ThreeGame {
           constructionRedraw: {
             reusedBuildings: this.lastReusedBuildObjects,
             rebuiltBuildings: this.lastRebuiltBuildObjects,
+            diagnostics: this.lastBuildReuseDiagnostics,
           },
           ambientMotion: this.ambientMotion.stats(),
           visualBudget: this.distanceDetailBudget.snapshot(),
@@ -2439,14 +2442,23 @@ export class ThreeGame {
     const cells = this.services.state.entries();
     const stableCandidates = new Map<string, THREE.Object3D>();
     const nextSignatures = new Map<string, string>();
-    const mayReuse = preserveStableBuildings &&
-      !this.battleSystem?.isActive() && this.extensions.size === 0;
+    const battle = Boolean(this.battleSystem?.isActive());
+    const mayReuse = preserveStableBuildings && !battle && this.extensions.size === 0;
+    this.lastBuildReuseDiagnostics = {
+      requested: preserveStableBuildings, battle, extensions: this.extensions.size,
+      candidates: 0, matchingSignatures: 0, attachedObjects: 0,
+    };
     for (const cell of cells) {
       const key = this.key(cell.x, cell.y);
       const signature = this.stableBuildSignature(cell);
       if (signature === null) continue;
+      this.lastBuildReuseDiagnostics.candidates += 1;
       nextSignatures.set(key, signature);
       const existing = this.buildObjectsByCell.get(key);
+      if (existing?.parent === this.buildLayer) this.lastBuildReuseDiagnostics.attachedObjects += 1;
+      if (this.stableBuildSignatures.get(key) === signature) {
+        this.lastBuildReuseDiagnostics.matchingSignatures += 1;
+      }
       if (
         mayReuse && existing?.parent === this.buildLayer &&
         this.stableBuildSignatures.get(key) === signature
@@ -8974,6 +8986,7 @@ export class ThreeGame {
         constructionRedraw: {
           reusedBuildings: this.lastReusedBuildObjects,
           rebuiltBuildings: this.lastRebuiltBuildObjects,
+          diagnostics: this.lastBuildReuseDiagnostics,
         },
         moatTasks: this.pendingMoatTasks(),
         undoCount: this.undoStack.length, pointers: touches.pointerIds,
