@@ -112,6 +112,7 @@ async function collect(page, label) {
     heapUsedBytes, renderProfile: resources.visualBudget?.renderProfile ?? null,
     memoryPressure: resources.visualBudget?.memoryPressure ?? null,
     gpu: resources.gpu,
+    terrainDecoration: resources.terrainDecoration ?? null,
   };
   console.log(JSON.stringify({ phase: 'sample', ...result }));
   return result;
@@ -226,6 +227,16 @@ try {
       const terrainEdit = await placeTile('river', 2, 0);
       if (!terrainEdit.status?.includes('River water created')) throw new Error('River terrain edit did not complete: ' + JSON.stringify(terrainEdit));
       phases.push(await collect(page, 'after_terrain_edit'));
+      for (const phase of phases) {
+        if (phase.terrainDecoration?.cachedTiles !== (large ? 50 * 89 : 23 * 23)) {
+          throw new Error('Terrain cache incomplete: ' + JSON.stringify(phase));
+        }
+      }
+      for (const phase of phases.filter(entry => entry.label.startsWith('after_'))) {
+        if (phase.terrainDecoration.rebuiltTiles > 9) {
+          throw new Error('A localized edit rebuilt too many terrain decorations: ' + JSON.stringify(phase));
+        }
+      }
       const endState = await page.evaluate(() => ({
         cells: window.__castleTouchQA().cells.length,
         elevations: window.__castleTouchQA().elevations.length,
