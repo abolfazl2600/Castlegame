@@ -1,0 +1,48 @@
+name: Staged Worker Construction QA
+
+on:
+  pull_request:
+    paths:
+      - 'src/systems/ConstructionProjectSystem.ts'
+      - 'src/rendering/ConstructionAnimationSystem.ts'
+      - 'src/ThreeGame.ts'
+      - 'src/core/SaveSystem.ts'
+      - 'src/core/types.ts'
+      - 'scripts/test-worker-construction-projects.mjs'
+      - 'scripts/test-construction-animation.mjs'
+      - 'package.json'
+      - '.github/workflows/staged-construction-qa.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'src/systems/ConstructionProjectSystem.ts'
+      - 'src/rendering/ConstructionAnimationSystem.ts'
+      - 'src/ThreeGame.ts'
+      - 'src/core/SaveSystem.ts'
+      - 'src/core/types.ts'
+      - 'scripts/test-worker-construction-projects.mjs'
+      - 'scripts/test-construction-animation.mjs'
+      - 'package.json'
+      - '.github/workflows/staged-construction-qa.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  construction:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - run: npm run test:worker-construction
+      - run: npm run test:settlement-lifecycle
+      - run: npm run test:living-population
+      - run: npm run test:camp-garrison
+      - run: npx tsc --noEmit
+      - run: npm run build

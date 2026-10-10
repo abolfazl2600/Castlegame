@@ -27,6 +27,7 @@ import { CASTLE_ARCHITECTURE_STYLE } from './rendering/CastleArchitectureStyle';
 import { WORLD_STYLE } from './rendering/WorldStyle';
 import { AmbientMotionSystem } from './rendering/AmbientMotionSystem';
 import { EnvironmentSystem } from './systems/EnvironmentSystem';
+import { ConstructionProjectSystem, type ConstructionProject } from './systems/ConstructionProjectSystem';
 import { SeasonalMaterialTint } from './rendering/SeasonalMaterialTint';
 import { DistanceDetailBudgetSystem } from './rendering/DistanceDetailBudget';
 import { graphicsQualityPreset } from './rendering/GraphicsQualityPreset';
@@ -273,7 +274,7 @@ const BUILDING_KINDS: TileKind[] = [
 const CONSTRUCTION_VISUAL_KINDS = new Set<TileKind>([
   'wall1', 'wall2', 'wall3', 'gate', 'tower', 'cottage', 'house', 'manor', 'villa',
   'hut', 'farm', 'cowBarn', 'market', 'windmill', 'mine', 'carpenter',
-  'armyCamp', 'harbor', 'basilica', 'mosque',
+  'armyCamp', 'harbor', 'basilica', 'mosque', 'road', 'dirtRoad', 'stoneRoad',
 ]);
 
 const MOVABLE_BUILDING_KINDS = new Set<TileKind>([
@@ -322,6 +323,7 @@ interface WorkerAgent {
   id: number;
   view: THREE.Group;
   taskKey?: string;
+  projectKey?: string;
   homeX: number;
   homeZ: number;
   path: GridPoint[];
@@ -368,6 +370,7 @@ interface HistorySnapshot {
   militaryTier: MilitaryTier;
   economy: EconomyResourceState;
   population: PopulationSimulationState;
+  constructionProjects: ConstructionProject[];
 }
 
 const TOOL_GROUPS: Array<{ label: string; tools: ToolDefinition[] }> = [
@@ -487,6 +490,9 @@ export class ThreeGame {
   private missionRefreshAccumulatorMs = 0;
   private readonly castleBlockSystem = new CastleBlockSystem();
   private readonly constructionAnimation = new ConstructionAnimationSystem();
+  private readonly constructionProjects = new ConstructionProjectSystem();
+  private constructionCheckpointMs = 0;
+  private constructionHudMs = 0;
   private readonly ambientFauna = new AmbientFaunaSystem();
   private readonly ambientShip = new AmbientShipSystem({
     cols: () => this.worldCols,
@@ -691,6 +697,8 @@ export class ThreeGame {
       getEnvironmentState: () => this.environmentSystem.getState(),
       setEnvironmentState: (value) => { this.environmentSystem.setState(value); },
       getMissionState: () => this.missionSystem.getState(),
+      getConstructionProjects: () => this.constructionProjects.snapshot(),
+      setConstructionProjects: (value) => { this.constructionProjects.restore(value); },
       setMissionState: (value) => { this.missionSystem.setState(value); },
       setWorldSeeded: (value) => { this.worldSeeded = value; },
       setLoadedSaveVersion: (value) => { this.loadedSaveVersion = value; },
@@ -727,6 +735,7 @@ export class ThreeGame {
       afterLoad: () => {
         this.rebuildWorldLayoutSurface();
         this.normalizeRiverElevations();
+        this.redraw();
         this.applyEnvironmentVisuals(true);
       },
       setStatus: (message) => this.setStatus(message),
@@ -1147,6 +1156,15 @@ export class ThreeGame {
   }
 
   private ensureUpgradeAffordable(tool: ToolKind, nextLevel: number): boolean {
+    const selectedKey = this.selectedTowerBridgeId !== null
+      ? `bridge:${this.selectedTowerBridgeId}`
+      : this.selectedKeepId !== null
+        ? `keep:${this.selectedKeepId}`
+        : this.selectedCell ? `cell:${this.selectedCell.x},${this.selectedCell.y}` : null;
+    if (selectedKey && this.constructionProjects.has(selectedKey)) {
+      this.setStatus('Finish the active construction project before upgrading again');
+      return false;
+    }
     if (!this.economyConstructionEnabled()) return true;
     const cost = this.services.economySystem.upgradeCost(tool, nextLevel);
     if (this.services.economySystem.canAfford(cost)) return true;
@@ -1696,6 +1714,9 @@ export class ThreeGame {
     this.terrainOverrides.clear();
     this.elevationOverrides.clear();
     this.moatTasks.clear();
+    this.constructionProjects.clear();
+    this.constructionAnimation.clear();
+    document.getElementById('construction-progress-panel')?.setAttribute('hidden', '');
     this.clearGroup(this.workerLayer);
     this.workers.length = 0;
     this.clearSettlementAgents();
@@ -2151,6 +2172,25 @@ export class ThreeGame {
       hat.castShadow = true;
       view.add(hat);
 
+      // A light hand-tool silhouette becomes visible only during actual
+      // on-site construction, rather than looping while the worker travels.
+      const toolPivot = new THREE.Group();
+      toolPivot.position.set(0.34, 3.01, 0.14);
+      const handle = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.045, 0.045, 0.62, 6),
+        new THREE.MeshStandardMaterial({ color: 0x78583d, roughness: 0.95 }),
+      );
+      handle.position.y = -0.15;
+      const hammerHead = new THREE.Mesh(
+        new THREE.BoxGeometry(0.46, 0.13, 0.18),
+        new THREE.MeshStandardMaterial({ color: 0x777f80, metalness: 0.42, roughness: 0.62 }),
+      );
+      hammerHead.position.y = 0.18;
+      toolPivot.add(handle, hammerHead);
+      toolPivot.visible = false;
+      view.add(toolPivot);
+      view.userData.constructionTool = toolPivot;
+
       const homeX = -4 + i * 2.1;
       const homeZ = 5.5;
       view.position.set(homeX, 0, homeZ);
@@ -2205,7 +2245,8 @@ export class ThreeGame {
   private syncPopulationDefenseAssignments(
     cells: ReturnType<GameState['entries']> = this.services.state.entries(),
   ): boolean {
-    this.services.populationSystem.reconcile(cells);
+    const readyCells = this.operationalCells(cells);
+    this.services.populationSystem.reconcile(readyCells);
     const battleSystem = (this as unknown as { battleSystem?: BattleSystem }).battleSystem;
     if (battleSystem?.isActive()) return false;
 
@@ -2214,7 +2255,7 @@ export class ThreeGame {
     this.services.populationSystem.setMilitiaComposition({
       swordsman: 0, archer: 0, spearman: 0, crossbowman: 0,
     });
-    this.services.populationSystem.recruitForNewCampCapacity(cells);
+    this.services.populationSystem.recruitForNewCampCapacity(readyCells);
     const garrison = this.services.populationSystem.professionalArmyComposition();
     const next: BattleSetup = {
       ...this.battleSetup,
@@ -2334,6 +2375,17 @@ export class ThreeGame {
     this.services.windmillSystem.clear();
     this.buildObjectsByCell.clear();
     this.constructionObjects.clear();
+    // Prune demolished/replaced construction sites before calculating operational
+    // population, recruitment or production in this redraw.
+    this.constructionProjects.reconcile((project) => {
+      if (project.key.startsWith('cell:')) {
+        const cell = this.services.state.getCell(project.x, project.y);
+        return Boolean(cell && cell.kind === project.kind);
+      }
+      return project.key.startsWith('keep:')
+        ? Boolean(this.services.keepSystem.get(Number(project.key.slice(5))))
+        : this.towerBridges.has(Number(project.key.slice(7)));
+    });
     // Terrain overrides can turn land into river (or water into land). Keep the
     // instanced world surface synchronized before drawing terrain details.
     this.rebuildWorldLayoutSurface();
@@ -2440,6 +2492,8 @@ export class ThreeGame {
     });
     this.distanceDetailBudget.invalidate();
     this.constructionAnimation.rebind((key) => this.constructionObjects.get(key));
+    this.syncConstructionVisuals();
+    this.renderConstructionProgress();
     if (this.visualBenchmark) this.lastRedrawMs = performance.now() - redrawStart;
   }
 
@@ -2504,6 +2558,7 @@ export class ThreeGame {
     this.renderMinimap();
     this.distanceDetailBudget.invalidate();
     this.constructionAnimation.rebind((key) => this.constructionObjects.get(key));
+    this.syncConstructionVisuals();
     this.rebuildAmbientFauna();
   }
 
@@ -2521,11 +2576,77 @@ export class ThreeGame {
     }, this.settingsStore.get().graphics.quality);
   }
 
+  /** Reserved cells keep their construction footprint but have no production,
+   * housing, camp recruitment or mission effects until their crew completes. */
+  private operationalCells(
+    cells: ReturnType<GameState['entries']> = this.services.state.entries(),
+  ): ReturnType<GameState['entries']> {
+    return cells.flatMap((cell) => {
+      const pending = this.constructionProjects.get(`cell:${cell.x},${cell.y}`);
+      if (!pending) return [cell];
+      // Upgrades retain their previous economic, housing and garrison levels
+      // until the new tier has been completed by construction workers.
+      if (pending.previous) return [{ ...cell,
+        kind: pending.previous.kind as TileKind,
+        level: pending.previous.level,
+      }];
+      return [];
+    });
+  }
+
+  private operationalKeeps(): KeepState[] {
+    return this.services.keepSystem.entries()
+      .filter((keep) => !this.constructionProjects.has(`keep:${keep.id}`));
+  }
+
+  private syncConstructionVisuals(): void {
+    this.constructionProjects.reconcile((project) => {
+      if (project.key.startsWith('cell:')) {
+        const cell = this.services.state.getCell(project.x, project.y);
+        return Boolean(cell && cell.kind === project.kind);
+      }
+      if (project.key.startsWith('keep:')) {
+        return Boolean(this.services.keepSystem.get(Number(project.key.slice(5))));
+      }
+      return this.towerBridges.has(Number(project.key.slice(7)));
+    });
+    for (const project of this.constructionProjects.entries()) {
+      const object = this.constructionObjects.get(project.key);
+      if (!object) continue;
+      this.constructionAnimation.start(project.key, object, performance.now(), project.requiredMs, true,
+        this.constructionProjects.progress(project.key));
+    }
+  }
+
   private startConstruction(key: string, duration = 850): void {
+    const cellMatch = /^cell:(\d+),(\d+)$/.exec(key);
+    const cell = cellMatch
+      ? this.services.state.getCell(Number(cellMatch[1]), Number(cellMatch[2]))
+      : undefined;
+    const keep = key.startsWith('keep:') ? this.services.keepSystem.get(Number(key.slice(5))) : undefined;
+    const bridge = key.startsWith('bridge:') ? this.towerBridges.get(Number(key.slice(7))) : undefined;
+    if (!cell && !keep && !bridge) return;
+    const x = cellMatch ? Number(cellMatch[1]) : keep?.x ?? Math.round(((bridge?.ax ?? 0) + (bridge?.bx ?? 0)) / 2);
+    const y = cellMatch ? Number(cellMatch[2]) : keep?.y ?? Math.round(((bridge?.ay ?? 0) + (bridge?.by ?? 0)) / 2);
+    const kind = cell?.kind ?? (keep ? 'keep' : 'towerBridge');
+    const units = keep ? Math.max(1, (keep.width * keep.depth) / 9) : bridge ? 1.5 : 1;
+    const previousCell = cellMatch
+      ? this.undoStack.at(-1)?.cells.find((entry) => entry.x === x && entry.y === y)
+      : undefined;
+    const upgrading = previousCell && cell && (
+      previousCell.kind === cell.kind ||
+      (cell.kind === 'cottage' && ['house', 'manor', 'villa'].includes(previousCell.kind))
+    ) && (previousCell.level ?? 1) < (cell.level ?? 1);
+    const previous = upgrading && previousCell
+      ? { kind: previousCell.kind === 'cottage' || cell?.kind === 'cottage' ? 'cottage' : previousCell.kind,
+          level: previousCell.level ?? 1 }
+      : undefined;
+    this.constructionProjects.begin(key, kind, x, y, duration * 12 * units, previous);
+    this.constructionAnimation.cancel(key);
     const object = this.constructionObjects.get(key);
-    if (!object) return;
-    this.constructionAnimation.start(key, object, performance.now(), duration);
+    if (object) this.constructionAnimation.start(key, object, performance.now(), duration * 12 * units, true);
     audioEvents.emit({ action: 'play_sfx', assetId: 'building.started' });
+    this.setStatus(`Construction started · ${kind} · workers assigned`);
   }
 
   private renderMinimap(): void {
@@ -8380,6 +8501,7 @@ export class ThreeGame {
       militaryTier: this.militaryTier,
       economy: this.services.economySystem.getState(),
       population: this.services.populationSystem.getState(),
+      constructionProjects: this.constructionProjects.snapshot(),
     };
   }
 
@@ -8427,6 +8549,8 @@ export class ThreeGame {
     this.militaryTier = normalizeMilitaryTier(snapshot.militaryTier);
     this.services.economySystem.setState(snapshot.economy);
     this.services.populationSystem.setState(snapshot.population);
+    this.constructionProjects.restore(snapshot.constructionProjects);
+    for (const worker of this.workers) worker.projectKey = undefined;
     this.populationBattleCommitted = false;
     this.populationBattleStart = null;
     this.syncMilitaryUI();
@@ -9326,6 +9450,13 @@ export class ThreeGame {
     if (changed > 0) {
       this.pushUndoSnapshot(before);
       if (costedTiles > 0) this.spendConstructionCost(roadKind, costedTiles);
+      for (const point of path) {
+        const previous = before.cells.find((cell) => cell.x === point.x && cell.y === point.y);
+        const current = this.services.state.getCell(point.x, point.y);
+        if (current?.kind === roadKind && (!previous || previous.kind !== roadKind)) {
+          this.startConstruction(`cell:${point.x},${point.y}`, 520);
+        }
+      }
       this.redraw();
       this.scheduleSave();
       this.setStatus(`Built ${changed} connected road tiles · preview confirmed`);
@@ -9845,12 +9976,12 @@ export class ThreeGame {
     if (changed) {
       this.pushUndoSnapshot(before);
       if (costedSegments > 0) this.spendConstructionCost(wallKind, costedSegments);
-      this.redrawCastleNeighborhood(path);
-      for (const point of path.slice(0, 24)) {
+      for (const point of path) {
         if (!before.cells.some((cell) => cell.x === point.x && cell.y === point.y)) {
           this.startConstruction(`cell:${point.x},${point.y}`, 520);
         }
       }
+      this.redrawCastleNeighborhood(path);
       this.scheduleSave();
       this.setStatus(
         single
@@ -10641,11 +10772,11 @@ export class ThreeGame {
     const current = point && this.services.state.getCell(point.x, point.y);
     const placementChanged = Boolean(point && current && (!previous || previous.kind !== current.kind));
     const newlyPlaced = point && current && CONSTRUCTION_VISUAL_KINDS.has(current.kind) && placementChanged;
+    if (newlyPlaced && point) this.startConstruction(`cell:${point.x},${point.y}`,
+      current.kind === 'gate' || current.kind === 'tower' || current.kind === 'harbor' ? 1150 : 800);
     this.buildPreviewKey = '';
     if (placementChanged) audioEvents.emit({ action: 'play_sfx', assetId: 'building.place' });
     this.redraw();
-    if (newlyPlaced && point) this.startConstruction(`cell:${point.x},${point.y}`,
-      current.kind === 'gate' || current.kind === 'tower' || current.kind === 'harbor' ? 1150 : 800);
     this.scheduleSave();
     if (deactivateTool) this.deactivateBuildToolAfterCommit();
   }
@@ -10653,7 +10784,7 @@ export class ThreeGame {
   private reconcileSettlementAgents(
     cells: ReturnType<GameState['entries']>,
   ): void {
-    const desired = this.buildDesiredSettlementAgents(cells);
+    const desired = this.buildDesiredSettlementAgents(this.operationalCells(cells));
     const existingByKey = new Map(
       this.settlementAgents.map((agent) => [agent.key, agent] as const),
     );
@@ -11181,12 +11312,12 @@ export class ThreeGame {
   }
 
   private syncEconomyUI(): void {
-    const cells = this.services.state.entries();
+    const cells = this.operationalCells();
     const populationGroups = this.services.populationSystem.calculate(cells, 0);
     const snapshot = this.services.economySystem.snapshot(
       cells,
       populationGroups.civilians,
-      this.services.keepSystem.entries().length,
+      this.operationalKeeps().length,
     );
     const resources = snapshot.resources;
     const rates = snapshot.rates;
@@ -11220,13 +11351,13 @@ export class ThreeGame {
   }
 
   private updateEconomy(deltaMs: number): void {
-    const cells = this.services.state.entries();
+    const cells = this.operationalCells();
     const populationGroups = this.services.populationSystem.calculate(cells, 0);
     const result = this.services.economySystem.tick(
       deltaMs,
       cells,
       populationGroups.civilians,
-      this.services.keepSystem.entries().length,
+      this.operationalKeeps().length,
     );
 
     if (!result.updated) return;
@@ -11248,7 +11379,7 @@ export class ThreeGame {
   }
 
   private updatePopulationUI(): void {
-    const cells = this.services.state.entries();
+    const cells = this.operationalCells();
     this.services.populationSystem.reconcile(cells);
     const snapshot = this.services.populationSystem.snapshot();
     const setText = (id: string, value: string): void => {
@@ -11267,7 +11398,7 @@ export class ThreeGame {
   }
 
   private missionSnapshot(status: BattleStatus = this.battleSystem.status()): MissionSnapshot {
-    const cells = this.services.state.entries();
+    const cells = this.operationalCells();
     this.services.populationSystem.reconcile(cells);
     const population = this.services.populationSystem.snapshot();
     return {
@@ -11276,7 +11407,7 @@ export class ThreeGame {
         deadCivilians: population.deadCivilians,
       },
       cells,
-      keeps: this.services.keepSystem.entries(),
+      keeps: this.operationalKeeps(),
       battle: status,
     };
   }
@@ -11300,13 +11431,70 @@ export class ThreeGame {
   }
 
   private updateWorkers(deltaMs: number): void {
+    const completedProjects: string[] = [];
     for (const worker of this.workers) {
-      if (!worker.taskKey) {
+      const tool = worker.view.userData.constructionTool as THREE.Group | undefined;
+      if (tool) tool.visible = false;
+      if (worker.projectKey && !this.constructionProjects.has(worker.projectKey)) {
+        worker.projectKey = undefined;
+      }
+      if (!worker.taskKey && !worker.projectKey) {
         const taskEntry = Array.from(this.moatTasks.entries()).find(([, task]) => task.workerId === undefined);
         if (taskEntry) {
           worker.taskKey = taskEntry[0];
           taskEntry[1].workerId = worker.id;
         }
+      }
+
+      if (!worker.taskKey && !worker.projectKey) {
+        // Allocate the existing visible worker crew to the least staffed site.
+        // A project cannot advance unless one of these workers reaches it.
+        const assignments = new Map<string, number>();
+        for (const crew of this.workers) {
+          if (crew.projectKey) assignments.set(crew.projectKey, (assignments.get(crew.projectKey) ?? 0) + 1);
+        }
+        const project = this.constructionProjects.entries()
+          .sort((left, right) =>
+            (assignments.get(left.key) ?? 0) - (assignments.get(right.key) ?? 0) ||
+            left.key.localeCompare(right.key))[0];
+        if (project) worker.projectKey = project.key;
+      }
+
+      if (worker.projectKey) {
+        const project = this.constructionProjects.get(worker.projectKey);
+        if (!project) {
+          worker.projectKey = undefined;
+          continue;
+        }
+        // Navigate to an accessible work position rather than the occupied
+        // building center: otherwise the path solver can repeatedly chase a
+        // blocked goal and the project never receives work.
+        const start = this.worldToGrid(worker.view.position.x, worker.view.position.z);
+        const requested = project.key.startsWith('keep:')
+          ? { x: project.x - 1, y: project.y - 1 }
+          : { x: project.x, y: project.y };
+        const workGrid = this.resolveSettlementDestination(requested, start);
+        const target = this.gridToWorld(workGrid.x, workGrid.y);
+        const arrived = this.moveWorker(worker, target.x, target.z, deltaMs, 5.2);
+        if (!arrived) continue;
+        worker.view.rotation.y += Math.sin(performance.now() * 0.013 + worker.id) * 0.012;
+        if (tool) {
+          tool.visible = true;
+          tool.rotation.z = -0.45 + Math.sin(performance.now() * 0.012 + worker.id) * 0.55;
+        }
+        const finished = this.constructionProjects.work(project.key, deltaMs);
+        if (finished) {
+          completedProjects.push(project.key);
+          this.constructionAnimation.cancel(project.key);
+          worker.projectKey = undefined;
+        } else {
+          this.constructionAnimation.setProgress(
+            project.key,
+            this.constructionProjects.progress(project.key),
+            this.settingsStore.get().interface.reducedMotion,
+          );
+        }
+        continue;
       }
 
       if (!worker.taskKey) {
@@ -11337,6 +11525,57 @@ export class ThreeGame {
         this.setStatus('Moat excavation completed');
       }
     }
+    if (completedProjects.length) {
+      for (const key of completedProjects) {
+        if (!key.startsWith('cell:')) continue;
+        const [x, y] = key.slice(5).split(',').map(Number);
+        const cell = this.services.state.getCell(x, y);
+        if (cell?.kind === 'armyCamp' && (cell.level ?? 1) > this.militaryTier) {
+          this.militaryTier = normalizeMilitaryTier(cell.level ?? 1);
+          this.syncMilitaryUI();
+        }
+      }
+      this.redraw();
+      this.scheduleSave();
+      for (const key of completedProjects) {
+        audioEvents.emit({ action: 'play_sfx', assetId: 'building.complete' });
+        this.setStatus(`Construction completed · ${key}`);
+      }
+    }
+    this.constructionHudMs += deltaMs;
+    if (this.constructionHudMs >= 500 || completedProjects.length) {
+      this.constructionHudMs = 0;
+      this.renderConstructionProgress();
+    }
+    if (this.constructionProjects.count > 0) {
+      this.constructionCheckpointMs += deltaMs;
+      if (this.constructionCheckpointMs >= 15000) {
+        this.constructionCheckpointMs = 0;
+        this.save(false);
+      }
+    } else {
+      this.constructionCheckpointMs = 0;
+    }
+  }
+
+  private renderConstructionProgress(): void {
+    let panel = document.getElementById('construction-progress-panel');
+    if (!panel) {
+      panel = document.createElement('aside');
+      panel.id = 'construction-progress-panel';
+      panel.className = 'construction-progress-panel';
+      panel.setAttribute('role', 'status');
+      panel.setAttribute('aria-live', 'off');
+      (document.getElementById('game-shell') ?? document.body).appendChild(panel);
+    }
+    const sites = this.constructionProjects.entries();
+    panel.hidden = sites.length === 0;
+    if (!sites.length) return;
+    const active = sites[0];
+    const percent = Math.round(this.constructionProjects.progress(active.key) * 100);
+    const workers = this.workers.filter((worker) => worker.projectKey === active.key).length;
+    panel.textContent =
+      `${t('Construction sites')}: ${sites.length} · ${t(active.kind)} ${percent}% · ${t('Workers')}: ${workers}`;
   }
 
   private moveWorker(
@@ -12352,6 +12591,7 @@ export class ThreeGame {
         return;
       }
 
+      this.constructionProjects.relocate(`keep:${updated.id}`, `keep:${updated.id}`, point.x, point.y);
       this.relocationState = null;
       this.relocationHover = null;
       this.selectKeep(updated);
@@ -12369,6 +12609,10 @@ export class ThreeGame {
 
     this.services.state.removeCell(origin.x, origin.y);
     this.services.state.setCell(point.x, point.y, kind, level ?? 1, options);
+    this.constructionProjects.relocate(
+      `cell:${origin.x},${origin.y}`,
+      `cell:${point.x},${point.y}`, point.x, point.y,
+    );
     this.relocationState = null;
     this.relocationHover = null;
     this.selectedCell = { ...point };
@@ -13049,6 +13293,7 @@ export class ThreeGame {
       this.recordHistory();
       this.towerBridges.set(bridge.id, { ...bridge, level: nextLevel });
       this.spendUpgradeCost('towerBridge', nextLevel);
+      this.startConstruction(`bridge:${bridge.id}`, 1100);
       this.redraw();
       this.scheduleSave();
       audioEvents.emit({ action: 'play_sfx', assetId: 'building.upgrade' });
@@ -13086,6 +13331,7 @@ export class ThreeGame {
       if (updated) {
         this.spendUpgradeCost('keep', nextLevel);
         this.selectKeep(updated);
+        this.startConstruction(`keep:${keep.id}`, 1450);
         this.redraw();
         this.scheduleSave();
         audioEvents.emit({ action: 'play_sfx', assetId: 'building.upgrade' });
@@ -13128,6 +13374,7 @@ export class ThreeGame {
       this.services.state.setLevel(this.selectedCell.x, this.selectedCell.y, nextLevel);
     }
     this.spendUpgradeCost(kind, nextLevel);
+    this.startConstruction(`cell:${this.selectedCell.x},${this.selectedCell.y}`, 1050);
     this.redraw();
     this.scheduleSave();
     audioEvents.emit({ action: 'play_sfx', assetId: 'building.upgrade' });
@@ -13238,8 +13485,8 @@ export class ThreeGame {
     this.recordHistory();
     this.services.state.setLevel(point.x, point.y, nextLevel);
     this.spendUpgradeCost('mosque', nextLevel);
-    this.redraw();
     this.startConstruction(`cell:${point.x},${point.y}`, 1050);
+    this.redraw();
     this.scheduleSave();
     audioEvents.emit({ action: 'play_sfx', assetId: 'building.upgrade' });
     this.setStatus(`Mosque upgraded to Level ${nextLevel} · ${this.mosqueLevelDefinition(nextLevel).name}`);
@@ -13314,8 +13561,8 @@ export class ThreeGame {
     if (!this.ensureUpgradeAffordable('carpenter', nextLevel)) return;
     this.recordHistory();
     this.services.state.setLevel(this.selectedCell.x, this.selectedCell.y, nextLevel);
-    this.services.populationSystem.reconcile(this.services.state.entries());
     this.spendUpgradeCost('carpenter', nextLevel);
+    this.startConstruction(`cell:${this.selectedCell.x},${this.selectedCell.y}`, 950);
     this.redraw();
     this.syncEconomyUI();
     this.updatePopulationUI();
@@ -13403,6 +13650,7 @@ export class ThreeGame {
       shipKind: this.maritimeSystem.defaultShipForLevel(nextLevel),
     });
     this.spendUpgradeCost('harbor', nextLevel);
+    this.startConstruction(`cell:${this.selectedCell.x},${this.selectedCell.y}`, 1150);
     this.redraw();
     this.scheduleSave();
     audioEvents.emit({ action: 'play_sfx', assetId: 'building.upgrade' });
@@ -13494,8 +13742,8 @@ export class ThreeGame {
       level: nextLevel,
     });
     this.spendUpgradeCost('cottage', nextLevel);
-    this.redraw();
     this.startConstruction(`cell:${point.x},${point.y}`, 950);
+    this.redraw();
     this.scheduleSave();
     audioEvents.emit({ action: 'play_sfx', assetId: 'building.upgrade' });
     this.setStatus(
@@ -13583,6 +13831,7 @@ export class ThreeGame {
     this.recordHistory();
     this.services.state.setLevel(this.selectedCell.x, this.selectedCell.y, nextLevel);
     this.spendUpgradeCost(kind, nextLevel);
+    this.startConstruction(`cell:${this.selectedCell.x},${this.selectedCell.y}`, 1050);
     this.redraw();
     this.scheduleSave();
     audioEvents.emit({ action: 'play_sfx', assetId: 'building.upgrade' });
@@ -13669,11 +13918,8 @@ export class ThreeGame {
     if (!this.ensureUpgradeAffordable('armyCamp', nextLevel)) return;
     this.recordHistory();
     this.services.state.setLevel(this.selectedCell.x, this.selectedCell.y, nextLevel);
-    if (nextLevel > this.militaryTier) {
-      this.militaryTier = normalizeMilitaryTier(nextLevel);
-      this.syncMilitaryUI();
-    }
     this.spendUpgradeCost('armyCamp', nextLevel);
+    this.startConstruction(`cell:${this.selectedCell.x},${this.selectedCell.y}`, 1150);
     this.redraw();
     this.scheduleSave();
     audioEvents.emit({ action: 'play_sfx', assetId: 'building.upgrade' });
@@ -13706,6 +13952,8 @@ export class ThreeGame {
     this.terrainOverrides.clear();
     this.elevationOverrides.clear();
     this.moatTasks.clear();
+    this.constructionProjects.clear();
+    this.constructionAnimation.clear();
     this.services.economySystem.reset();
     this.services.populationSystem.setState();
     this.missionSystem.reset();
@@ -15517,6 +15765,8 @@ export class ThreeGame {
     this.terrainOverrides.clear();
     this.elevationOverrides.clear();
     this.moatTasks.clear();
+    this.constructionProjects.clear();
+    this.constructionAnimation.clear();
     this.services.economySystem.reset();
     this.services.populationSystem.setState();
     this.missionSystem.reset();
@@ -15693,6 +15943,10 @@ export class ThreeGame {
   }
 
   private startBattleFromUI(): void {
+    if (this.constructionProjects.count > 0 && !this.battleSystem.isActive()) {
+      this.setStatus('Finish active construction sites before starting a battle');
+      return;
+    }
     if (this.endlessDefenseActive) {
       if (this.endlessDefensePaused) {
         this.endlessDefensePaused = false;
@@ -15751,6 +16005,10 @@ export class ThreeGame {
   }
 
   private startEndlessDefenseFromUI(): void {
+    if (this.constructionProjects.count > 0) {
+      this.setStatus('Finish active construction sites before starting a battle');
+      return;
+    }
     if (this.battleSystem.isActive() && this.battleSystem.status().mode !== 'finished') {
       this.setStatus('Reset the current battle before starting Endless Defense');
       return;

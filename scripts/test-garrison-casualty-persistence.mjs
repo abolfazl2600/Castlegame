@@ -33,7 +33,8 @@ assert.equal(legacy.recruitForNewCampCapacity([camp]), 4,
   'Legacy saves with an existing roster must not accidentally refill on load');
 
 const game = await readFile(new URL('../src/ThreeGame.ts', import.meta.url), 'utf8');
-assert.match(game, /recruitForNewCampCapacity\(cells\)/);
+assert.match(game, /recruitForNewCampCapacity\(readyCells\)/);
+assert.match(game, /const readyCells = this.operationalCells\(cells\)/);
 assert.doesNotMatch(game, /setProfessionalArmyCount\(capacity, cells\)/);
 
 console.log('Garrison capacity growth, casualties, and save/load contracts passed.');

@@ -203,5 +203,8 @@ export const RUNTIME_TRANSLATIONS: Readonly<Record<string, string>> = {
   "Harbor requires a clear coastal tile next to ocean water": "بندر به یک خانه ساحلی خالی کنار آب دریا نیاز دارد",
   "Mine must remain on mountain terrain": "معدن باید روی زمین کوهستانی باقی بماند",
   "Destination terrain is not valid for this building": "نوع زمین مقصد برای این ساختمان معتبر نیست",
-  "Demolish selected building? This action can be undone.": "ساختمان انتخاب‌شده تخریب شود؟ این کار قابل بازگردانی است"
+  "Demolish selected building? This action can be undone.": "ساختمان انتخاب‌شده تخریب شود؟ این کار قابل بازگردانی است",
+  "Finish the active construction project before upgrading again": "برای ارتقای دوباره، ابتدا پروژه ساخت فعال را کامل کنید",
+  "Construction sites": "کارگاه‌های ساخت",
+  "Finish active construction sites before starting a battle": "پیش از شروع نبرد، کارگاه‌های ساخت فعال را کامل کنید"
 };
