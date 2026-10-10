@@ -11445,7 +11445,15 @@ export class ThreeGame {
           worker.projectKey = undefined;
           continue;
         }
-        const target = this.gridToWorld(project.x, project.y);
+        // Navigate to an accessible work position rather than the occupied
+        // building center: otherwise the path solver can repeatedly chase a
+        // blocked goal and the project never receives work.
+        const start = this.worldToGrid(worker.view.position.x, worker.view.position.z);
+        const requested = project.key.startsWith('keep:')
+          ? { x: project.x - 1, y: project.y - 1 }
+          : { x: project.x, y: project.y };
+        const workGrid = this.resolveSettlementDestination(requested, start);
+        const target = this.gridToWorld(workGrid.x, workGrid.y);
         const arrived = this.moveWorker(worker, target.x, target.z, deltaMs, 5.2);
         if (!arrived) continue;
         worker.view.rotation.y += Math.sin(performance.now() * 0.013 + worker.id) * 0.012;
