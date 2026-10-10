@@ -58,6 +58,7 @@ globalThis.window = {
 };
 globalThis.document = {
   hidden: false,
+  documentElement: { dataset: {} },
   addEventListener() {}, removeEventListener() {},
 };
 
