@@ -24,6 +24,25 @@ export function getStructureFootprint(
 }
 
 /**
+ * Test whether a non-anchor tile is reserved by any multi-cell structure.
+ * The ignored anchor permits a structure to move across its previous area
+ * while continuing to reject all other structures' footprints.
+ */
+export function isMultiCellFootprintReserved<T extends { kind: TileKind; x: number; y: number }>(
+  anchors: readonly T[],
+  x: number,
+  y: number,
+  ignoreAnchor?: StructureFootprintCell,
+): boolean {
+  return anchors.some((anchor) => {
+    if (anchor.x === ignoreAnchor?.x && anchor.y === ignoreAnchor.y) return false;
+    const footprint = getStructureFootprint(anchor.kind, anchor.x, anchor.y);
+    return footprint.length > 1 &&
+      footprint.some((point) => point.x === x && point.y === y);
+  });
+}
+
+/**
  * Resolve the authoritative structure anchor from an inspected grid point.
  * Prefer a direct anchor in older authored/saved worlds that already contain
  * overlaps, so adding footprint enforcement never deletes or hides those cells.
