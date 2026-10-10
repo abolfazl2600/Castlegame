@@ -2206,7 +2206,6 @@ export class ThreeGame {
     this.services.populationSystem.setMilitiaComposition({
       swordsman: 0, archer: 0, spearman: 0, crossbowman: 0,
     });
-    const capacity = this.services.populationSystem.professionalArmyCapacity(cells);
     this.services.populationSystem.recruitForNewCampCapacity(cells);
     const garrison = this.services.populationSystem.professionalArmyComposition();
     const next: BattleSetup = {
