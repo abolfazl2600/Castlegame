@@ -2181,12 +2181,12 @@ export class ThreeGame {
         new THREE.MeshStandardMaterial({ color: 0x78583d, roughness: 0.95 }),
       );
       handle.position.y = -0.15;
-      const head = new THREE.Mesh(
+      const hammerHead = new THREE.Mesh(
         new THREE.BoxGeometry(0.46, 0.13, 0.18),
         new THREE.MeshStandardMaterial({ color: 0x777f80, metalness: 0.42, roughness: 0.62 }),
       );
-      head.position.y = 0.18;
-      toolPivot.add(handle, head);
+      hammerHead.position.y = 0.18;
+      toolPivot.add(handle, hammerHead);
       toolPivot.visible = false;
       view.add(toolPivot);
       view.userData.constructionTool = toolPivot;
