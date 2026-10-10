@@ -8830,6 +8830,13 @@ export class ThreeGame {
     if (new URLSearchParams(window.location.search).has('touchQA')) {
       // Read-only, opt-in diagnostics for CDP touch tests; normal release bounds
       // remain enabled (unlike visualBaseline's fixed-camera benchmark mode).
+      // Read-only hit testing is gated behind touchQA and lets mobile tests
+      // choose real diggable land instead of brittle hard-coded screen pixels.
+      (window as unknown as { __castleMoatProbe: (x: number, y: number) => object | null }).__castleMoatProbe =
+        (x, y) => {
+          const cell = this.pickGridCell({ clientX: x, clientY: y } as PointerEvent);
+          return cell ? { ...cell, status: this.moatSegmentStatusAt(cell) } : null;
+        };
       (window as unknown as { __castleTouchQA: () => object }).__castleTouchQA = () => ({
         camera: this.camera.position.toArray(), target: this.controls.target.toArray(),
         distance: this.camera.position.distanceTo(this.controls.target),
