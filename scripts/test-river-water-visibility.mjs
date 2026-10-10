@@ -43,7 +43,7 @@ assert.match(
 
 const terrainRender = between(
   threeGame,
-  'private renderTerrain(): void {',
+  'private renderTerrain(',
   'private renderGroundVariation(',
 );
 assert.match(
@@ -139,12 +139,12 @@ assert.match(
 
 const redraw = between(
   threeGame,
-  'private redraw(): void {',
+  'private redraw(',
   '/** Replace only wall meshes',
 );
 assert.match(
   redraw,
-  /this\.rebuildWorldLayoutSurface\(\);[\s\S]*?this\.renderTerrain\(\);/,
+  /this\.rebuildWorldLayoutSurface\(\);[\s\S]*?this\.renderTerrain\(terrainChangedCells\);/,
   'Redraw must synchronize the world layout surface before rendering river tiles.',
 );
 
