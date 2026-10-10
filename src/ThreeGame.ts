@@ -11439,6 +11439,7 @@ export class ThreeGame {
         this.scheduleSave();
         this.setStatus('Moat excavation completed');
       }
+    }
     if (completedProjects.length) {
       this.redraw();
       this.scheduleSave();
