@@ -2172,6 +2172,25 @@ export class ThreeGame {
       hat.castShadow = true;
       view.add(hat);
 
+      // A light hand-tool silhouette becomes visible only during actual
+      // on-site construction, rather than looping while the worker travels.
+      const toolPivot = new THREE.Group();
+      toolPivot.position.set(0.34, 3.01, 0.14);
+      const handle = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.045, 0.045, 0.62, 6),
+        new THREE.MeshStandardMaterial({ color: 0x78583d, roughness: 0.95 }),
+      );
+      handle.position.y = -0.15;
+      const head = new THREE.Mesh(
+        new THREE.BoxGeometry(0.46, 0.13, 0.18),
+        new THREE.MeshStandardMaterial({ color: 0x777f80, metalness: 0.42, roughness: 0.62 }),
+      );
+      head.position.y = 0.18;
+      toolPivot.add(handle, head);
+      toolPivot.visible = false;
+      view.add(toolPivot);
+      view.userData.constructionTool = toolPivot;
+
       const homeX = -4 + i * 2.1;
       const homeZ = 5.5;
       view.position.set(homeX, 0, homeZ);
@@ -11414,6 +11433,8 @@ export class ThreeGame {
   private updateWorkers(deltaMs: number): void {
     const completedProjects: string[] = [];
     for (const worker of this.workers) {
+      const tool = worker.view.userData.constructionTool as THREE.Group | undefined;
+      if (tool) tool.visible = false;
       if (worker.projectKey && !this.constructionProjects.has(worker.projectKey)) {
         worker.projectKey = undefined;
       }
@@ -11457,6 +11478,10 @@ export class ThreeGame {
         const arrived = this.moveWorker(worker, target.x, target.z, deltaMs, 5.2);
         if (!arrived) continue;
         worker.view.rotation.y += Math.sin(performance.now() * 0.013 + worker.id) * 0.012;
+        if (tool) {
+          tool.visible = true;
+          tool.rotation.z = -0.45 + Math.sin(performance.now() * 0.012 + worker.id) * 0.55;
+        }
         const finished = this.constructionProjects.work(project.key, deltaMs);
         if (finished) {
           completedProjects.push(project.key);
