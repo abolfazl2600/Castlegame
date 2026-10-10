@@ -492,6 +492,7 @@ export class ThreeGame {
   private readonly constructionAnimation = new ConstructionAnimationSystem();
   private readonly constructionProjects = new ConstructionProjectSystem();
   private constructionCheckpointMs = 0;
+  private constructionHudMs = 0;
   private readonly ambientFauna = new AmbientFaunaSystem();
   private readonly ambientShip = new AmbientShipSystem({
     cols: () => this.worldCols,
@@ -1715,6 +1716,7 @@ export class ThreeGame {
     this.moatTasks.clear();
     this.constructionProjects.clear();
     this.constructionAnimation.clear();
+    document.getElementById('construction-progress-panel')?.setAttribute('hidden', '');
     this.clearGroup(this.workerLayer);
     this.workers.length = 0;
     this.clearSettlementAgents();
@@ -2354,6 +2356,17 @@ export class ThreeGame {
     this.services.windmillSystem.clear();
     this.buildObjectsByCell.clear();
     this.constructionObjects.clear();
+    // Prune demolished/replaced construction sites before calculating operational
+    // population, recruitment or production in this redraw.
+    this.constructionProjects.reconcile((project) => {
+      if (project.key.startsWith('cell:')) {
+        const cell = this.services.state.getCell(project.x, project.y);
+        return Boolean(cell && cell.kind === project.kind);
+      }
+      return project.key.startsWith('keep:')
+        ? Boolean(this.services.keepSystem.get(Number(project.key.slice(5))))
+        : this.towerBridges.has(Number(project.key.slice(7)));
+    });
     // Terrain overrides can turn land into river (or water into land). Keep the
     // instanced world surface synchronized before drawing terrain details.
     this.rebuildWorldLayoutSurface();
@@ -2461,6 +2474,7 @@ export class ThreeGame {
     this.distanceDetailBudget.invalidate();
     this.constructionAnimation.rebind((key) => this.constructionObjects.get(key));
     this.syncConstructionVisuals();
+    this.renderConstructionProgress();
     if (this.visualBenchmark) this.lastRedrawMs = performance.now() - redrawStart;
   }
 
@@ -11488,6 +11502,11 @@ export class ThreeGame {
         this.setStatus(`Construction completed · ${key}`);
       }
     }
+    this.constructionHudMs += deltaMs;
+    if (this.constructionHudMs >= 500 || completedProjects.length) {
+      this.constructionHudMs = 0;
+      this.renderConstructionProgress();
+    }
     if (this.constructionProjects.count > 0) {
       this.constructionCheckpointMs += deltaMs;
       if (this.constructionCheckpointMs >= 15000) {
@@ -11497,6 +11516,26 @@ export class ThreeGame {
     } else {
       this.constructionCheckpointMs = 0;
     }
+  }
+
+  private renderConstructionProgress(): void {
+    let panel = document.getElementById('construction-progress-panel');
+    if (!panel) {
+      panel = document.createElement('aside');
+      panel.id = 'construction-progress-panel';
+      panel.className = 'construction-progress-panel';
+      panel.setAttribute('role', 'status');
+      panel.setAttribute('aria-live', 'off');
+      (document.getElementById('game-shell') ?? document.body).appendChild(panel);
+    }
+    const sites = this.constructionProjects.entries();
+    panel.hidden = sites.length === 0;
+    if (!sites.length) return;
+    const active = sites[0];
+    const percent = Math.round(this.constructionProjects.progress(active.key) * 100);
+    const workers = this.workers.filter((worker) => worker.projectKey === active.key).length;
+    panel.textContent =
+      `${t('Construction sites')}: ${sites.length} · ${t(active.kind)} ${percent}% · ${t('Workers')}: ${workers}`;
   }
 
   private moveWorker(
