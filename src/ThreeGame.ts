@@ -68,7 +68,7 @@ import { GAME_DEFINITION, isBuildingAvailable, isToolAvailable } from './core/Ga
 import type { SettingsStore } from './settings/SettingsStore';
 import { resolveLocale, t } from './i18n/localization';
 import { applyGraphicsSettings, applyInputSettings, applySceneGraphicsSettings } from './settings/SettingsSubsystems';
-import { findStructureAnchorAt, getStructureFootprint } from './building/StructureFootprints';
+import { findStructureAnchorAt, getStructureFootprint, isMultiCellFootprintReserved } from './building/StructureFootprints';
 import { SelectionVisual } from './selection/SelectionVisual';
 import { MAP_LAYOUTS, himejiLandBounds, normalizeMapLayoutId, terrainForMapLayout } from './world/MapLayouts';
 import {
@@ -2092,15 +2092,7 @@ export class ThreeGame {
    */
   private isStructureFootprintReserved(x: number, y: number, ignoreAnchor?: GridPoint): boolean {
     if (this.moatTasks.has(this.key(x, y))) return true;
-    for (const anchor of this.services.state.entries()) {
-      // A moving Market is permitted to reuse any part of its old footprint;
-      // other structures (including overlapping legacy anchors) still block it.
-      if (ignoreAnchor?.x === anchor.x && ignoreAnchor.y === anchor.y) continue;
-      const footprint = getStructureFootprint(anchor.kind, anchor.x, anchor.y);
-      if (footprint.length <= 1) continue;
-      if (footprint.some((cell) => cell.x === x && cell.y === y)) return true;
-    }
-    return false;
+    return isMultiCellFootprintReserved(this.services.state.entries(), x, y, ignoreAnchor);
   }
 
   private canEditTerrainAt(x: number, y: number): boolean {
