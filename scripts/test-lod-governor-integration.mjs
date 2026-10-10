@@ -32,6 +32,9 @@ try {
   rmSync(tempDir, { recursive: true, force: true });
 }
 
+// The governor reads browser DPR, but this integration test runs in Node.
+globalThis.window = { devicePixelRatio: 1 };
+
 const scene = new THREE.Scene();
 const material = new THREE.MeshStandardMaterial({ color: 0x888888 });
 const geometry = new THREE.BoxGeometry(4, 4, 4);
