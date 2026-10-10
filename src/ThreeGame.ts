@@ -27,6 +27,7 @@ import { CASTLE_ARCHITECTURE_STYLE } from './rendering/CastleArchitectureStyle';
 import { WORLD_STYLE } from './rendering/WorldStyle';
 import { AmbientMotionSystem } from './rendering/AmbientMotionSystem';
 import { EnvironmentSystem } from './systems/EnvironmentSystem';
+import { SeasonalMaterialTint } from './rendering/SeasonalMaterialTint';
 import { DistanceDetailBudgetSystem } from './rendering/DistanceDetailBudget';
 import { graphicsQualityPreset } from './rendering/GraphicsQualityPreset';
 import { AdaptiveRenderProfile } from './rendering/AdaptiveRenderProfile';
@@ -534,6 +535,7 @@ export class ThreeGame {
   private readonly godModeActions = new GodModeActionRegistry();
   private readonly overlayMaterials = new Map<string, THREE.MeshBasicMaterial>();
   private readonly environmentMaterials = new Map<string, THREE.MeshStandardMaterial>();
+  private readonly seasonalMaterialTint = new SeasonalMaterialTint();
   private readonly roadSurfaceTextures = new Map<RoadKind, THREE.CanvasTexture>();
   private readonly visualBenchmark = new URLSearchParams(window.location.search).has('visualBaseline');
   private lastRedrawMs = 0;
@@ -2629,6 +2631,7 @@ export class ThreeGame {
       flatShading: key.includes('rock'),
     });
     this.environmentMaterials.set(key, material);
+    this.seasonalMaterialTint.register(material, color);
     return material;
   }
 
@@ -2711,10 +2714,6 @@ export class ThreeGame {
     return texture;
   }
 
-  private seasonalColor(base: number, seasonal: number, strength: number): number {
-    return new THREE.Color(base).lerp(new THREE.Color(seasonal), THREE.MathUtils.clamp(strength, 0, 1)).getHex();
-  }
-
   private applyEnvironmentVisuals(force = false): void {
     const state = this.environmentSystem.visualState();
     const blend = force ? 1 : 0.08;
@@ -2760,8 +2759,9 @@ export class ThreeGame {
     for (const [key, target, strength] of seasonalKeys) {
       const material = this.environmentMaterials.get(key);
       if (!material) continue;
-      const current = material.color.getHex();
-      material.color.setHex(this.seasonalColor(current, target, force ? strength : strength * 0.08));
+      // The seasonal goal is always derived from the original material color.
+      // Only the visual transition (not tint strength) depends on current color.
+      this.seasonalMaterialTint.apply(material, target, strength, blend);
     }
   }
 
