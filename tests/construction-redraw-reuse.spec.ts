@@ -72,6 +72,7 @@ async function snap(page: Page) {
       ids: Object.fromEntries(qa.buildObjectIds as Array<[string, string]>) as Record<string,string>,
       cells: qa.cells as Array<{ x: number; y: number; kind: string; level: number }>,
       stats: qa.constructionRedraw as { reusedBuildings: number; rebuiltBuildings: number },
+      terrainScannedTiles: qa.terrainScanTiles as number,
       redrawMs: visual.lastRedrawMs as number,
       gpuGeometries: visual.gpuGeometries as number,
       sceneGeometries: visual.sceneGeometries as number,
@@ -101,6 +102,7 @@ test('road placement reuses unrelated meshes and rebuilds only road connection n
   const after = await snap(page);
   console.log(JSON.stringify({phase:'road-diagnostics',stats:after.stats}));
   expect(after.cells.some(c=>c.x===gap.x && c.y===gap.y && c.kind==='stoneRoad')).toBeTruthy();
+  expect(after.terrainScannedTiles).toBeLessThanOrEqual(5);
   expect(after.stats.reusedBuildings).toBeGreaterThan(110);
   expect(after.stats.rebuiltBuildings).toBeLessThan(12);
   expect(id(after,distantRoad)).toBe(id(before,distantRoad));
@@ -114,9 +116,11 @@ test('road placement reuses unrelated meshes and rebuilds only road connection n
   await page.evaluate(()=>(window as any).__castleVisualRebuildConstruction(false));
   const full = await snap(page);
   expect(full.stats.reusedBuildings).toBe(0);
+  expect(full.terrainScannedTiles).toBe(4450);
   expect(id(full,distantRoad)).not.toBe(id(after,distantRoad));
   await page.evaluate(()=>(window as any).__castleVisualRebuildConstruction(true));
   const reused = await snap(page);
+  expect(reused.terrainScannedTiles).toBe(0);
   expect(reused.stats.reusedBuildings).toBeGreaterThan(110);
   expect(reused.stats.rebuiltBuildings).toBeLessThan(10);
   expect(id(reused,distantRoad)).toBe(id(full,distantRoad));
@@ -128,6 +132,7 @@ test('road placement reuses unrelated meshes and rebuilds only road connection n
     reusedRedrawMs:reused.redrawMs, reusedBuildings:reused.stats.reusedBuildings,
     rebuiltBuildings:reused.stats.rebuiltBuildings,
     sceneGeometries:reused.sceneGeometries,
+    fullTerrainScan:full.terrainScannedTiles, reusedTerrainScan:reused.terrainScannedTiles,
   }));
 });
 
@@ -143,6 +148,7 @@ test('fortification upgrade and cottage relocation preserve unrelated road meshe
   console.log(JSON.stringify({phase:'tower-diagnostics',stats:upgraded.stats}));
   expect(upgraded.cells.find(c=>c.x===upgradeTower.x && c.y===upgradeTower.y)?.level).toBe(2);
   expect(id(upgraded,distantRoad)).toBe(id(before,distantRoad));
+  expect(upgraded.terrainScannedTiles).toBeLessThanOrEqual(5);
   expect(upgraded.stats.reusedBuildings).toBeGreaterThan(100);
   console.log(JSON.stringify({phase:'tower-upgrade',reused:upgraded.stats.reusedBuildings,
     rebuilt:upgraded.stats.rebuiltBuildings,redrawMs:upgraded.redrawMs}));
@@ -154,6 +160,7 @@ test('fortification upgrade and cottage relocation preserve unrelated road meshe
   expect(moved.cells.some(c=>c.x===moveTarget.x && c.y===moveTarget.y && c.kind==='cottage')).toBeTruthy();
   expect(moved.cells.some(c=>c.x===movedCottage.x && c.y===movedCottage.y)).toBeFalsy();
   expect(id(moved,distantRoad)).toBe(id(upgraded,distantRoad));
+  expect(moved.terrainScannedTiles).toBeLessThanOrEqual(10);
   expect(moved.stats.reusedBuildings).toBeGreaterThan(100);
   await page.keyboard.press('Control+z');
   const undone=await snap(page);
