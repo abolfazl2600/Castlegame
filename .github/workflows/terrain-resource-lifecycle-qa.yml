@@ -1,0 +1,53 @@
+name: Terrain GPU Resource Lifecycle QA
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/terrain-resource-lifecycle-qa.yml'
+      - 'src/rendering/TerrainChunkRenderer.ts'
+      - 'src/ThreeGame.ts'
+      - 'scripts/test-terrain-resource-lifecycle.mjs'
+      - 'package.json'
+      - 'package-lock.json'
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/terrain-resource-lifecycle-qa.yml'
+      - 'src/rendering/TerrainChunkRenderer.ts'
+      - 'src/ThreeGame.ts'
+      - 'scripts/test-terrain-resource-lifecycle.mjs'
+      - 'package.json'
+      - 'package-lock.json'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: terrain-resource-lifecycle-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  terrain-lifecycle:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - name: Install locked dependencies
+        run: npm ci --no-audit --no-fund
+      - name: Verify terrain instance resource release through repeated map rebuilds
+        run: npm run test:terrain-resource-lifecycle
+      - name: Verify renderer and LOD integration contracts
+        run: |
+          npm run test:3d-only-renderer
+          npm run test:distance-detail-budget
+          npm run test:mobile-render-performance
+          npm run test:quality-preset-coverage
+      - name: Type-check source
+        run: npx tsc --noEmit
+      - name: Build application
+        run: npx vite build
