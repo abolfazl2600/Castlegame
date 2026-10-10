@@ -27,6 +27,7 @@ import { CASTLE_ARCHITECTURE_STYLE } from './rendering/CastleArchitectureStyle';
 import { WORLD_STYLE } from './rendering/WorldStyle';
 import { AmbientMotionSystem } from './rendering/AmbientMotionSystem';
 import { EnvironmentSystem } from './systems/EnvironmentSystem';
+import { ConstructionProjectSystem, type ConstructionProject } from './systems/ConstructionProjectSystem';
 import { SeasonalMaterialTint } from './rendering/SeasonalMaterialTint';
 import { DistanceDetailBudgetSystem } from './rendering/DistanceDetailBudget';
 import { graphicsQualityPreset } from './rendering/GraphicsQualityPreset';
@@ -273,7 +274,7 @@ const BUILDING_KINDS: TileKind[] = [
 const CONSTRUCTION_VISUAL_KINDS = new Set<TileKind>([
   'wall1', 'wall2', 'wall3', 'gate', 'tower', 'cottage', 'house', 'manor', 'villa',
   'hut', 'farm', 'cowBarn', 'market', 'windmill', 'mine', 'carpenter',
-  'armyCamp', 'harbor', 'basilica', 'mosque',
+  'armyCamp', 'harbor', 'basilica', 'mosque', 'road', 'dirtRoad', 'stoneRoad',
 ]);
 
 const MOVABLE_BUILDING_KINDS = new Set<TileKind>([
@@ -322,6 +323,7 @@ interface WorkerAgent {
   id: number;
   view: THREE.Group;
   taskKey?: string;
+  projectKey?: string;
   homeX: number;
   homeZ: number;
   path: GridPoint[];
@@ -368,6 +370,7 @@ interface HistorySnapshot {
   militaryTier: MilitaryTier;
   economy: EconomyResourceState;
   population: PopulationSimulationState;
+  constructionProjects: ConstructionProject[];
 }
 
 const TOOL_GROUPS: Array<{ label: string; tools: ToolDefinition[] }> = [
@@ -487,6 +490,8 @@ export class ThreeGame {
   private missionRefreshAccumulatorMs = 0;
   private readonly castleBlockSystem = new CastleBlockSystem();
   private readonly constructionAnimation = new ConstructionAnimationSystem();
+  private readonly constructionProjects = new ConstructionProjectSystem();
+  private constructionCheckpointMs = 0;
   private readonly ambientFauna = new AmbientFaunaSystem();
   private readonly ambientShip = new AmbientShipSystem({
     cols: () => this.worldCols,
@@ -691,6 +696,8 @@ export class ThreeGame {
       getEnvironmentState: () => this.environmentSystem.getState(),
       setEnvironmentState: (value) => { this.environmentSystem.setState(value); },
       getMissionState: () => this.missionSystem.getState(),
+      getConstructionProjects: () => this.constructionProjects.snapshot(),
+      setConstructionProjects: (value) => { this.constructionProjects.restore(value); },
       setMissionState: (value) => { this.missionSystem.setState(value); },
       setWorldSeeded: (value) => { this.worldSeeded = value; },
       setLoadedSaveVersion: (value) => { this.loadedSaveVersion = value; },
@@ -1696,6 +1703,8 @@ export class ThreeGame {
     this.terrainOverrides.clear();
     this.elevationOverrides.clear();
     this.moatTasks.clear();
+    this.constructionProjects.clear();
+    this.constructionAnimation.clear();
     this.clearGroup(this.workerLayer);
     this.workers.length = 0;
     this.clearSettlementAgents();
@@ -2440,6 +2449,7 @@ export class ThreeGame {
     });
     this.distanceDetailBudget.invalidate();
     this.constructionAnimation.rebind((key) => this.constructionObjects.get(key));
+    this.syncConstructionVisuals();
     if (this.visualBenchmark) this.lastRedrawMs = performance.now() - redrawStart;
   }
 
@@ -2504,6 +2514,7 @@ export class ThreeGame {
     this.renderMinimap();
     this.distanceDetailBudget.invalidate();
     this.constructionAnimation.rebind((key) => this.constructionObjects.get(key));
+    this.syncConstructionVisuals();
     this.rebuildAmbientFauna();
   }
 
@@ -8380,6 +8391,7 @@ export class ThreeGame {
       militaryTier: this.militaryTier,
       economy: this.services.economySystem.getState(),
       population: this.services.populationSystem.getState(),
+      constructionProjects: this.constructionProjects.snapshot(),
     };
   }
 
@@ -8427,6 +8439,8 @@ export class ThreeGame {
     this.militaryTier = normalizeMilitaryTier(snapshot.militaryTier);
     this.services.economySystem.setState(snapshot.economy);
     this.services.populationSystem.setState(snapshot.population);
+    this.constructionProjects.restore(snapshot.constructionProjects);
+    for (const worker of this.workers) worker.projectKey = undefined;
     this.populationBattleCommitted = false;
     this.populationBattleStart = null;
     this.syncMilitaryUI();
@@ -13706,6 +13720,8 @@ export class ThreeGame {
     this.terrainOverrides.clear();
     this.elevationOverrides.clear();
     this.moatTasks.clear();
+    this.constructionProjects.clear();
+    this.constructionAnimation.clear();
     this.services.economySystem.reset();
     this.services.populationSystem.setState();
     this.missionSystem.reset();
@@ -15517,6 +15533,8 @@ export class ThreeGame {
     this.terrainOverrides.clear();
     this.elevationOverrides.clear();
     this.moatTasks.clear();
+    this.constructionProjects.clear();
+    this.constructionAnimation.clear();
     this.services.economySystem.reset();
     this.services.populationSystem.setState();
     this.missionSystem.reset();
