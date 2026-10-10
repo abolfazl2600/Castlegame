@@ -9431,6 +9431,13 @@ export class ThreeGame {
     if (changed > 0) {
       this.pushUndoSnapshot(before);
       if (costedTiles > 0) this.spendConstructionCost(roadKind, costedTiles);
+      for (const point of path) {
+        const previous = before.cells.find((cell) => cell.x === point.x && cell.y === point.y);
+        const current = this.services.state.getCell(point.x, point.y);
+        if (current?.kind === roadKind && (!previous || previous.kind !== roadKind)) {
+          this.startConstruction(`cell:${point.x},${point.y}`, 520);
+        }
+      }
       this.redraw();
       this.scheduleSave();
       this.setStatus(`Built ${changed} connected road tiles · preview confirmed`);
@@ -12551,6 +12558,7 @@ export class ThreeGame {
         return;
       }
 
+      this.constructionProjects.relocate(`keep:${updated.id}`, `keep:${updated.id}`, point.x, point.y);
       this.relocationState = null;
       this.relocationHover = null;
       this.selectKeep(updated);
@@ -12568,6 +12576,10 @@ export class ThreeGame {
 
     this.services.state.removeCell(origin.x, origin.y);
     this.services.state.setCell(point.x, point.y, kind, level ?? 1, options);
+    this.constructionProjects.relocate(
+      `cell:${origin.x},${origin.y}`,
+      `cell:${point.x},${point.y}`, point.x, point.y,
+    );
     this.relocationState = null;
     this.relocationHover = null;
     this.selectedCell = { ...point };
