@@ -1,4 +1,5 @@
 import type { GameMode } from './GameMode';
+import type { ConstructionProject } from '../systems/ConstructionProjectSystem';
 
 export type WallKind = 'wall1' | 'wall2' | 'wall3';
 export type RoadKind = 'road' | 'dirtRoad' | 'stoneRoad';
@@ -242,6 +243,8 @@ export interface SavedGame {
   population?: PopulationSimulationState;
   environment?: EnvironmentSimulationState;
   missions?: MissionProgressState;
+  /** Active worker-driven construction; missing in old saves means every structure is finished. */
+  constructionProjects?: ConstructionProject[];
 }
 
 export interface SaveMetadata {
