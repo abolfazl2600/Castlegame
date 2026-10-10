@@ -1138,6 +1138,25 @@ export class ThreeGame {
     this.syncEconomyUI();
   }
 
+  private ensureUpgradeAffordable(tool: ToolKind, nextLevel: number): boolean {
+    if (!this.economyConstructionEnabled()) return true;
+    const cost = this.services.economySystem.upgradeCost(tool, nextLevel);
+    if (this.services.economySystem.canAfford(cost)) return true;
+    const missing = this.services.economySystem.missing(cost);
+    const needs: string[] = [];
+    if ((missing.wood ?? 0) > 0.001) needs.push(`${Math.ceil(missing.wood ?? 0)} wood`);
+    if ((missing.stone ?? 0) > 0.001) needs.push(`${Math.ceil(missing.stone ?? 0)} stone`);
+    this.setStatus(`Not enough resources to upgrade · need ${needs.join(' + ') || 'more materials'}`);
+    return false;
+  }
+
+  private spendUpgradeCost(tool: ToolKind, nextLevel: number): void {
+    if (!this.economyConstructionEnabled()) return;
+    const cost = this.services.economySystem.upgradeCost(tool, nextLevel);
+    this.services.economySystem.spend(cost);
+    this.syncEconomyUI();
+  }
+
   private registerGodModeActions(): void {
     this.godModeActions.register({
       id: 'missileStrike',
@@ -2188,7 +2207,7 @@ export class ThreeGame {
       swordsman: 0, archer: 0, spearman: 0, crossbowman: 0,
     });
     const capacity = this.services.populationSystem.professionalArmyCapacity(cells);
-    this.services.populationSystem.setProfessionalArmyCount(capacity, cells);
+    this.services.populationSystem.recruitForNewCampCapacity(cells);
     const garrison = this.services.populationSystem.professionalArmyComposition();
     const next: BattleSetup = {
       ...this.battleSetup,
@@ -13020,8 +13039,10 @@ export class ThreeGame {
       }
 
       const nextLevel = currentLevel + 1;
+      if (!this.ensureUpgradeAffordable('towerBridge', nextLevel)) return;
       this.recordHistory();
       this.towerBridges.set(bridge.id, { ...bridge, level: nextLevel });
+      this.spendUpgradeCost('towerBridge', nextLevel);
       this.redraw();
       this.scheduleSave();
       audioEvents.emit({ action: 'play_sfx', assetId: 'building.upgrade' });
@@ -13053,9 +13074,11 @@ export class ThreeGame {
         return;
       }
 
+      if (!this.ensureUpgradeAffordable('keep', nextLevel)) return;
       this.recordHistory();
       const updated = this.services.keepSystem.update(keep.id, draft);
       if (updated) {
+        this.spendUpgradeCost('keep', nextLevel);
         this.selectKeep(updated);
         this.redraw();
         this.scheduleSave();
@@ -13086,6 +13109,7 @@ export class ThreeGame {
     }
 
     const nextLevel = currentLevel + 1;
+    if (!this.ensureUpgradeAffordable(kind, nextLevel)) return;
     this.recordHistory();
     if (kind === 'tower') {
       const style = this.towerStyleForLevel(nextLevel, this.selectedCell.x, this.selectedCell.y);
@@ -13097,6 +13121,7 @@ export class ThreeGame {
     } else {
       this.services.state.setLevel(this.selectedCell.x, this.selectedCell.y, nextLevel);
     }
+    this.spendUpgradeCost(kind, nextLevel);
     this.redraw();
     this.scheduleSave();
     audioEvents.emit({ action: 'play_sfx', assetId: 'building.upgrade' });
@@ -13202,8 +13227,10 @@ export class ThreeGame {
     }
 
     const nextLevel = currentLevel + 1;
+    if (!this.ensureUpgradeAffordable('mosque', nextLevel)) return;
     this.recordHistory();
     this.services.state.setLevel(point.x, point.y, nextLevel);
+    this.spendUpgradeCost('mosque', nextLevel);
     this.redraw();
     this.startConstruction(`cell:${point.x},${point.y}`, 1050);
     this.scheduleSave();
@@ -13276,9 +13303,11 @@ export class ThreeGame {
     }
 
     const nextLevel = currentLevel + 1;
+    if (!this.ensureUpgradeAffordable('carpenter', nextLevel)) return;
     this.recordHistory();
     this.services.state.setLevel(this.selectedCell.x, this.selectedCell.y, nextLevel);
     this.services.populationSystem.reconcile(this.services.state.entries());
+    this.spendUpgradeCost('carpenter', nextLevel);
     this.redraw();
     this.syncEconomyUI();
     this.updatePopulationUI();
@@ -13358,11 +13387,13 @@ export class ThreeGame {
     }
 
     const nextLevel = currentLevel + 1;
+    if (!this.ensureUpgradeAffordable('harbor', nextLevel)) return;
     this.recordHistory();
     this.services.state.updateCell(this.selectedCell.x, this.selectedCell.y, {
       level: nextLevel,
       shipKind: this.maritimeSystem.defaultShipForLevel(nextLevel),
     });
+    this.spendUpgradeCost('harbor', nextLevel);
     this.redraw();
     this.scheduleSave();
     audioEvents.emit({ action: 'play_sfx', assetId: 'building.upgrade' });
@@ -13444,6 +13475,7 @@ export class ThreeGame {
     }
 
     const nextLevel = currentLevel + 1;
+    if (!this.ensureUpgradeAffordable('cottage', nextLevel)) return;
     this.recordHistory();
     // Changing the legacy alias to the canonical kind preserves all other cell
     // fields (rotation, damage, ownership-compatible state) while upgrading in place.
@@ -13451,6 +13483,7 @@ export class ThreeGame {
       kind: 'cottage',
       level: nextLevel,
     });
+    this.spendUpgradeCost('cottage', nextLevel);
     this.redraw();
     this.startConstruction(`cell:${point.x},${point.y}`, 950);
     this.scheduleSave();
@@ -13535,8 +13568,10 @@ export class ThreeGame {
     }
 
     const nextLevel = currentLevel + 1;
+    if (!this.ensureUpgradeAffordable(kind, nextLevel)) return;
     this.recordHistory();
     this.services.state.setLevel(this.selectedCell.x, this.selectedCell.y, nextLevel);
+    this.spendUpgradeCost(kind, nextLevel);
     this.redraw();
     this.scheduleSave();
     audioEvents.emit({ action: 'play_sfx', assetId: 'building.upgrade' });
@@ -13619,12 +13654,14 @@ export class ThreeGame {
     }
 
     const nextLevel = currentLevel + 1;
+    if (!this.ensureUpgradeAffordable('armyCamp', nextLevel)) return;
     this.recordHistory();
     this.services.state.setLevel(this.selectedCell.x, this.selectedCell.y, nextLevel);
     if (nextLevel > this.militaryTier) {
       this.militaryTier = normalizeMilitaryTier(nextLevel);
       this.syncMilitaryUI();
     }
+    this.spendUpgradeCost('armyCamp', nextLevel);
     this.redraw();
     this.scheduleSave();
     audioEvents.emit({ action: 'play_sfx', assetId: 'building.upgrade' });
