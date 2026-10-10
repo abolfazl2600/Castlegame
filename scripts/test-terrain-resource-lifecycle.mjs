@@ -86,7 +86,10 @@ for (let iteration = 0; iteration < 30; iteration += 1) {
     assert.equal(chunks.layer.children.length, 0, 'water-only map should have no land draw objects');
     assert.deepEqual(chunks.stats(), { chunks: 0, instances: 0 });
   } else {
-    assert.ok(chunks.layer.children.length <= 13, 'old map meshes must not accumulate');
+    assert.ok(
+      chunks.layer.children.length <= Math.ceil(grid.cols / grid.chunkSize) * Math.ceil(grid.rows / grid.chunkSize) * 3,
+      'old map meshes must not accumulate beyond the per-chunk soil/grass/shore maximum',
+    );
   }
 }
 
