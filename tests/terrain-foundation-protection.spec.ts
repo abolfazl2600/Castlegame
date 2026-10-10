@@ -42,6 +42,13 @@ async function openGame(page: Page) {
   await expect(page.locator('#toolbar [data-build-none]')).toHaveCount(1,{timeout:65000});
   await page.waitForFunction(()=>typeof (window as any).__castleTouchQA==='function'
     && typeof (window as any).__castleVisualGridPoint==='function');
+  // Default brush spans neighboring cells. Use exactly one cell when testing
+  // protection and history; a wider brush is allowed to edit adjacent free land.
+  await page.locator('#brush-size').evaluate(el => {
+    const select = el as HTMLSelectElement;
+    select.value = '1';
+    select.dispatchEvent(new Event('change',{bubbles:true}));
+  });
   await page.evaluate(() => (window as any).__castleVisualCamera({
     x:63,y:83,z:65,targetX:0,targetY:0,targetZ:0,
   }));
