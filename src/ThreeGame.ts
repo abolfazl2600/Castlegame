@@ -525,6 +525,14 @@ export class ThreeGame {
   private readonly worldGridLayer = new THREE.Group();
   private worldLayoutSurfaceSignature = '';
   private readonly terrainLayer = new THREE.Group();
+  // Terrain decorations are stable across construction edits except at changed
+  // cells and cliff/river neighbors. Reusing them avoids recreating thousands
+  // of meshes on Royal Valley each time a single building is placed.
+  private readonly terrainDecorationCache = new Map<string, {
+    signature: string;
+    group: THREE.Group | null;
+  }>();
+  private terrainDecorationContext = '';
   private readonly buildLayer = new THREE.Group();
   private readonly selectionVisual = new SelectionVisual(
     TILE,
@@ -2377,7 +2385,7 @@ export class ThreeGame {
     const redrawStart = this.visualBenchmark ? performance.now() : 0;
     this.automaticWallAccessCache = null;
     this.ambientMotion.clearSceneBound();
-    this.clearGroup(this.terrainLayer);
+    // Terrain decoration cache performs per-tile invalidation in renderTerrain().
     this.clearGroup(this.buildLayer);
     this.services.gateSystem.clear();
     this.services.windmillSystem.clear();
@@ -3050,58 +3058,100 @@ export class ThreeGame {
   }
 
   private renderTerrain(): void {
+    const graphics = this.settingsStore.get().graphics;
+    const context = [
+      this.mapLayoutId, this.worldCols, this.worldRows, this.worldSeed,
+      graphics.quality, graphics.environmentDetail, graphics.effectsEnabled,
+    ].join(':');
+    if (context !== this.terrainDecorationContext) {
+      // Grid size/map and render-settings changes invalidate every tile,
+      // including previously empty tiles which had no visible scene child.
+      this.clearGroup(this.terrainLayer);
+      this.terrainDecorationCache.clear();
+      this.terrainDecorationContext = context;
+    }
+
+    let dirty = 0;
     for (let y = 0; y < this.worldRows; y += 1) {
       for (let x = 0; x < this.worldCols; x += 1) {
+        const key = this.key(x, y);
         const terrain = this.terrainAt(x, y);
         const base = this.baseTerrainAt(x, y);
         const elevation = this.terrainElevation(x, y);
-        const edited = this.elevationOverrides.has(this.key(x, y));
+        const edited = this.elevationOverrides.has(key);
+        const occupying = this.services.state.getCell(x, y)?.kind;
+
+        // River banks and elevated/cliff faces inspect the four adjacent
+        // tiles. Including their terrain and elevations ensures neighboring
+        // visuals are refreshed after terrain strokes and undo/load.
+        const neighbors = [
+          [x - 1, y], [x + 1, y], [x, y - 1], [x, y + 1],
+        ].map(([nx, ny]) => (
+          this.isInsideWorld(nx, ny)
+            ? `${this.terrainAt(nx, ny)}:${this.terrainElevation(nx, ny)}`
+            : 'edge'
+        )).join(',');
+        const signature = [
+          terrain, base, elevation, edited, occupying ?? '', neighbors,
+        ].join('|');
+        const cached = this.terrainDecorationCache.get(key);
+        if (cached?.signature === signature) continue;
+
+        dirty += 1;
+        if (cached?.group) {
+          this.terrainLayer.remove(cached.group);
+          this.clearGroup(cached.group);
+        }
         const position = this.gridToWorld(x, y);
         const group = new THREE.Group();
         group.position.set(position.x, 0, position.z);
+        group.userData.terrainTileOrder = y * this.worldCols + x;
 
         if (terrain === 'river') {
-          // River water must remain visible even if stale/legacy state carries
-          // a negative elevation override. Positive authored river elevations
-          // (for example mountain templates) remain untouched.
+          // Keep legacy river elevations out of the submerged ground.
           group.position.y = Math.max(0, elevation);
           this.renderRiverTile(group, x, y);
-          this.terrainLayer.add(group);
-          continue;
+        } else {
+          if (this.terrainOverrides.get(key) === 'plains' && (base === 'water' || base === 'river')) {
+            const soil = this.environmentMaterial('filled-soil', 0x786b50, 1);
+            const grass = this.environmentMaterial('filled-grass', 0x9ebc62, 0.94);
+            this.addBox(group, TILE, 0.5, TILE, soil, 0, 1.87, 0);
+            this.addBox(group, TILE, 0.14, TILE, grass, 0, 2.19, 0);
+          }
+
+          if (terrain === 'shore') this.renderCoastPatch(group, x, y);
+          else if (terrain === 'forest' || terrain === 'plains') this.renderGroundVariation(group, x, y, terrain);
+
+          if (edited && terrain !== 'mountain') {
+            this.renderElevationPatch(group, x, y, elevation);
+          }
+
+          const hidesMountain =
+            occupying !== undefined &&
+            (this.isWallFamily(occupying) || occupying === 'mine' || occupying === 'tower' || occupying === 'gate');
+
+          if (terrain === 'mountain' && !hidesMountain) {
+            const mountainGroup = new THREE.Group();
+            mountainGroup.position.y = elevation;
+            this.addNaturalMountain(mountainGroup, x, y);
+            group.add(mountainGroup);
+          }
+
+          if (!occupying && terrain !== 'water' && terrain !== 'mountain') {
+            this.addEnvironmentalDetail(group, x, y, terrain);
+          }
         }
 
-        if (this.terrainOverrides.get(this.key(x, y)) === 'plains' && (base === 'water' || base === 'river')) {
-          const soil = this.environmentMaterial('filled-soil', 0x786b50, 1);
-          const grass = this.environmentMaterial('filled-grass', 0x9ebc62, 0.94);
-          this.addBox(group, TILE, 0.5, TILE, soil, 0, 1.87, 0);
-          this.addBox(group, TILE, 0.14, TILE, grass, 0, 2.19, 0);
-        }
-
-        if (terrain === 'shore') this.renderCoastPatch(group, x, y);
-        else if (terrain === 'forest' || terrain === 'plains') this.renderGroundVariation(group, x, y, terrain);
-
-        if (edited && terrain !== 'mountain') {
-          this.renderElevationPatch(group, x, y, elevation);
-        }
-
-        const occupying = this.services.state.getCell(x, y)?.kind;
-        const hidesMountain =
-          occupying !== undefined &&
-          (this.isWallFamily(occupying) || occupying === 'mine' || occupying === 'tower' || occupying === 'gate');
-
-        if (terrain === 'mountain' && !hidesMountain) {
-          const mountainGroup = new THREE.Group();
-          mountainGroup.position.y = elevation;
-          this.addNaturalMountain(mountainGroup, x, y);
-          group.add(mountainGroup);
-        }
-
-        if (!occupying && terrain !== 'water' && terrain !== 'mountain') {
-          this.addEnvironmentalDetail(group, x, y, terrain);
-        }
-
-        if (group.children.length > 0) this.terrainLayer.add(group);
+        const active = group.children.length > 0 ? group : null;
+        this.terrainDecorationCache.set(key, { signature, group: active });
+        if (active) this.terrainLayer.add(active);
       }
+    }
+
+    if (dirty > 0) {
+      // Replacements must not reorder coplanar translucent river surfaces.
+      this.terrainLayer.children.sort((a, b) =>
+        Number(a.userData.terrainTileOrder) - Number(b.userData.terrainTileOrder));
     }
   }
 
