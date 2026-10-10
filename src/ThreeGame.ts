@@ -15898,6 +15898,10 @@ export class ThreeGame {
   }
 
   private startBattleFromUI(): void {
+    if (this.constructionProjects.count > 0 && !this.battleSystem.isActive()) {
+      this.setStatus('Finish active construction sites before starting a battle');
+      return;
+    }
     if (this.endlessDefenseActive) {
       if (this.endlessDefensePaused) {
         this.endlessDefensePaused = false;
@@ -15956,6 +15960,10 @@ export class ThreeGame {
   }
 
   private startEndlessDefenseFromUI(): void {
+    if (this.constructionProjects.count > 0) {
+      this.setStatus('Finish active construction sites before starting a battle');
+      return;
+    }
     if (this.battleSystem.isActive() && this.battleSystem.status().mode !== 'finished') {
       this.setStatus('Reset the current battle before starting Endless Defense');
       return;
