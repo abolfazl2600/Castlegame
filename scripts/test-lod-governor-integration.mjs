@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { build } from 'esbuild';
+import { build } from 'vite';
 import * as THREE from 'three';
 
 // Exercise the production TypeScript governor with a real Three.js scene.
@@ -12,13 +12,19 @@ let governor;
 try {
   const outfile = join(tempDir, 'governor.mjs');
   await build({
-    entryPoints: ['src/rendering/DistanceDetailBudget.ts'],
-    outfile,
-    platform: 'node',
-    format: 'esm',
-    bundle: true,
-    packages: 'external',
+    configFile: false,
     logLevel: 'silent',
+    build: {
+      outDir: tempDir,
+      emptyOutDir: false,
+      minify: false,
+      lib: {
+        entry: 'src/rendering/DistanceDetailBudget.ts',
+        formats: ['es'],
+        fileName: () => 'governor.mjs',
+      },
+      rollupOptions: { external: ['three'] },
+    },
   });
   const { DistanceDetailBudgetSystem } = await import(pathToFileURL(outfile).href);
   governor = new DistanceDetailBudgetSystem();
