@@ -11360,13 +11360,56 @@ export class ThreeGame {
   }
 
   private updateWorkers(deltaMs: number): void {
+    const completedProjects: string[] = [];
     for (const worker of this.workers) {
-      if (!worker.taskKey) {
+      if (worker.projectKey && !this.constructionProjects.has(worker.projectKey)) {
+        worker.projectKey = undefined;
+      }
+      if (!worker.taskKey && !worker.projectKey) {
         const taskEntry = Array.from(this.moatTasks.entries()).find(([, task]) => task.workerId === undefined);
         if (taskEntry) {
           worker.taskKey = taskEntry[0];
           taskEntry[1].workerId = worker.id;
         }
+      }
+
+      if (!worker.taskKey && !worker.projectKey) {
+        // Allocate the existing visible worker crew to the least staffed site.
+        // A project cannot advance unless one of these workers reaches it.
+        const assignments = new Map<string, number>();
+        for (const crew of this.workers) {
+          if (crew.projectKey) assignments.set(crew.projectKey, (assignments.get(crew.projectKey) ?? 0) + 1);
+        }
+        const project = this.constructionProjects.entries()
+          .sort((left, right) =>
+            (assignments.get(left.key) ?? 0) - (assignments.get(right.key) ?? 0) ||
+            left.key.localeCompare(right.key))[0];
+        if (project) worker.projectKey = project.key;
+      }
+
+      if (worker.projectKey) {
+        const project = this.constructionProjects.get(worker.projectKey);
+        if (!project) {
+          worker.projectKey = undefined;
+          continue;
+        }
+        const target = this.gridToWorld(project.x, project.y);
+        const arrived = this.moveWorker(worker, target.x, target.z, deltaMs, 5.2);
+        if (!arrived) continue;
+        worker.view.rotation.y += Math.sin(performance.now() * 0.013 + worker.id) * 0.012;
+        const finished = this.constructionProjects.work(project.key, deltaMs);
+        if (finished) {
+          completedProjects.push(project.key);
+          this.constructionAnimation.cancel(project.key);
+          worker.projectKey = undefined;
+        } else {
+          this.constructionAnimation.setProgress(
+            project.key,
+            this.constructionProjects.progress(project.key),
+            this.settingsStore.get().interface.reducedMotion,
+          );
+        }
+        continue;
       }
 
       if (!worker.taskKey) {
@@ -11396,6 +11439,22 @@ export class ThreeGame {
         this.scheduleSave();
         this.setStatus('Moat excavation completed');
       }
+    if (completedProjects.length) {
+      this.redraw();
+      this.scheduleSave();
+      for (const key of completedProjects) {
+        audioEvents.emit({ action: 'play_sfx', assetId: 'building.complete' });
+        this.setStatus(`Construction completed · ${key}`);
+      }
+    }
+    if (this.constructionProjects.count > 0) {
+      this.constructionCheckpointMs += deltaMs;
+      if (this.constructionCheckpointMs >= 15000) {
+        this.constructionCheckpointMs = 0;
+        this.save(false);
+      }
+    } else {
+      this.constructionCheckpointMs = 0;
     }
   }
 
