@@ -1,0 +1,59 @@
+name: Royal Valley Android Performance Evidence
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/royal-valley-performance-qa.yml'
+      - 'scripts/benchmark-royal-valley-android.mjs'
+      - 'src/ThreeGame.ts'
+      - 'src/rendering/**'
+      - 'src/world/**'
+      - 'package.json'
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/royal-valley-performance-qa.yml'
+      - 'scripts/benchmark-royal-valley-android.mjs'
+      - 'src/ThreeGame.ts'
+      - 'src/rendering/**'
+      - 'src/world/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  large-map-browser-evidence:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 28
+    env:
+      NODE_OPTIONS: --max-old-space-size=2048
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - name: Validate map and renderer contracts
+        run: |
+          npm run test:royal-valley-map
+          npm run test:mobile-render-performance
+          npm run test:terrain-localized
+          npm run test:terrain-resource-lifecycle
+          npx tsc --noEmit
+      - run: npx vite build
+      - run: npx playwright install --with-deps chromium
+      - name: Measure small and 50x89 maps (software GL, throttled mobile viewport)
+        env:
+          BENCHMARK_CPU_THROTTLE: '2'
+          BENCHMARK_OUTPUT: artifacts/royal-valley-306
+        run: node scripts/benchmark-royal-valley-android.mjs
+      - name: Upload measurement record even on failure
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: royal-valley-performance-${{ github.sha }}
+          path: artifacts/royal-valley-306/metrics.json
+          if-no-files-found: warn
+          retention-days: 30
