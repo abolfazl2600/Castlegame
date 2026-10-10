@@ -205,5 +205,6 @@ export const RUNTIME_TRANSLATIONS: Readonly<Record<string, string>> = {
   "Destination terrain is not valid for this building": "نوع زمین مقصد برای این ساختمان معتبر نیست",
   "Demolish selected building? This action can be undone.": "ساختمان انتخاب‌شده تخریب شود؟ این کار قابل بازگردانی است",
   "Finish the active construction project before upgrading again": "برای ارتقای دوباره، ابتدا پروژه ساخت فعال را کامل کنید",
-  "Construction sites": "کارگاه‌های ساخت"
+  "Construction sites": "کارگاه‌های ساخت",
+  "Finish active construction sites before starting a battle": "پیش از شروع نبرد، کارگاه‌های ساخت فعال را کامل کنید"
 };
