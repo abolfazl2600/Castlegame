@@ -246,6 +246,11 @@ export function translate(message: string, locale: Locale = 'fa'): string {
   if (match) return 'ساخت آغاز شد · ' + translate(match[1], locale) + ' · کارگران مأمور شدند';
   match = message.match(/^Construction completed · (.+)$/);
   if (match) return 'ساخت کامل شد · ' + translate(match[1], locale);
+  match = message.match(/^Moat drag: (\d+) tiles · (\d+) blocked · release to confirm$/);
+  if (match) return 'ترسیم خندق: ' + formatDigits(match[1]) + ' خانه · ' +
+    formatDigits(match[2]) + ' مسدود · برای تأیید رها کنید';
+  match = message.match(/^Moat excavation queued · (\d+) connected tiles$/);
+  if (match) return 'حفاری خندق در صف قرار گرفت · ' + formatDigits(match[1]) + ' خانه پیوسته';
   return message;
 }
 
