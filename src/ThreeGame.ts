@@ -2214,7 +2214,8 @@ export class ThreeGame {
   private syncPopulationDefenseAssignments(
     cells: ReturnType<GameState['entries']> = this.services.state.entries(),
   ): boolean {
-    this.services.populationSystem.reconcile(cells);
+    const readyCells = this.operationalCells(cells);
+    this.services.populationSystem.reconcile(readyCells);
     const battleSystem = (this as unknown as { battleSystem?: BattleSystem }).battleSystem;
     if (battleSystem?.isActive()) return false;
 
@@ -2223,7 +2224,7 @@ export class ThreeGame {
     this.services.populationSystem.setMilitiaComposition({
       swordsman: 0, archer: 0, spearman: 0, crossbowman: 0,
     });
-    this.services.populationSystem.recruitForNewCampCapacity(cells);
+    this.services.populationSystem.recruitForNewCampCapacity(readyCells);
     const garrison = this.services.populationSystem.professionalArmyComposition();
     const next: BattleSetup = {
       ...this.battleSetup,
@@ -2532,11 +2533,56 @@ export class ThreeGame {
     }, this.settingsStore.get().graphics.quality);
   }
 
+  /** Reserved cells keep their construction footprint but have no production,
+   * housing, camp recruitment or mission effects until their crew completes. */
+  private operationalCells(
+    cells: ReturnType<GameState['entries']> = this.services.state.entries(),
+  ): ReturnType<GameState['entries']> {
+    return cells.filter((cell) => !this.constructionProjects.has(`cell:${cell.x},${cell.y}`));
+  }
+
+  private operationalKeeps(): KeepState[] {
+    return this.services.keepSystem.entries()
+      .filter((keep) => !this.constructionProjects.has(`keep:${keep.id}`));
+  }
+
+  private syncConstructionVisuals(): void {
+    this.constructionProjects.reconcile((project) => {
+      if (project.key.startsWith('cell:')) {
+        const cell = this.services.state.getCell(project.x, project.y);
+        return Boolean(cell && cell.kind === project.kind);
+      }
+      if (project.key.startsWith('keep:')) {
+        return Boolean(this.services.keepSystem.get(Number(project.key.slice(5))));
+      }
+      return this.towerBridges.has(Number(project.key.slice(7)));
+    });
+    for (const project of this.constructionProjects.entries()) {
+      const object = this.constructionObjects.get(project.key);
+      if (!object) continue;
+      this.constructionAnimation.start(project.key, object, performance.now(), project.requiredMs, true,
+        this.constructionProjects.progress(project.key));
+    }
+  }
+
   private startConstruction(key: string, duration = 850): void {
+    const cellMatch = /^cell:(\d+),(\d+)$/.exec(key);
+    const cell = cellMatch
+      ? this.services.state.getCell(Number(cellMatch[1]), Number(cellMatch[2]))
+      : undefined;
+    const keep = key.startsWith('keep:') ? this.services.keepSystem.get(Number(key.slice(5))) : undefined;
+    const bridge = key.startsWith('bridge:') ? this.towerBridges.get(Number(key.slice(7))) : undefined;
+    if (!cell && !keep && !bridge) return;
+    const x = cellMatch ? Number(cellMatch[1]) : keep?.x ?? Math.round(((bridge?.ax ?? 0) + (bridge?.bx ?? 0)) / 2);
+    const y = cellMatch ? Number(cellMatch[2]) : keep?.y ?? Math.round(((bridge?.ay ?? 0) + (bridge?.by ?? 0)) / 2);
+    const kind = cell?.kind ?? (keep ? 'keep' : 'towerBridge');
+    const units = keep ? Math.max(1, (keep.width * keep.depth) / 9) : bridge ? 1.5 : 1;
+    this.constructionProjects.begin(key, kind, x, y, duration * 12 * units);
+    this.constructionAnimation.cancel(key);
     const object = this.constructionObjects.get(key);
-    if (!object) return;
-    this.constructionAnimation.start(key, object, performance.now(), duration);
+    if (object) this.constructionAnimation.start(key, object, performance.now(), duration * 12 * units, true);
     audioEvents.emit({ action: 'play_sfx', assetId: 'building.started' });
+    this.setStatus(`Construction started · ${kind} · workers assigned`);
   }
 
   private renderMinimap(): void {
@@ -9859,12 +9905,12 @@ export class ThreeGame {
     if (changed) {
       this.pushUndoSnapshot(before);
       if (costedSegments > 0) this.spendConstructionCost(wallKind, costedSegments);
-      this.redrawCastleNeighborhood(path);
-      for (const point of path.slice(0, 24)) {
+      for (const point of path) {
         if (!before.cells.some((cell) => cell.x === point.x && cell.y === point.y)) {
           this.startConstruction(`cell:${point.x},${point.y}`, 520);
         }
       }
+      this.redrawCastleNeighborhood(path);
       this.scheduleSave();
       this.setStatus(
         single
@@ -10655,11 +10701,11 @@ export class ThreeGame {
     const current = point && this.services.state.getCell(point.x, point.y);
     const placementChanged = Boolean(point && current && (!previous || previous.kind !== current.kind));
     const newlyPlaced = point && current && CONSTRUCTION_VISUAL_KINDS.has(current.kind) && placementChanged;
+    if (newlyPlaced && point) this.startConstruction(`cell:${point.x},${point.y}`,
+      current.kind === 'gate' || current.kind === 'tower' || current.kind === 'harbor' ? 1150 : 800);
     this.buildPreviewKey = '';
     if (placementChanged) audioEvents.emit({ action: 'play_sfx', assetId: 'building.place' });
     this.redraw();
-    if (newlyPlaced && point) this.startConstruction(`cell:${point.x},${point.y}`,
-      current.kind === 'gate' || current.kind === 'tower' || current.kind === 'harbor' ? 1150 : 800);
     this.scheduleSave();
     if (deactivateTool) this.deactivateBuildToolAfterCommit();
   }
@@ -10667,7 +10713,7 @@ export class ThreeGame {
   private reconcileSettlementAgents(
     cells: ReturnType<GameState['entries']>,
   ): void {
-    const desired = this.buildDesiredSettlementAgents(cells);
+    const desired = this.buildDesiredSettlementAgents(this.operationalCells(cells));
     const existingByKey = new Map(
       this.settlementAgents.map((agent) => [agent.key, agent] as const),
     );
