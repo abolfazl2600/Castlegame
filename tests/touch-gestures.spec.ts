@@ -71,10 +71,34 @@ for (const tool of ['wall1', 'road', 'raise', 'moat']) {
 test('moat: native single-finger drag queues an atomic connected route and Undo removes it', async ({ page }) => {
   await chooseTool(page, 'moat');
   const before = await state(page);
+  const locations = await page.evaluate(() => {
+    const probe = (window as unknown as {
+      __castleMoatProbe: (x: number, y: number) => { x: number; y: number; status: string } | null;
+    }).__castleMoatProbe;
+    const byGrid = new Map<string, { screenX: number; screenY: number; gridX: number; gridY: number }>();
+    for (let y = 160; y <= 320; y += 10) {
+      for (let x = 230; x <= 760; x += 10) {
+        const tile = probe(x, y);
+        if (!tile || tile.status !== 'new') continue;
+        const key = `${tile.x},${tile.y}`;
+        if (!byGrid.has(key)) byGrid.set(key, { screenX: x, screenY: y, gridX: tile.x, gridY: tile.y });
+      }
+    }
+    for (const first of byGrid.values()) {
+      for (const [dx, dy] of [[1, 0], [0, 1], [-1, 0], [0, -1]]) {
+        const second = byGrid.get(`${first.gridX + dx},${first.gridY + dy}`);
+        if (!second) continue;
+        const distance = Math.hypot(first.screenX - second.screenX, first.screenY - second.screenY);
+        if (distance >= 12 && distance <= 100) return { first, second };
+      }
+    }
+    return null;
+  });
+  expect(locations, 'a world terrain pair suitable for one continuous moat stroke must exist').not.toBeNull();
+  const { first, second } = locations!;
   const cdp = await page.context().newCDPSession(page);
-  await dispatch(cdp, 'touchStart', [finger(1, 470)]);
-  await dispatch(cdp, 'touchMove', [finger(1, 490)]);
-  await dispatch(cdp, 'touchMove', [finger(1, 520)]);
+  await dispatch(cdp, 'touchStart', [finger(1, first.screenX, first.screenY)]);
+  await dispatch(cdp, 'touchMove', [finger(1, second.screenX, second.screenY)]);
   const preview = await state(page);
   expect(preview.dragging).toBe(true);
   expect(preview.preview).toBeGreaterThan(0);
