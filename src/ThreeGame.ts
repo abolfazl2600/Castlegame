@@ -11241,12 +11241,12 @@ export class ThreeGame {
   }
 
   private syncEconomyUI(): void {
-    const cells = this.services.state.entries();
+    const cells = this.operationalCells();
     const populationGroups = this.services.populationSystem.calculate(cells, 0);
     const snapshot = this.services.economySystem.snapshot(
       cells,
       populationGroups.civilians,
-      this.services.keepSystem.entries().length,
+      this.operationalKeeps().length,
     );
     const resources = snapshot.resources;
     const rates = snapshot.rates;
@@ -11280,13 +11280,13 @@ export class ThreeGame {
   }
 
   private updateEconomy(deltaMs: number): void {
-    const cells = this.services.state.entries();
+    const cells = this.operationalCells();
     const populationGroups = this.services.populationSystem.calculate(cells, 0);
     const result = this.services.economySystem.tick(
       deltaMs,
       cells,
       populationGroups.civilians,
-      this.services.keepSystem.entries().length,
+      this.operationalKeeps().length,
     );
 
     if (!result.updated) return;
@@ -11308,7 +11308,7 @@ export class ThreeGame {
   }
 
   private updatePopulationUI(): void {
-    const cells = this.services.state.entries();
+    const cells = this.operationalCells();
     this.services.populationSystem.reconcile(cells);
     const snapshot = this.services.populationSystem.snapshot();
     const setText = (id: string, value: string): void => {
@@ -11327,7 +11327,7 @@ export class ThreeGame {
   }
 
   private missionSnapshot(status: BattleStatus = this.battleSystem.status()): MissionSnapshot {
-    const cells = this.services.state.entries();
+    const cells = this.operationalCells();
     this.services.populationSystem.reconcile(cells);
     const population = this.services.populationSystem.snapshot();
     return {
@@ -11336,7 +11336,7 @@ export class ThreeGame {
         deadCivilians: population.deadCivilians,
       },
       cells,
-      keeps: this.services.keepSystem.entries(),
+      keeps: this.operationalKeeps(),
       battle: status,
     };
   }
