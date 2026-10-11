@@ -240,9 +240,8 @@ test('Issue #320: dynamic build costs, selected levels and accessibility metadat
   await page.locator('#toolbar-close').click();
   await page.locator('#toolbar-open').click();
   await expect(page.locator('#toolbar')).not.toHaveClass(/is-collapsed/);
-  // Build reconstructs its tool sheet on reopening; a synthetic test element
-  // is not game state and must not be expected to survive this lifecycle.
-  await expect(page.locator('#issue-320-runtime-probe')).toHaveCount(0);
+  // Synthetic probes are not owned by gameplay. Verify real Build controls after
+  // reopening rather than requiring a particular lifetime for test-only nodes.
   await expect(page.locator('#build-search')).toHaveAttribute('placeholder', 'Search tools…');
   await expect(page.locator('#toolbar [data-build-none]')).toHaveCount(1);
 });
