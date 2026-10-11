@@ -203,6 +203,7 @@ const install = runInNewContext(stripTypeScriptTypes(android.replace('export fun
   document: { getElementById(id) { return id === visible ? { hidden: false, classList: { contains: () => true } } : { hidden: true, classList: { contains: () => true }, click() { clicked.push(id); } }; },
     querySelectorAll: () => [], querySelector: () => null }, getComputedStyle: () => ({ display: 'block' }), console, handleAndroidBackAction,
 });
+globalThis.getComputedStyle = () => ({ display: 'block' });
 install();
 back();
 assert.equal(minimized, false);
