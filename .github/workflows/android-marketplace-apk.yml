@@ -3,6 +3,11 @@ name: Build signed Android APK (Bazaar and Myket, manual)
 # Release signing is NEVER triggered by push, pull_request, or schedule.
 on:
   workflow_dispatch:
+    inputs:
+      version_code:
+        description: 'New unused versionCode; higher than every previously uploaded code in Bazaar / Myket (1 to 2100000000)'
+        type: string
+        required: true
 
 permissions:
   contents: read
@@ -99,19 +104,15 @@ jobs:
             exit 1
           }
 
-      - name: Generate unique Android version code
+      # Google Play / the store owns the history of uploaded codes; timestamp
+      # guesses cannot prove a code has never been used. Require explicit input.
+      - name: Verify unused marketplace release versionCode
         shell: bash
+        env:
+          REQUESTED_VERSION_CODE: ${{ inputs.version_code }}
         run: |
           set -euo pipefail
-          EPOCH_2020=1577836800
-          NOW="$(date +%s)"
-          VERSION_CODE=$((NOW - EPOCH_2020))
-          if (( VERSION_CODE < 1 || VERSION_CODE > 2100000000 )); then
-            echo "::error::Generated Android versionCode is outside the valid range: $VERSION_CODE"
-            exit 1
-          fi
-          echo "ANDROID_VERSION_CODE=$VERSION_CODE" >> "$GITHUB_ENV"
-          echo "Android versionCode: $VERSION_CODE"
+          node scripts/android/validate-release-version-code.mjs "$REQUESTED_VERSION_CODE"
 
       # Only this and the Gradle/verification steps receive signing secrets.
       - name: Decode temporary upload keystore
