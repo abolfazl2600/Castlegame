@@ -51,6 +51,7 @@ jobs:
       - name: Verify terrain, castle templates, saves, picker and Persian labels
         run: |
           npm run test:castle-lands
+          npm run test:unified-gameplay
           npm run test:map-layouts
           npm run test:playable-layout-templates
           npm run test:carcassonne-template
