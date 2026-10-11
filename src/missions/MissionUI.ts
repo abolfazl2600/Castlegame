@@ -68,7 +68,10 @@ export class MissionUI {
     let returnFocusTo: HTMLElement | null = null;
     const setOpen = (open: boolean): void => {
       if (open && modal.hidden) {
-        returnFocusTo = document.activeElement instanceof HTMLElement ? document.activeElement : trigger;
+        const activeElement = document.activeElement;
+        returnFocusTo = activeElement instanceof HTMLElement && activeElement !== document.body
+          ? activeElement
+          : trigger;
       }
       const wasOpen = !modal.hidden;
       modal.hidden = !open;
@@ -107,6 +110,22 @@ export class MissionUI {
         event.preventDefault();
         event.stopPropagation();
         setOpen(false);
+        return;
+      }
+      if (event.key !== 'Tab') return;
+      // Keep keyboard navigation inside this modal; collapsed objectives have
+      // no interactive descendants, and the close control is always reachable.
+      const focusable = [...modal.querySelectorAll<HTMLElement>('button:not([disabled]), summary')]
+        .filter((element) => element.getClientRects().length > 0);
+      if (focusable.length === 0) return;
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
       }
     });
   }
