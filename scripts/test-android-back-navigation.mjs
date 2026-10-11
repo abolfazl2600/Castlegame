@@ -29,6 +29,10 @@ function setup() {
   const map = element();
   const help = element();
   const helpClose = element(true, () => { help.hidden = true; });
+  const saveDialog = element();
+  const saveDialogClose = element(true, () => { saveDialog.hidden = true; });
+  saveDialog.querySelector = (selector) =>
+    selector === '[data-save-action="close"]' ? saveDialogClose : null;
   const toolbar = element();
   toolbar.classList.contains = (className) => className === 'is-collapsed' ? toolbar.hidden : false;
   const toolbarClose = element(true, () => { toolbar.hidden = true; });
@@ -43,19 +47,20 @@ function setup() {
   const doc = {
     getElementById: (id) => ids.get(id) ?? null,
     querySelector: (selector) => {
+      if (selector === '.save-load-backdrop') return saveDialog;
       if (selector === '#mission-journal [data-mission-action="close"]') return missionButton;
       if (selector === '[data-tool].is-selected') return selectedTool ? {} : null;
       return null;
     },
     querySelectorAll: (selector) =>
       selector === 'dialog[open], [role="dialog"]'
-        ? [...(mission.hidden ? [] : [mission]), ...unknown]
+        ? [...(mission.hidden ? [] : [mission]), ...(saveDialog.hidden ? [] : [saveDialog]), ...unknown]
         : [],
   };
   const back = () => handleAndroidBackAction(doc, () => { minimizes += 1; });
   return {
     mission, missionButton, settings, settingsClose, map, help, helpClose,
-    toolbar, toolbarClose, unknown, back,
+    saveDialog, saveDialogClose, toolbar, toolbarClose, unknown, back,
     selectTool: () => { selectedTool = true; },
     get minimizes() { return minimizes; },
   };
@@ -98,6 +103,38 @@ function setup() {
   s.back();
   assert.equal(s.helpClose.clicks, 1, 'existing Help modal priority must remain intact');
   assert.equal(s.mission.hidden, false);
+}
+// Both Save and Load use the same dynamic dialog and delegated close button.
+for (const mode of ['save', 'load']) {
+  const s = setup();
+  s.saveDialog.hidden = false;
+  s.saveDialog.dataset = { saveMode: mode };
+  s.back();
+  assert.equal(s.saveDialog.hidden, true, `Android Back must close the ${mode} dialog`);
+  assert.equal(s.saveDialogClose.clicks, 1, `Back must activate the ${mode} close control once`);
+  assert.equal(s.minimizes, 0, 'closing Save/Load must not minimize Android');
+  s.back();
+  assert.equal(s.saveDialogClose.clicks, 1, 'repeated Back must not close an already hidden dialog');
+  assert.equal(s.minimizes, 1, 'after Save/Load is closed Back should minimize the app');
+}
+{
+  const s = setup();
+  s.settings.hidden = false;
+  s.saveDialog.hidden = false;
+  s.back();
+  assert.equal(s.settings.hidden, true, 'Settings retains priority over Save/Load');
+  assert.equal(s.saveDialog.hidden, false, 'lower-priority Save/Load stays open');
+  s.back();
+  assert.equal(s.saveDialog.hidden, true, 'next Back closes Save/Load');
+  assert.equal(s.minimizes, 0);
+}
+{
+  const s = setup();
+  s.map.hidden = false;
+  s.saveDialog.hidden = false;
+  s.back();
+  assert.equal(s.saveDialog.hidden, false, 'mandatory map choice retains priority over Save/Load');
+  assert.equal(s.minimizes, 0);
 }
 {
   const s = setup();
