@@ -116,7 +116,16 @@ export function translate(message: string, locale: Locale = 'fa'): string {
   if (floors) return formatDigits(floors[1]) + ' طبقه';
   // Upgrade cards compose a translated level description with dynamic progression text.
   // Translate both parts so Persian UI never falls back to an English composite sentence.
-  let match = message.match(/^(.+\.) Next: (.+)\.$/);
+  // Carpenter descriptions combine a static sentence and measured production.
+  let match = message.match(/^(.+\.) (\d+) workers · up to ([\d.]+) Wood\/s\. Next: (.+)\.$/);
+  if (match) return translate(match[1], locale) + ' ' + formatDigits(match[2]) +
+    ' کارگر · حداکثر ' + formatDigits(match[3]) + ' چوب/ثانیه. مرحله بعد: ' + translate(match[4], locale) + '.';
+  match = message.match(/^(.+\.) (\d+) workers · up to ([\d.]+) Wood\/s\. Maximum building level reached\.$/);
+  if (match) return translate(match[1], locale) + ' ' + formatDigits(match[2]) +
+    ' کارگر · حداکثر ' + formatDigits(match[3]) + ' چوب/ثانیه. ساختمان به بالاترین سطح رسیده است.';
+
+
+  match = message.match(/^(.+\.) Next: (.+)\.$/);
   if (match) return translate(match[1], locale) + ' مرحله بعد: ' + translate(match[2], locale) + '.';
   match = message.match(/^(.+\.) Maximum (harbor|building|fortification|upgrade) level reached\.$/);
   if (match) {
@@ -129,14 +138,6 @@ export function translate(message: string, locale: Locale = 'fa'): string {
           : 'ساختمان به بالاترین سطح رسیده است.';
     return translate(match[1], locale) + ' ' + maximumLabel;
   }
-  // Carpenter descriptions combine a static sentence and measured production.
-  match = message.match(/^(.+\.) (\d+) workers · up to ([\d.]+) Wood\/s\. Next: (.+)\.$/);
-  if (match) return translate(match[1], locale) + ' ' + formatDigits(match[2]) +
-    ' کارگر · حداکثر ' + formatDigits(match[3]) + ' چوب/ثانیه. مرحله بعد: ' + translate(match[4], locale) + '.';
-  match = message.match(/^(.+\.) (\d+) workers · up to ([\d.]+) Wood\/s\. Maximum building level reached\.$/);
-  if (match) return translate(match[1], locale) + ' ' + formatDigits(match[2]) +
-    ' کارگر · حداکثر ' + formatDigits(match[3]) + ' چوب/ثانیه. ساختمان به بالاترین سطح رسیده است.';
-
   match = message.match(/^Uses (.+)\.$/);
   if (match) return 'از ' + translate(match[1], locale) + ' استفاده می‌کند.';
 
