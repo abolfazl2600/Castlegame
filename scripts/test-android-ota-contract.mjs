@@ -67,6 +67,10 @@ assert.match(updateUi, /case 'INTEGRITY'/);
 assert.match(updateUi, /case 'PACKAGE'/);
 assert.match(updateUi, /case 'MANIFEST'/);
 assert.match(updateUi, /بازی شما به‌روز است/);
+assert.equal((updateUi.match(/بروزرسانی نسخه آزمایشی/g) ?? []).length, 2,
+  'Android experimental update title must appear both initially and after completing an update');
+assert.doesNotMatch(updateUi, /بروزرسانی بازی/,
+  'Android update button must not revert to its old label');
 assert.match(updateUi, /window\.location\.reload\(\)/);
 assert.match(updateUi, /console\.error\('Android game update failed'/);
 
