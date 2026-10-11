@@ -15,6 +15,7 @@ export const MISSION_TRANSLATIONS: Readonly<Record<string, string>> = {
   "All current objectives complete": "همه اهداف فعلی تکمیل شده‌اند",
   "More missions can be added without changing the mission UI.": "مأموریت‌های بیشتری را می‌توان بدون تغییر رابط مأموریت اضافه کرد.",
   "Milestones completed": "مراحل تکمیل‌شده",
+  "Overall mission progress": "پیشرفت کلی مأموریت‌ها",
   "No unlocked objectives remain in the current mission set.": "هیچ هدف بازشده‌ای در مجموعه مأموریت‌های فعلی باقی نمانده است.",
   "Complete your first objective to begin the milestone record.": "اولین هدف خود را تکمیل کنید تا ثبت مراحل آغاز شود.",
   "No locked objectives.": "هیچ هدف قفل‌شده‌ای وجود ندارد.",
