@@ -28,6 +28,15 @@ export function handleAndroidBackAction(doc: Document, minimizeApp: () => void):
     click('help-close-button');
     return;
   }
+
+  // Save/Load is a dynamically created dialog, so it has no fixed ID.
+  // Trigger its existing delegated close action instead of mutating hidden.
+  const saveLoadBackdrop = doc.querySelector<HTMLElement>('.save-load-backdrop');
+  if (saveLoadBackdrop && !saveLoadBackdrop.hidden && getComputedStyle(saveLoadBackdrop).display !== 'none') {
+    saveLoadBackdrop.querySelector<HTMLButtonElement>('[data-save-action="close"]')?.click();
+    return;
+  }
+
   if (visible('god-mode-panel')) {
     click('god-mode-close');
     return;

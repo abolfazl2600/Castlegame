@@ -37,12 +37,27 @@ test('touch controls reach management, templates, and save/load without stacked 
   await mobile.locator('[data-mobile-action="templates"]').click();
   await expect(page.locator('#templates-modal')).toBeVisible();
   await page.locator('#templates-close-button').click();
-  await mobile.locator('[data-mobile-action="save"]').click();
+  // Save/Load moved from the old mobile header into Settings > Game Actions.
+  const settings = page.locator('#settings-modal');
+  await expect(mobile.locator('[data-mobile-action="save"], [data-mobile-action="load"]')).toHaveCount(0);
+
+  await mobile.locator('[data-mobile-proxy="settings-button"]').click();
+  await expect(settings).toBeVisible();
+  await settings.locator('[data-system-action="save"]').click();
+  await expect(settings).toBeHidden();
   await expect(page.locator('.save-load-backdrop')).toBeVisible();
   await expect(page.locator('#save-load-title')).toHaveText('Save Game');
   await page.locator('.save-load-backdrop [data-save-action="close"]').click();
-  await mobile.locator('[data-mobile-action="load"]').click();
+  await expect(page.locator('.save-load-backdrop')).toBeHidden();
+
+  await mobile.locator('[data-mobile-proxy="settings-button"]').click();
+  await expect(settings).toBeVisible();
+  await settings.locator('[data-system-action="load"]').click();
+  await expect(settings).toBeHidden();
+  await expect(page.locator('.save-load-backdrop')).toBeVisible();
   await expect(page.locator('#save-load-title')).toHaveText('Load Game');
+  await page.locator('.save-load-backdrop [data-save-action="close"]').click();
+  await expect(page.locator('.save-load-backdrop')).toBeHidden();
 });
 
 

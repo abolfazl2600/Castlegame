@@ -11,15 +11,19 @@ on:
       - playwright.config.ts
       - src/style.css
       - src/ui/MobileUI.ts
+      - src/android/androidBackAction.ts
+      - src/core/SaveSystem.ts
       - src/settings/**
       - src/ThreeGame.ts
       - src/input/**
       - scripts/test-touch-gestures.mjs
       - scripts/test-touch-qa-evidence.mjs
+      - scripts/test-android-back-navigation.mjs
       - tests/urban-city.spec.ts
       - src/world/**
       - tests/touch-gestures.spec.ts
       - tests/android-landscape.spec.ts
+      - tests/mobile-touch-flows.spec.ts
       - tests/settings.spec.ts
   push:
     branches:
@@ -32,15 +36,19 @@ on:
       - playwright.config.ts
       - src/style.css
       - src/ui/MobileUI.ts
+      - src/android/androidBackAction.ts
+      - src/core/SaveSystem.ts
       - src/settings/**
       - src/ThreeGame.ts
       - src/input/**
       - scripts/test-touch-gestures.mjs
       - scripts/test-touch-qa-evidence.mjs
+      - scripts/test-android-back-navigation.mjs
       - tests/urban-city.spec.ts
       - src/world/**
       - tests/touch-gestures.spec.ts
       - tests/android-landscape.spec.ts
+      - tests/mobile-touch-flows.spec.ts
       - tests/settings.spec.ts
 
 permissions:
@@ -51,6 +59,49 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  mobile-navigation:
+    name: Mobile Save/Load navigation
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    env:
+      NODE_OPTIONS: --max-old-space-size=2048
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+
+      - name: Setup Node
+        uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Verify native Back dismissal
+        run: npm run test:android-back-navigation
+
+      - name: Build web game for browser QA
+        run: npx vite build
+
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Test current mobile Save/Load and panel flows
+        run: npx playwright test tests/mobile-touch-flows.spec.ts --reporter=line
+
+      - name: Upload focused mobile test traces
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mobile-navigation-qa-${{ github.sha }}
+          path: |
+            test-results/
+            playwright-report/
+          if-no-files-found: warn
+          retention-days: 14
+
   landscape:
     runs-on: ubuntu-24.04
     timeout-minutes: 30
@@ -78,6 +129,9 @@ jobs:
       - name: Validate executable world touch gestures
         run: npm run test:touch-gestures && npm run test:touch-qa-evidence
 
+      - name: Validate native Back handling
+        run: npm run test:android-back-navigation
+
       - name: Build web game
         run: npx vite build
 
@@ -85,7 +139,7 @@ jobs:
         run: npx playwright install --with-deps chromium
 
       - name: Run Android landscape viewport matrix
-        run: npx playwright test tests/android-landscape.spec.ts tests/touch-gestures.spec.ts tests/urban-city.spec.ts tests/settings.spec.ts --reporter=line
+        run: npx playwright test tests/android-landscape.spec.ts tests/mobile-touch-flows.spec.ts tests/touch-gestures.spec.ts tests/urban-city.spec.ts tests/settings.spec.ts --reporter=line
 
       - name: Upload landscape screenshots and traces
         if: always()

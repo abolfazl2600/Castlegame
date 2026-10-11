@@ -21,7 +21,7 @@ For every representative viewport the test opens, validates, dismisses, and re-c
 - Build Sidebar
 - Population / Army summary
 - upgrade controls inside Build
-- Settings
+- Settings, including Save/Load opened through Game Actions
 - Battle panel
 - God Mode
 - minimap
@@ -36,6 +36,7 @@ The suite also verifies:
 - Build, Battle, God Mode, Settings, and Templates can be dismissed
 - the Reset World confirmation can be cancelled without opening the new-game selector
 - desktop layout remains available at 1440×900
+- the separate native Back regression closes both Save and Load through their delegated close buttons without minimizing the app, while preserving mandatory map-selection priority
 
 ## Screenshot evidence
 
@@ -55,7 +56,8 @@ GitHub Actions uploads these screenshots with the Playwright test results so rel
 npm ci
 npx vite build
 npx playwright install chromium
-npx playwright test tests/android-landscape.spec.ts
+npm run test:android-back-navigation
+npx playwright test tests/android-landscape.spec.ts tests/mobile-touch-flows.spec.ts
 ```
 
 The standard Capacitor Android build remains:
