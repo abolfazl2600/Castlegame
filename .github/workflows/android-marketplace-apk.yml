@@ -160,34 +160,35 @@ jobs:
         run: |
           bash scripts/android/verify-signed-apk.sh android/app/build/outputs/apk/release/app-release.apk
 
+      - name: Verify one universal APK and stage marketplace release
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/android/verify-marketplace-single-apk.mjs android/app/build/outputs/apk/release
+
       - name: Record release version
         id: bundle_version
         shell: bash
         run: |
           set -euo pipefail
-          APK="android/app/build/outputs/apk/release/app-release.apk"
           VERSION_NAME="${ANDROID_VERSION_NAME:-}"
           VERSION_CODE="${ANDROID_VERSION_CODE:-}"
-          if [[ -z "$VERSION_NAME" || -z "$VERSION_CODE" ]]; then
-            echo "::error::Automatic versionName or versionCode is missing."
+          APK="${MARKETPLACE_APK_PATH:-}"
+          if [[ -z "$VERSION_NAME" || -z "$VERSION_CODE" || ! -s "$APK" ]]; then
+            echo "::error::Single verified APK and its release versions are required."
             exit 1
           fi
           SAFE_NAME="$(printf '%s' "$VERSION_NAME" | tr -cs 'A-Za-z0-9._-' '-')"
           echo "value=v$SAFE_NAME-code$VERSION_CODE" >> "$GITHUB_OUTPUT"
-          # Confirm the APK itself includes both automatic version values.
-          APK_PACKAGE="$("$ANDROID_HOME/build-tools/36.0.0/aapt" dump badging "$APK" | grep -m1 '^package:')"
-          if [[ "$APK_PACKAGE" != *"versionCode='$VERSION_CODE'"* || "$APK_PACKAGE" != *"versionName='$VERSION_NAME'"* ]]; then
-            echo "::error::APK metadata does not match the automatic release version: $APK_PACKAGE"
-            exit 1
-          fi
-          echo "APK release: $VERSION_NAME · versionCode $VERSION_CODE" >> "$GITHUB_STEP_SUMMARY"
+          echo "Bazaar/Myket: exactly one universal signed APK, $VERSION_NAME (code $VERSION_CODE)" >> "$GITHUB_STEP_SUMMARY"
           sha256sum "$APK"
 
       - name: Upload verified signed APK only
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: castle-role-signed-marketplace-apk-${{ steps.bundle_version.outputs.value }}-run${{ github.run_number }}
-          path: android/app/build/outputs/apk/release/app-release.apk
+          # Stage contains only the verified universal release APK; never upload split outputs.
+          path: ${{ env.MARKETPLACE_APK_PATH }}
           if-no-files-found: error
           retention-days: 14
           compression-level: 0
