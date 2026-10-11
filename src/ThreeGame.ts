@@ -12170,6 +12170,52 @@ export class ThreeGame {
       '<div class="settings-hint">Advanced architecture and terrain tuning is optional. Normal building uses automatic defaults.</div>' +
       '</div></section></div>';
 
+    // Desktop HUD uses the existing live counters and resource IDs. Do not clone
+    // these nodes: economy/population updates and localization must have one owner.
+    // In touch layout, put the same HUD back inside Build to preserve the mobile flow.
+    const economyHud = document.createElement('aside');
+    economyHud.id = 'economy-hud';
+    economyHud.className = 'economy-hud';
+    economyHud.setAttribute('aria-label', 'Economy and population overview');
+
+    const economyTitle = document.createElement('strong');
+    economyTitle.className = 'economy-hud-title';
+    economyTitle.textContent = 'Economy & Population';
+    economyHud.appendChild(economyTitle);
+
+    const economyStats = document.createElement('div');
+    economyStats.className = 'economy-hud-stats';
+    const populationSummary = toolbar.querySelector<HTMLElement>('.build-world-summary');
+    const resourcesSummary = toolbar.querySelector<HTMLElement>('.build-economy-summary');
+    if (populationSummary) economyStats.appendChild(populationSummary);
+    if (resourcesSummary) economyStats.appendChild(resourcesSummary);
+    economyHud.appendChild(economyStats);
+
+    const workforceDetails = document.createElement('details');
+    workforceDetails.className = 'economy-hud-workforce';
+    workforceDetails.innerHTML = '<summary>Workforce breakdown</summary>';
+    const workforceSummary = toolbar.querySelector<HTMLElement>('.build-population-breakdown');
+    if (workforceSummary) workforceDetails.appendChild(workforceSummary);
+    economyHud.appendChild(workforceDetails);
+
+    const mobileEconomySlot = document.createElement('div');
+    mobileEconomySlot.className = 'economy-hud-mobile-slot';
+    toolbar.querySelector('.build-context-row')?.insertAdjacentElement('afterend', mobileEconomySlot);
+    const gameShell = get<HTMLElement>('game-shell');
+    let wasMobileEconomyHud: boolean | null = null;
+    const syncEconomyHudPlacement = (): void => {
+      const mobile = document.documentElement.classList.contains('mobile-ui-active');
+      if (mobile === wasMobileEconomyHud) return;
+      wasMobileEconomyHud = mobile;
+      (mobile ? mobileEconomySlot : gameShell).appendChild(economyHud);
+      workforceDetails.open = mobile;
+    };
+    syncEconomyHudPlacement();
+    new MutationObserver(syncEconomyHudPlacement).observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ['class'],
+    });
+
     let selectionPanel = document.getElementById('world-selection-panel');
     if (!selectionPanel) {
       selectionPanel = document.createElement('section');
