@@ -3,11 +3,6 @@ name: Build signed Android APK (Bazaar and Myket, manual)
 # Release signing is NEVER triggered by push, pull_request, or schedule.
 on:
   workflow_dispatch:
-    inputs:
-      version_code:
-        description: 'New unused versionCode; higher than every previously uploaded code in Bazaar / Myket (1 to 2100000000)'
-        type: string
-        required: true
 
 permissions:
   contents: read
@@ -104,15 +99,13 @@ jobs:
             exit 1
           }
 
-      # Google Play / the store owns the history of uploaded codes; timestamp
-      # guesses cannot prove a code has never been used. Require explicit input.
-      - name: Verify unused marketplace release versionCode
-        shell: bash
+      # GitHub run_number advances for each launch; run_attempt also covers
+      # re-runs. The optional baseline can be increased to exceed any existing
+      # Bazaar/Myket release with a code above the default legacy range.
+      - name: Generate automatic marketplace APK version
         env:
-          REQUESTED_VERSION_CODE: ${{ inputs.version_code }}
-        run: |
-          set -euo pipefail
-          node scripts/android/validate-release-version-code.mjs "$REQUESTED_VERSION_CODE"
+          ANDROID_MARKETPLACE_VERSION_CODE_BASE: ${{ vars.ANDROID_MARKETPLACE_VERSION_CODE_BASE }}
+        run: node scripts/android/generate-marketplace-version.mjs
 
       # Only this and the Gradle/verification steps receive signing secrets.
       - name: Decode temporary upload keystore
@@ -156,7 +149,7 @@ jobs:
           ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
           ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
           ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
-        run: ./gradlew --no-daemon --no-build-cache --no-configuration-cache -PandroidVersionCode="$ANDROID_VERSION_CODE" assembleRelease
+        run: ./gradlew --no-daemon --no-build-cache --no-configuration-cache -PandroidVersionCode="$ANDROID_VERSION_CODE" -PandroidVersionName="$ANDROID_VERSION_NAME" assembleRelease
 
       - name: Verify APK signature and pinned signing certificate
         shell: bash
@@ -173,14 +166,21 @@ jobs:
         run: |
           set -euo pipefail
           APK="android/app/build/outputs/apk/release/app-release.apk"
-          VERSION_NAME="$(sed -nE 's/^[[:space:]]*versionName "([^"]+)".*/\1/p' android/app/build.gradle | head -n 1)"
+          VERSION_NAME="${ANDROID_VERSION_NAME:-}"
           VERSION_CODE="${ANDROID_VERSION_CODE:-}"
           if [[ -z "$VERSION_NAME" || -z "$VERSION_CODE" ]]; then
-            echo "::error::versionName or generated versionCode is missing."
+            echo "::error::Automatic versionName or versionCode is missing."
             exit 1
           fi
           SAFE_NAME="$(printf '%s' "$VERSION_NAME" | tr -cs 'A-Za-z0-9._-' '-')"
           echo "value=v$SAFE_NAME-code$VERSION_CODE" >> "$GITHUB_OUTPUT"
+          # Confirm the APK itself includes both automatic version values.
+          APK_PACKAGE="$("$ANDROID_HOME/build-tools/36.0.0/aapt" dump badging "$APK" | grep -m1 '^package:')"
+          if [[ "$APK_PACKAGE" != *"versionCode='$VERSION_CODE'"* || "$APK_PACKAGE" != *"versionName='$VERSION_NAME'"* ]]; then
+            echo "::error::APK metadata does not match the automatic release version: $APK_PACKAGE"
+            exit 1
+          fi
+          echo "APK release: $VERSION_NAME · versionCode $VERSION_CODE" >> "$GITHUB_STEP_SUMMARY"
           sha256sum "$APK"
 
       - name: Upload verified signed APK only
