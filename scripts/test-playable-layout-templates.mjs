@@ -7,6 +7,8 @@ const saveSystem = await readFile(new URL('../src/core/SaveSystem.ts', import.me
 const html = await readFile(new URL('../index.html', import.meta.url), 'utf8');
 
 const templates = [
+  ['highland-crown-100x100', 'highland-crown-100x100', '6201', 'A dark-stone mountain citadel with fortified gates, a royal keep, mountain mines, woodland, farms, and army camps.'],
+  ['sunset-lagoon-100x100', 'sunset-lagoon-100x100', '6301', 'A sandstone coastal castle above a lagoon, with towers, a keep, farms, working harbors, roads, and a village.'],
   ['urban-city-60x80', 'urban-60x80', '6001', '60×80 world units: connected streets, central square, homes, market, parks, and farms.'],
   ['royal-valley-50x89', 'royal-valley-50x89', '5089', '50×89 tiles: royal fortress, river crossing, village, farms, forests, mountain resources, army camps, and working harbors.'],
   ['mainland-frontier', 'mainland', '5501', 'Coast, fortified town, farms, roads, camp, and pier.'],
@@ -65,6 +67,6 @@ assert.match(types, /worldSeed\?: number;/, 'Saved worlds must carry a determini
 assert.match(saveSystem, /worldSeed: this\.host\.getWorldSeed\(\)/, 'Save data must persist the world seed.');
 assert.match(saveSystem, /this\.host\.setWorldSeed\(normalizeWorldSeed\(data\.worldSeed\)\)/, 'Loading must restore the world seed.');
 assert.match(saveSystem, /return Number\.isFinite\(numeric\) \? Math\.trunc\(numeric\) : 0;/, 'Legacy saves must default to the original zero seed.');
-assert.equal([...html.matchAll(/data-template="[^"]+"/g)].length, 37, 'Template picker must include all current starting worlds.');
+assert.equal([...html.matchAll(/data-template="[^"]+"/g)].length, 39, 'Template picker must include both new castle lands.');
 
 console.log('Playable layout template regression checks passed.');
