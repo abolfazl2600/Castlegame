@@ -19,9 +19,9 @@ assert.match(threeGame, /'himeji-castle': { layoutId: 'himeji-46x90', seed: 5801
 assert.match(types, /\| 'himeji-46x90'/);
 assert.match(mapLayouts, /export const HIMEJI_LAND_WIDTH = 46;/);
 assert.match(mapLayouts, /export const HIMEJI_LAND_DEPTH = 90;/);
-assert.match(mapLayouts, /export function himejiLandBounds\(size: number\)/);
+assert.match(mapLayouts, /export function himejiLandBounds\(size: GridSizeInput\)/);
 assert.match(mapLayouts, /id: 'himeji-46x90'/);
-assert.match(threeGame, /const himejiBounds = himejiLandBounds\(SIZE\);/);
+assert.match(threeGame, /const himejiBounds = himejiLandBounds\(this\.worldCols\);/);
 assert.match(threeGame, /template === 'himeji-castle'/);
 assert.match(visualStyle, /'himeji-castle': { stoneStyle: 'whitePlaster', towerBridgeKind: 'stone', family: 'medieval' }/);
 
