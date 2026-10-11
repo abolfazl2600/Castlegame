@@ -60,6 +60,18 @@ export function translate(message: string, locale: Locale = 'fa'): string {
   if (locale === 'en') return message;
   const exact = dictionary[message];
   if (exact !== undefined) return formatDigits(exact);
+  // Costs are composed at runtime; translate both quantities and materials.
+  const materialParts = message.split(' + ');
+  if (materialParts.every(part => /^\d[\d,.]* (?:wood|stone)$/.test(part))) {
+    return materialParts.map(part => {
+      const [amount, material] = part.split(' ');
+      return formatDigits(amount) + ' ' + (material === 'wood' ? 'چوب' : 'سنگ');
+    }).join(' + ');
+  }
+  // Costed upgrade buttons contain a complete action followed by a price.
+  const pricedLabel = message.match(/^(.+) · ((?:\d[\d,.]* (?:wood|stone))(?: \+ \d[\d,.]* (?:wood|stone))*|free build|no material cost)$/);
+  if (pricedLabel) return translate(pricedLabel[1], locale) + ' · ' + translate(pricedLabel[2], locale);
+
   // Dynamic quantities are matched by their stable source-language unit names.
   const labelledCount = message.match(/^(.+?)(:\s*|\s+)(-?\d[\d,.]*(?:\s*\/\s*\d+)?)$/);
   if (labelledCount) {
@@ -71,10 +83,22 @@ export function translate(message: string, locale: Locale = 'fa'): string {
     const name = dictionary[level[1]];
     if (name) return name + ' · سطح ' + formatDigits(level[2]);
   }
+  const standaloneLevel = message.match(/^Level (\d+)$/);
+  if (standaloneLevel) return 'سطح ' + formatDigits(standaloneLevel[1]);
   const tier = message.match(/^Tier\s+(\d+)$/);
   if (tier) return 'رده ' + formatDigits(tier[1]);
   const upgrade = message.match(/^Upgrade to Level\s+(\d+)$/);
   if (upgrade) return 'ارتقا به سطح ' + formatDigits(upgrade[1]);
+  const upgradeBuilding = message.match(/^Upgrade (.+?) to Level (\d+) · (.+)$/);
+  if (upgradeBuilding) {
+    return 'ارتقای ' + translate(upgradeBuilding[1], locale) +
+      ' به سطح ' + formatDigits(upgradeBuilding[2]) + ' · ' + translate(upgradeBuilding[3], locale);
+  }
+  const storageCapacity = message.match(/^Storage cap (\d[\d,.]*) per resource$/);
+  if (storageCapacity) return 'ظرفیت انبار ' + formatDigits(storageCapacity[1]) + ' برای هر منبع';
+  const perSecond = message.match(/^([+-]?)([\d,.]+)\/s$/);
+  if (perSecond) return perSecond[1] + formatDigits(perSecond[2]) + '/ثانیه';
+
   const countWithLabel = message.match(/^(Population|Army|Available|Farmers|Builders|Production\/Service|Militia|Professional|Logs|Wood|Stone|Grain|Apples|Flour|Food|Storage|Missiles)\s*(:)?\s*(\d[\d,./\s]*)$/);
   if (countWithLabel) {
     const title = dictionary[countWithLabel[1]] || ({
@@ -94,15 +118,25 @@ export function translate(message: string, locale: Locale = 'fa'): string {
   // Translate both parts so Persian UI never falls back to an English composite sentence.
   let match = message.match(/^(.+\.) Next: (.+)\.$/);
   if (match) return translate(match[1], locale) + ' مرحله بعد: ' + translate(match[2], locale) + '.';
-  match = message.match(/^(.+\.) Maximum (harbor|building|fortification) level reached\.$/);
+  match = message.match(/^(.+\.) Maximum (harbor|building|fortification|upgrade) level reached\.$/);
   if (match) {
     const maximumLabel = match[2] === 'harbor'
       ? 'بندر به بالاترین سطح رسیده است.'
       : match[2] === 'fortification'
         ? 'استحکامات به بالاترین سطح رسیده‌اند.'
-        : 'ساختمان به بالاترین سطح رسیده است.';
+        : match[2] === 'upgrade'
+          ? 'به بالاترین سطح ارتقا رسیده است.'
+          : 'ساختمان به بالاترین سطح رسیده است.';
     return translate(match[1], locale) + ' ' + maximumLabel;
   }
+  // Carpenter descriptions combine a static sentence and measured production.
+  match = message.match(/^(.+\.) (\d+) workers · up to ([\d.]+) Wood\/s\. Next: (.+)\.$/);
+  if (match) return translate(match[1], locale) + ' ' + formatDigits(match[2]) +
+    ' کارگر · حداکثر ' + formatDigits(match[3]) + ' چوب/ثانیه. مرحله بعد: ' + translate(match[4], locale) + '.';
+  match = message.match(/^(.+\.) (\d+) workers · up to ([\d.]+) Wood\/s\. Maximum building level reached\.$/);
+  if (match) return translate(match[1], locale) + ' ' + formatDigits(match[2]) +
+    ' کارگر · حداکثر ' + formatDigits(match[3]) + ' چوب/ثانیه. ساختمان به بالاترین سطح رسیده است.';
+
   match = message.match(/^Uses (.+)\.$/);
   if (match) return 'از ' + translate(match[1], locale) + ' استفاده می‌کند.';
 
@@ -173,8 +207,11 @@ export function translate(message: string, locale: Locale = 'fa'): string {
   if (match) return 'منابع کافی نیست · نیاز به ' + formatDigits(match[1]) + ' چوب و ' + formatDigits(match[2]) + ' سنگ';
   match = message.match(/^Not enough resources · need (\d+) (wood|stone)$/);
   if (match) return 'منابع کافی نیست · نیاز به ' + formatDigits(match[1]) + ' ' + (match[2] === 'wood' ? 'چوب' : 'سنگ');
+  match = message.match(/^Not enough resources to upgrade · need (.+)$/);
+  if (match) return 'منابع برای ارتقا کافی نیست · نیاز به ' + translate(match[1], locale);
+
   match = message.match(/^Not enough resources · need (.+)$/);
-  if (match) return 'منابع کافی نیست · نیاز به ' + formatDigits(match[1]);
+  if (match) return 'منابع کافی نیست · نیاز به ' + translate(match[1], locale);
   match = message.match(/^Castle stone style: (.+)$/);
   if (match) return 'سبک سنگ قلعه: ' + translate(match[1], locale);
   match = message.match(/^Tower bridge material: (.+)$/);
