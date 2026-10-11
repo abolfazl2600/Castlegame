@@ -62,8 +62,11 @@ assert.match(marketplaceWorkflow, /generate-marketplace-version\.mjs/);
 assert.match(marketplaceWorkflow, /vars\.ANDROID_MARKETPLACE_VERSION_CODE_BASE/);
 assert.match(marketplaceWorkflow, /-PandroidVersionCode="\$ANDROID_VERSION_CODE"/);
 assert.match(marketplaceWorkflow, /-PandroidVersionName="\$ANDROID_VERSION_NAME"/);
-assert.match(marketplaceWorkflow, /aapt" dump badging "\$APK"/,
-  'The signed APK must be checked for its real packaged versionCode and versionName');
+assert.match(marketplaceWorkflow, /node scripts\/android\/verify-marketplace-single-apk\.mjs/,
+  'The marketplace release must validate the packaged APK before uploading');
+assert.match(read('scripts/android/verify-marketplace-single-apk.mjs'),
+  /execFileSync\(aapt, \['dump', 'badging', apk\]/,
+  'The APK validator must inspect actual package metadata with aapt');
 assert.doesNotMatch(marketplaceWorkflow, /inputs\.version_code|REQUESTED_VERSION_CODE/,
   'No manual versionCode should be requested for APK releases');
 

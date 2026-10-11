@@ -9,8 +9,9 @@ automatically sets both Android version fields. You no longer enter a
 1. Open **Actions → Build signed Android APK (Bazaar and Myket, manual)**.
 2. Select **Run workflow**, branch **main** and confirm the run as the repository owner.
 3. Approve the protected `android-release` environment if required.
-4. Download the signed APK from the completed run's **Artifacts**.
-5. Upload the APK to Bazaar and/or Myket; the app package and upload signing key are unchanged.
+4. Download the signed artifact from the completed run's **Artifacts**. It contains **exactly one universal APK**, named `castle-role-bazaar-myket-v...-code....apk`.
+5. In **Cafe Bazaar's release editor**, create a new release or open the pending draft and **remove any previously attached APK with the same device configuration from that draft**. Attach only this new APK. Do **not** delete historic published versions.
+6. Upload the one APK to Bazaar and/or Myket; the package ID and signing key are unchanged.
 
 For new runs, `GITHUB_RUN_NUMBER` increases automatically. To avoid colliding
 with the previous timestamp-based APK scheme, the default version range starts at
@@ -25,6 +26,11 @@ Example: workflow run 251, attempt 1 builds `versionCode=500025100`,
 `versionName=1.0.251.1`. Run 252 creates `500025200` / `1.0.252.1`.
 Re-running the same run increments `GITHUB_RUN_ATTEMPT`, reserving up to 100
 attempts without repeating the code.
+
+
+### Duplicate package configuration in Cafe Bazaar
+
+A `versionCode` change alone cannot fix the message **«پیکربندی بسته‌ها نباید تکراری باشد»** if two APKs were attached to the same **pending release** with identical device targeting. This build produces and publishes as a GitHub artifact just **one universal APK**, and fails instead of uploading split/extra APKs. However, GitHub Actions cannot remove an APK already attached to a Bazaar release draft: remove the older attachment in Bazaar's developer panel before saving the new release. Leave previously published releases intact.
 
 ### First-release check (only if previous versions used unusually high codes)
 

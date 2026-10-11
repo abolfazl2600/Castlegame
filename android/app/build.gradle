@@ -49,6 +49,13 @@ android {
             ignoreAssetsPattern = '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
         }
     }
+    // Bazaar/Myket accepts one universal APK for a release; ABI/density
+    // splits would produce overlapping package configurations on upload.
+    splits {
+        abi { enable false }
+        density { enable false }
+    }
+
     signingConfigs {
         if (hasUploadSigning) {
             release {
