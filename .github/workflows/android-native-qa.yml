@@ -6,6 +6,12 @@ on:
     paths:
       - .github/workflows/android-native-qa.yml
       - android/**
+      - .github/workflows/android-signed-aab.yml
+      - .github/workflows/android-marketplace-apk.yml
+      - scripts/android/validate-release-version-code.mjs
+      - scripts/test-android-release-version-code.mjs
+      - scripts/test-android-release-signing-contract.mjs
+      - package.json
       - capacitor.config.ts
       - package-lock.json
 
@@ -56,6 +62,11 @@ jobs:
 
       - name: Install locked npm packages
         run: npm ci --no-audit --no-fund
+
+      - name: Validate release versionCode and signing policies
+        run: |
+          npm run test:android-release-version-code
+          npm run test:android-release-signing-contract
 
       - name: Build and sync bundled WebView assets
         run: npm run android:sync
