@@ -29,6 +29,7 @@ const { SAVE_AUTOSAVE_KEY, SAVE_LEGACY_KEY, SAVE_VERSION } = await import('../sr
 const { defaultMissileState, beginMissileProduction, missilesUnlocked, tickMissileState, MISSILE_CONFIG } = await import('../src/battle/MissileCapability.ts');
 const { getEndlessDefenseWave, endlessDefenseEnemyCount } = await import('../src/battle/EndlessDefense.ts');
 const { EconomySystem } = await import('../src/systems/EconomySystem.ts');
+const { handleAndroidBackAction } = await import('../src/android/androidBackAction.ts');
 const read = path => readFileSync(new URL('../' + path, import.meta.url), 'utf8');
 const game = read('src/ThreeGame.ts');
 const html = read('index.html');
@@ -199,8 +200,8 @@ const android = read('src/android/androidBackNavigation.ts').replace(/^import .*
 const install = runInNewContext(stripTypeScriptTypes(android.replace('export function', 'function') + '\ninstallAndroidBackNavigation;', { mode: 'transform' }), {
   App: { addListener(_event, handler) { back = handler; return Promise.resolve(); }, minimizeApp() { minimized = true; } },
   Capacitor: { isNativePlatform: () => true, getPlatform: () => 'android' },
-  document: { getElementById(id) { return id === visible ? { hidden: false } : { hidden: true, click() { clicked.push(id); } }; },
-    querySelectorAll: () => [], querySelector: () => null }, getComputedStyle: () => ({ display: 'block' }), console,
+  document: { getElementById(id) { return id === visible ? { hidden: false, classList: { contains: () => true } } : { hidden: true, classList: { contains: () => true }, click() { clicked.push(id); } }; },
+    querySelectorAll: () => [], querySelector: () => null }, getComputedStyle: () => ({ display: 'block' }), console, handleAndroidBackAction,
 });
 install();
 back();
