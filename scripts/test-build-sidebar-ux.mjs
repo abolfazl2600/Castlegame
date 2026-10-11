@@ -125,4 +125,19 @@ assert.match(css, /\.settings-section\.is-open \.settings-section-items \{ displ
 assert.match(css, /width: min\(92vw, 336px\)/);
 assert.match(css, /\.tool-copy small \{ display: none; \}/);
 
+// Desktop-specific information architecture: separate economy without losing
+// the same live resource/counter nodes or the existing mobile presentation.
+assert.match(game, /economyHud\.id = 'economy-hud'/);
+assert.match(game, /economyStats\.appendChild\(populationSummary\)/);
+assert.match(game, /economyStats\.appendChild\(resourcesSummary\)/);
+assert.match(game, /workforceDetails\.appendChild\(workforceSummary\)/);
+assert.match(game, /\(mobile \? mobileEconomySlot : gameShell\)\.appendChild\(economyHud\)/);
+assert.match(game, /new MutationObserver\(syncEconomyHudPlacement\)/);
+assert.match(css, /html:not\(\.mobile-ui-active\) \.minimap \{[\s\S]*?left: auto;[\s\S]*?right: max\(16px/);
+assert.match(css, /html:not\(\.mobile-ui-active\) \.toolbar \{[\s\S]*?max-height: calc\(100% - 250px\)/);
+assert.match(css, /html:not\(\.mobile-ui-active\) \.tool-copy strong \{[\s\S]*?font-size: calc\(13px/);
+assert.match(css, /html:not\(\.mobile-ui-active\) \.tool-copy small \{[\s\S]*?display: block;[\s\S]*?font-size: calc\(11px/);
+assert.match(css, /html:not\(\.mobile-ui-active\) \.economy-hud \{[\s\S]*?position: absolute;/);
+assert.match(css, /html\.mobile-ui-active \.economy-hud \{[\s\S]*?position: static;/);
+
 console.log('Build sidebar UX regression checks passed.');
