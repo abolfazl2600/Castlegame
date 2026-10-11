@@ -130,6 +130,18 @@ export const MAP_LAYOUTS: readonly MapLayoutDefinition[] = [
     description: 'A large 50×89-tile coastal valley with a navigable river, mountain ridge, forests, open farmland, and room for a complete kingdom.',
     preview: '♜≈🌲',
   },
+  {
+    id: 'highland-crown-100x100',
+    label: 'Highland Crown 100×100',
+    description: 'A rugged mountain frontier with a sheltered central plateau, dark-stone castle, woodland, mines, and fertile southern valley.',
+    preview: '♜▲🌲',
+  },
+  {
+    id: 'sunset-lagoon-100x100',
+    label: 'Sunset Lagoon 100×100',
+    description: 'A sunny sandstone castle above a sheltered lagoon, with a working coastline, woodland, farms, and sea-trade routes.',
+    preview: '♜≈⚓',
+  },
 ] as const;
 
 export function isMapLayoutId(value: unknown): value is MapLayoutId {
@@ -141,7 +153,9 @@ export function isMapLayoutId(value: unknown): value is MapLayoutId {
     value === 'urban-60x80' ||
     value === 'twin-fortresses-90x95' ||
     value === 'himeji-46x90' ||
-    value === 'royal-valley-50x89';
+    value === 'royal-valley-50x89' ||
+    value === 'highland-crown-100x100' ||
+    value === 'sunset-lagoon-100x100';
 }
 
 export function normalizeMapLayoutId(value: unknown): MapLayoutId {
@@ -518,6 +532,29 @@ export function terrainForMapLayout(
   const grid = resolveGrid(size);
   const { cols, rows } = grid;
   if (x < 0 || y < 0 || x >= cols || y >= rows) return 'water';
+
+  if (layout === 'highland-crown-100x100' || layout === 'sunset-lagoon-100x100') {
+    // Both authored castle lands use 25×25 real editable tiles. Their land
+    // and shore are deterministic and share existing terrain material types.
+    if (x === 0 || y === 0 || y === rows - 1 || x >= cols - 2) return 'water';
+    if (x === 1 || y === 1 || y === rows - 2 || x === cols - 3) return 'shore';
+
+    if (layout === 'highland-crown-100x100') {
+      if ((x <= 4 && y <= 17) || y <= 3 || (x >= 19 && y <= 8)) return 'mountain';
+      const wooded = (x >= 18 && y >= 12) || (x <= 5 && y >= 17);
+      if (wooded && Math.sin(x * 0.52) + Math.cos(y * 0.39) > -0.7) return 'forest';
+      return 'plains';
+    }
+
+    // A real water basin connects to the eastern sea through a narrow inlet;
+    // the outer shore and inner lagoon provide separate harbor opportunities.
+    const lagoon = ((x - 19) / 3) ** 2 + ((y - 11) / 4.4) ** 2;
+    if (lagoon < 0.82 || (y === 11 && x >= 18)) return 'water';
+    if (lagoon < 1.12) return 'shore';
+    if (x <= 3 && y <= 8) return 'mountain';
+    if (x <= 5 && y >= 17 && Math.sin(x * 0.63 + y * 0.38) > -0.5) return 'forest';
+    return 'plains';
+  }
 
   if (layout === 'royal-valley-50x89') {
     const bounds = royalValleyLandBounds(grid);
