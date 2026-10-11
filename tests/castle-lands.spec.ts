@@ -13,7 +13,7 @@ async function boot(page: Page): Promise<void> {
   await page.addInitScript(({ marker, autosave, version }) => {
     const now = Date.now();
     localStorage.setItem(marker, '1');
-    localStorage.setItem(autosave, JSON.stringify({
+    if (!localStorage.getItem(autosave)) localStorage.setItem(autosave, JSON.stringify({
       metadata: {
         id: 'castle-lands-e2e', slot: 'autosave', name: 'Castle Lands QA',
         createdAt: now, updatedAt: now, schemaVersion: version, gameMode: 'unified',
