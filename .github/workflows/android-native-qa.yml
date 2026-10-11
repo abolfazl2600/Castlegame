@@ -83,3 +83,19 @@ jobs:
         run: |
           test -s android/app/build/outputs/apk/release/app-release-unsigned.apk
           test -s android/app/build/outputs/bundle/release/app-release.aab
+
+      - name: Confirm compiled universal APK has no overlapping device splits
+        shell: bash
+        run: |
+          set -euo pipefail
+          mapfile -d '' APK_FILES < <(find android/app/build/outputs/apk/release -type f -name '*.apk' -print0)
+          if (( ${#APK_FILES[@]} != 1 )); then
+            echo "::error::Only one universal APK may be built; found ${#APK_FILES[@]}."
+            exit 1
+          fi
+          BADGING="$("$ANDROID_HOME/build-tools/36.0.0/aapt" dump badging "${APK_FILES[0]}" | grep -m1 '^package:')"
+          if [[ "$BADGING" != *"name='com.castlerole.game'"* || "$BADGING" == *" split='"* ]]; then
+            echo "::error::APK package ID is wrong or Gradle built an APK split: $BADGING"
+            exit 1
+          fi
+          echo "Verified exactly one universal APK configuration."
