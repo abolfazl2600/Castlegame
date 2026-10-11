@@ -6063,6 +6063,26 @@ html[data-high-contrast] #settings-modal .settings-quick-settings button { borde
   html:not(.mobile-ui-active) .toolbar kbd {
     font-size: calc(11px * var(--castle-ui-scale, 1));
   }
+  html:not(.mobile-ui-active) .settings-section-header {
+    min-height: 42px;
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+  html:not(.mobile-ui-active) .settings-section-title,
+  html:not(.mobile-ui-active) .settings-title {
+    font-size: calc(12px * var(--castle-ui-scale, 1));
+  }
+  html:not(.mobile-ui-active) .settings-section-summary { display: none; }
+  html:not(.mobile-ui-active) .settings-row {
+    grid-template-columns: minmax(95px, auto) minmax(0, 1fr);
+    font-size: calc(12px * var(--castle-ui-scale, 1));
+  }
+  html:not(.mobile-ui-active) .settings-check {
+    font-size: calc(12px * var(--castle-ui-scale, 1));
+  }
+  html:not(.mobile-ui-active) .settings-row select {
+    min-height: 36px;
+    font-size: calc(12px * var(--castle-ui-scale, 1));
+  }
   html:not(.mobile-ui-active) .build-search-empty,
   html:not(.mobile-ui-active) .tool-category-label {
     font-size: calc(12px * var(--castle-ui-scale, 1));
