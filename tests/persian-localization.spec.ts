@@ -182,6 +182,70 @@ test('Dynamic status and accessibility labels follow live locale changes', async
   await expect(page.locator('#save-status')).toHaveText('مدت نبرد: ۱۲.۵ ثانیه');
 });
 
+test('Issue #320: dynamic build costs, selected levels and accessibility metadata survive live language switches', async ({ page }) => {
+  // Full WebGL boot and multiple live locale transitions can take >45s on CI.
+  test.setTimeout(90_000);
+  await openLocalizedGame(page, 1280, 800);
+  await expect(page.locator('#toolbar [data-build-none]')).toHaveCount(1);
+
+  // Insert runtime-shaped controls after installLocalization has already run.
+  await page.evaluate(() => {
+    const toolbar = document.getElementById('toolbar');
+    if (!toolbar) throw new Error('Build toolbar is unavailable');
+    const probe = document.createElement('section');
+    probe.id = 'issue-320-runtime-probe';
+    probe.innerHTML = [
+      '<button id="issue-320-upgrade" type="button" title="Upgrade Tower to Level 2 · Reinforced Tower · 12 wood + 8 stone" aria-label="Map sector 4, 7; press Enter to move camera">Upgrade to Level 2 · Improved Mosque · 12 wood + 8 stone</button>',
+      '<span id="issue-320-selection">Level 3</span>',
+      '<span id="issue-320-resources">Not enough resources to upgrade · need 12 wood + 8 stone</span>',
+      '<span id="issue-320-storage">Storage cap 200 per resource</span>',
+      '<input id="issue-320-search" aria-label="Search build tools" placeholder="Search tools…" />',
+    ].join('');
+    toolbar.appendChild(probe);
+  });
+
+  const button = page.locator('#issue-320-upgrade');
+  await expect(button).toHaveText('ارتقا به سطح ۲ · مسجد بهبودیافته · ۱۲ چوب + ۸ سنگ');
+  await expect(button).toHaveAttribute('title', 'ارتقای برج به سطح ۲ · برج مستحکم · ۱۲ چوب + ۸ سنگ');
+  await expect(button).toHaveAttribute('aria-label', 'بخش نقشه ۴، ۷؛ برای جابه‌جایی دوربین Enter را بزنید');
+  await expect(page.locator('#issue-320-selection')).toHaveText('سطح ۳');
+  await expect(page.locator('#issue-320-resources')).toHaveText('منابع برای ارتقا کافی نیست · نیاز به ۱۲ چوب + ۸ سنگ');
+  await expect(page.locator('#issue-320-storage')).toHaveText('ظرفیت انبار ۲۰۰ برای هر منبع');
+  await expect(page.locator('#issue-320-search')).toHaveAttribute('placeholder', 'جست‌وجوی ابزارها…');
+
+  await openSettings(page);
+  await page.locator('[data-settings-nav="general"]').click();
+  await page.locator('[data-setting="language"]').selectOption('en');
+  await expect(page.locator('html')).toHaveAttribute('dir', 'ltr');
+  await expect(button).toHaveText('Upgrade to Level 2 · Improved Mosque · 12 wood + 8 stone');
+  await expect(button).toHaveAttribute('title', 'Upgrade Tower to Level 2 · Reinforced Tower · 12 wood + 8 stone');
+  await expect(button).toHaveAttribute('aria-label', 'Map sector 4, 7; press Enter to move camera');
+  await expect(page.locator('#issue-320-selection')).toHaveText('Level 3');
+  await expect(page.locator('#issue-320-storage')).toHaveText('Storage cap 200 per resource');
+
+  await page.locator('[data-setting="language"]').selectOption('fa');
+  await expect(page.locator('html')).toHaveAttribute('dir', 'rtl');
+  await expect(button).toHaveText('ارتقا به سطح ۲ · مسجد بهبودیافته · ۱۲ چوب + ۸ سنگ');
+  await expect(button).toHaveAttribute('title', 'ارتقای برج به سطح ۲ · برج مستحکم · ۱۲ چوب + ۸ سنگ');
+  await expect(page.locator('#issue-320-resources')).toHaveText('منابع برای ارتقا کافی نیست · نیاز به ۱۲ چوب + ۸ سنگ');
+
+  // Repeat an attribute update while Persian is active: the observer must
+  // preserve the new English source string for a later reverse switch.
+  await button.evaluate(element => element.setAttribute('title', 'Storage cap 250 per resource'));
+  await expect(button).toHaveAttribute('title', 'ظرفیت انبار ۲۵۰ برای هر منبع');
+  await page.locator('[data-setting="language"]').selectOption('en');
+  await expect(button).toHaveAttribute('title', 'Storage cap 250 per resource');
+
+  await page.locator('#settings-close').click();
+  await page.locator('#toolbar-close').click();
+  await page.locator('#toolbar-open').click();
+  await expect(page.locator('#toolbar')).not.toHaveClass(/is-collapsed/);
+  // Synthetic probes are not owned by gameplay. Verify real Build controls after
+  // reopening rather than requiring a particular lifetime for test-only nodes.
+  await expect(page.locator('#build-search')).toHaveAttribute('placeholder', 'Search tools…');
+  await expect(page.locator('#toolbar [data-build-none]')).toHaveCount(1);
+});
+
 test('Persian portrait touch layout keeps controls and Settings on-screen', async ({ page }, testInfo) => {
   await openLocalizedGame(page, 390, 844);
   await expect(page.locator('html')).toHaveClass(/mobile-ui-active/);
@@ -244,6 +308,9 @@ test.describe('Persian Android landscape', () => {
 
 
 test('Mission Journal translates cached cards, static labels and numerals on live language changes', async ({ page }) => {
+  // This existing long-form scene and locale regression regularly approaches
+  // the default 45s CI timeout before its final card-reuse check.
+  test.setTimeout(90_000);
   await openLocalizedGame(page, 1280, 800);
 
   const journal = page.locator('#mission-journal');
