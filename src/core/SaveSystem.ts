@@ -811,7 +811,9 @@ function validMapLayoutId(value: unknown): value is MapLayoutId {
     value === 'urban-60x80' ||
     value === 'twin-fortresses-90x95' ||
     value === 'himeji-46x90' ||
-    value === 'royal-valley-50x89';
+    value === 'royal-valley-50x89' ||
+    value === 'highland-crown-100x100' ||
+    value === 'sunset-lagoon-100x100';
 }
 
 function validStoneStyle(value: unknown): value is StoneStyle {

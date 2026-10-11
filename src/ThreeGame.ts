@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { createUrbanCityTemplate } from './world/UrbanCityTemplate';
 import { createTwinFortressesTemplate } from './world/TwinFortressesTemplate';
+import { createCastleLandTemplate } from './world/CastleLandTemplates';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { App } from '@capacitor/app';
 import { Capacitor } from '@capacitor/core';
@@ -123,6 +124,8 @@ const PLAYABLE_LAYOUT_TEMPLATES: Readonly<Record<string, { layoutId: MapLayoutId
   'urban-city-60x80': { layoutId: 'urban-60x80', seed: 6001 },
   'twin-fortresses-90x95': { layoutId: 'twin-fortresses-90x95', seed: 9095 },
   'royal-valley-50x89': { layoutId: 'royal-valley-50x89', seed: 5089 },
+  'highland-crown-100x100': { layoutId: 'highland-crown-100x100', seed: 6201 },
+  'sunset-lagoon-100x100': { layoutId: 'sunset-lagoon-100x100', seed: 6301 },
   'mainland-frontier': { layoutId: 'mainland', seed: 5501 },
   'coastal-peninsula': { layoutId: 'peninsula', seed: 5502 },
   'split-isles': { layoutId: 'twin-isles', seed: 5503 },
@@ -14517,6 +14520,28 @@ export class ThreeGame {
     } else if (template === 'urban-city-60x80') {
       for (const { x, y, kind, level, ...options } of createUrbanCityTemplate(this.worldCols)) {
         place(x, y, kind, level, options);
+      }
+    } else if (template === 'highland-crown-100x100' || template === 'sunset-lagoon-100x100') {
+      // Existing real build/keep systems own every part of these starting worlds.
+      // Preparing only solid ground preserves the authored coastline and lagoon.
+      if (template === 'highland-crown-100x100') {
+        prepareBuildableArea(6, 5, 17, 16, 0.28);
+      } else {
+        prepareBuildableArea(5, 5, 14, 15, 0.12);
+      }
+      const castleLand = createCastleLandTemplate(template);
+      for (const { x, y, kind, level, ...options } of castleLand.cells) {
+        place(x, y, kind, level, options);
+      }
+      for (const keep of castleLand.keeps) {
+        for (const footprintCell of this.services.keepSystem.footprint(keep)) {
+          this.services.state.removeCell(footprintCell.x, footprintCell.y);
+        }
+        this.services.keepSystem.add(keep);
+      }
+      if (template === 'sunset-lagoon-100x100') {
+        placeHarborTemplate(3, 'tradingBoat', 20, 17);
+        placeHarborTemplate(2, 'fishingBoat', 20, 6);
       }
     } else if (template === 'twin-fortresses-90x95') {
       // Two complete, editable fortresses with gates, keeps, roads, camps, and

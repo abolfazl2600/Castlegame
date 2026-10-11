@@ -1,0 +1,77 @@
+name: Castle Lands QA
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/castle-lands-qa.yml'
+      - 'src/world/**'
+      - 'src/core/types.ts'
+      - 'src/core/SaveSystem.ts'
+      - 'src/ThreeGame.ts'
+      - 'src/rendering/TemplateVisualStyle.ts'
+      - 'src/i18n/faTemplates.ts'
+      - 'index.html'
+      - 'scripts/test-castle-land-templates.mjs'
+      - 'scripts/test-playable-layout-templates.mjs'
+      - 'tests/castle-lands.spec.ts'
+      - 'package.json'
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/castle-lands-qa.yml'
+      - 'src/world/**'
+      - 'src/core/types.ts'
+      - 'src/core/SaveSystem.ts'
+      - 'src/ThreeGame.ts'
+      - 'src/rendering/TemplateVisualStyle.ts'
+      - 'src/i18n/faTemplates.ts'
+      - 'index.html'
+      - 'scripts/test-castle-land-templates.mjs'
+      - 'scripts/test-playable-layout-templates.mjs'
+      - 'tests/castle-lands.spec.ts'
+      - 'package.json'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  castles:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    env:
+      NODE_OPTIONS: --max-old-space-size=2048
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - name: Verify terrain, castle templates, saves, picker and Persian labels
+        run: |
+          npm run test:castle-lands
+          npm run test:map-layouts
+          npm run test:playable-layout-templates
+          npm run test:carcassonne-template
+          npm run test:crac-des-chevaliers-template
+          npm run test:himeji-template
+          npm run test:visual-style-integration
+          npm run test:persian-localization
+          npx tsc --noEmit
+      - name: Build game
+        run: npx vite build
+      - name: Install browser
+        run: npx playwright install --with-deps chromium
+      - name: Exercise castles, saves and reloads in browser
+        run: npx playwright test tests/castle-lands.spec.ts --reporter=line
+      - name: Upload castle screenshots and browser evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: castle-lands-qa-${{ github.sha }}
+          path: |
+            test-results/
+            playwright-report/
+          if-no-files-found: warn
+          retention-days: 30

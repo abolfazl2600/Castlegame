@@ -13,15 +13,15 @@ const docs = await readFile(new URL('../docs/templates/himeji.md', import.meta.u
 
 assert.equal(html.split('data-template="himeji-castle"').length - 1, 1, 'Himeji must appear exactly once in the template picker.');
 assert.match(html, /Himeji Castle · Japan · 46×90/);
-assert.equal([...html.matchAll(/data-template=\"[^\"]+\"/g)].length, 37, 'Template picker must preserve all 37 complete starting worlds.');
+assert.equal([...html.matchAll(/data-template=\"[^\"]+\"/g)].length, 39, 'Template picker must preserve all 39 complete starting worlds.');
 
 assert.match(threeGame, /'himeji-castle': { layoutId: 'himeji-46x90', seed: 5801 }/);
 assert.match(types, /\| 'himeji-46x90'/);
 assert.match(mapLayouts, /export const HIMEJI_LAND_WIDTH = 46;/);
 assert.match(mapLayouts, /export const HIMEJI_LAND_DEPTH = 90;/);
-assert.match(mapLayouts, /export function himejiLandBounds\(size: number\)/);
+assert.match(mapLayouts, /export function himejiLandBounds\(size: GridSizeInput\)/);
 assert.match(mapLayouts, /id: 'himeji-46x90'/);
-assert.match(threeGame, /const himejiBounds = himejiLandBounds\(SIZE\);/);
+assert.match(threeGame, /const himejiBounds = himejiLandBounds\(this\.worldCols\);/);
 assert.match(threeGame, /template === 'himeji-castle'/);
 assert.match(visualStyle, /'himeji-castle': { stoneStyle: 'whitePlaster', towerBridgeKind: 'stone', family: 'medieval' }/);
 
