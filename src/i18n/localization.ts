@@ -305,6 +305,9 @@ const skipTags = new Set(['SCRIPT', 'STYLE', 'NOSCRIPT', 'TEXTAREA', 'CODE', 'KB
 
 export function installLocalization(store: SettingsStore): () => void {
   let locale: Locale = 'en';
+  // The document starts in Persian. Even if English matches the in-memory
+  // default, its direction must be applied on the very first subscription.
+  let hasAppliedLocale = false;
   const originalText = new WeakMap<Text, string>();
   const renderedText = new WeakMap<Text, string>();
   const originalAttributes = new WeakMap<Element, Map<string, { original: string; rendered: string }>>();
@@ -379,7 +382,8 @@ export function installLocalization(store: SettingsStore): () => void {
 
   const unsubscribe = store.subscribe(settings => {
     const next = resolveLocale(settings.interface.language);
-    if (next === locale) return;
+    if (hasAppliedLocale && next === locale) return;
+    hasAppliedLocale = true;
     locale = next;
     currentLocale = next;
     document.documentElement.lang = next;
