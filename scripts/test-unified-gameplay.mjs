@@ -142,6 +142,7 @@ Object.assign(runtime, { freeBuildEnabled: false, services: { economySystem: eco
   syncEconomyUI() {}, syncPopulationDefenseAssignments() {}, syncBattleSetupUI() {}, setToolbarOpen() {},
   setStatus(message) { this.message = message; }, updateBattleUI() {}, redraw() {}, reconcileSettlementAgents() {},
   syncIdleDefenderGarrison() {}, commitPopulationBattleOutcome() {}, settingsStore: { get: () => ({ gameplay: { combatFeedback: false } }) },
+  constructionProjects: { count: 0 },
   workerLayer: {}, settlementLayer: {}, militaryTier: 4, viewMode: 'world3d', battleSetup: { defenderSwordsmen: 4 },
 });
 const before = economy.getState();
