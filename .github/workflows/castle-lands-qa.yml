@@ -53,6 +53,10 @@ jobs:
           npm run test:castle-lands
           npm run test:map-layouts
           npm run test:playable-layout-templates
+          npm run test:carcassonne-template
+          npm run test:crac-des-chevaliers-template
+          npm run test:himeji-template
+          npm run test:visual-style-integration
           npm run test:persian-localization
           npx tsc --noEmit
       - name: Build game
