@@ -42,7 +42,7 @@ export class AndroidUpdateUI {
     const card = document.createElement('button');
     card.type = 'button';
     card.dataset.action = 'update-game';
-    card.innerHTML = '<span>بروزرسانی بازی</span><small>دریافت بسته وب امن از سرور عمومی بروزرسانی</small>';
+    card.innerHTML = '<span>بروزرسانی نسخه آزمایشی</span><small>دریافت بسته وب امن از سرور عمومی بروزرسانی</small>';
 
     const status = document.createElement('div');
     status.className = 'settings-info-strip';
@@ -72,7 +72,7 @@ export class AndroidUpdateUI {
         console.error('Android game update failed', error);
         if (statusText) statusText.textContent = updateFailureMessage(error);
       } finally {
-        if (label) label.textContent = 'بروزرسانی بازی';
+        if (label) label.textContent = 'بروزرسانی نسخه آزمایشی';
         card.disabled = false;
       }
     });
