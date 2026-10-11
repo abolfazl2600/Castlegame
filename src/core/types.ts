@@ -84,7 +84,7 @@ export type ToolKind =
   | TerrainToolKind
   | 'erase';
 
-export type MapLayoutId = 'island' | 'mainland' | 'peninsula' | 'twin-isles' | 'triple-isles-100x100' | 'urban-60x80' | 'twin-fortresses-90x95' | 'himeji-46x90' | 'royal-valley-50x89';
+export type MapLayoutId = 'island' | 'mainland' | 'peninsula' | 'twin-isles' | 'triple-isles-100x100' | 'urban-60x80' | 'twin-fortresses-90x95' | 'himeji-46x90' | 'royal-valley-50x89' | 'highland-crown-100x100' | 'sunset-lagoon-100x100';
 export type TerrainKind = 'water' | 'shore' | 'plains' | 'river' | 'mountain' | 'forest';
 export type TerrainOverrideKind = 'plains' | 'river';
 
