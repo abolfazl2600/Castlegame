@@ -60,7 +60,7 @@ assert.equal(translate('12 wood + 8 stone', 'fa'), '۱۲ چوب + ۸ سنگ');
 assert.equal(translate('Upgrade to Level 2 · Improved Mosque · 12 wood + 8 stone', 'fa'),
   'ارتقا به سطح ۲ · مسجد بهبودیافته · ۱۲ چوب + ۸ سنگ');
 assert.equal(translate('Upgrade Tower to Level 2 · Reinforced Tower · 12 wood + 8 stone', 'fa'),
-  'ارتقای برج به سطح ۲ · برج تقویت‌شده · ۱۲ چوب + ۸ سنگ');
+  'ارتقای برج به سطح ۲ · برج مستحکم · ۱۲ چوب + ۸ سنگ');
 assert.equal(translate('Not enough resources to upgrade · need 12 wood + 8 stone', 'fa'),
   'منابع برای ارتقا کافی نیست · نیاز به ۱۲ چوب + ۸ سنگ');
 assert.equal(translate('Not enough resources · need 12 wood + 8 stone', 'fa'),
