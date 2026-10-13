@@ -113,7 +113,7 @@ export class SettingsUI {
             ${this.navButton('general', '⚙', 'General')}
             ${this.navButton('graphics', '◈', 'Graphics')}
             ${this.navButton('audio', '♫', 'Audio')}
-            <button type="button" class="settings-more-toggle" data-settings-more aria-expanded="false" aria-controls="settings-extra-tabs"><span aria-hidden="true">⋯</span><strong>More settings</strong></button>
+            <button type="button" class="settings-more-toggle" data-settings-more aria-label="More settings" aria-expanded="false" aria-controls="settings-extra-tabs"><span aria-hidden="true">⋯</span><strong>More</strong></button>
             <div class="settings-extra-tabs" id="settings-extra-tabs" role="presentation" hidden>
               ${this.navButton('gameplay', '♟', 'Gameplay')}
               ${this.navButton('accessibility', '◎', 'Accessibility')}
