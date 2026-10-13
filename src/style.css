@@ -6378,3 +6378,63 @@ html.mobile-ui-active #settings-modal .settings-control-row select {
   #settings-modal .settings-overview-hero { gap: 10px; }
   #settings-modal .settings-quick-settings button { padding: 9px; }
 }
+
+/* Five visible destinations without a hidden off-screen More button. */
+@media (max-width: 700px), (pointer: coarse) and (max-height: 700px) {
+  #settings-modal .settings-nav {
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: 4px;
+    overflow: visible;
+    padding: 7px;
+  }
+  #settings-modal .settings-nav-button {
+    min-width: 0;
+    width: 100%;
+    padding: 6px 2px;
+    gap: 4px;
+    justify-items: center;
+  }
+  #settings-modal .settings-nav-button > span {
+    width: 25px;
+    height: 25px;
+  }
+  #settings-modal .settings-nav-button strong {
+    font-size: 11px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 100%;
+    white-space: nowrap;
+  }
+  #settings-modal .settings-more-toggle {
+    min-width: 0;
+    width: 100%;
+    padding: 6px 2px;
+    gap: 4px;
+    justify-content: center;
+  }
+  #settings-modal .settings-more-toggle > span {
+    width: 25px;
+    height: 25px;
+    flex: 0 0 25px;
+  }
+  #settings-modal .settings-more-toggle strong {
+    font-size: 11px;
+    white-space: nowrap;
+  }
+  #settings-modal .settings-extra-tabs {
+    grid-column: 1 / -1;
+    display: flex;
+    flex-direction: row;
+    min-width: 0;
+    max-width: 100%;
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    padding-block: 5px;
+    scroll-padding-inline: 8px;
+  }
+  #settings-modal .settings-extra-tabs .settings-nav-button {
+    flex: 0 0 94px;
+    width: 94px;
+  }
+}
