@@ -14,6 +14,7 @@ export class SettingsUI {
   private readonly panel: HTMLElement;
   private readonly backdrop: HTMLElement;
   private activePane: SettingsPane = 'overview';
+  private readonly advancedPanes = new Set<SettingsPane>(['gameplay', 'accessibility', 'controls', 'data']);
   private lastFocusedElement: HTMLElement | null = null;
 
   constructor(
@@ -96,9 +97,9 @@ export class SettingsUI {
       <div class="settings-card" role="dialog" aria-modal="true" aria-labelledby="settings-title">
         <header class="settings-header">
           <div class="settings-header-copy">
-            <span class="settings-eyebrow">CASTLE CONTROL CENTER</span>
+            <span class="settings-eyebrow">GAME SETTINGS</span>
             <h2 id="settings-title">Settings</h2>
-            <p>Game actions, visuals, sound and accessibility in one place.</p>
+            <p>Change the essentials in a few taps.</p>
           </div>
           <div class="settings-header-actions">
             <span class="settings-live-indicator"><span aria-hidden="true"></span>Changes apply instantly</span>
@@ -112,19 +113,21 @@ export class SettingsUI {
             ${this.navButton('general', '⚙', 'General')}
             ${this.navButton('graphics', '◈', 'Graphics')}
             ${this.navButton('audio', '♫', 'Audio')}
-            ${this.navButton('gameplay', '♟', 'Gameplay')}
-            ${this.navButton('accessibility', '◎', 'Accessibility')}
-            ${this.navButton('controls', '⌨', 'Controls')}
-            ${this.navButton('data', '▣', 'Data')}
+            <button type="button" class="settings-more-toggle" data-settings-more aria-expanded="false" aria-controls="settings-extra-tabs"><span aria-hidden="true">⋯</span><strong>More settings</strong></button>
+            <div class="settings-extra-tabs" id="settings-extra-tabs" role="presentation" hidden>
+              ${this.navButton('gameplay', '♟', 'Gameplay')}
+              ${this.navButton('accessibility', '◎', 'Accessibility')}
+              ${this.navButton('controls', '⌨', 'Controls')}
+              ${this.navButton('data', '▣', 'Data')}
+            </div>
           </nav>
 
           <div class="settings-scroll">
             <section class="settings-pane is-active" data-settings-pane="overview" id="settings-panel-overview" role="tabpanel" aria-labelledby="settings-tab-overview" tabindex="0">
               <div class="settings-overview-hero">
                 <div class="settings-overview-hero-copy">
-                  <span class="settings-hero-eyebrow">YOUR REALM · YOUR RULES</span>
-                  <h3>Make the game yours.</h3>
-                  <p>Personalize your experience or jump straight back into your castle.</p>
+                  <h3>Quick settings</h3>
+                  <p>Choose what to change. Your progress stays saved.</p>
                 </div>
                 <button type="button" data-action="continue-game" class="settings-continue-button">Continue playing <span aria-hidden="true">↗</span></button>
               </div>
@@ -134,18 +137,16 @@ export class SettingsUI {
                 <button type="button" data-settings-jump="general"><span>Language</span><strong data-settings-summary="language">فارسی</strong><small>Interface language</small></button>
               </div>
               <div class="settings-pane-heading">
-                <div><span class="settings-section-eyebrow">QUICK ACCESS</span><h3>Game Actions</h3></div>
-                <span class="settings-section-badge">LIVE</span>
+                <div><h3>Game Actions</h3></div>
               </div>
-              <p class="settings-section-note">Open game dialogs directly. Settings closes first so no dialog can appear underneath it.</p>
               <div class="settings-system-actions">
-                ${this.actionButton('help', '?', 'Help', 'Game guide and controls')}
-                ${this.actionButton('load', '↓', 'Load Game', 'Choose autosave, quick save or a slot')}
                 ${this.actionButton('save', '↑', 'Save Game', 'Quick save or choose a manual slot')}
+                ${this.actionButton('load', '↓', 'Load Game', 'Choose autosave, quick save or a slot')}
                 ${this.actionButton('templates', '▦', 'Templates', 'Choose a starting world')}
-                <button type="button" data-action="reset-world"><span class="settings-action-icon" aria-hidden="true">↻</span><span class="settings-action-copy"><strong>Reset World</strong><small>Start a new world and choose a map layout</small></span><span aria-hidden="true">›</span></button>
+                ${this.actionButton('help', '?', 'Help', 'Game guide and controls')}
+                <button type="button" class="is-danger" data-action="reset-world"><span class="settings-action-icon" aria-hidden="true">↻</span><span class="settings-action-copy"><strong>Reset World</strong><small>Start a new world and choose a map layout</small></span><span aria-hidden="true">›</span></button>
               </div>
-              <div class="settings-info-strip" data-settings-action-status>
+              <div class="settings-info-strip" data-settings-action-status hidden>
                 <span class="settings-info-dot"></span>
                 <span>Runtime actions are ready when the game canvas has loaded.</span>
               </div>
@@ -298,6 +299,15 @@ export class SettingsUI {
     });
   }
 
+  private setAdvancedNavigation(expanded: boolean): void {
+    const extra = this.panel.querySelector<HTMLElement>('#settings-extra-tabs');
+    const toggle = this.panel.querySelector<HTMLButtonElement>('[data-settings-more]');
+    if (!extra || !toggle) return;
+    extra.hidden = !expanded;
+    toggle.setAttribute('aria-expanded', String(expanded));
+    toggle.classList.toggle('is-expanded', expanded);
+  }
+
   private bindNavigation(): void {
     const tabs = Array.from(this.panel.querySelectorAll<HTMLButtonElement>('[data-settings-nav]'));
     tabs.forEach((button) => {
@@ -307,20 +317,35 @@ export class SettingsUI {
       });
     });
 
+    this.panel.querySelector<HTMLButtonElement>('[data-settings-more]')?.addEventListener('click', () => {
+      const expanded = this.panel.querySelector('[data-settings-more]')?.getAttribute('aria-expanded') === 'true';
+      if (expanded) {
+        this.activatePane('overview');
+      } else {
+        this.activatePane('gameplay');
+      }
+      const target = this.panel.querySelector<HTMLButtonElement>(
+        expanded ? '[data-settings-nav="overview"]' : '[data-settings-nav="gameplay"]',
+      );
+      target?.focus();
+      target?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+    });
+
     this.panel.querySelector<HTMLElement>('.settings-nav')?.addEventListener('keydown', (event) => {
       if (!(event.target instanceof HTMLButtonElement) || !event.target.matches('[data-settings-nav]')) return;
-      const index = tabs.indexOf(event.target);
+      const available = tabs.filter((tab) => !tab.closest('[hidden]') && !tab.hidden);
+      const index = available.indexOf(event.target);
       const rtl = document.documentElement.dir === 'rtl';
       const horizontal = getComputedStyle(event.currentTarget as HTMLElement).flexDirection === 'row';
       let next = index;
       if (event.key === 'Home') next = 0;
-      else if (event.key === 'End') next = tabs.length - 1;
-      else if (event.key === (horizontal ? 'ArrowRight' : 'ArrowDown')) next = (index + (horizontal && rtl ? -1 : 1) + tabs.length) % tabs.length;
-      else if (event.key === (horizontal ? 'ArrowLeft' : 'ArrowUp')) next = (index + (horizontal && rtl ? 1 : -1) + tabs.length) % tabs.length;
+      else if (event.key === 'End') next = available.length - 1;
+      else if (event.key === (horizontal ? 'ArrowRight' : 'ArrowDown')) next = (index + (horizontal && rtl ? -1 : 1) + available.length) % available.length;
+      else if (event.key === (horizontal ? 'ArrowLeft' : 'ArrowUp')) next = (index + (horizontal && rtl ? 1 : -1) + available.length) % available.length;
       else return;
       event.preventDefault();
-      tabs[next].click();
-      tabs[next].focus();
+      available[next].click();
+      available[next].focus();
     });
 
     this.panel.querySelectorAll<HTMLButtonElement>('[data-settings-jump]').forEach((button) => {
@@ -342,6 +367,7 @@ export class SettingsUI {
   private activatePane(pane: SettingsPane): void {
     this.syncNavigationOrientation();
     this.activePane = pane;
+    if (this.advancedPanes.has(pane)) this.setAdvancedNavigation(true);
     this.panel.querySelectorAll<HTMLElement>('[data-settings-pane]').forEach((section) => {
       section.classList.toggle('is-active', section.dataset.settingsPane === pane);
     });
@@ -352,6 +378,8 @@ export class SettingsUI {
       button.tabIndex = active ? 0 : -1;
     });
     this.panel.querySelector<HTMLElement>('.settings-scroll')?.scrollTo({ top: 0, behavior: 'auto' });
+    // Hide specialist navigation again when returning to an everyday section.
+    if (!this.advancedPanes.has(pane)) this.setAdvancedNavigation(false);
   }
 
   private bindCoreControls(): void {
@@ -361,7 +389,10 @@ export class SettingsUI {
       const resetButton = document.getElementById('reset-button');
       if (!(resetButton instanceof HTMLButtonElement) || !resetButton.onclick) {
         const status = this.panel.querySelector<HTMLElement>('[data-settings-action-status] span:last-child');
-        if (status) status.textContent = 'Game runtime is still initializing. Try again after the world appears.';
+        if (status) {
+          status.textContent = 'Game runtime is still initializing. Try again after the world appears.';
+          this.panel.querySelector<HTMLElement>('[data-settings-action-status]')?.removeAttribute('hidden');
+        }
         return;
       }
       this.close();
@@ -494,7 +525,10 @@ export class SettingsUI {
 
     this.open();
     const status = this.panel.querySelector<HTMLElement>('[data-settings-action-status] span:last-child');
-    if (status) status.textContent = 'Game runtime is still initializing. Try again after the world appears.';
+    if (status) {
+      status.textContent = 'Game runtime is still initializing. Try again after the world appears.';
+      this.panel.querySelector<HTMLElement>('[data-settings-action-status]')?.removeAttribute('hidden');
+    }
   }
 
   private isSystemAction(action: string): action is SystemAction {
