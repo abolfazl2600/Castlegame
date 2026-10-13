@@ -6269,3 +6269,172 @@ html.mobile-ui-active #settings-modal .settings-control-row select {
   outline: 3px solid #fff;
   outline-offset: 3px;
 }
+
+/* Simpler Settings: primary destinations first, specialist options on demand. */
+#settings-modal .settings-nav {
+  min-width: 0;
+}
+#settings-modal .settings-extra-tabs {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+#settings-modal .settings-extra-tabs[hidden],
+#settings-modal [data-settings-action-status][hidden] {
+  display: none !important;
+}
+#settings-modal .settings-more-toggle {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 46px;
+  padding: 8px 11px;
+  border: 1px dashed rgba(156, 215, 235, .28);
+  border-radius: 12px;
+  background: rgba(106, 173, 203, .07);
+  color: #c5e1ed;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  text-align: start;
+}
+#settings-modal .settings-more-toggle > span {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  flex: 0 0 30px;
+  font-size: 19px;
+}
+#settings-modal .settings-more-toggle.is-expanded {
+  background: rgba(68, 160, 196, .17);
+  border-color: rgba(133, 227, 255, .45);
+}
+#settings-modal .settings-more-toggle:focus-visible {
+  outline: 2px solid #9ceaff;
+  outline-offset: 2px;
+}
+#settings-modal .settings-overview-hero {
+  padding: 16px 18px;
+  gap: 16px;
+}
+#settings-modal .settings-overview-hero-copy {
+  gap: 4px;
+}
+#settings-modal .settings-overview-hero h3 {
+  font-size: 20px;
+}
+#settings-modal .settings-quick-settings button {
+  min-height: 82px;
+  gap: 4px;
+  padding: 12px;
+}
+#settings-modal .settings-system-actions button.is-danger {
+  border-color: rgba(255, 145, 125, .3);
+  background: rgba(112, 36, 30, .13);
+}
+#settings-modal .settings-system-actions button.is-danger:hover {
+  background: rgba(176, 46, 37, .16);
+}
+@media (max-width: 700px), (pointer: coarse) and (max-height: 700px) {
+  #settings-modal .settings-nav {
+    gap: 6px;
+    scroll-padding-inline: 10px;
+  }
+  #settings-modal .settings-nav-button {
+    min-width: 83px;
+    padding: 7px 9px;
+    gap: 5px;
+    grid-template-columns: 1fr;
+  }
+  #settings-modal .settings-nav-button strong {
+    display: block;
+    font-size: 12px;
+    text-align: center;
+    white-space: nowrap;
+  }
+  #settings-modal .settings-extra-tabs {
+    flex-direction: row;
+    gap: 6px;
+    flex: 0 0 auto;
+  }
+  #settings-modal .settings-more-toggle {
+    min-width: 92px;
+    width: auto;
+    min-height: 46px;
+    flex: 0 0 auto;
+    padding: 7px 10px;
+    gap: 5px;
+    flex-direction: column;
+  }
+  #settings-modal .settings-more-toggle > span { width: 24px; height: 18px; flex-basis: 18px; }
+  #settings-modal .settings-overview-hero { padding: 12px 14px; }
+  #settings-modal .settings-quick-settings { gap: 7px; }
+  #settings-modal .settings-quick-settings button { min-height: 74px; }
+}
+@media (max-width: 490px) {
+  #settings-modal .settings-overview-hero { gap: 10px; }
+  #settings-modal .settings-quick-settings button { padding: 9px; }
+}
+
+/* Five visible destinations without a hidden off-screen More button. */
+@media (max-width: 700px), (pointer: coarse) and (max-height: 700px) {
+  #settings-modal .settings-nav {
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: 4px;
+    overflow: visible;
+    padding: 7px;
+  }
+  #settings-modal .settings-nav-button {
+    min-width: 0;
+    width: 100%;
+    padding: 6px 2px;
+    gap: 4px;
+    justify-items: center;
+  }
+  #settings-modal .settings-nav-button > span {
+    width: 25px;
+    height: 25px;
+  }
+  #settings-modal .settings-nav-button strong {
+    font-size: 11px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 100%;
+    white-space: nowrap;
+  }
+  #settings-modal .settings-more-toggle {
+    min-width: 0;
+    width: 100%;
+    padding: 6px 2px;
+    gap: 4px;
+    justify-content: center;
+  }
+  #settings-modal .settings-more-toggle > span {
+    width: 25px;
+    height: 25px;
+    flex: 0 0 25px;
+  }
+  #settings-modal .settings-more-toggle strong {
+    font-size: 11px;
+    white-space: nowrap;
+  }
+  #settings-modal .settings-extra-tabs {
+    grid-column: 1 / -1;
+    display: flex;
+    flex-direction: row;
+    min-width: 0;
+    max-width: 100%;
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    padding-block: 5px;
+    scroll-padding-inline: 8px;
+  }
+  #settings-modal .settings-extra-tabs .settings-nav-button {
+    flex: 0 0 94px;
+    width: 94px;
+  }
+}

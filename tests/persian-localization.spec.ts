@@ -112,6 +112,9 @@ test('Settings overview, gameplay, graphics and data are fully Persian and right
   await expect(resetWorld.locator('small')).toHaveText('یک جهان تازه آغاز کنید و چیدمان نقشه را انتخاب کنید');
   expect(await resetWorld.evaluate(element => getComputedStyle(element).textAlign)).toBe('right');
 
+  if (await page.locator('[data-settings-more]').getAttribute('aria-expanded') !== 'true') {
+    await page.locator('[data-settings-more]').click();
+  }
   await page.locator('[data-settings-nav="gameplay"]').click();
   const gameplay = page.locator('[data-settings-pane="gameplay"]');
   const controlRow = gameplay.locator('[data-setting="controlScheme"]').locator('xpath=..');
@@ -128,6 +131,9 @@ test('Settings overview, gameplay, graphics and data are fully Persian and right
   );
   await expect(page.locator('[data-setting="performanceMode"] option[value="auto"]')).toHaveText('خودکار (تطبیقی)');
 
+  if (await page.locator('[data-settings-more]').getAttribute('aria-expanded') !== 'true') {
+    await page.locator('[data-settings-more]').click();
+  }
   await page.locator('[data-settings-nav="data"]').click();
   const dataAction = page.locator('.settings-data-actions [data-action="open-privacy"]');
   await expect(dataAction.locator('span')).toHaveText('داده‌ها و حریم خصوصی');
@@ -137,6 +143,9 @@ test('Settings overview, gameplay, graphics and data are fully Persian and right
 test('Privacy panel and native Save prompt are localized; values remain separate', async ({ page }) => {
   await openLocalizedGame(page, 1280, 800);
   await openSettings(page);
+  if (await page.locator('[data-settings-more]').getAttribute('aria-expanded') !== 'true') {
+    await page.locator('[data-settings-more]').click();
+  }
   await page.locator('[data-settings-nav="data"]').click();
   await expect(page.locator('#settings-privacy-legal')).toBeAttached({ timeout: 20_000 });
   await expect(page.locator('#privacy-policy h4')).toHaveText('سیاست حریم خصوصی');

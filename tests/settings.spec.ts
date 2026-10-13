@@ -220,6 +220,9 @@ test('Touch / Mobile preference forces the touch layout at desktop widths', asyn
   await expect(page.locator('.mobile-ui')).toBeHidden();
 
   await openSettings(page);
+  if (await page.locator('[data-settings-more]').getAttribute('aria-expanded') !== 'true') {
+    await page.locator('[data-settings-more]').click();
+  }
   await page.locator('[data-settings-nav="gameplay"]').click();
   await page.locator('[data-setting="controlScheme"]').selectOption('touch');
 
@@ -240,6 +243,9 @@ test('Touch / Mobile preference forces the touch layout at desktop widths', asyn
   await expect(page.locator('.mobile-ui')).toBeVisible();
 
   await page.locator('.mobile-header [data-mobile-proxy="settings-button"]').click();
+  if (await page.locator('[data-settings-more]').getAttribute('aria-expanded') !== 'true') {
+    await page.locator('[data-settings-more]').click();
+  }
   await page.locator('[data-settings-nav="gameplay"]').click();
   await page.locator('[data-setting="controlScheme"]').selectOption('standard');
 
@@ -263,6 +269,9 @@ test('Touch preference does not override a manually chosen Quality graphics prof
     .locator('xpath=following-sibling::strong[1]');
   await expect(activeProfile).toHaveText('QUALITY');
 
+  if (await page.locator('[data-settings-more]').getAttribute('aria-expanded') !== 'true') {
+    await page.locator('[data-settings-more]').click();
+  }
   await page.locator('[data-settings-nav="gameplay"]').click();
   await page.locator('[data-setting="controlScheme"]').selectOption('touch');
 
@@ -431,4 +440,55 @@ test('Settings tabs support keyboard navigation, focus containment and focus res
   await page.keyboard.press('Escape');
   await expectSettingsClosed(page);
   await expect(page.locator('#settings-button')).toBeFocused();
+});
+
+test('Simplified Settings shows essentials first and keeps specialist options reachable', async ({ page }) => {
+  await loadApp(page);
+  await openSettings(page);
+  const more = page.locator('[data-settings-more]');
+  await expect(more).toBeVisible();
+  await expect(more).toHaveAttribute('aria-expanded', 'false');
+  await expect(page.locator('#settings-extra-tabs')).toBeHidden();
+  await expect(page.locator('[data-settings-pane="overview"]')).toBeVisible();
+
+  await more.click();
+  await expect(more).toHaveAttribute('aria-expanded', 'true');
+  await expect(page.locator('[data-settings-nav="gameplay"]')).toBeVisible();
+  await expect(page.locator('[data-settings-pane="gameplay"]')).toBeVisible();
+  await page.locator('[data-settings-nav="accessibility"]').click();
+  await expect(page.locator('[data-settings-pane="accessibility"]')).toBeVisible();
+
+  await page.locator('[data-settings-nav="graphics"]').click();
+  await expect(page.locator('#settings-extra-tabs')).toBeHidden();
+  await expect(more).toHaveAttribute('aria-expanded', 'false');
+  await expect(page.locator('[data-settings-pane="graphics"]')).toBeVisible();
+
+  await page.locator('[data-settings-nav="overview"]').click();
+  await page.locator('[data-settings-jump="general"]').click();
+  await expect(page.locator('[data-settings-pane="general"]')).toBeVisible();
+  await page.locator('#settings-close').click();
+  await expectSettingsClosed(page);
+});
+
+test('Simplified Settings expands expert tabs in narrow portrait without clipping', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await loadApp(page);
+  await page.locator('.mobile-header [data-mobile-proxy="settings-button"]').click();
+  await expect(page.locator('#settings-modal')).toBeVisible();
+  const more = page.locator('[data-settings-more]');
+  await more.scrollIntoViewIfNeeded();
+  await more.click();
+  await expect(more).toHaveAttribute('aria-expanded', 'true');
+  await expect(page.locator('[data-settings-nav="data"]')).toBeVisible();
+  await page.locator('[data-settings-nav="data"]').click();
+  await expect(page.locator('[data-settings-pane="data"]')).toBeVisible();
+
+  const bounds = await page.locator('#settings-modal').evaluate((el) => {
+    const r = el.getBoundingClientRect();
+    return { left: r.left, top: r.top, right: r.right, bottom: r.bottom, width: innerWidth, height: innerHeight };
+  });
+  expect(bounds.left).toBeGreaterThanOrEqual(-1);
+  expect(bounds.top).toBeGreaterThanOrEqual(-1);
+  expect(bounds.right).toBeLessThanOrEqual(bounds.width + 1);
+  expect(bounds.bottom).toBeLessThanOrEqual(bounds.height + 1);
 });
