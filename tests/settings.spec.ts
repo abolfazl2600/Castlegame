@@ -220,6 +220,9 @@ test('Touch / Mobile preference forces the touch layout at desktop widths', asyn
   await expect(page.locator('.mobile-ui')).toBeHidden();
 
   await openSettings(page);
+  if (await page.locator('[data-settings-more]').getAttribute('aria-expanded') !== 'true') {
+    await page.locator('[data-settings-more]').click();
+  }
   await page.locator('[data-settings-nav="gameplay"]').click();
   await page.locator('[data-setting="controlScheme"]').selectOption('touch');
 
@@ -240,6 +243,9 @@ test('Touch / Mobile preference forces the touch layout at desktop widths', asyn
   await expect(page.locator('.mobile-ui')).toBeVisible();
 
   await page.locator('.mobile-header [data-mobile-proxy="settings-button"]').click();
+  if (await page.locator('[data-settings-more]').getAttribute('aria-expanded') !== 'true') {
+    await page.locator('[data-settings-more]').click();
+  }
   await page.locator('[data-settings-nav="gameplay"]').click();
   await page.locator('[data-setting="controlScheme"]').selectOption('standard');
 
@@ -263,6 +269,9 @@ test('Touch preference does not override a manually chosen Quality graphics prof
     .locator('xpath=following-sibling::strong[1]');
   await expect(activeProfile).toHaveText('QUALITY');
 
+  if (await page.locator('[data-settings-more]').getAttribute('aria-expanded') !== 'true') {
+    await page.locator('[data-settings-more]').click();
+  }
   await page.locator('[data-settings-nav="gameplay"]').click();
   await page.locator('[data-setting="controlScheme"]').selectOption('touch');
 
