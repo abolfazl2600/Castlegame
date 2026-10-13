@@ -127,7 +127,7 @@ export class SettingsUI {
               <div class="settings-overview-hero">
                 <div class="settings-overview-hero-copy">
                   <h3>Quick settings</h3>
-                  <p>Choose what to change. Your progress stays saved.</p>
+                  <p>Choose a setting to adjust.</p>
                 </div>
                 <button type="button" data-action="continue-game" class="settings-continue-button">Continue playing <span aria-hidden="true">↗</span></button>
               </div>
