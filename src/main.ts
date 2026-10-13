@@ -4,6 +4,7 @@ import { installLocalization } from './i18n/localization';
 import { SettingsStore } from './settings/SettingsStore';
 import { SettingsUI } from './settings/SettingsUI';
 import { AndroidUpdateUI } from './settings/AndroidUpdateUI';
+import { showStartupError } from './ui/StartupErrorUI';
 import { installAndroidBackNavigation } from './android/androidBackNavigation';
 import { installAndroidImmersiveViewportBridge } from './android/androidImmersiveMode';
 import './style.css';
@@ -45,5 +46,6 @@ async function startGameRuntime(): Promise<void> {
     console.error('Game initialization failed', error);
     const status = document.getElementById('save-status');
     if (status) status.textContent = '3D renderer initialization failed · Reload or check WebGL support · Settings available';
+    showStartupError();
   }
 }
