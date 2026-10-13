@@ -15,6 +15,7 @@ export const PERSIAN_TRANSLATIONS: Readonly<Record<string, string>> = {
   "GAME SETTINGS": "تنظیمات بازی",
   "Change the essentials in a few taps.": "تنظیمات اصلی را با چند لمس تغییر دهید.",
   "More settings": "تنظیمات بیشتر",
+  "More": "بیشتر",
   "Quick settings": "تنظیمات سریع",
   "Choose a setting to adjust.": "تنظیم موردنظر را انتخاب کنید.",
   "Island Stronghold": "دژ جزیره‌ای",
