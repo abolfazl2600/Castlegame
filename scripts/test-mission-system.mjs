@@ -73,4 +73,51 @@ assert.equal(restored.setPinnedMission('growth-population-100'), true);
 assert.equal(restored.getState().pinnedMissionId, 'growth-population-100');
 assert.equal(restored.setPinnedMission('not-a-real-mission'), false);
 
+
+const quickGoals = new MissionSystem();
+assert.equal(quickGoals.getView(snapshot()).royalCredits, 0);
+
+const houses = Array.from({ length: 10 }, (_, x) => ({
+  x,
+  y: 0,
+  kind: x % 2 ? 'cottage' : 'house',
+}));
+const farms = Array.from({ length: 3 }, (_, x) => ({ x, y: 1, kind: 'farm' }));
+const walls = Array.from({ length: 10 }, (_, x) => ({ x, y: 2, kind: 'wall1' }));
+const expandedSettlement = snapshot({
+  population: 50,
+  cells: [...houses, ...farms, ...walls],
+});
+const quickResult = quickGoals.update(expandedSettlement);
+for (const id of [
+  'growth-first-homes',
+  'growth-ten-homes',
+  'growth-three-farms',
+  'fortress-ten-walls',
+  'growth-population-25',
+  'growth-population-50',
+]) {
+  assert.equal(quickResult.completedIds.includes(id), true, id + ' should complete');
+}
+assert.equal(quickGoals.getView(expandedSettlement).royalCredits, 700);
+
+// Reloading, polling, or revisiting the same goals must not grant a second reward.
+assert.deepEqual(quickGoals.update(expandedSettlement).completedIds, []);
+assert.equal(quickGoals.getView(expandedSettlement).royalCredits, 700);
+const quickRestored = new MissionSystem();
+quickRestored.setState(quickGoals.getState());
+assert.equal(quickRestored.getView(expandedSettlement).royalCredits, 700);
+assert.deepEqual(quickRestored.update(expandedSettlement).completedIds, []);
+
+// Backward compatibility: saved worlds from before rewards existed still earn
+// their credits from the persistent completed-mission ledger.
+const legacyRewards = new MissionSystem();
+legacyRewards.setState({
+  version: 1,
+  completedAt: { 'growth-population-25': 1000 },
+  defenseVictories: 0,
+  flawlessDefenseVictories: 0,
+});
+assert.equal(legacyRewards.getView(snapshot()).royalCredits, 100);
+
 console.log('Mission system checks passed.');
