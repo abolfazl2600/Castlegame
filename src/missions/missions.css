@@ -327,6 +327,33 @@
   text-align: center;
 }
 
+/* Reward metadata stays visible in desktop and mobile / RTL journals. */
+.mission-journal__credits {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding-top: 10px;
+  border-top: 1px solid rgba(233, 197, 118, 0.18);
+  color: #d9caa8;
+  font-size: 14px;
+}
+
+.mission-journal__credits strong,
+.mission-card__reward strong {
+  color: #f3da98;
+  font-variant-numeric: tabular-nums;
+}
+
+.mission-card__reward {
+  margin-top: 12px;
+  color: #e4c789;
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.5;
+}
+
 .mission-journal__section {
   min-width: 0;
   margin: 0;
