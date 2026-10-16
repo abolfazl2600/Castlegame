@@ -27,7 +27,7 @@ const missions = new MissionSystem();
 
 let result = missions.update(snapshot({ population: 24 }));
 assert.equal(result.completedIds.includes('growth-population-25'), false);
-assert.equal(missions.getView(snapshot({ population: 24 })).pinnedMissionId, 'growth-population-25');
+assert.equal(missions.getView(snapshot({ population: 24 })).pinnedMissionId, 'growth-first-homes');
 
 result = missions.update(snapshot({ population: 25 }));
 assert.equal(result.completedIds.includes('growth-population-25'), true);
