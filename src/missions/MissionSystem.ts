@@ -29,6 +29,8 @@ export interface MissionDefinition {
   progressLabel: string;
   target: number;
   priority: number;
+  /** One-time Royal Credits awarded on completion. */
+  rewardCredits: number;
   unlocksAfter?: readonly string[];
   evaluate(snapshot: MissionSnapshot, state: MissionProgressState): MissionProgress;
 }
@@ -49,6 +51,8 @@ export interface MissionView {
   pinnedMissionId?: string;
   totalCompleted: number;
   totalMissions: number;
+  /** Lifetime earned credits, derived from completed objectives. */
+  royalCredits: number;
 }
 
 export interface MissionUpdateResult {
@@ -81,7 +85,64 @@ function maxKeepFloors(keeps: KeepState[]): number {
   return keeps.reduce((max, keep) => Math.max(max, keep.floors || 0), 0);
 }
 
+function isHome(kind: CellEntry['kind']): boolean {
+  return kind === 'cottage' || kind === 'house' || kind === 'manor' || kind === 'villa';
+}
+
+function isWall(kind: CellEntry['kind']): boolean {
+  return kind === 'wall1' || kind === 'wall2' || kind === 'wall3';
+}
+
 export const MISSION_DEFINITIONS: readonly MissionDefinition[] = [
+  {
+    id: 'growth-first-homes',
+    category: 'growth',
+    icon: '⌂',
+    title: 'First Homes',
+    description: 'Build three homes for your first families.',
+    progressLabel: 'Homes',
+    target: 3,
+    priority: 110,
+    rewardCredits: 60,
+    evaluate: (snapshot) => progress(snapshot.cells.filter((cell) => isHome(cell.kind)).length, 3),
+  },
+  {
+    id: 'growth-ten-homes',
+    category: 'growth',
+    icon: '⌂',
+    title: 'A Thriving Neighborhood',
+    description: 'Expand the settlement to ten homes.',
+    progressLabel: 'Homes',
+    target: 10,
+    priority: 78,
+    rewardCredits: 140,
+    unlocksAfter: ['growth-first-homes'],
+    evaluate: (snapshot) => progress(snapshot.cells.filter((cell) => isHome(cell.kind)).length, 10),
+  },
+  {
+    id: 'growth-three-farms',
+    category: 'growth',
+    icon: '✿',
+    title: 'Fields of Plenty',
+    description: 'Build three working farms to feed the settlement.',
+    progressLabel: 'Farms',
+    target: 3,
+    priority: 98,
+    rewardCredits: 100,
+    evaluate: (snapshot) => progress(snapshot.cells.filter((cell) => cell.kind === 'farm').length, 3),
+  },
+  {
+    id: 'fortress-ten-walls',
+    category: 'fortress',
+    icon: '♜',
+    title: 'Walls of Safety',
+    description: 'Build ten castle wall segments.',
+    progressLabel: 'Wall segments',
+    target: 10,
+    priority: 94,
+    rewardCredits: 120,
+    evaluate: (snapshot) => progress(snapshot.cells.filter((cell) => isWall(cell.kind)).length, 10),
+  },
   {
     id: 'growth-population-25',
     category: 'growth',
@@ -91,7 +152,21 @@ export const MISSION_DEFINITIONS: readonly MissionDefinition[] = [
     progressLabel: 'Population',
     target: 25,
     priority: 100,
+    rewardCredits: 100,
     evaluate: (snapshot) => progress(snapshot.population.totalPopulation, 25),
+  },
+  {
+    id: 'growth-population-50',
+    category: 'growth',
+    icon: '⌂',
+    title: 'A Busy Village',
+    description: 'Grow the settlement to 50 living citizens.',
+    progressLabel: 'Population',
+    target: 50,
+    priority: 82,
+    rewardCredits: 180,
+    unlocksAfter: ['growth-population-25'],
+    evaluate: (snapshot) => progress(snapshot.population.totalPopulation, 50),
   },
   {
     id: 'maritime-first-harbor',
@@ -102,6 +177,7 @@ export const MISSION_DEFINITIONS: readonly MissionDefinition[] = [
     progressLabel: 'Harbors',
     target: 1,
     priority: 92,
+    rewardCredits: 120,
     evaluate: (snapshot) => progress(snapshot.cells.filter((cell) => cell.kind === 'harbor').length, 1),
   },
   {
@@ -113,6 +189,7 @@ export const MISSION_DEFINITIONS: readonly MissionDefinition[] = [
     progressLabel: 'Keep floors',
     target: 3,
     priority: 88,
+    rewardCredits: 220,
     evaluate: (snapshot) => progress(maxKeepFloors(snapshot.keeps), 3),
   },
   {
@@ -124,6 +201,7 @@ export const MISSION_DEFINITIONS: readonly MissionDefinition[] = [
     progressLabel: 'Population',
     target: 100,
     priority: 76,
+    rewardCredits: 350,
     unlocksAfter: ['growth-population-25'],
     evaluate: (snapshot) => progress(snapshot.population.totalPopulation, 100),
   },
@@ -136,6 +214,7 @@ export const MISSION_DEFINITIONS: readonly MissionDefinition[] = [
     progressLabel: 'Harbor level',
     target: 3,
     priority: 72,
+    rewardCredits: 280,
     unlocksAfter: ['maritime-first-harbor'],
     evaluate: (snapshot) => progress(maxHarborLevel(snapshot.cells), 3),
   },
@@ -148,6 +227,7 @@ export const MISSION_DEFINITIONS: readonly MissionDefinition[] = [
     progressLabel: 'Defense victories',
     target: 1,
     priority: 84,
+    rewardCredits: 180,
     evaluate: (_snapshot, state) => progress(state.defenseVictories, 1),
   },
   {
@@ -159,6 +239,7 @@ export const MISSION_DEFINITIONS: readonly MissionDefinition[] = [
     progressLabel: 'Defense victories',
     target: 3,
     priority: 68,
+    rewardCredits: 350,
     unlocksAfter: ['defense-first-victory'],
     evaluate: (_snapshot, state) => progress(state.defenseVictories, 3),
   },
@@ -171,6 +252,7 @@ export const MISSION_DEFINITIONS: readonly MissionDefinition[] = [
     progressLabel: 'Flawless defenses',
     target: 1,
     priority: 64,
+    rewardCredits: 260,
     unlocksAfter: ['defense-first-victory'],
     evaluate: (_snapshot, state) => progress(state.flawlessDefenseVictories, 1),
   },
@@ -306,6 +388,10 @@ export class MissionSystem {
       pinnedMissionId: this.state.pinnedMissionId,
       totalCompleted: completed.length,
       totalMissions: entries.length,
+      royalCredits: MISSION_DEFINITIONS.reduce(
+        (earned, mission) => earned + (this.state.completedAt[mission.id] ? mission.rewardCredits : 0),
+        0,
+      ),
     };
   }
 
