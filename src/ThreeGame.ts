@@ -2212,6 +2212,7 @@ export class ThreeGame {
     // cells (e.g. Market) and queued moats, but does not include ordinary
     // occupied anchors or Keep foundations, including rotated Keep footprints.
     return (
+      this.landIsOwned(x, y) &&
       !this.services.state.getCell(x, y) &&
       !this.services.keepSystem.findAtCell(x, y) &&
       !this.isStructureFootprintReserved(x, y)
@@ -8735,6 +8736,7 @@ export class ThreeGame {
   }
 
   private moatSegmentStatusAt(point: MoatPoint): MoatSegmentStatus {
+    if (!this.landIsOwned(point.x, point.y)) return 'blocked';
     if (point.x < 0 || point.y < 0 || point.x >= this.worldCols || point.y >= this.worldRows) return 'blocked';
     if (this.moatTasks.has(this.key(point.x, point.y))) return 'existing';
     const cell = this.services.state.getCell(point.x, point.y);
@@ -8768,6 +8770,7 @@ export class ThreeGame {
 
   private buildMoatStroke(path: MoatPoint[], exceededLimit: boolean): void {
     this.clearGroup(this.wallPreviewLayer);
+    if (!this.ensureOwnedLand(path)) return;
     const assessment = assessMoatRoute(path, (point) => this.moatSegmentStatusAt(point));
     if (exceededLimit) {
       this.setStatus('Moat route too long · shorten the drag');
@@ -9140,6 +9143,12 @@ export class ThreeGame {
         if (this.battleSystem.isActive()) return;
 
         const cell = this.pickGridCell(event);
+        if (cell && this.selectedTool !== null && !this.isGodModeTargeting() &&
+          !this.ensureOwnedLand([cell], false)) {
+          this.pointerStart = null;
+          this.ensureOwnedLand([cell]);
+          return;
+        }
         if (cell && event.pointerType !== 'mouse') {
           if (this.relocationState) this.renderRelocationPreview(cell);
           else this.renderBuildPlacementPreview(cell, true, event.shiftKey);
@@ -9656,6 +9665,7 @@ export class ThreeGame {
   }
 
   private performLongPressRemoval(point: GridPoint): void {
+    if (!this.ensureOwnedLand([point])) return;
     const keep = this.services.keepSystem.findAtCell(point.x, point.y);
     const cell = this.services.state.getCell(point.x, point.y);
     if (!keep && !cell) return;
@@ -9794,6 +9804,7 @@ export class ThreeGame {
   private buildRoadDrag(start: GridPoint, end: GridPoint): void {
     const roadKind = this.selectedTool as RoadKind;
     const path = this.roadPath(start, end);
+    if (!this.ensureOwnedLand(path)) { this.clearGroup(this.wallPreviewLayer); return; }
     const costedTiles = path.filter((point) => {
       const terrain = this.terrainAt(point.x, point.y);
       const current = this.services.state.getCell(point.x, point.y);
@@ -9974,6 +9985,7 @@ export class ThreeGame {
   }
 
   private buildMountainRange(start: GridPoint, end: GridPoint): void {
+    if (!this.ensureOwnedLand(this.mountainRangePath(start, end))) return;
     const before = this.captureSnapshot();
     const changed = this.applyMountainRange(start, end, true);
 
@@ -10016,6 +10028,7 @@ export class ThreeGame {
           const x = ridge.x + ox;
           const y = ridge.y + oy;
           if (x < 1 || y < 1 || x >= this.worldCols - 1 || y >= this.worldRows - 1) continue;
+          if (!this.landIsOwned(x, y)) continue;
           if (!this.canEditTerrainAt(x, y)) continue;
   
           const distance = Math.hypot(ox, oy);
@@ -10293,6 +10306,7 @@ export class ThreeGame {
   private buildWallDrag(start: GridPoint, end: GridPoint): void {
     const wallKind = this.selectedTool as WallKind;
     const path = this.wallPath(start, end);
+    if (!this.ensureOwnedLand(path)) { this.clearGroup(this.wallPreviewLayer); return; }
     const single = path.length === 1;
     const costedSegments = path.filter((point) => {
       const terrain = this.terrainAt(point.x, point.y);
@@ -10394,6 +10408,9 @@ export class ThreeGame {
     if (tool === 'erase' || tool === 'mountainRange' || this.isTerrainTool(tool)) return null;
 
     const cells = this.buildPlacementFootprint(tool, point);
+    if (!this.ensureOwnedLand(cells, false)) {
+      return { valid: false, cells, reason: 'زمین قفل است' };
+    }
     const cell = this.services.state.getCell(point.x, point.y);
     const current = cell?.kind;
     const terrain = this.terrainAt(point.x, point.y);
@@ -10784,6 +10801,7 @@ export class ThreeGame {
   private handleBuildClick(event: PointerEvent): void {
     const point = this.pickGridCell(event);
     if (!point) return;
+    if (!this.ensureOwnedLand([point])) return;
 
     if (this.relocationState) {
       this.commitRelocation(point);
@@ -11134,6 +11152,7 @@ export class ThreeGame {
 
   private canBuildMarketAt(gx: number, gy: number, ignoreCell?: GridPoint): boolean {
     for (const { x, y } of getStructureFootprint('market', gx, gy)) {
+      if (!this.landIsOwned(x, y)) return false;
       if (x < 0 || y < 0 || x >= this.worldCols || y >= this.worldRows) return false;
       const ownAnchor = ignoreCell?.x === x && ignoreCell.y === y;
       if ((!ownAnchor && this.services.state.getCell(x, y)) ||
@@ -12967,6 +12986,9 @@ export class ThreeGame {
     const cells = cell.kind === 'market'
       ? this.buildPlacementFootprint('market', point)
       : getStructureFootprint(cell.kind, point.x, point.y);
+    if (!this.ensureOwnedLand(cells, false)) {
+      return { valid: false, reason: 'زمین قفل است', cells };
+    }
     if (point.x === origin.x && point.y === origin.y) {
       return { valid: false, reason: 'Choose a different tile', cells };
     }
@@ -13423,6 +13445,9 @@ export class ThreeGame {
     draft: Omit<KeepState, 'id' | 'seed'>,
     ignoreKeepId?: number,
   ): { valid: boolean; reason?: string } {
+    if (!this.ensureOwnedLand(this.services.keepSystem.footprint(draft), false)) {
+      return { valid: false, reason: 'زمین قفل است' };
+    }
     return this.services.keepSystem.validate(
       draft,
       this.worldGrid,
