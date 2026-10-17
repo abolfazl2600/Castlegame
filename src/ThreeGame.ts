@@ -9,6 +9,8 @@ import { TouchGestureSession } from './input/TouchGestureSession';
 import { applyTouchCameraDelta } from './input/TouchCamera';
 import { createGameDomainServices } from './core/GameDomainServices';
 import { SaveSystem, type SaveStorage } from './core/SaveSystem';
+import { LandProgression, LAND_PLOT_PRICE, plotForCell } from './world/LandProgression';
+import { LandHud } from './ui/LandHud';
 import type { GameExtension } from './core/GameExtension';
 import type { GameState } from './state/GameState';
 import { SAVE_KEY, SAVE_VERSION, TILE_SIZE } from './core/constants';
@@ -519,6 +521,10 @@ export class ThreeGame {
   private readonly basilicaRenderer = new BasilicaRenderer(this.medievalMaterials);
   private readonly carpenterRenderer = new CarpenterWorkshopRenderer();
   private saveSystem!: SaveSystem;
+  private readonly landProgression = new LandProgression();
+  private landHud: LandHud | null = null;
+  private readonly landOwnershipLayer = new THREE.Group();
+  private landHudRefreshMs = 0;
   private readonly terrainOverrides = new Map<string, TerrainOverrideKind>();
   private readonly elevationOverrides = new Map<string, number>();
   private readonly raycaster = new THREE.Raycaster();
@@ -717,6 +723,12 @@ export class ThreeGame {
       setMilitaryTier: (value) => { this.militaryTier = normalizeMilitaryTier(value); },
       getEconomyState: () => this.services.economySystem.getState(),
       setEconomyState: (value) => { this.services.economySystem.setState(value); },
+      getLandProgressState: () => this.landProgression.snapshot(),
+      setLandProgressState: (value, olderBuildings) => {
+        this.landProgression.restore(value, olderBuildings, this.worldGrid);
+        this.rebuildLandOwnershipVisuals();
+        this.landHud?.refresh();
+      },
       getPopulationState: () => this.services.populationSystem.getState(),
       setPopulationState: (value) => { this.services.populationSystem.setState(value); },
       getEnvironmentState: () => this.environmentSystem.getState(),
@@ -760,6 +772,8 @@ export class ThreeGame {
         this.clearSettlementAgents();
       },
       afterLoad: () => {
+        this.rebuildLandOwnershipVisuals();
+        this.landHud?.refresh();
         this.rebuildWorldLayoutSurface();
         this.normalizeRiverElevations();
         this.redraw();
@@ -1013,6 +1027,13 @@ export class ThreeGame {
     this.redraw();
     this.applyEnvironmentVisuals(true);
     this.bindUI();
+    this.landHud = new LandHud(this.landProgression, () => this.worldGrid, (id) => {
+      this.rebuildLandOwnershipVisuals();
+      this.save(false);
+      this.setStatus(document.documentElement.lang === 'fa'
+        ? 'قطعه ' + (id + 1) + ' خریداری و برای ساخت آزاد شد'
+        : 'Plot ' + (id + 1) + ' unlocked · building enabled');
+    });
     this.updateMissions(0, true);
     // Keep the construction tool initialized during world creation/redraw, then enter the neutral mode only after UI binding.
     this.selectTool(null);
@@ -1137,6 +1158,10 @@ export class ThreeGame {
       this.ambientShip.rebuild(this.worldSeed);
     }
     this.syncTemplateAvailability();
+    if (changed) {
+      this.rebuildLandOwnershipVisuals();
+      this.landHud?.refresh();
+    }
   }
 
   private isToolAvailable(tool: ToolKind): boolean {
@@ -1556,6 +1581,7 @@ export class ThreeGame {
     this.syncMilitaryUI();
     this.updateGodModeUI();
     this.refreshBuildPanel();
+    this.landHud?.refresh();
   }
 
   private buildCategoryIcon(label: string): string {
@@ -2037,7 +2063,9 @@ export class ThreeGame {
 
     this.scene.add(this.worldLayoutLayer);
     this.scene.add(this.worldGridLayer);
+    this.scene.add(this.landOwnershipLayer);
     this.syncWorldRuntimeBounds();
+    this.rebuildLandOwnershipVisuals();
     this.rebuildWorldLayoutSurface();
   }
 
@@ -17105,6 +17133,18 @@ export class ThreeGame {
     const frameDeltaMs = this.lastFrameTime === 0 ? 16 : Math.max(0, time - this.lastFrameTime);
     const deltaMs = Math.min(50, frameDeltaMs);
     this.lastFrameTime = time;
+    if (!document.hidden) {
+      const foregroundMs = Math.min(frameDeltaMs, 1000);
+      if (this.landProgression.tick(foregroundMs)) {
+        this.landHud?.refresh();
+        this.save(false);
+      }
+      this.landHudRefreshMs += foregroundMs;
+      if (this.landHudRefreshMs >= 1000) {
+        this.landHudRefreshMs = 0;
+        this.landHud?.refresh();
+      }
+    }
 
     const settings = this.settingsStore.get();
     const cameraDistance = this.camera.position.distanceTo(this.controls.target);
