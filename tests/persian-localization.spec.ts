@@ -333,7 +333,12 @@ test('Mission Journal translates cached cards, static labels and numerals on liv
   ));
   await expect(journal.locator('[data-mission-action="close"]')).toHaveAttribute('aria-label', translate('Close', 'fa'));
   await expect(journal.locator('[data-mission-i18n="Available objectives"]').first()).toHaveText('اهداف در دسترس');
-  await expect(journal.locator('.mission-card').first()).toContainText(translate('A Growing Settlement', 'fa'));
+  // Locate missions by their headings; priority changes can reorder the cards.
+  await expect(journal.getByRole('heading', { name: translate('A Growing Settlement', 'fa'), exact: true })).toBeVisible();
+  await expect(journal.getByRole('heading', { name: translate('First Homes', 'fa'), exact: true })).toBeVisible();
+  await expect(journal.locator('.mission-journal__credits')).toContainText(translate('Royal Credits earned', 'fa'));
+  await expect(journal.locator('.mission-journal__credits strong')).toHaveText('۰');
+  await expect(journal.locator('.mission-card.is-pinned .mission-card__reward')).toContainText('پاداش: +۶۰ اعتبار سلطنتی');
   await expect(journal.locator('.mission-card__progress-copy strong').first()).toHaveText(/[۰-۹]+ \/ [۰-۹]+/);
   await expect(journal.locator('.mission-card__primary').first()).toContainText('هدف اصلی');
 
@@ -352,7 +357,11 @@ test('Mission Journal translates cached cards, static labels and numerals on liv
   );
   await expect(journal.locator('[data-mission-action="close"]')).toHaveAttribute('aria-label', 'Close');
   await expect(journal.locator('[data-mission-i18n="Available objectives"]').first()).toHaveText('Available objectives');
-  await expect(journal.locator('.mission-card').first()).toContainText('A Growing Settlement');
+  await expect(journal.getByRole('heading', { name: 'A Growing Settlement', exact: true })).toBeVisible();
+  await expect(journal.getByRole('heading', { name: 'First Homes', exact: true })).toBeVisible();
+  await expect(journal.locator('.mission-journal__credits')).toContainText('Royal Credits earned');
+  await expect(journal.locator('.mission-journal__credits strong')).toHaveText('0');
+  await expect(journal.locator('.mission-card.is-pinned .mission-card__reward')).toContainText('Reward: +60 Royal Credits');
   await expect(journal.locator('.mission-card__progress-copy strong').first()).toHaveText(/[0-9]+ \/ [0-9]+/);
   await expect(journal.locator('.mission-card__primary').first()).toContainText('Primary objective');
 
@@ -366,7 +375,10 @@ test('Mission Journal translates cached cards, static labels and numerals on liv
   await expect(page.locator('html')).toHaveAttribute('lang', 'fa');
   await expect(journal.locator('#mission-journal-title')).toHaveText('دفتر مأموریت‌ها');
   await expect(journal.locator('[data-mission-i18n="Available objectives"]').first()).toHaveText('اهداف در دسترس');
-  await expect(journal.locator('.mission-card').first()).toContainText(translate('A Growing Settlement', 'fa'));
+  await expect(journal.getByRole('heading', { name: translate('A Growing Settlement', 'fa'), exact: true })).toBeVisible();
+  await expect(journal.getByRole('heading', { name: translate('First Homes', 'fa'), exact: true })).toBeVisible();
+  await expect(journal.locator('.mission-journal__credits')).toContainText(translate('Royal Credits earned', 'fa'));
+  await expect(journal.locator('.mission-card.is-pinned .mission-card__reward')).toContainText('پاداش: +۶۰ اعتبار سلطنتی');
   await expect(journal.locator('.mission-card__progress-copy strong').first()).toHaveText(/[۰-۹]+ \/ [۰-۹]+/);
   await expect(journal.locator('.mission-card__primary').first()).toContainText('هدف اصلی');
   await expect(journal.locator('[data-mission-action="close"]')).toHaveAttribute('aria-label', translate('Close', 'fa'));

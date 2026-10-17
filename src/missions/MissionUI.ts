@@ -138,6 +138,7 @@ export class MissionUI {
     const signature = JSON.stringify({
       locale: getCurrentLocale(),
       pinned: view.pinnedMissionId,
+      credits: view.royalCredits,
       active: view.active.map((entry) => [entry.definition.id, entry.progress.current, entry.progress.target]),
       completed: view.completed.map((entry) => [entry.definition.id, entry.completedAt]),
       locked: view.locked.map((entry) => entry.definition.id),
@@ -180,7 +181,8 @@ export class MissionUI {
       summary.innerHTML =
         '<div class="mission-journal__summary-copy"><span>' + escapeHtml(t('Milestones completed')) + '</span><strong dir="ltr">' + formatMissionNumber(view.totalCompleted) + ' / ' + formatMissionNumber(view.totalMissions) + '</strong></div>' +
         '<div class="mission-journal__summary-progress" role="progressbar" aria-label="' + escapeHtml(t('Overall mission progress')) + '" aria-valuemin="0" aria-valuemax="100" aria-valuenow="' + percent + '"><span style="width:' + percent + '%"></span></div>' +
-        '<b class="mission-journal__summary-percent" dir="ltr">' + formatMissionPercent(percent) + '</b>';
+        '<b class="mission-journal__summary-percent" dir="ltr">' + formatMissionPercent(percent) + '</b>' +
+        '<div class="mission-journal__credits"><span>' + escapeHtml(t('Royal Credits earned')) + '</span><strong dir="ltr">' + formatMissionNumber(view.royalCredits) + '</strong></div>';
     }
 
     for (const [section, count] of [
@@ -219,6 +221,7 @@ export class MissionUI {
       '<p class="mission-card__description">' + escapeHtml(t(entry.definition.description)) + '</p>' +
       '<div class="mission-card__progress-copy"><span>' + escapeHtml(t(entry.definition.progressLabel)) + '</span><strong dir="ltr">' + formatProgress(entry) + '</strong></div>' +
       '<div class="mission-progress mission-progress--large" role="progressbar" aria-label="' + escapeHtml(t(entry.definition.progressLabel)) + '" aria-valuemin="0" aria-valuemax="' + entry.progress.target + '" aria-valuenow="' + Math.min(entry.progress.current, entry.progress.target) + '"><span style="width:' + ratio + '%"></span></div>' +
+      '<div class="mission-card__reward">' + escapeHtml(t('Reward')) + ': <strong dir="ltr">+' + formatMissionNumber(entry.definition.rewardCredits) + '</strong> ' + escapeHtml(t('Royal Credits')) + '</div>' +
       '<div class="mission-card__footer">' + (completed ? '<span class="mission-card__completion">✓ ' + escapeHtml(t('Milestone completed')) + '</span>' : entry.pinned ? '<span class="mission-card__primary">★ ' + escapeHtml(pinLabel) + '</span>' : '<button type="button" class="secondary-button mission-card__pin" data-mission-action="pin" data-mission-id="' + escapeHtml(entry.definition.id) + '">' + escapeHtml(pinLabel) + '</button>') + '</div>' +
     '</article>';
   }
@@ -236,7 +239,7 @@ export class MissionUI {
     toast.className = 'mission-toast';
     toast.innerHTML =
       '<span class="mission-toast__seal">✓</span>' +
-      '<div><small data-mission-i18n="OBJECTIVE COMPLETE">' + escapeHtml(t('OBJECTIVE COMPLETE')) + '</small><strong data-mission-title="' + escapeHtml(entry.definition.title) + '">' + escapeHtml(t(entry.definition.title)) + '</strong><span data-mission-i18n="A new milestone has been recorded.">' + escapeHtml(t('A new milestone has been recorded.')) + '</span></div>';
+      '<div><small data-mission-i18n="OBJECTIVE COMPLETE">' + escapeHtml(t('OBJECTIVE COMPLETE')) + '</small><strong data-mission-title="' + escapeHtml(entry.definition.title) + '">' + escapeHtml(t(entry.definition.title)) + '</strong><span>' + escapeHtml(t('Reward')) + ': <b dir="ltr">+' + formatMissionNumber(entry.definition.rewardCredits) + '</b> ' + escapeHtml(t('Royal Credits')) + '</span></div>';
     this.toastHost.appendChild(toast);
     window.setTimeout(() => toast.classList.add('is-leaving'), 3600);
     window.setTimeout(() => toast.remove(), 4100);
