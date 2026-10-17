@@ -8,6 +8,7 @@ import {
   SAVE_VERSION,
 } from './constants';
 import { worldGridCellCount, worldGridForLayout } from '../world/WorldGrid';
+import type { LandProgressState } from '../world/LandProgression';
 import type { GameMode } from './GameMode';
 import type { ConstructionProject } from '../systems/ConstructionProjectSystem';
 import type { PendingMoatTask } from '../systems/MoatRouteSystem';
@@ -21,7 +22,6 @@ import type {
   EconomyResourceState,
   EnvironmentSimulationState,
   PopulationSimulationState,
-  LandProgressState,
   KeepState,
   MapLayoutId,
   MissionProgressState,
