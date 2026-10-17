@@ -356,6 +356,18 @@ export class KeepRenderer {
             heightOpening,
             frameMaterial,
           );
+          // Deep, dark glazed apertures with a thin timber mullion are legible
+          // at normal zoom without the neon-looking emissive panes of the old keep.
+          this.addBox(
+            group,
+            side === 'N' || side === 'S' ? 0.085 : 0.105,
+            heightOpening - 0.08,
+            side === 'N' || side === 'S' ? 0.105 : 0.085,
+            this.materials.timberDark,
+            x,
+            y,
+            z,
+          );
         }
       }
     }
@@ -420,6 +432,25 @@ export class KeepRenderer {
 
     this.addBox(group, w, doorHeight, d, wood, x, doorY, z);
     this.addOpeningFrame(group, side, x, doorY, z, doorWidth, doorHeight, stone);
+
+    // A proper portal: voussoir lintel, recessed twin timber leaves, iron
+    // cross-bracing and handles. This remains visual-only; the door position
+    // and the existing ground-access/step system are unchanged.
+    const portal = new THREE.Group();
+    portal.position.set(x, 0, z);
+    portal.rotation.y = side === 'N' ? 0 : side === 'E' ? Math.PI / 2 : side === 'S' ? Math.PI : -Math.PI / 2;
+    group.add(portal);
+    const iron = this.materials.iron;
+    const darkTimber = this.materials.timberDark;
+    this.addBox(portal, doorWidth + 0.45, 0.22, 0.35, stone, 0, doorY + doorHeight / 2 + 0.18, -0.02);
+    this.addBox(portal, 0.30, 0.34, 0.39, stone, 0, doorY + doorHeight / 2 + 0.35, -0.04);
+    this.addBox(portal, 0.065, doorHeight - 0.14, 0.07, darkTimber, 0, doorY, -0.17);
+    for (const yOffset of [-0.52, 0.53]) {
+      this.addBox(portal, doorWidth - 0.13, 0.075, 0.08, iron, 0, doorY + yOffset, -0.17);
+    }
+    for (const xOffset of [-0.24, 0.24]) {
+      this.addBox(portal, 0.09, 0.22, 0.09, iron, xOffset, doorY - 0.08, -0.21);
+    }
 
     const direction = {
       N: { dx: 0, dy: -1, rx: 0 },
