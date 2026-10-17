@@ -110,8 +110,9 @@ const tall = render({ floors: 4 });
 const short = render({ floors: 2 });
 assert.ok(tall.box.max.y > short.box.max.y + 3, 'floor count must still change the keep silhouette');
 const rotated = render({ width: 3, depth: 5, rotation: 1 });
-assert.ok(rotated.box.max.x - rotated.box.min.x > rotated.box.max.z - rotated.box.min.z,
-  'rotated keep must swap the long footprint axis');
+const foundation = rotated.group.children[0].geometry.parameters;
+assert.ok(foundation.width > foundation.depth,
+  'rotated keep must swap its structural footprint axes; exterior stairs may extend world-space bounds');
 
 const first = render({ roof: 'towered', seed: 98652 });
 const again = render({ roof: 'towered', seed: 98652 });
