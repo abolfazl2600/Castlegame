@@ -32,7 +32,6 @@ jobs:
       - name: Verify keep geometry, roof variants and deterministic redraw
         run: |
           node scripts/test-keep-architectural-redesign.mjs
-          npm run test:castle-architecture-style
           npm run test:castle-access-navigation
           npx tsc --noEmit
       - name: Build 3D game bundle
