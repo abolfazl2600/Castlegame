@@ -162,3 +162,74 @@ test('offline catalog metadata alone does not award or cache the image', async (
   });
   expect(state).toEqual({ catalog: 'cached', count: 1, cached: null, code: 'download_unavailable' });
 });
+
+test('mission-earned badge gallery does not load image before download and reopens offline', async ({ page }) => {
+  await interceptCatalog(page);
+  let imageRequests = 0;
+  await page.route(imageUrl, async route => {
+    imageRequests++;
+    await route.fulfill({
+      status: 200, body: png,
+      headers: { 'content-type': 'image/png', 'access-control-allow-origin': '*' },
+    });
+  });
+  await begin(page);
+  await page.evaluate(async () => {
+    const path = '/Castlegame/src/honors/HonorGalleryUI.ts';
+    const { HonorGalleryUI } = await import(/* @vite-ignore */ path);
+    const gallery = new HonorGalleryUI();
+    const host = document.createElement('section');
+    host.id = 'honor-fixture';
+    document.body.appendChild(host);
+    gallery.mount(host);
+    const locked = {
+      completed: [], active: [], locked: [{
+        definition: { id: 'growth-ten-homes', description: 'Build ten houses' },
+      }],
+    };
+    const state = window as typeof window & { __honorGallery?: InstanceType<typeof HonorGalleryUI> };
+    state.__honorGallery = gallery;
+    gallery.render(locked as never);
+    gallery.open();
+  });
+  await expect(page.locator('#honor-fixture .honor-card')).toHaveCount(4);
+  await expect(page.locator('#honor-fixture .honor-card[data-honor-id="royal-architect"] img')).toHaveCount(0);
+  await expect(page.locator('#honor-fixture .honor-card__download')).toHaveCount(0);
+  expect(imageRequests).toBe(0);
+
+  await page.evaluate(() => {
+    const state = window as typeof window & { __honorGallery: { render(view: unknown): void } };
+    state.__honorGallery.render({
+      completed: [{ definition: { id: 'growth-ten-homes', description: 'Build ten houses' } }],
+      active: [], locked: [],
+    });
+  });
+  const button = page.locator('#honor-fixture [data-honor-download="royal-architect"]');
+  await expect(button).toBeVisible();
+  await button.click();
+  const image = page.locator('#honor-fixture [data-honor-id="royal-architect"] img');
+  await expect(image).toHaveAttribute('src', /^blob:/);
+  expect(imageRequests).toBe(1);
+
+  await page.context().setOffline(true);
+  await page.evaluate(async () => {
+    const path = '/Castlegame/src/honors/HonorGalleryUI.ts';
+    const { HonorGalleryUI } = await import(/* @vite-ignore */ path);
+    const state = window as typeof window & { __honorGallery?: InstanceType<typeof HonorGalleryUI> };
+    state.__honorGallery?.dispose();
+    document.getElementById('honor-fixture')?.remove();
+    const host = document.createElement('section');
+    host.id = 'honor-fixture';
+    document.body.appendChild(host);
+    const reopened = new HonorGalleryUI();
+    reopened.mount(host);
+    reopened.render({
+      completed: [{ definition: { id: 'growth-ten-homes', description: 'Build ten houses' } }],
+      active: [], locked: [],
+    } as never);
+    state.__honorGallery = reopened;
+    reopened.open();
+  });
+  await expect(page.locator('#honor-fixture [data-honor-id="royal-architect"] img')).toHaveAttribute('src', /^blob:/);
+  expect(imageRequests).toBe(1);
+});
