@@ -37,7 +37,7 @@ export class GovernmentSelectionUI {
       '<fieldset class="government-options"><legend data-government-legend></legend><div class="government-option-list"></div></fieldset>' +
       '<label class="government-name-label" for="government-realm-name"></label>' +
       '<input id="government-realm-name" type="text" maxlength="40" autocomplete="off" />' +
-      '<div class="government-actions"><button type="button" data-government-back></button>' +
+      '<div class="government-actions"><button id="government-back-button" type="button" data-government-back></button>' +
       '<button type="submit" data-government-confirm></button></div>' +
       '</form>';
     const list = backdrop.querySelector<HTMLElement>('.government-option-list');
