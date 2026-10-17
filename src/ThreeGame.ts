@@ -1764,6 +1764,9 @@ export class ThreeGame {
   }
 
   private resetWorld(): void {
+    this.landProgression.reset();
+    this.rebuildLandOwnershipVisuals();
+    this.landHud?.refresh();
     this.services.state.setGameMode('unified');
     this.services.state.clear();
     this.services.keepSystem.clear();
@@ -2158,6 +2161,7 @@ export class ThreeGame {
   }
 
   private canEditTerrainAt(x: number, y: number): boolean {
+    if (!this.isOwnedLand(x, y)) return false;
     // Terrain strokes must not deform an already-built foundation after its
     // original placement validation. The reservation helper covers satellite
     // cells (e.g. Market) and queued moats, but does not include ordinary
@@ -6301,6 +6305,7 @@ export class ThreeGame {
     for (let i = 1; i < steps; i += 1) {
       const x = Math.round(a.x + (dx * i) / steps);
       const y = Math.round(a.y + (dy * i) / steps);
+      if (!this.isOwnedLand(x, y)) return { valid: false, reason: 'Bridge crosses locked land' };
       if (this.services.keepSystem.findAtCell(x, y)) {
         return { valid: false, reason: 'Bridge path crosses the Keep' };
       }
@@ -8686,7 +8691,7 @@ export class ThreeGame {
   }
 
   private moatSegmentStatusAt(point: MoatPoint): MoatSegmentStatus {
-    if (point.x < 0 || point.y < 0 || point.x >= this.worldCols || point.y >= this.worldRows) return 'blocked';
+    if (point.x < 0 || point.y < 0 || point.x >= this.worldCols || point.y >= this.worldRows || !this.isOwnedLand(point.x, point.y)) return 'blocked';
     if (this.moatTasks.has(this.key(point.x, point.y))) return 'existing';
     const cell = this.services.state.getCell(point.x, point.y);
     if (cell?.kind === 'moat') return 'existing';
@@ -9745,6 +9750,8 @@ export class ThreeGame {
   private buildRoadDrag(start: GridPoint, end: GridPoint): void {
     const roadKind = this.selectedTool as RoadKind;
     const path = this.roadPath(start, end);
+    const locked = path.find((p) => !this.isOwnedLand(p.x, p.y));
+    if (locked) { this.openLandPurchaseAt(locked); this.clearGroup(this.wallPreviewLayer); return; }
     const costedTiles = path.filter((point) => {
       const terrain = this.terrainAt(point.x, point.y);
       const current = this.services.state.getCell(point.x, point.y);
@@ -10244,6 +10251,8 @@ export class ThreeGame {
   private buildWallDrag(start: GridPoint, end: GridPoint): void {
     const wallKind = this.selectedTool as WallKind;
     const path = this.wallPath(start, end);
+    const locked = path.find((p) => !this.isOwnedLand(p.x, p.y));
+    if (locked) { this.openLandPurchaseAt(locked); this.clearGroup(this.wallPreviewLayer); return; }
     const single = path.length === 1;
     const costedSegments = path.filter((point) => {
       const terrain = this.terrainAt(point.x, point.y);
@@ -10345,6 +10354,9 @@ export class ThreeGame {
     if (tool === 'erase' || tool === 'mountainRange' || this.isTerrainTool(tool)) return null;
 
     const cells = this.buildPlacementFootprint(tool, point);
+    if (cells.some((p) => !this.isOwnedLand(p.x, p.y))) {
+      return { valid: false, cells, reason: 'Locked plot · purchase with coins to build here' };
+    }
     const cell = this.services.state.getCell(point.x, point.y);
     const current = cell?.kind;
     const terrain = this.terrainAt(point.x, point.y);
@@ -10777,6 +10789,11 @@ export class ThreeGame {
       return;
     }
 
+    if (!this.isOwnedLand(point.x, point.y)) {
+      this.openLandPurchaseAt(point);
+      return;
+    }
+
     this.selectedCell = point;
     this.selectedTowerBridgeId = null;
     this.syncSelectedGateButton();
@@ -11085,7 +11102,7 @@ export class ThreeGame {
 
   private canBuildMarketAt(gx: number, gy: number, ignoreCell?: GridPoint): boolean {
     for (const { x, y } of getStructureFootprint('market', gx, gy)) {
-      if (x < 0 || y < 0 || x >= this.worldCols || y >= this.worldRows) return false;
+      if (x < 0 || y < 0 || x >= this.worldCols || y >= this.worldRows || !this.isOwnedLand(x, y)) return false;
       const ownAnchor = ignoreCell?.x === x && ignoreCell.y === y;
       if ((!ownAnchor && this.services.state.getCell(x, y)) ||
           this.services.keepSystem.findAtCell(x, y) ||
@@ -12918,6 +12935,7 @@ export class ThreeGame {
     const cells = cell.kind === 'market'
       ? this.buildPlacementFootprint('market', point)
       : getStructureFootprint(cell.kind, point.x, point.y);
+    if (cells.some((p) => !this.isOwnedLand(p.x, p.y))) return { valid: false, reason: 'Locked plot · purchase first', cells };
     if (point.x === origin.x && point.y === origin.y) {
       return { valid: false, reason: 'Choose a different tile', cells };
     }
@@ -13374,6 +13392,9 @@ export class ThreeGame {
     draft: Omit<KeepState, 'id' | 'seed'>,
     ignoreKeepId?: number,
   ): { valid: boolean; reason?: string } {
+    if (this.services.keepSystem.footprint(draft).some((p) => !this.isOwnedLand(p.x, p.y))) {
+      return { valid: false, reason: 'Keep footprint crosses locked land' };
+    }
     return this.services.keepSystem.validate(
       draft,
       this.worldGrid,
