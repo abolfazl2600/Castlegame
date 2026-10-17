@@ -736,7 +736,7 @@ export class ThreeGame {
           // structures from those players: adopt their existing footprints.
           const legacy = this.services.state.entries()
             .filter(cell => !['tree', 'rock', 'mountain'].includes(cell.kind))
-            .map(cell => ({ x: cell.x, y: cell.y }));
+            .flatMap(cell => getStructureFootprint(cell.kind, cell.x, cell.y));
           for (const keep of this.services.keepSystem.entries()) {
             legacy.push(...this.services.keepSystem.footprint(keep));
           }
