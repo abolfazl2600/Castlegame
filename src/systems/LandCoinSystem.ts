@@ -21,18 +21,27 @@ export interface LandParcel {
   owned: boolean;
 }
 
-/** The initial 50% of each world's columns are owned. The other half is
- * divided into purchasable 4x4 tiles, with clipped parcels at map edges. */
+/** The central half of each world's columns starts owned, keeping template
+ * castles near the middle. Both outside bands are purchasable 4x4 parcels. */
 export function starterOwnedColumns(grid: Pick<WorldGridDimensions, 'cols'>): number {
   return Math.ceil(grid.cols / 2);
 }
 
+export function starterLandBounds(grid: Pick<WorldGridDimensions, 'cols'>): { minX: number; maxX: number } {
+  const width = starterOwnedColumns(grid);
+  const minX = Math.floor((grid.cols - width) / 2);
+  return { minX, maxX: minX + width - 1 };
+}
+
 function parcelOrigin(x: number, y: number, grid: Pick<WorldGridDimensions, 'cols' | 'rows'>): { x: number; y: number } | null {
-  const split = starterOwnedColumns(grid);
+  const { minX, maxX } = starterLandBounds(grid);
   if (!Number.isInteger(x) || !Number.isInteger(y) ||
-    x < split || x >= grid.cols || y < 0 || y >= grid.rows) return null;
-  return { x: split + Math.floor((x - split) / LAND_PARCEL_SIDE) * LAND_PARCEL_SIDE,
-    y: Math.floor(y / LAND_PARCEL_SIDE) * LAND_PARCEL_SIDE };
+    x < 0 || x >= grid.cols || y < 0 || y >= grid.rows ||
+    (x >= minX && x <= maxX)) return null;
+  const originX = x < minX
+    ? Math.floor(x / LAND_PARCEL_SIDE) * LAND_PARCEL_SIDE
+    : maxX + 1 + Math.floor((x - (maxX + 1)) / LAND_PARCEL_SIDE) * LAND_PARCEL_SIDE;
+  return { x: originX, y: Math.floor(y / LAND_PARCEL_SIDE) * LAND_PARCEL_SIDE };
 }
 
 function parcelId(x: number, y: number): string {
@@ -105,7 +114,8 @@ export class LandCoinSystem {
   isOwned(x: number, y: number, grid: Pick<WorldGridDimensions, 'cols' | 'rows'>): boolean {
     if (!Number.isInteger(x) || !Number.isInteger(y) ||
       x < 0 || y < 0 || x >= grid.cols || y >= grid.rows) return false;
-    if (x < starterOwnedColumns(grid)) return true;
+    const { minX, maxX } = starterLandBounds(grid);
+    if (x >= minX && x <= maxX) return true;
     const origin = parcelOrigin(x, y, grid);
     return Boolean(origin && this.owned.has(parcelId(origin.x, origin.y)));
   }
@@ -120,7 +130,10 @@ export class LandCoinSystem {
     const id = parcelId(origin.x, origin.y);
     return {
       id, x: origin.x, y: origin.y,
-      cols: Math.min(LAND_PARCEL_SIDE, grid.cols - origin.x),
+      cols: Math.min(LAND_PARCEL_SIDE,
+        origin.x < starterLandBounds(grid).minX
+          ? starterLandBounds(grid).minX - origin.x
+          : grid.cols - origin.x),
       rows: Math.min(LAND_PARCEL_SIDE, grid.rows - origin.y),
       cost: LAND_PARCEL_PRICE,
       owned: this.owned.has(id),
@@ -129,8 +142,13 @@ export class LandCoinSystem {
 
   parcels(grid: Pick<WorldGridDimensions, 'cols' | 'rows'>): LandParcel[] {
     const result: LandParcel[] = [];
+    const { minX, maxX } = starterLandBounds(grid);
     for (let y = 0; y < grid.rows; y += LAND_PARCEL_SIDE) {
-      for (let x = starterOwnedColumns(grid); x < grid.cols; x += LAND_PARCEL_SIDE) {
+      for (let x = 0; x < minX; x += LAND_PARCEL_SIDE) {
+        const parcel = this.parcelAt(x, y, grid);
+        if (parcel) result.push(parcel);
+      }
+      for (let x = maxX + 1; x < grid.cols; x += LAND_PARCEL_SIDE) {
         const parcel = this.parcelAt(x, y, grid);
         if (parcel) result.push(parcel);
       }
