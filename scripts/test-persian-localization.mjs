@@ -36,6 +36,24 @@ assert.match(read('src/settings/SettingsUI.ts'), /value="fa"/);
 assert.match(read('src/i18n/localization.ts'), /MutationObserver/);
 assert.match(read('src/i18n/localization.ts'), /document\.documentElement\.dir/);
 
+const persianFont = readFileSync(resolve(root, 'src/assets/fonts/vazirmatn-variable.woff2'));
+assert.equal(persianFont.subarray(0, 4).toString('ascii'), 'wOF2',
+  'Bundled Persian font must be a real local WOFF2 asset');
+assert.ok(persianFont.length > 10_000, 'Bundled font appears incomplete');
+assert.match(read('src/assets/fonts/OFL-Vazirmatn.txt'), /SIL Open Font License/,
+  'The self-hosted font must include its open font license');
+const styles = read('src/style.css');
+assert.match(styles, /@font-face\s*\{[\s\S]*?font-family:\s*'Castle Vazirmatn'/,
+  'Vazirmatn must be registered through @font-face');
+assert.match(styles, /url\('\.\/assets\/fonts\/vazirmatn-variable\.woff2'\)/,
+  'Vazirmatn must load from the bundled source instead of a CDN');
+assert.match(styles, /html\[dir="rtl"\]\s*\{[\s\S]*?font-family:\s*'Castle Vazirmatn'/,
+  'RTL text must prefer the bundled Persian font');
+assert.match(styles, /html\[lang="fa"\]\s+:is\(button, input, select, textarea, option\)/,
+  'Native UI controls must inherit Persian typography');
+console.log('Self-hosted Persian font, license, and RTL form typography verified.');
+
+
 const privacySource = read('src/core/PrivacyLegalUI.ts');
 const privacyTemplate = privacySource.split("section.innerHTML = `")[1]?.split("`;")[0];
 assert.ok(privacyTemplate, 'Privacy & Legal template must be available');
