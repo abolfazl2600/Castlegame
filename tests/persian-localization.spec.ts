@@ -74,6 +74,53 @@ test('Composed Harbor upgrade descriptions are fully localized in Persian', () =
   );
 });
 
+test('bundled Persian font stays legible and available offline across language and viewport changes', async ({ page }, testInfo) => {
+  test.setTimeout(120_000);
+  await openLocalizedGame(page, 1280, 800);
+
+  const font = await page.evaluate(async () => {
+    await document.fonts.load('600 18px "Castle Vazirmatn"', 'آسیاب بادی و کارگران ۱۲۳');
+    await document.fonts.ready;
+    const faces = Array.from(document.fonts).filter(face => face.family.replaceAll('"', '') === 'Castle Vazirmatn');
+    const htmlFamily = getComputedStyle(document.documentElement).fontFamily;
+    const buttonFamily = getComputedStyle(document.getElementById('settings-button')!).fontFamily;
+    const detailsFamily = getComputedStyle(document.getElementById('world-selection-panel')!).fontFamily;
+    return { faces: faces.length, loaded: faces.some(face => face.status === 'loaded'),
+      htmlFamily, buttonFamily, detailsFamily,
+      lineHeight: getComputedStyle(document.documentElement).lineHeight };
+  });
+  expect(font.faces).toBeGreaterThan(0);
+  expect(font.loaded).toBe(true);
+  for (const family of [font.htmlFamily, font.buttonFamily, font.detailsFamily]) {
+    expect(family).toContain('Castle Vazirmatn');
+  }
+  expect(parseFloat(font.lineHeight)).toBeGreaterThan(1.4);
+
+  await openSettings(page);
+  await page.locator('[data-settings-nav="general"]').click();
+  const language = page.locator('[data-setting="language"]');
+  await language.selectOption('en');
+  await expect(page.locator('html')).toHaveAttribute('dir', 'ltr');
+  expect(await page.locator('html').evaluate(el => getComputedStyle(el).fontFamily)).not.toContain('Castle Vazirmatn');
+  await language.selectOption('fa');
+  await expect(page.locator('html')).toHaveAttribute('dir', 'rtl');
+  expect(await page.locator('html').evaluate(el => getComputedStyle(el).fontFamily)).toContain('Castle Vazirmatn');
+  await page.locator('#settings-close').click();
+  for (const viewport of [{ width: 390, height: 844 }, { width: 915, height: 412 }]) {
+    await page.setViewportSize(viewport);
+    // Changing a desktop browser viewport is not equivalent to changing input
+    // device capabilities. Touch layout is tested in a separate mobile context.
+    await expect(page.locator('html')).toHaveAttribute('lang', 'fa');
+    const computed = await page.locator('html').evaluate(el => ({
+      family: getComputedStyle(el).fontFamily,
+      eyebrowSpacing: getComputedStyle(document.querySelector('.eyebrow')!).letterSpacing,
+    }));
+    expect(computed.family).toContain('Castle Vazirmatn');
+    expect(computed.eyebrowSpacing).toBe('normal');
+    await captureEvidence(page, testInfo, `persian-font-${viewport.width}x${viewport.height}.png`);
+  }
+});
+
 test('Persian is selected, switch to English and back persists across reload', async ({ page }, testInfo) => {
   await openLocalizedGame(page, 1280, 800);
   await openSettings(page);
@@ -289,6 +336,50 @@ test('Persian portrait touch layout keeps controls and Settings on-screen', asyn
 
 test.describe('Persian Android landscape', () => {
   test.use({ hasTouch: true, isMobile: true });
+
+  test('Build cards use local Persian font with compact labels and wrapping in portrait/landscape', async ({ page }, testInfo) => {
+    test.setTimeout(120_000);
+    await openLocalizedGame(page, 390, 844);
+    for (const viewport of [{ width: 390, height: 844 }, { width: 915, height: 412 }]) {
+      await page.setViewportSize(viewport);
+      await expect(page.locator('html')).toHaveClass(/mobile-ui-active/);
+      if (await page.locator('#toolbar').evaluate(el => el.classList.contains('is-collapsed'))) {
+        await page.locator('.mobile-header [data-mobile-proxy="toolbar-open"]').click();
+      }
+      const card = page.locator('#toolbar .tool-button:visible').first();
+      await expect(card).toBeVisible();
+      const copy = await card.evaluate(button => {
+        const title = button.querySelector<HTMLElement>('.tool-copy strong');
+        const description = button.querySelector<HTMLElement>('.tool-copy small');
+        if (!title || !description) throw new Error('Build card title/description missing');
+        const titleStyle = getComputedStyle(title);
+        const captionStyle = getComputedStyle(description);
+        const cardRect = button.getBoundingClientRect();
+        return {
+          titleSize: parseFloat(titleStyle.fontSize),
+          captionSize: parseFloat(captionStyle.fontSize),
+          titleFont: titleStyle.fontFamily,
+          captionFont: captionStyle.fontFamily,
+          titleWrap: titleStyle.whiteSpace,
+          captionWrap: captionStyle.whiteSpace,
+          captionClamp: captionStyle.webkitLineClamp,
+          cardWidth: cardRect.width,
+          viewportWidth: window.innerWidth,
+        };
+      });
+      expect(copy.titleFont).toContain('Castle Vazirmatn');
+      expect(copy.captionFont).toContain('Castle Vazirmatn');
+      expect(copy.titleSize).toBeGreaterThanOrEqual(12);
+      expect(copy.titleSize).toBeLessThanOrEqual(15.1);
+      expect(copy.captionSize).toBeGreaterThanOrEqual(10);
+      expect(copy.captionSize).toBeLessThanOrEqual(13.1);
+      expect(copy.titleWrap).toBe('normal');
+      expect(copy.captionWrap).toBe('normal');
+      expect(copy.captionClamp).toBe('2');
+      expect(copy.cardWidth).toBeLessThan(copy.viewportWidth);
+      await captureEvidence(page, testInfo, `persian-build-font-${viewport.width}x${viewport.height}.png`);
+    }
+  });
 
   test('RTL tool panel docks to right and Settings remains accessible', async ({ page }, testInfo) => {
     await openLocalizedGame(page, 915, 412);
