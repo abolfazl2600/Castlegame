@@ -519,56 +519,83 @@ export class KeepRenderer {
       [width / 2, depth / 2],
     ];
 
-    for (let index = 0; index < corners.length; index += 1) {
-      const [x, z] = corners[index];
+    for (const [index, [x, z]] of corners.entries()) {
+      const outwardX = index % 2 === 0 ? -1 : 1;
+      const outwardZ = index < 2 ? -1 : 1;
+      const plinth = new THREE.Mesh(
+        new THREE.CylinderGeometry(radius * 1.08, radius * 1.24, 0.82, 10),
+        dark,
+      );
+      plinth.name = 'keep-turret-plinth';
+      plinth.position.set(x, foundationTop + 0.41, z);
+      plinth.castShadow = true;
+      plinth.receiveShadow = true;
+      group.add(plinth);
+
       const body = new THREE.Mesh(
-        new THREE.CylinderGeometry(radius, radius * 1.06, towerHeight, 12),
+        new THREE.CylinderGeometry(radius, radius * 1.04, towerHeight - 0.65, 10),
         stone,
       );
-      body.position.set(x, foundationTop + towerHeight / 2, z);
+      body.name = 'keep-corner-turret';
+      body.position.set(x, foundationTop + 0.65 + (towerHeight - 0.65) / 2, z);
       body.castShadow = true;
       body.receiveShadow = true;
       group.add(body);
 
-      const bandCount = Math.max(2, keep.floors);
-      for (let floor = 1; floor < bandCount; floor += 1) {
+      for (let floor = 1; floor < keep.floors; floor += 1) {
         const band = new THREE.Mesh(
-          new THREE.CylinderGeometry(radius * 1.04, radius * 1.04, 0.12, 12),
+          new THREE.CylinderGeometry(radius * 1.045, radius * 1.045, 0.13, 10),
           dark,
         );
-        band.position.set(x, foundationTop + (towerHeight * floor) / bandCount, z);
+        band.position.set(x, foundationTop + floor * CASTLE_ARCHITECTURE_STYLE.keep.floorHeight, z);
         group.add(band);
       }
 
       for (let floor = 0; floor < keep.floors; floor += 1) {
-        const slitMesh = this.addBox(
-          group,
-          0.12,
-          0.62,
-          0.08,
-          slit,
-          x,
-          foundationTop + 1.05 + floor * 2.15,
-          z - radius - 0.02,
+        const y = foundationTop + 1.18 + floor * CASTLE_ARCHITECTURE_STYLE.keep.floorHeight;
+        this.addBox(group, 0.20, 0.72, 0.10, slit, x, y, z + outwardZ * (radius + 0.03));
+        this.addBox(group, 0.10, 0.72, 0.20, slit, x + outwardX * (radius + 0.03), y, z);
+      }
+
+      // Heavy overhanging machicolation and small corbels unify the turret with
+      // the central wall, unlike the old floating cone/cylinder combination.
+      const crownY = foundationTop + towerHeight;
+      const collar = new THREE.Mesh(
+        new THREE.CylinderGeometry(radius * 1.28, radius * 1.22, 0.28, 10),
+        dark,
+      );
+      collar.name = 'keep-turret-machicolation';
+      collar.position.set(x, crownY - 0.10, z);
+      collar.castShadow = true;
+      collar.receiveShadow = true;
+      group.add(collar);
+
+      for (let i = 0; i < 8; i += 1) {
+        const angle = i / 8 * Math.PI * 2;
+        this.addBox(
+          group, 0.27, 0.34, 0.28, stone,
+          x + Math.cos(angle) * radius * 1.06,
+          crownY - 0.38,
+          z + Math.sin(angle) * radius * 1.06,
         );
-        slitMesh.rotation.y = index % 2 === 0 ? 0 : Math.PI / 2;
       }
 
       if (keep.roof === 'sloped' || keep.roof === 'towered') {
         const eave = new THREE.Mesh(
-          new THREE.CylinderGeometry(radius * 1.42, radius * 1.42, 0.2, 12),
+          new THREE.CylinderGeometry(radius * 1.43, radius * 1.43, 0.20, 10),
           this.materials.roofDark,
         );
-        eave.position.set(x, foundationTop + towerHeight + 0.08, z);
+        eave.position.set(x, crownY + 0.11, z);
         eave.castShadow = true;
         group.add(eave);
-
-        const cap = new THREE.Mesh(new THREE.ConeGeometry(radius * 1.38, 1.85, 12), roof);
-        cap.position.set(x, foundationTop + towerHeight + 1.0, z);
+        const cap = new THREE.Mesh(new THREE.ConeGeometry(radius * 1.40, 1.80, 10), roof);
+        cap.name = 'keep-turret-roof';
+        cap.position.set(x, crownY + 1.06, z);
         cap.castShadow = true;
         group.add(cap);
+        this.addBox(group, 0.10, 0.32, 0.10, this.materials.iron, x, crownY + 2.09, z);
       } else {
-        this.addTowerBattlements(group, x, z, radius, foundationTop + towerHeight, stone);
+        this.addTowerBattlements(group, x, z, radius, crownY, stone);
       }
     }
   }
@@ -607,6 +634,11 @@ export class KeepRenderer {
   ): void {
     const maxSpan = Math.max(width, depth);
     this.addBox(group, width + 0.72, 0.14, depth + 0.72, trim, 0, y, 0);
+    // Deep Japanese eaves and exposed timber fascia hold the stepped tiers together.
+    for (const side of [-1, 1]) {
+      this.addBox(group, width + 0.92, 0.18, 0.22, trim, 0, y - 0.09, side * (depth / 2 + 0.36));
+      this.addBox(group, 0.22, 0.18, depth + 0.92, trim, side * (width / 2 + 0.36), y - 0.09, 0);
+    }
 
     const cap = new THREE.Mesh(
       new THREE.ConeGeometry(maxSpan * 0.7, 0.64, 4),
@@ -809,25 +841,35 @@ export class KeepRenderer {
     wood: THREE.Material,
     cloth: THREE.Material,
   ): void {
+    const roofRise = Math.max(1.35, Math.min(3.2, (Math.min(width, depth) / 2 + 0.37) * 0.51));
+    const watchRise = Math.max(1.35, Math.min(3.2, (Math.min(width, depth) * 0.52 / 2 + 0.37) * 0.51));
+    const centerMastBase =
+      keep.roof === 'sloped' ? bodyTop + 0.16 + roofRise :
+      keep.roof === 'towered' ? bodyTop + 2.63 + watchRise :
+      keep.roof === 'defensivePlatform' ? bodyTop + 1.80 :
+      bodyTop + 0.3;
+
     for (const [index, placement] of this.details.keepFlags(keep).entries()) {
       const x = placement.xFactor * width;
       const z = placement.zFactor * depth;
-      const mastHeight = placement.primary ? 3.0 : 2.25;
-      const mastBase = bodyTop + (keep.roof === 'sloped' ? 1.0 : 0.3);
+      const mastHeight = placement.primary ? 2.7 : 2.0;
+      const mastBase = placement.primary
+        ? centerMastBase
+        : bodyTop + (keep.roof === 'sloped' || keep.roof === 'towered' ? 2.94 : 1.4);
 
-      this.addBox(group, 0.08, mastHeight, 0.08, wood, x, mastBase + mastHeight / 2, z);
-
-      const flag = this.addBox(
+      this.addBox(group, 0.09, mastHeight, 0.09, wood, x, mastBase + mastHeight / 2, z);
+      const banner = this.addBox(
         group,
-        placement.primary ? 1.35 : 0.95,
-        placement.primary ? 0.65 : 0.46,
-        0.055,
+        placement.primary ? 1.32 : 0.94,
+        placement.primary ? 0.64 : 0.45,
+        0.05,
         cloth,
-        x + (placement.primary ? 0.7 : 0.5),
-        mastBase + placement.heightOffset,
+        x + (placement.primary ? 0.70 : 0.49),
+        mastBase + mastHeight - (placement.primary ? 0.40 : 0.33),
         z,
       );
-      flag.userData.castleFlag = { phase: keep.seed * 0.001 + index * 0.7 };
+      banner.name = 'keep-heraldic-banner';
+      banner.userData.castleFlag = { phase: keep.seed * 0.001 + index * 0.7 };
     }
   }
 
