@@ -56,7 +56,7 @@ test('legacy save starts with zero coins and half-map ownership', async ({ page 
 
 test('purchased land and coins survive a save load; locked plot offers a confirmation', async ({ page }) => {
   test.setTimeout(90_000);
-  await startGame(page, { coins: 20, ownedParcels: ['12,0'] });
+  await startGame(page, { coins: 20, ownedParcels: ['17,0'] });
   const initial = await page.evaluate(() => {
     const qa = window as typeof window & { __castleTouchQA: () => {
       land: { coins: number; plots: { id: string; owned: boolean }[] }
@@ -64,7 +64,7 @@ test('purchased land and coins survive a save load; locked plot offers a confirm
     return qa.__castleTouchQA().land;
   });
   expect(initial.coins).toBe(20);
-  expect(initial.plots.some(plot => plot.id === '12,0' && plot.owned)).toBe(true);
+  expect(initial.plots.some(plot => plot.id === '17,0' && plot.owned)).toBe(true);
   const target = await page.evaluate(() => {
     const canvas = document.querySelector<HTMLCanvasElement>('canvas');
     const probe = (window as typeof window & {
@@ -75,7 +75,7 @@ test('purchased land and coins survive a save load; locked plot offers a confirm
     for (let y = r.top + 65; y < r.bottom - 60; y += 22) {
       for (let x = r.left + 50; x < r.right - 50; x += 22) {
         const cell = probe(x, y);
-        if (cell?.x !== undefined && cell.x >= 16 && cell.x < 23 && cell.y >= 4) {
+        if (cell?.x !== undefined && (cell.x >= 17 || cell.x < 5) && cell.y >= 4) {
           return { x, y, cell };
         }
       }
@@ -97,7 +97,7 @@ test('purchased land and coins survive a save load; locked plot offers a confirm
     SAVE_AUTOSAVE_KEY);
   expect(saved.coins).toBe(10);
   expect(saved.ownedParcels.length).toBe(2);
-  expect(saved.ownedParcels).toContain('12,0');
+  expect(saved.ownedParcels).toContain('17,0');
   const owned = await page.evaluate(() => {
     const qa = window as typeof window & { __castleTouchQA: () => {
       land: { coins: number; plots: { id: string; owned: boolean }[] }
