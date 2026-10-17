@@ -6806,13 +6806,17 @@ html[lang="fa"] .toolbar kbd {
   unicode-bidi: isolate;
   font-size: 10px;
 }
+html[lang="fa"] .toolbar .tool-button > kbd {
+  left: 6px;
+  right: auto;
+}
 html[lang="fa"].mobile-ui-active .toolbar .tool-button {
   min-width: 0;
   min-height: 62px;
   grid-template-columns: 34px minmax(0, 1fr);
   align-items: center;
   gap: 8px;
-  padding: 9px 34px 9px 10px;
+  padding: 9px 10px 9px 34px;
   text-align: start;
 }
 html[lang="fa"].mobile-ui-active .toolbar .tool-icon {
