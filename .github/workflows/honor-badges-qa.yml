@@ -1,0 +1,56 @@
+name: Honor Badge Remote Delivery QA
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/honor-badges-qa.yml'
+      - 'honor-badges/**'
+      - 'src/honors/**'
+      - 'docs/honor-badge-delivery.md'
+      - 'scripts/test-honor-badge-delivery.mjs'
+      - 'tests/honor-badge-delivery.spec.ts'
+      - 'playwright.honor-badges.config.ts'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: honor-badges-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  download-and-offline:
+    name: Verify secure GitHub download and offline cache
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund
+      - name: Verify delivery architecture and types
+        run: |
+          node scripts/test-honor-badge-delivery.mjs
+          npx tsc --noEmit
+      - name: Build web bundle and check remote-only art
+        run: |
+          npx vite build
+          test ! -d dist/honor-badges
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+      - name: Test online/offline paths and integrity in Chromium
+        run: npx playwright test tests/honor-badge-delivery.spec.ts --config playwright.honor-badges.config.ts
+      - name: Upload browser evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: honor-badge-delivery-${{ github.sha }}
+          path: |
+            test-results/
+            playwright-report/
+          if-no-files-found: ignore
+          retention-days: 14
