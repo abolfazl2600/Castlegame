@@ -6708,3 +6708,137 @@ html[lang="fa"] :is(
 ) {
   unicode-bidi: isolate;
 }
+
+
+/* Persian Build palette typography — Android WebView portrait/landscape.
+   Keep the 44px touch targets while allowing multi-line text to fit. */
+html[lang="fa"] .toolbar,
+html[lang="fa"] .toolbar :is(button, input, small, strong, b, kbd) {
+  font-family: 'Castle Vazirmatn', 'Noto Sans Arabic', Tahoma, sans-serif;
+}
+html[lang="fa"] .toolbar {
+  direction: rtl;
+  text-align: start;
+}
+html[lang="fa"] .toolbar :is(
+  .toolbar-heading,
+  .tool-copy,
+  .tool-category,
+  .build-active,
+  .build-resource-stat,
+  .build-world-stat,
+  .build-search
+) {
+  min-width: 0;
+}
+html[lang="fa"] .toolbar :is(.toolbar-heading > span, .economy-hud-title) {
+  font-size: clamp(13px, calc(14px * var(--castle-ui-scale, 1)), 17px);
+  font-weight: 750;
+  line-height: 1.55;
+  letter-spacing: normal;
+}
+html[lang="fa"] .toolbar :is(.tool-category-label, .build-active, .build-category-tab) {
+  letter-spacing: normal;
+  text-transform: none;
+}
+html[lang="fa"] .toolbar .build-search input {
+  font-size: clamp(12px, calc(12.5px * var(--castle-ui-scale, 1)), 15px);
+  line-height: 1.5;
+  text-align: start;
+}
+html[lang="fa"] .toolbar .tool-copy strong {
+  display: block;
+  max-width: 100%;
+  overflow: visible;
+  white-space: normal;
+  overflow-wrap: break-word;
+  font-size: clamp(12px, calc(13px * var(--castle-ui-scale, 1)), 15px);
+  font-weight: 750;
+  line-height: 1.45;
+  text-overflow: clip;
+}
+html[lang="fa"] .toolbar .tool-copy small {
+  display: -webkit-box;
+  max-width: 100%;
+  overflow: hidden;
+  white-space: normal;
+  overflow-wrap: break-word;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  font-size: clamp(10px, calc(11px * var(--castle-ui-scale, 1)), 13px);
+  font-weight: 450;
+  line-height: 1.55;
+  text-overflow: clip;
+}
+html[lang="fa"] .toolbar .build-category-tab strong {
+  font-size: clamp(11px, calc(12px * var(--castle-ui-scale, 1)), 14px);
+  font-weight: 700;
+  line-height: 1.45;
+}
+html[lang="fa"] .toolbar .build-category-tab small {
+  font-size: clamp(10px, calc(10.5px * var(--castle-ui-scale, 1)), 12px);
+  line-height: 1.35;
+}
+html[lang="fa"] .toolbar .build-world-stat b,
+html[lang="fa"] .toolbar .build-resource-stat b,
+html[lang="fa"] .toolbar .build-economy-storage,
+html[lang="fa"] .toolbar .build-economy-warning,
+html[lang="fa"] .toolbar .build-population-breakdown span,
+html[lang="fa"] .toolbar .economy-hud-workforce summary {
+  font-size: clamp(10px, calc(11px * var(--castle-ui-scale, 1)), 13px);
+  font-weight: 650;
+  line-height: 1.5;
+}
+html[lang="fa"] .toolbar .build-resource-stat small {
+  font-size: clamp(9px, calc(10px * var(--castle-ui-scale, 1)), 12px);
+  line-height: 1.45;
+}
+html[lang="fa"] .toolbar .build-world-stat b,
+html[lang="fa"] .toolbar .build-resource-stat b,
+html[lang="fa"] .toolbar .build-population-breakdown span {
+  white-space: normal;
+  overflow-wrap: break-word;
+  text-overflow: clip;
+}
+html[lang="fa"] .toolbar kbd {
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  direction: ltr;
+  unicode-bidi: isolate;
+  font-size: 10px;
+}
+html[lang="fa"].mobile-ui-active .toolbar .tool-button {
+  min-width: 0;
+  min-height: 62px;
+  grid-template-columns: 34px minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
+  padding: 9px 34px 9px 10px;
+  text-align: start;
+}
+html[lang="fa"].mobile-ui-active .toolbar .tool-icon {
+  width: 34px;
+  height: 34px;
+}
+html[lang="fa"].mobile-ui-active .toolbar .tool-copy {
+  gap: 3px;
+}
+html[lang="fa"].mobile-ui-active .toolbar .tool-category-items {
+  gap: 7px;
+}
+html[lang="fa"].mobile-ui-active .toolbar .build-population-breakdown {
+  gap: 5px;
+}
+@media (max-width: 430px) {
+  html[lang="fa"].mobile-ui-active .toolbar {
+    padding-inline: 9px;
+  }
+  html[lang="fa"].mobile-ui-active .toolbar .tool-category-items {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  html[lang="fa"].mobile-ui-active .toolbar .tool-button {
+    min-height: 66px;
+  }
+  html[lang="fa"].mobile-ui-active .toolbar .build-resource-stat {
+    padding: 7px 5px;
+  }
+}
