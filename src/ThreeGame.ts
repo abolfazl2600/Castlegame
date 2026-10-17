@@ -729,7 +729,22 @@ export class ThreeGame {
       setEnvironmentState: (value) => { this.environmentSystem.setState(value); },
       getMissionState: () => this.missionSystem.getState(),
       getLandEconomyState: () => this.landCoins.getState(),
-      setLandEconomyState: (value) => { this.landCoins.setState(value); this.refreshLandOwnershipVisuals(true); this.landCoinUI.render(this.landCoins.balance); },
+      setLandEconomyState: (value) => {
+        this.landCoins.setState(value);
+        if (!value) {
+          // Old world files had no land economy. Never take already-built
+          // structures from those players: adopt their existing footprints.
+          const legacy = this.services.state.entries()
+            .filter(cell => !['tree', 'rock', 'mountain'].includes(cell.kind))
+            .map(cell => ({ x: cell.x, y: cell.y }));
+          for (const keep of this.services.keepSystem.entries()) {
+            legacy.push(...this.services.keepSystem.footprint(keep));
+          }
+          this.landCoins.adoptLegacyBuildings(legacy, this.worldGrid);
+        }
+        this.refreshLandOwnershipVisuals(true);
+        this.landCoinUI.render(this.landCoins.balance);
+      },
       getConstructionProjects: () => this.constructionProjects.snapshot(),
       setConstructionProjects: (value) => { this.constructionProjects.restore(value); },
       getMoatTasks: () => this.pendingMoatTasks(),
