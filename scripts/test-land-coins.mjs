@@ -31,7 +31,7 @@ assert.equal(bought?.x, 17);
 assert.equal(bought?.y, 0);
 assert.equal(bought?.cols, 4);
 assert.equal(bought?.rows, 4);
-assert.equal(coins.purchase(13, 3, small), 'purchased');
+assert.equal(coins.purchase(19, 3, small), 'purchased');
 assert.equal(coins.balance, 0);
 assert.equal(coins.purchase(19, 2, small), 'owned');
 assert.equal(coins.isOwned(20, 3, small), true);
