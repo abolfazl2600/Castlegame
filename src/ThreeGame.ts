@@ -10822,8 +10822,8 @@ export class ThreeGame {
   private handleBuildClick(event: PointerEvent): void {
     const point = this.pickGridCell(event);
     if (!point) return;
-    if (!this.ensureOwnedLand([point])) return;
 
+    if (this.relocationState && !this.ensureOwnedLand([point])) return;
     if (this.relocationState) {
       this.commitRelocation(point);
       return;
@@ -10836,6 +10836,13 @@ export class ThreeGame {
     const terrain = this.terrainAt(gx, gy);
     const overrideKey = this.key(gx, gy);
     const keepAtPoint = this.services.keepSystem.findAtCell(gx, gy);
+    // Existing castles from authored templates and earlier saves remain
+    // selectable and operable even when their surrounding plot is unowned.
+    // Placing new objects or editing empty locked land still requires purchase.
+    const existingStructure = Boolean(keepAtPoint || cell ||
+      findStructureAnchorAt(this.services.state.entries(), gx, gy));
+    if (!(this.selectedTool === null && existingStructure) &&
+      !this.ensureOwnedLand([point])) return;
 
     if (this.selectedTool === null) {
       if (keepAtPoint) {
