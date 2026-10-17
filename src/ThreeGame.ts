@@ -1177,26 +1177,37 @@ export class ThreeGame {
     this.landLockVisualKey = signature;
     this.clearGroup(this.landLockLayer);
 
-    for (const parcel of this.landCoins.parcels(this.worldGrid)) {
-      if (parcel.owned) continue;
-      const width = parcel.cols * TILE - 0.10;
-      const depth = parcel.rows * TILE - 0.10;
+    // An entire territory can have 100+ locked parcels. A single instanced
+    // draw avoids one GPU draw call per parcel on Android performance presets.
+    const locked = this.landCoins.parcels(this.worldGrid).filter(parcel => !parcel.owned);
+    if (locked.length === 0) return;
+    const material = new THREE.MeshBasicMaterial({
+      color: 0x677d9c, transparent: true, opacity: 0.19,
+      depthTest: true, depthWrite: false, side: THREE.DoubleSide,
+    });
+    const instances = new THREE.InstancedMesh(new THREE.PlaneGeometry(1, 1), material, locked.length);
+    instances.name = 'locked-land-parcels-instanced';
+    instances.renderOrder = 4;
+    instances.castShadow = false;
+    instances.receiveShadow = false;
+    const proxy = new THREE.Object3D();
+    proxy.rotation.x = -Math.PI / 2;
+    for (const [index, parcel] of locked.entries()) {
       const centerX = parcel.x + (parcel.cols - 1) / 2;
       const centerY = parcel.y + (parcel.rows - 1) / 2;
       const world = this.gridToWorld(centerX, centerY);
-      const material = new THREE.MeshBasicMaterial({
-        color: 0x677d9c, transparent: true, opacity: 0.19,
-        depthTest: true, depthWrite: false, side: THREE.DoubleSide,
-      });
-      const plane = new THREE.Mesh(new THREE.PlaneGeometry(width, depth), material);
-      plane.name = 'locked-land-parcel';
-      plane.rotation.x = -Math.PI / 2;
-      plane.position.set(world.x, 2.42 + this.terrainElevation(Math.floor(centerX), Math.floor(centerY)), world.z);
-      plane.renderOrder = 4;
-      plane.castShadow = false;
-      plane.receiveShadow = false;
-      this.landLockLayer.add(plane);
+      proxy.position.set(
+        world.x,
+        2.42 + this.terrainElevation(Math.floor(centerX), Math.floor(centerY)),
+        world.z,
+      );
+      proxy.scale.set(parcel.cols * TILE - 0.10, parcel.rows * TILE - 0.10, 1);
+      proxy.updateMatrix();
+      instances.setMatrixAt(index, proxy.matrix);
     }
+    instances.instanceMatrix.needsUpdate = true;
+    instances.computeBoundingSphere();
+    this.landLockLayer.add(instances);
   }
 
   private isWallTool(tool: ToolKind): tool is WallKind {
