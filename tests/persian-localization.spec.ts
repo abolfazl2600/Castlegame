@@ -74,6 +74,52 @@ test('Composed Harbor upgrade descriptions are fully localized in Persian', () =
   );
 });
 
+test('bundled Persian font stays legible and available offline across language and viewport changes', async ({ page }, testInfo) => {
+  test.setTimeout(120_000);
+  await openLocalizedGame(page, 1280, 800);
+
+  const font = await page.evaluate(async () => {
+    await document.fonts.load('600 18px "Castle Vazirmatn"', 'آسیاب بادی و کارگران ۱۲۳');
+    await document.fonts.ready;
+    const faces = Array.from(document.fonts).filter(face => face.family.replaceAll('"', '') === 'Castle Vazirmatn');
+    const htmlFamily = getComputedStyle(document.documentElement).fontFamily;
+    const buttonFamily = getComputedStyle(document.getElementById('settings-button')!).fontFamily;
+    const detailsFamily = getComputedStyle(document.getElementById('world-selection-panel')!).fontFamily;
+    return { faces: faces.length, loaded: faces.some(face => face.status === 'loaded'),
+      htmlFamily, buttonFamily, detailsFamily,
+      lineHeight: getComputedStyle(document.documentElement).lineHeight };
+  });
+  expect(font.faces).toBeGreaterThan(0);
+  expect(font.loaded).toBe(true);
+  for (const family of [font.htmlFamily, font.buttonFamily, font.detailsFamily]) {
+    expect(family).toContain('Castle Vazirmatn');
+  }
+  expect(parseFloat(font.lineHeight)).toBeGreaterThan(1.4);
+
+  await openSettings(page);
+  await page.locator('[data-settings-nav="general"]').click();
+  const language = page.locator('[data-setting="language"]');
+  await language.selectOption('en');
+  await expect(page.locator('html')).toHaveAttribute('dir', 'ltr');
+  expect(await page.locator('html').evaluate(el => getComputedStyle(el).fontFamily)).not.toContain('Castle Vazirmatn');
+  await language.selectOption('fa');
+  await expect(page.locator('html')).toHaveAttribute('dir', 'rtl');
+  expect(await page.locator('html').evaluate(el => getComputedStyle(el).fontFamily)).toContain('Castle Vazirmatn');
+  await page.locator('#settings-close').click();
+  for (const viewport of [{ width: 390, height: 844 }, { width: 915, height: 412 }]) {
+    await page.setViewportSize(viewport);
+    await expect(page.locator('html')).toHaveClass(/mobile-ui-active/);
+    await expect(page.locator('html')).toHaveAttribute('lang', 'fa');
+    const computed = await page.locator('html').evaluate(el => ({
+      family: getComputedStyle(el).fontFamily,
+      eyebrowSpacing: getComputedStyle(document.querySelector('.mobile-eyebrow')!).letterSpacing,
+    }));
+    expect(computed.family).toContain('Castle Vazirmatn');
+    expect(computed.eyebrowSpacing).toBe('normal');
+    await captureEvidence(page, testInfo, `persian-font-${viewport.width}x${viewport.height}.png`);
+  }
+});
+
 test('Persian is selected, switch to English and back persists across reload', async ({ page }, testInfo) => {
   await openLocalizedGame(page, 1280, 800);
   await openSettings(page);
