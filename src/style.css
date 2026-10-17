@@ -1,3 +1,12 @@
+/* Bundled OFL font keeps Persian glyphs consistent in offline Android WebView. */
+@font-face {
+  font-family: 'Castle Vazirmatn';
+  src: url('./assets/fonts/vazirmatn-variable.woff2') format('woff2');
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+}
+
 :root {
   --safe-area-top: env(safe-area-inset-top, 0px);
   --safe-area-right: env(safe-area-inset-right, 0px);
@@ -4237,7 +4246,8 @@ html.mobile-ui-active .battle-actions button { min-width: 0; padding: 5px 3px; f
 
 /* Persian user interface (RTL) — never mirror world geometry or camera controls. */
 html[dir="rtl"] {
-  font-family: Tahoma, 'Noto Sans Arabic', 'Segoe UI', system-ui, sans-serif;
+  font-family: 'Castle Vazirmatn', 'Noto Sans Arabic', Tahoma, system-ui, sans-serif;
+  line-height: 1.55;
 }
 html[dir="rtl"] .topbar,
 html[dir="rtl"] .toolbar,
@@ -6629,4 +6639,72 @@ html[data-reduced-motion] .construction-progress__track > span {
   .world-selection-summary .eyebrow { font-size: 9px; }
   .world-selection-actions button { min-height: 44px; }
   .construction-progress-panel:not([hidden]) { padding: 7px 10px; }
+}
+
+
+/* Persian typography: clear hierarchy and real Arabic/Persian shaping.
+   Font assets travel with the web bundle and Android app; no external CDN. */
+html[lang="fa"] {
+  font-family: 'Castle Vazirmatn', 'Noto Sans Arabic', Tahoma, system-ui, sans-serif;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+}
+html[lang="fa"] :is(button, input, select, textarea, option) {
+  font-family: inherit;
+}
+html[lang="fa"] :is(
+  .eyebrow,
+  .mobile-eyebrow,
+  .settings-eyebrow,
+  .settings-section-eyebrow,
+  .settings-hero-eyebrow,
+  .minimap-title,
+  .world-selection-summary .eyebrow
+) {
+  letter-spacing: normal;
+  text-transform: none;
+}
+html[lang="fa"] :is(
+  .world-selection-summary strong,
+  .economy-hud-title,
+  .construction-progress__heading strong
+) {
+  font-size: max(14px, calc(14px * var(--castle-ui-scale, 1)));
+  font-weight: 700;
+  line-height: 1.65;
+}
+html[lang="fa"] :is(
+  .world-selection-actions button,
+  .world-selection-summary small,
+  .construction-progress__heading,
+  .construction-progress__details,
+  .economy-hud-workforce summary
+) {
+  font-size: max(13px, calc(13px * var(--castle-ui-scale, 1)));
+  line-height: 1.6;
+}
+html[lang="fa"] :is(
+  .mission-card__description,
+  .settings-control-copy small,
+  .tool-copy small,
+  .settings-hint
+) {
+  line-height: 1.75;
+}
+html[lang="fa"] :is(
+  .world-selection-summary,
+  .construction-progress-panel,
+  .mission-journal,
+  #settings-modal,
+  .toolbar
+) {
+  text-align: start;
+}
+html[lang="fa"] :is(
+  [dir="ltr"],
+  input[type="number"],
+  .build-economy-storage,
+  .world-selection-summary small[dir="ltr"]
+) {
+  unicode-bidi: isolate;
 }
