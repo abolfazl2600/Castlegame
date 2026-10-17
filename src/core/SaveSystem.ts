@@ -24,6 +24,7 @@ import type {
   KeepState,
   MapLayoutId,
   MissionProgressState,
+  SavedLandEconomy,
   SavedBattleSetup,
   SavedGame,
   SaveMetadata,
@@ -62,6 +63,8 @@ export interface SaveLoadHost {
   setEnvironmentState?(value?: Partial<EnvironmentSimulationState> | null): void;
   getMissionState?(): MissionProgressState;
   setMissionState?(value?: Partial<MissionProgressState> | null): void;
+  getLandEconomyState?(): SavedLandEconomy;
+  setLandEconomyState?(value?: Partial<SavedLandEconomy> | null): void;
   getConstructionProjects?(): ConstructionProject[];
   setConstructionProjects?(value?: ConstructionProject[] | null): void;
   getMoatTasks?(): PendingMoatTask[];
@@ -100,6 +103,7 @@ interface RawSave {
   population?: PopulationSimulationState;
   environment?: EnvironmentSimulationState;
   missions?: MissionProgressState;
+  landEconomy?: SavedLandEconomy;
   constructionProjects?: ConstructionProject[];
   moatTasks?: PendingMoatTask[];
 }
@@ -526,6 +530,7 @@ export class SaveSystem {
       population: this.host.getPopulationState?.(),
       environment: this.host.getEnvironmentState?.(),
       missions: this.host.getMissionState?.(),
+      landEconomy: this.host.getLandEconomyState?.(),
       constructionProjects: this.host.getConstructionProjects?.(),
       moatTasks: this.host.getMoatTasks?.(),
     };
@@ -634,6 +639,7 @@ export class SaveSystem {
     this.host.setPopulationState?.(data.population);
     this.host.setEnvironmentState?.(data.environment);
     this.host.setMissionState?.(data.missions);
+    this.host.setLandEconomyState?.(data.landEconomy);
     this.host.setConstructionProjects?.(data.constructionProjects);
     this.host.setMoatTasks?.(data.moatTasks);
     this.host.syncLoadedWorldUI();
@@ -705,6 +711,7 @@ export class SaveSystem {
         population: parsed.population,
         environment: parsed.environment,
         missions: parsed.missions,
+        landEconomy: parsed.landEconomy,
         constructionProjects: parsed.constructionProjects,
         moatTasks: parsed.moatTasks,
       };
@@ -756,6 +763,7 @@ function normalizeRecord(raw: RawSave, target: SaveTarget): SaveRecord | null {
     population: raw.population,
     environment: raw.environment,
     missions: raw.missions,
+    landEconomy: raw.landEconomy,
     constructionProjects: raw.constructionProjects,
     moatTasks: raw.moatTasks,
   } : undefined);

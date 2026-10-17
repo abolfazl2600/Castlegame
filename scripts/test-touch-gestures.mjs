@@ -134,6 +134,7 @@ function harness(tool = null, { battle = false, god = false, native = false } = 
     renderer: { domElement: canvas }, camera, controls, battleSystem: { isActive: () => battle }, selectedTool: tool,
     wallPreviewLayer: {}, terrainStrokeSnapshot: null, terrainStrokeChanged: false, terrainStrokeActive: false,
     elevationOverrides: new Map(), pointerStart: null, godModeTouchStart: null, longPressTriggered: false,
+    ensureOwnedLand() { return true; },
     cancelLongPress() { this.longPress = false; }, beginLongPress() { this.longPress = true; },
     deactivateBuildToolAfterCommit() { this.selectedTool = null; },
     cancelLongPressOnMovement() {}, pickGridCell: e => ({ x: Math.floor(e.clientX / 10), y: Math.floor(e.clientY / 10) }),

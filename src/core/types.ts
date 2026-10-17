@@ -207,6 +207,14 @@ export interface MissionProgressState {
   flawlessDefenseVictories: number;
 }
 
+/** Per-world land purchase/coin state, optional for pre-update save files. */
+export interface SavedLandEconomy {
+  version: 1;
+  coins: number;
+  playedMsRemainder: number;
+  ownedParcels: string[];
+}
+
 export interface SavedGame {
   version: number;
   gameMode?: GameMode;
@@ -244,6 +252,7 @@ export interface SavedGame {
   population?: PopulationSimulationState;
   environment?: EnvironmentSimulationState;
   missions?: MissionProgressState;
+  landEconomy?: SavedLandEconomy;
   /** Active worker-driven construction; missing in old saves means every structure is finished. */
   constructionProjects?: ConstructionProject[];
   /** Queued moat excavation, absent in legacy saves. */

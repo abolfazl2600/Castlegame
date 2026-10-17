@@ -84,6 +84,8 @@ import { audioEvents } from './audio/AudioEventBus';
 import { registerSystemAction } from './app/applicationActions';
 import { MissionSystem, type MissionSnapshot } from './missions/MissionSystem';
 import { MissionUI } from './missions/MissionUI';
+import { LandCoinSystem } from './systems/LandCoinSystem';
+import { LandCoinUI } from './ui/LandCoinUI';
 import {
   GodModeActionRegistry,
   createFutureGodModeAction,
@@ -493,6 +495,10 @@ export class ThreeGame {
     onPinMission: (id) => this.setPinnedMission(id),
   });
   private missionRefreshAccumulatorMs = 0;
+  private readonly landCoins = new LandCoinSystem();
+  private readonly landCoinUI = new LandCoinUI((x, y) => this.purchaseLandParcel(x, y));
+  private readonly landLockLayer = new THREE.Group();
+  private landLockVisualKey = '';
   private readonly castleBlockSystem = new CastleBlockSystem();
   private readonly constructionAnimation = new ConstructionAnimationSystem();
   private readonly constructionProjects = new ConstructionProjectSystem();
@@ -722,6 +728,23 @@ export class ThreeGame {
       getEnvironmentState: () => this.environmentSystem.getState(),
       setEnvironmentState: (value) => { this.environmentSystem.setState(value); },
       getMissionState: () => this.missionSystem.getState(),
+      getLandEconomyState: () => this.landCoins.getState(),
+      setLandEconomyState: (value) => {
+        this.landCoins.setState(value);
+        if (!value) {
+          // Old world files had no land economy. Never take already-built
+          // structures from those players: adopt their existing footprints.
+          const legacy = this.services.state.entries()
+            .filter(cell => !['tree', 'rock', 'mountain'].includes(cell.kind))
+            .flatMap(cell => getStructureFootprint(cell.kind, cell.x, cell.y));
+          for (const keep of this.services.keepSystem.entries()) {
+            legacy.push(...this.services.keepSystem.footprint(keep));
+          }
+          this.landCoins.adoptLegacyBuildings(legacy, this.worldGrid);
+        }
+        this.refreshLandOwnershipVisuals(true);
+        this.landCoinUI.render(this.landCoins.balance);
+      },
       getConstructionProjects: () => this.constructionProjects.snapshot(),
       setConstructionProjects: (value) => { this.constructionProjects.restore(value); },
       getMoatTasks: () => this.pendingMoatTasks(),
@@ -946,10 +969,13 @@ export class ThreeGame {
 
     this.addLights();
     this.createWorld();
+    this.landCoinUI.mount();
+    this.landCoinUI.render(this.landCoins.balance);
 
     this.scene.add(this.ambientFauna.layer);
     this.scene.add(this.ambientShip.layer);
     this.scene.add(this.terrainLayer);
+    this.scene.add(this.landLockLayer);
     this.scene.add(this.buildLayer);
     this.scene.add(this.selectionVisual.layer);
     this.scene.add(this.wallPreviewLayer);
@@ -1018,6 +1044,8 @@ export class ThreeGame {
     this.selectTool(null);
     this.setToolbarOpen(this.toolbarOpen);
     this.syncGameplayControls();
+    this.landCoinUI.render(this.landCoins.balance);
+    this.refreshLandOwnershipVisuals(true);
     this.syncTemplateAvailability();
     if (!hadSave) this.openMapLayoutSelector();
     this.bindPointerInput();
@@ -1075,6 +1103,7 @@ export class ThreeGame {
 
     this.worldLayoutSurfaceSignature = '';
     this.rebuildWorldGridLines();
+    this.refreshLandOwnershipVisuals(true);
   }
 
   private rebuildWorldGridLines(): void {
@@ -1108,6 +1137,66 @@ export class ThreeGame {
     const lines = new THREE.LineSegments(geometry, material);
     lines.name = 'rectangular-world-grid';
     this.worldGridLayer.add(lines);
+  }
+
+  private landIsOwned(x: number, y: number): boolean {
+    return this.landCoins.isOwned(x, y, this.worldGrid);
+  }
+
+  private ensureOwnedLand(cells: readonly GridPoint[], showOffer = true): boolean {
+    const locked = cells.find(point => !this.landIsOwned(point.x, point.y));
+    if (!locked) return true;
+    if (showOffer) {
+      const parcel = this.landCoins.parcelAt(locked.x, locked.y, this.worldGrid);
+      if (parcel) this.landCoinUI.offer(parcel);
+      this.setStatus('Land is locked · unlock this parcel before building');
+    }
+    return false;
+  }
+
+  private purchaseLandParcel(x: number, y: number): 'purchased' | 'owned' | 'insufficient' | 'invalid' {
+    const result = this.landCoins.purchase(x, y, this.worldGrid);
+    if (result === 'purchased') {
+      this.landCoinUI.render(this.landCoins.balance);
+      this.refreshLandOwnershipVisuals(true);
+      this.save(false);
+      this.setStatus('Land unlocked · construction is now available');
+    }
+    return result;
+  }
+
+  /**
+   * Only paints a thin tinted purchase overlay over the locked half.
+   * Map terrain and pre-existing buildings remain rendered and inspectable.
+   * Work is repeated only when a parcel is bought or the map changes.
+   */
+  private refreshLandOwnershipVisuals(force = false): void {
+    const signature = this.mapLayoutId + ':' + this.worldCols + 'x' + this.worldRows + ':' +
+      this.landCoins.getState().ownedParcels.join('|');
+    if (!force && signature === this.landLockVisualKey) return;
+    this.landLockVisualKey = signature;
+    this.clearGroup(this.landLockLayer);
+
+    for (const parcel of this.landCoins.parcels(this.worldGrid)) {
+      if (parcel.owned) continue;
+      const width = parcel.cols * TILE - 0.10;
+      const depth = parcel.rows * TILE - 0.10;
+      const centerX = parcel.x + (parcel.cols - 1) / 2;
+      const centerY = parcel.y + (parcel.rows - 1) / 2;
+      const world = this.gridToWorld(centerX, centerY);
+      const material = new THREE.MeshBasicMaterial({
+        color: 0x677d9c, transparent: true, opacity: 0.19,
+        depthTest: true, depthWrite: false, side: THREE.DoubleSide,
+      });
+      const plane = new THREE.Mesh(new THREE.PlaneGeometry(width, depth), material);
+      plane.name = 'locked-land-parcel';
+      plane.rotation.x = -Math.PI / 2;
+      plane.position.set(world.x, 2.42 + this.terrainElevation(Math.floor(centerX), Math.floor(centerY)), world.z);
+      plane.renderOrder = 4;
+      plane.castShadow = false;
+      plane.receiveShadow = false;
+      this.landLockLayer.add(plane);
+    }
   }
 
   private isWallTool(tool: ToolKind): tool is WallKind {
@@ -1775,6 +1864,9 @@ export class ThreeGame {
     this.services.economySystem.reset();
     this.services.populationSystem.setState();
     this.missionSystem.reset();
+    this.landCoins.reset();
+    this.landCoinUI.render(this.landCoins.balance);
+    this.refreshLandOwnershipVisuals(true);
     this.missionRefreshAccumulatorMs = 0;
     this.populationBattleCommitted = false;
     this.populationBattleStart = null;
@@ -2135,6 +2227,7 @@ export class ThreeGame {
     // cells (e.g. Market) and queued moats, but does not include ordinary
     // occupied anchors or Keep foundations, including rotated Keep footprints.
     return (
+      this.landIsOwned(x, y) &&
       !this.services.state.getCell(x, y) &&
       !this.services.keepSystem.findAtCell(x, y) &&
       !this.isStructureFootprintReserved(x, y)
@@ -8658,6 +8751,7 @@ export class ThreeGame {
   }
 
   private moatSegmentStatusAt(point: MoatPoint): MoatSegmentStatus {
+    if (!this.landIsOwned(point.x, point.y)) return 'blocked';
     if (point.x < 0 || point.y < 0 || point.x >= this.worldCols || point.y >= this.worldRows) return 'blocked';
     if (this.moatTasks.has(this.key(point.x, point.y))) return 'existing';
     const cell = this.services.state.getCell(point.x, point.y);
@@ -8691,6 +8785,7 @@ export class ThreeGame {
 
   private buildMoatStroke(path: MoatPoint[], exceededLimit: boolean): void {
     this.clearGroup(this.wallPreviewLayer);
+    if (!this.ensureOwnedLand(path)) return;
     const assessment = assessMoatRoute(path, (point) => this.moatSegmentStatusAt(point));
     if (exceededLimit) {
       this.setStatus('Moat route too long · shorten the drag');
@@ -9032,6 +9127,12 @@ export class ThreeGame {
           diagnostics: this.lastBuildReuseDiagnostics,
         },
         moatTasks: this.pendingMoatTasks(),
+        land: {
+          coins: this.landCoins.balance,
+          state: this.landCoins.getState(),
+          plots: this.landCoins.parcels(this.worldGrid).map(({ id, owned }) => ({ id, owned })),
+          split: Math.ceil(this.worldCols / 2),
+        },
         undoCount: this.undoStack.length, pointers: touches.pointerIds,
         dragging: Boolean(this.wallDragStart || this.roadDragStart || this.moatDragLast || this.terrainStrokeActive),
         preview: this.wallPreviewLayer.children.length,
@@ -9063,6 +9164,12 @@ export class ThreeGame {
         if (this.battleSystem.isActive()) return;
 
         const cell = this.pickGridCell(event);
+        if (cell && this.selectedTool !== null && !this.isGodModeTargeting() &&
+          !this.ensureOwnedLand([cell], false)) {
+          this.pointerStart = null;
+          this.ensureOwnedLand([cell]);
+          return;
+        }
         if (cell && event.pointerType !== 'mouse') {
           if (this.relocationState) this.renderRelocationPreview(cell);
           else this.renderBuildPlacementPreview(cell, true, event.shiftKey);
@@ -9579,6 +9686,7 @@ export class ThreeGame {
   }
 
   private performLongPressRemoval(point: GridPoint): void {
+    if (!this.ensureOwnedLand([point])) return;
     const keep = this.services.keepSystem.findAtCell(point.x, point.y);
     const cell = this.services.state.getCell(point.x, point.y);
     if (!keep && !cell) return;
@@ -9717,6 +9825,7 @@ export class ThreeGame {
   private buildRoadDrag(start: GridPoint, end: GridPoint): void {
     const roadKind = this.selectedTool as RoadKind;
     const path = this.roadPath(start, end);
+    if (!this.ensureOwnedLand(path)) { this.clearGroup(this.wallPreviewLayer); return; }
     const costedTiles = path.filter((point) => {
       const terrain = this.terrainAt(point.x, point.y);
       const current = this.services.state.getCell(point.x, point.y);
@@ -9897,6 +10006,7 @@ export class ThreeGame {
   }
 
   private buildMountainRange(start: GridPoint, end: GridPoint): void {
+    if (!this.ensureOwnedLand(this.mountainRangePath(start, end))) return;
     const before = this.captureSnapshot();
     const changed = this.applyMountainRange(start, end, true);
 
@@ -9939,6 +10049,7 @@ export class ThreeGame {
           const x = ridge.x + ox;
           const y = ridge.y + oy;
           if (x < 1 || y < 1 || x >= this.worldCols - 1 || y >= this.worldRows - 1) continue;
+          if (!this.landIsOwned(x, y)) continue;
           if (!this.canEditTerrainAt(x, y)) continue;
   
           const distance = Math.hypot(ox, oy);
@@ -10216,6 +10327,7 @@ export class ThreeGame {
   private buildWallDrag(start: GridPoint, end: GridPoint): void {
     const wallKind = this.selectedTool as WallKind;
     const path = this.wallPath(start, end);
+    if (!this.ensureOwnedLand(path)) { this.clearGroup(this.wallPreviewLayer); return; }
     const single = path.length === 1;
     const costedSegments = path.filter((point) => {
       const terrain = this.terrainAt(point.x, point.y);
@@ -10317,6 +10429,9 @@ export class ThreeGame {
     if (tool === 'erase' || tool === 'mountainRange' || this.isTerrainTool(tool)) return null;
 
     const cells = this.buildPlacementFootprint(tool, point);
+    if (!this.ensureOwnedLand(cells, false)) {
+      return { valid: false, cells, reason: 'Land is locked' };
+    }
     const cell = this.services.state.getCell(point.x, point.y);
     const current = cell?.kind;
     const terrain = this.terrainAt(point.x, point.y);
@@ -10708,6 +10823,7 @@ export class ThreeGame {
     const point = this.pickGridCell(event);
     if (!point) return;
 
+    if (this.relocationState && !this.ensureOwnedLand([point])) return;
     if (this.relocationState) {
       this.commitRelocation(point);
       return;
@@ -10720,6 +10836,13 @@ export class ThreeGame {
     const terrain = this.terrainAt(gx, gy);
     const overrideKey = this.key(gx, gy);
     const keepAtPoint = this.services.keepSystem.findAtCell(gx, gy);
+    // Existing castles from authored templates and earlier saves remain
+    // selectable and operable even when their surrounding plot is unowned.
+    // Placing new objects or editing empty locked land still requires purchase.
+    const existingStructure = Boolean(keepAtPoint || cell ||
+      findStructureAnchorAt(this.services.state.entries(), gx, gy));
+    if (!(this.selectedTool === null && existingStructure) &&
+      !this.ensureOwnedLand([point])) return;
 
     if (this.selectedTool === null) {
       if (keepAtPoint) {
@@ -11057,6 +11180,7 @@ export class ThreeGame {
 
   private canBuildMarketAt(gx: number, gy: number, ignoreCell?: GridPoint): boolean {
     for (const { x, y } of getStructureFootprint('market', gx, gy)) {
+      if (!this.landIsOwned(x, y)) return false;
       if (x < 0 || y < 0 || x >= this.worldCols || y >= this.worldRows) return false;
       const ownAnchor = ignoreCell?.x === x && ignoreCell.y === y;
       if ((!ownAnchor && this.services.state.getCell(x, y)) ||
@@ -12890,6 +13014,9 @@ export class ThreeGame {
     const cells = cell.kind === 'market'
       ? this.buildPlacementFootprint('market', point)
       : getStructureFootprint(cell.kind, point.x, point.y);
+    if (!this.ensureOwnedLand(cells, false)) {
+      return { valid: false, reason: 'Land is locked', cells };
+    }
     if (point.x === origin.x && point.y === origin.y) {
       return { valid: false, reason: 'Choose a different tile', cells };
     }
@@ -13346,6 +13473,9 @@ export class ThreeGame {
     draft: Omit<KeepState, 'id' | 'seed'>,
     ignoreKeepId?: number,
   ): { valid: boolean; reason?: string } {
+    if (!this.ensureOwnedLand(this.services.keepSystem.footprint(draft), false)) {
+      return { valid: false, reason: 'Land is locked' };
+    }
     return this.services.keepSystem.validate(
       draft,
       this.worldGrid,
@@ -14323,6 +14453,9 @@ export class ThreeGame {
   }
 
   private applyTemplate(template: string): void {
+    this.landCoins.reset();
+    this.landCoinUI.render(0);
+    this.refreshLandOwnershipVisuals(true);
     const authoredLayoutTemplate = PLAYABLE_LAYOUT_TEMPLATES[template];
     const visualPreset = getTemplateVisualPreset(template);
     this.recordHistory();
@@ -16167,6 +16300,9 @@ export class ThreeGame {
   }
 
   private applyTerrainTemplate(template: string): void {
+    this.landCoins.reset();
+    this.landCoinUI.render(0);
+    this.refreshLandOwnershipVisuals(true);
     this.recordHistory();
     this.clearSettlementAgents();
     this.services.state.clear();
@@ -17107,6 +17243,10 @@ export class ThreeGame {
     this.lastFrameTime = time;
 
     const settings = this.settingsStore.get();
+    if (this.landCoins.tick(frameDeltaMs, !document.hidden && document.hasFocus())) {
+      this.landCoinUI.render(this.landCoins.balance);
+      this.save(false);
+    }
     const cameraDistance = this.camera.position.distanceTo(this.controls.target);
     const completedConstruction = this.constructionAnimation.update(time, settings.interface.reducedMotion);
     if (completedConstruction.length > 0) {
