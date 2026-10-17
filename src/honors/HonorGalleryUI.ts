@@ -14,31 +14,23 @@ const language = (): 'fa' | 'en' => getCurrentLocale() === 'fa' ? 'fa' : 'en';
 const translated = (fa: string, en: string): string => language() === 'fa' ? fa : en;
 
 /**
- * Gallery is embedded in Mission Journal and only uses validated local Blobs
- * for image src. Opening it may fetch the remote *manifest*, not badge images.
- * Downloads are explicitly requested after the corresponding mission is won.
+ * Player-facing achievement display. All technical asset delivery stays hidden:
+ * artwork is fetched silently from GitHub on first opening and stored in IDB.
+ * Neither the remote manifest nor a successful cache operation grants an award.
  */
 export class HonorGalleryUI {
   private readonly repository = new HonorBadgeRepository();
   private host: HTMLElement | null = null;
   private view: MissionView | null = null;
   private catalog: HonorBadgeCatalog | null = null;
-  private source: 'network' | 'cached' | 'unavailable' = 'unavailable';
-  private readonly downloaded = new Map<string, DownloadedHonorBadge>();
+  private readonly artwork = new Map<string, DownloadedHonorBadge>();
   private readonly imageUrls = new Map<string, string>();
-  private readonly busy = new Set<string>();
-  private errors = new Map<string, string>();
   private loading = false;
   private currentSignature = '';
 
   mount(host: HTMLElement | null): void {
     if (!host || this.host) return;
     this.host = host;
-    host.addEventListener('click', (event) => {
-      const button = (event.target as HTMLElement | null)?.closest<HTMLButtonElement>('button[data-honor-download]');
-      if (!button || !button.dataset.honorDownload) return;
-      void this.download(button.dataset.honorDownload);
-    });
   }
 
   render(view: MissionView): void {
@@ -49,185 +41,182 @@ export class HonorGalleryUI {
   open(): void {
     if (this.loading) return;
     this.loading = true;
-    void this.refresh();
+    void this.refresh().finally(() => {
+      this.loading = false;
+      this.paint();
+    });
   }
 
   private async refresh(): Promise<void> {
-    // Show verified local artworks before waiting for a possibly-offline request.
+    // Show cached pictures immediately, including those belonging to locked
+    // missions, before contacting the network. Existing IDs remain stable.
     try {
-      const badges = await this.repository.listDownloaded();
-      for (const badge of badges) this.downloaded.set(badge.id, badge);
+      const saved = await this.repository.listDownloaded();
+      for (const badge of saved) this.setArtwork(badge);
     } catch {
-      // The service reports storage failures when the player presses Download.
+      // Cache might be disabled; progress UI is still fully usable.
     }
     this.paint();
+
     try {
-      const response = await this.repository.loadCatalog();
-      this.catalog = response.catalog;
-      this.source = response.source;
-    } finally {
-      this.loading = false;
-      this.paint();
+      const result = await this.repository.loadCatalog();
+      if (result.catalog) this.catalog = result.catalog;
+    } catch {
+      // Repository already handles cached/offline catalog fallback.
     }
+    if (!this.catalog) return;
+
+    // No buttons, network statuses, raw artwork URLs, or tech instructions in
+    // the game. Limit concurrent background downloads for Android WebView.
+    const items = HONOR_AWARD_RULES.filter(rule =>
+      this.catalog?.badges.some(entry => entry.id === rule.id));
+    for (let offset = 0; offset < items.length; offset += 2) {
+      await Promise.allSettled(items.slice(offset, offset + 2).map(async rule => {
+        const saved = this.artwork.get(rule.id);
+        const definition = this.catalog?.badges.find(item => item.id === rule.id);
+        if (saved && saved.sha256 === definition?.sha256) return;
+        try {
+          const result = await this.repository.download(rule.id, this.catalog!);
+          this.setArtwork(result.badge);
+          this.paint();
+        } catch {
+          // Quiet fallback: locked/unlocked placeholders remain visible.
+        }
+      }));
+    }
+  }
+
+  private setArtwork(badge: DownloadedHonorBadge): void {
+    const previous = this.artwork.get(badge.id);
+    if (previous?.sha256 !== badge.sha256) {
+      const url = this.imageUrls.get(badge.id);
+      if (url) URL.revokeObjectURL(url);
+      this.imageUrls.delete(badge.id);
+    }
+    this.artwork.set(badge.id, badge);
   }
 
   private definition(id: string): HonorBadgeDefinition | undefined {
-    return this.catalog?.badges.find((item) => item.id === id);
+    return this.catalog?.badges.find(item => item.id === id);
   }
 
   private localName(id: string, fallback: Localized): string {
-    return (this.definition(id)?.name ?? this.downloaded.get(id)?.name ?? fallback)[language()];
+    return (this.definition(id)?.name ?? this.artwork.get(id)?.name ?? fallback)[language()];
   }
 
   private paint(): void {
     if (!this.host || !this.view) return;
     const view = this.view;
+    const earnedIds = HONOR_AWARD_RULES
+      .filter(rule => hasEarnedHonor(view, rule.id)).map(rule => rule.id);
     const signature = JSON.stringify({
       locale: language(),
-      catalog: this.catalog?.badges.map((b) => [b.id, b.sha256]),
-      source: this.source,
-      completed: view.completed.map((entry) => entry.definition.id),
-      downloaded: [...this.downloaded.entries()].map(([id, b]) => [id, b.sha256]),
-      busy: [...this.busy],
-      errors: [...this.errors],
-      loading: this.loading,
+      completed: view.completed.map(entry => entry.definition.id),
+      catalog: this.catalog?.badges.map(badge => [badge.id, badge.sha256]),
+      artwork: [...this.artwork.entries()].map(([id, badge]) => [id, badge.sha256]),
     });
     if (signature === this.currentSignature) return;
     this.currentSignature = signature;
     this.host.replaceChildren();
 
+    const heading = document.createElement('div');
+    heading.className = 'honor-gallery__header';
     const title = document.createElement('h3');
     title.id = 'mission-honors-title';
     title.textContent = translated('نشان‌های افتخار', 'Honor Badges');
-    this.host.appendChild(title);
-
-    const info = document.createElement('p');
-    info.className = 'honor-gallery__info';
-    info.textContent = translated(
-      'با تکمیل مأموریت، نشان آزاد می‌شود. تصویر آن فقط با دانلود از GitHub دریافت می‌شود و پس از آن آفلاین هم قابل مشاهده است.',
-      'Complete the mission to earn a badge. Download its artwork from GitHub once, then view it offline.',
+    heading.appendChild(title);
+    const count = document.createElement('span');
+    count.className = 'honor-gallery__count';
+    const formatted = (value: number): string => value.toLocaleString(language() === 'fa' ? 'fa-IR' : 'en-US');
+    count.textContent = translated(
+      `${formatted(earnedIds.length)} از ${formatted(HONOR_AWARD_RULES.length)} آزاد شده`,
+      `${formatted(earnedIds.length)} of ${formatted(HONOR_AWARD_RULES.length)} unlocked`,
     );
-    this.host.appendChild(info);
+    heading.appendChild(count);
+    this.host.appendChild(heading);
+
+    // Put the first earned badge front and center, then show every remaining
+    // badge. Until one is earned, all four appear as muted locked tiles.
+    const featuredId = earnedIds[0];
+    if (featuredId) {
+      const rule = HONOR_AWARD_RULES.find(item => item.id === featuredId);
+      if (rule) this.host.appendChild(this.badgeCard(rule, true));
+    }
 
     const grid = document.createElement('div');
     grid.className = 'honor-gallery__grid';
-    this.host.appendChild(grid);
-
     for (const rule of HONOR_AWARD_RULES) {
-      const earned = hasEarnedHonor(view, rule.id);
-      const saved = this.downloaded.get(rule.id);
-      const remote = this.definition(rule.id);
-      const name = this.localName(rule.id, rule.fallbackName);
-
-      const card = document.createElement('article');
-      card.className = 'honor-card' + (earned ? ' is-earned' : ' is-locked');
-      card.dataset.honorId = rule.id;
-      const visual = document.createElement('div');
-      visual.className = 'honor-card__visual';
-
-      if (saved) {
-        const src = this.objectUrlFor(saved);
-        const image = document.createElement('img');
-        image.alt = name;
-        image.src = src;
-        image.width = 128;
-        image.height = 128;
-        image.decoding = 'async';
-        visual.appendChild(image);
-      } else {
-        const placeholder = document.createElement('span');
-        placeholder.className = 'honor-card__placeholder';
-        placeholder.textContent = earned ? '↓' : '◇';
-        placeholder.setAttribute('aria-hidden', 'true');
-        visual.appendChild(placeholder);
-      }
-      card.appendChild(visual);
-
-      const body = document.createElement('div');
-      body.className = 'honor-card__body';
-      const heading = document.createElement('h4');
-      heading.textContent = name;
-      body.appendChild(heading);
-
-      const description = document.createElement('p');
-      const mission = view.active.concat(view.completed, view.locked)
-        .find((entry) => entry.definition.id === rule.missionId);
-      description.textContent = remote
-        ? remote.description[language()]
-        : mission?.definition.description ?? translated('برای آزادسازی این نشان، مأموریت مرتبط را کامل کنید.', 'Complete its mission to unlock.');
-      body.appendChild(description);
-
-      const status = document.createElement('span');
-      status.className = 'honor-card__status';
-      status.textContent = saved
-        ? translated('تصویر ذخیره‌شده · قابل مشاهده آفلاین', 'Downloaded · available offline')
-        : earned
-          ? translated('نشان دریافت شد · تصویر هنوز دانلود نشده', 'Earned · artwork not downloaded')
-          : translated('قفل · مأموریت هنوز تکمیل نشده', 'Locked · complete the mission');
-      body.appendChild(status);
-
-      if (earned && !saved) {
-        const button = document.createElement('button');
-        button.className = 'secondary-button honor-card__download';
-        button.type = 'button';
-        button.dataset.honorDownload = rule.id;
-        button.disabled = this.busy.has(rule.id);
-        button.textContent = this.busy.has(rule.id)
-          ? translated('در حال دانلود…', 'Downloading…')
-          : translated('دانلود نشان', 'Download artwork');
-        body.appendChild(button);
-      }
-
-      const error = this.errors.get(rule.id);
-      if (error) {
-        const message = document.createElement('p');
-        message.className = 'honor-card__error';
-        message.setAttribute('role', 'alert');
-        message.textContent = error;
-        body.appendChild(message);
-      }
-      card.appendChild(body);
-      grid.appendChild(card);
+      if (rule.id !== featuredId) grid.appendChild(this.badgeCard(rule, false));
     }
+    this.host.appendChild(grid);
+  }
 
-    const note = document.createElement('p');
-    note.className = 'honor-gallery__footnote';
-    note.textContent = this.source === 'unavailable'
-      ? translated('برای اولین دانلود، اینترنت لازم است. فایل‌های ذخیره‌شده همچنان در دسترس‌اند.',
-        'Internet is required for the first download. Saved badges remain available.')
-      : translated('تصاویر جزو فایل نصب بازی نیستند و فقط هنگام دانلود دریافت می‌شوند.',
-        'Badge artwork is not bundled with the game and is downloaded on request.');
-    this.host.appendChild(note);
+  private badgeCard(rule: (typeof HONOR_AWARD_RULES)[number], featured: boolean): HTMLElement {
+    const view = this.view!;
+    const earned = hasEarnedHonor(view, rule.id);
+    const badge = this.artwork.get(rule.id);
+    const remote = this.definition(rule.id);
+    const name = this.localName(rule.id, rule.fallbackName);
+    const card = document.createElement('article');
+    card.className = 'honor-card ' + (earned ? 'is-earned' : 'is-locked') +
+      (featured ? ' honor-card--featured' : '');
+    card.dataset.honorId = rule.id;
+    card.setAttribute('aria-label', name + ' — ' +
+      (earned ? translated('آزاد شده', 'Unlocked') : translated('قفل', 'Locked')));
+
+    const visual = document.createElement('div');
+    visual.className = 'honor-card__visual';
+    if (badge) {
+      const img = document.createElement('img');
+      img.src = this.objectUrlFor(badge);
+      img.alt = '';
+      img.width = 128;
+      img.height = 128;
+      img.decoding = 'async';
+      visual.appendChild(img);
+    } else {
+      const silhouette = document.createElement('span');
+      silhouette.className = 'honor-card__placeholder';
+      silhouette.textContent = '♜';
+      silhouette.setAttribute('aria-hidden', 'true');
+      visual.appendChild(silhouette);
+    }
+    if (!earned) {
+      const lock = document.createElement('span');
+      lock.className = 'honor-card__lock';
+      lock.setAttribute('aria-hidden', 'true');
+      visual.appendChild(lock);
+    }
+    card.appendChild(visual);
+
+    const body = document.createElement('div');
+    body.className = 'honor-card__body';
+    const title = document.createElement('h4');
+    title.textContent = name;
+    body.appendChild(title);
+    const description = document.createElement('p');
+    const mission = view.active.concat(view.completed, view.locked)
+      .find(entry => entry.definition.id === rule.missionId);
+    description.textContent = remote?.description[language()]
+      ?? badge?.description[language()]
+      ?? mission?.definition.description
+      ?? translated('مأموریت مربوط به این نشان را تکمیل کنید.', 'Complete the related mission.');
+    body.appendChild(description);
+
+    const state = document.createElement('span');
+    state.className = 'honor-card__status';
+    state.textContent = earned ? translated('✓ آزاد شده', '✓ Unlocked') : translated('قفل', 'Locked');
+    body.appendChild(state);
+    card.appendChild(body);
+    return card;
   }
 
   private objectUrlFor(badge: DownloadedHonorBadge): string {
-    const current = this.imageUrls.get(badge.id);
-    if (current) return current;
+    const cached = this.imageUrls.get(badge.id);
+    if (cached) return cached;
     const url = URL.createObjectURL(badge.image);
     this.imageUrls.set(badge.id, url);
     return url;
-  }
-
-  private async download(id: string): Promise<void> {
-    if (!this.view || !hasEarnedHonor(this.view, id) || this.busy.has(id)) return;
-    this.busy.add(id);
-    this.errors.delete(id);
-    this.paint();
-    try {
-      const result = await this.repository.download(id);
-      this.downloaded.set(id, result.badge);
-      const previous = this.imageUrls.get(id);
-      if (previous) {
-        URL.revokeObjectURL(previous);
-        this.imageUrls.delete(id);
-      }
-    } catch {
-      this.errors.set(id, translated('دریافت ناموفق بود؛ اینترنت را بررسی و دوباره تلاش کنید.',
-        'Download failed. Check your connection and try again.'));
-    } finally {
-      this.busy.delete(id);
-      this.paint();
-    }
   }
 
   dispose(): void {

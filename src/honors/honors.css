@@ -1,53 +1,71 @@
-/* Remote artwork is never included by CSS url(), HTML img src or bundler imports.
-   Only HonorGalleryUI creates local blob: URLs after the verified download. */
+/* Achievement gallery: the art never ships in an APK or CSS URL.
+   All images are verified local blob URLs loaded from the GitHub cache. */
 .honor-gallery {
   margin: 0 0 24px;
-  padding: 17px;
-  border: 1px solid rgba(231, 199, 125, 0.28);
-  border-radius: 16px;
-  background: linear-gradient(150deg, rgba(115, 82, 26, .17), rgba(17, 29, 36, .7));
-  color: #f4e9d5;
+  padding: clamp(12px, 2vw, 20px);
+  border: 1px solid rgba(205, 166, 91, 0.35);
+  border-radius: 19px;
+  background: linear-gradient(155deg, rgba(13, 31, 43, .96), rgba(9, 22, 31, .96));
+  color: #efe8d9;
   text-align: start;
+  min-width: 0;
 }
-.honor-gallery h3 {
+.honor-gallery__header {
+  display: flex;
+  gap: 8px 20px;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-bottom: 15px;
+}
+.honor-gallery__header h3 {
   margin: 0;
-  color: #f8e7bc;
-  font-size: clamp(17px, 2.2vw, 21px);
-  line-height: 1.5;
+  color: #fff0cf;
+  font-size: clamp(17px, 2.1vw, 22px);
+  font-weight: 800;
+  line-height: 1.6;
 }
-.honor-gallery__info {
-  margin: 5px 0 16px;
-  color: #c4cdd0;
-  font-size: 13px;
-  line-height: 1.75;
+.honor-gallery__count {
+  border: 1px solid rgba(233, 195, 118, .25);
+  border-radius: 999px;
+  padding: 4px 11px;
+  color: #e5c886;
+  font-size: 12px;
+  line-height: 1.5;
+  white-space: nowrap;
 }
 .honor-gallery__grid {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 11px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
 }
 .honor-card {
-  display: grid;
-  grid-template-columns: 112px minmax(0, 1fr);
-  gap: 12px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
   min-width: 0;
-  padding: 11px;
-  border: 1px solid rgba(220, 211, 183, 0.16);
-  border-radius: 13px;
-  background: rgba(11, 27, 36, 0.73);
+  min-height: 220px;
+  padding: 12px 10px;
+  border: 1px solid rgba(157, 182, 198, .20);
+  border-radius: 16px;
+  background: linear-gradient(150deg, rgba(19, 36, 47, .96), rgba(11, 27, 38, .97));
+  text-align: center;
 }
 .honor-card.is-earned {
-  border-color: rgba(233, 196, 117, .4);
+  border-color: rgba(239, 187, 90, .7);
+  box-shadow: inset 0 0 0 1px rgba(233, 176, 82, .08);
 }
 .honor-card__visual {
+  position: relative;
   display: grid;
-  width: 112px;
-  height: 112px;
-  align-items: center;
-  justify-items: center;
-  border: 1px solid rgba(255,255,255,.10);
-  border-radius: 12px;
-  background: rgba(10, 18, 22, .42);
+  place-items: center;
+  flex-shrink: 0;
+  width: min(100%, 122px);
+  aspect-ratio: 1;
+  border: 1px solid rgba(202, 215, 227, .12);
+  border-radius: 13px;
+  background: rgba(4, 15, 22, .26);
 }
 .honor-card__visual img {
   display: block;
@@ -55,76 +73,148 @@
   height: 100%;
   object-fit: contain;
 }
+.honor-card.is-locked .honor-card__visual img {
+  filter: grayscale(1) brightness(.42) contrast(.95);
+  opacity: .78;
+}
 .honor-card__placeholder {
-  color: rgba(217, 220, 220, .52);
-  font-size: 46px;
+  color: #8c9da3;
+  font-size: 55px;
   line-height: 1;
   user-select: none;
+}
+.honor-card.is-locked .honor-card__placeholder {
+  opacity: .42;
+}
+.honor-card__lock {
+  position: absolute;
+  left: 50%;
+  bottom: 7px;
+  translate: -50% 0;
+  display: block;
+  width: 26px;
+  height: 24px;
+  border-radius: 6px;
+  background: #566671;
+  border: 2px solid #a8b4ba;
+  box-shadow: 0 2px 8px rgba(0,0,0,.5);
+}
+.honor-card__lock::before {
+  content: '';
+  position: absolute;
+  width: 12px;
+  height: 12px;
+  border: 3px solid #a8b4ba;
+  border-radius: 10px 10px 0 0;
+  border-bottom: 0;
+  left: 5px;
+  top: -12px;
+}
+.honor-card__lock::after {
+  content: '';
+  position: absolute;
+  width: 4px;
+  height: 7px;
+  background: #1b2d36;
+  border-radius: 999px;
+  top: 6px;
+  left: 10px;
 }
 .honor-card__body {
   display: flex;
   flex-direction: column;
-  align-items: start;
+  align-items: center;
+  gap: 7px;
   min-width: 0;
-  gap: 6px;
+  flex: 1;
+  width: 100%;
 }
 .honor-card__body h4 {
   margin: 0;
-  font-size: 14px;
-  line-height: 1.5;
+  color: #e7eff0;
+  font-size: clamp(13px, 1.6vw, 15px);
+  line-height: 1.6;
   font-weight: 800;
   overflow-wrap: anywhere;
 }
 .honor-card__body p {
   margin: 0;
-  color: #bfc8c8;
+  color: #abbac2;
   font-size: 12px;
-  line-height: 1.6;
+  line-height: 1.65;
   overflow-wrap: anywhere;
 }
+.honor-card.is-locked .honor-card__body h4,
+.honor-card.is-locked .honor-card__body p {
+  color: #9cabb2;
+}
 .honor-card__status {
-  color: #d6b977;
-  font-size: 11px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-top: auto;
+  padding: 4px 10px;
+  border-radius: 999px;
+  color: #ffe0a4;
+  background: rgba(181, 129, 41, .16);
+  border: 1px solid rgba(231, 179, 91, .45);
+  font-size: 12px;
+  font-weight: 700;
   line-height: 1.5;
 }
 .honor-card.is-locked .honor-card__status {
-  color: #a7b3b9;
+  color: #b2bfc4;
+  background: rgba(104, 120, 134, .10);
+  border-color: rgba(144, 167, 181, .18);
 }
-.honor-card__download {
-  min-height: 44px;
-  margin-top: auto;
-  padding: 8px 10px;
-  font: inherit;
-  font-size: 12px;
-  border-radius: 9px;
+.honor-card--featured {
+  flex-direction: row;
+  align-items: center;
+  min-height: 180px;
+  margin-bottom: 12px;
+  padding: clamp(12px, 2vw, 20px);
+  gap: clamp(16px, 3vw, 28px);
+  border-color: rgba(239, 187, 90, .68);
+  text-align: start;
+  background: radial-gradient(ellipse at 20% 30%, rgba(39, 72, 87, .20), transparent 60%),
+    linear-gradient(125deg, rgba(13, 32, 44, .98), rgba(7, 23, 34, .98));
 }
-.honor-card__download:focus-visible {
-  outline: 2px solid #f8da93;
-  outline-offset: 2px;
+.honor-card--featured .honor-card__visual {
+  width: clamp(118px, 21%, 180px);
 }
-.honor-card__error {
-  color: #ffc4b7 !important;
+.honor-card--featured .honor-card__body {
+  align-items: start;
+  gap: 11px;
 }
-.honor-gallery__footnote {
-  margin: 15px 0 0;
-  color: #a9b6b9;
-  font-size: 11px;
-  line-height: 1.65;
+.honor-card--featured .honor-card__body h4 {
+  color: #fff0d7;
+  font-size: clamp(19px, 2.4vw, 25px);
+  line-height: 1.4;
 }
-html[dir="rtl"] .honor-gallery,
-html[dir="rtl"] .honor-card {
-  direction: rtl;
-  text-align: right;
+.honor-card--featured .honor-card__body p {
+  font-size: clamp(13px, 1.65vw, 16px);
 }
-@media (max-width: 950px) {
-  .honor-gallery__grid { grid-template-columns: minmax(0, 1fr); }
+.honor-card--featured .honor-card__status {
+  margin-top: 8px;
+  font-size: 14px;
+  padding: 6px 15px;
 }
-@media (max-width: 520px), (pointer: coarse) and (max-height: 540px) {
-  .honor-gallery { padding: 13px; }
-  .honor-card { grid-template-columns: 78px minmax(0, 1fr); gap: 10px; }
-  .honor-card__visual { width: 78px; height: 78px; }
+html[dir="rtl"] .honor-gallery { direction: rtl; text-align: right; }
+html[dir="rtl"] .honor-card--featured { text-align: right; }
+@media (max-width: 800px) {
+  .honor-gallery__grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 530px) {
+  .honor-gallery { padding: 12px; }
+  .honor-card { min-height: 198px; padding: 10px 7px; }
+  .honor-card__visual { width: min(100%, 104px); }
   .honor-card__body h4 { font-size: 13px; }
+  .honor-card__body p { font-size: 11px; }
+  .honor-card--featured { padding: 11px; gap: 12px; min-height: 135px; }
+  .honor-card--featured .honor-card__visual { width: min(38%, 118px); }
+  .honor-card--featured .honor-card__body h4 { font-size: 17px; }
+  .honor-card--featured .honor-card__body p { font-size: 12px; }
 }
-@media (prefers-reduced-motion: reduce) {
-  .honor-card * { transition: none; }
+@media (max-width: 335px) {
+  .honor-gallery__grid { grid-template-columns: minmax(0, 1fr); }
 }
