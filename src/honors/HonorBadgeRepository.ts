@@ -3,7 +3,7 @@
  *
  * Art lives in /honor-badges/ at repository root, NEVER in /public/, so it
  * cannot be silently bundled into Android builds. The only way to acquire an
- * image is an explicit GitHub download. Already verified files live in IDB.
+ * image is a verified GitHub request. Already verified files live in IDB.
  *
  * This is a *delivery/cache* layer, NOT an entitlement or Royal Credits shop.
  * A later feature must check an award/purchase before offering download.
@@ -264,19 +264,23 @@ export class HonorBadgeRepository {
       ID_REGEX.test(badge.id) && badge.image instanceof Blob && SHA256_REGEX.test(badge.sha256));
   }
 
-  async download(id: string): Promise<HonorBadgeDownloadResult> {
+  async download(id: string, catalog?: HonorBadgeCatalog): Promise<HonorBadgeDownloadResult> {
     if (!ID_REGEX.test(id)) throw new HonorBadgeError('badge_unknown', 'Unknown honor badge');
     const current = this.inFlight.get(id);
     if (current) return current;
-    const job = this.downloadOne(id).finally(() => this.inFlight.delete(id));
+    const job = this.downloadOne(id, catalog).finally(() => this.inFlight.delete(id));
     this.inFlight.set(id, job);
     return job;
   }
 
-  private async downloadOne(id: string): Promise<HonorBadgeDownloadResult> {
-    const known = await this.loadCatalog();
-    if (!known.catalog) throw new HonorBadgeError('catalog_unavailable', 'Connect to the internet to load the honor badge catalog');
-    const entry = known.catalog.badges.find((badge) => badge.id === id);
+  private async downloadOne(id: string, providedCatalog?: HonorBadgeCatalog): Promise<HonorBadgeDownloadResult> {
+    // Reuse an already validated manifest during gallery prefetch instead of
+    // requesting the manifest once per badge. Existing callers can omit it.
+    const catalog = providedCatalog
+      ? validateHonorBadgeCatalog(providedCatalog)
+      : (await this.loadCatalog()).catalog;
+    if (!catalog) throw new HonorBadgeError('catalog_unavailable', 'Honor badge catalog unavailable');
+    const entry = catalog.badges.find((badge) => badge.id === id);
     if (!entry) throw new HonorBadgeError('badge_unknown', 'Unknown honor badge');
 
     const cached = await this.getDownloaded(id);
