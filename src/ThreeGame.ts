@@ -1842,7 +1842,8 @@ export class ThreeGame {
         this.newGameSelectionPending = false;
         this.openGovernmentSelector((government) => {
           this.setMapLayoutId(layoutId);
-          this.startNewGame(government);
+          this.government.setState(government);
+          this.startNewGame();
         });
       };
     });
@@ -1917,7 +1918,8 @@ export class ThreeGame {
     this.redraw();
   }
 
-  private startNewGame(government: GovernmentState = this.government.getState()): void {
+  private startNewGame(): void {
+    const government = this.government.getState();
     this.resetWorld();
     this.government.setState(government);
     this.governmentUI.render(this.government.getState());
