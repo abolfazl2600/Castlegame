@@ -304,7 +304,20 @@ export class KeepRenderer {
   ): void {
     for (const side of ['N', 'E', 'S', 'W'] as const) {
       const span = side === 'N' || side === 'S' ? width : depth;
-      const openings = this.details.keepOpenings(keep, side, span);
+      const planned = this.details.keepOpenings(keep, side, span);
+      // A deliberately sparse rhythm of apertures looks defensive at gameplay
+      // zoom and keeps draw calls bounded even on large four-storey keeps.
+      const openings: typeof planned = [];
+      for (let floor = 0; floor < keep.floors; floor += 1) {
+        const candidates = planned.filter(opening => opening.floor === floor);
+        const count = Math.min(5, candidates.length);
+        for (let index = 0; index < count; index += 1) {
+          const sample = count === 1
+            ? Math.floor((candidates.length - 1) / 2)
+            : Math.round(index * (candidates.length - 1) / (count - 1));
+          openings.push(candidates[sample]);
+        }
+      }
 
       for (const opening of openings) {
         if (opening.floor === 0 && side === entranceSide && Math.abs(opening.offset) < 1.3) {
@@ -437,6 +450,7 @@ export class KeepRenderer {
     // cross-bracing and handles. This remains visual-only; the door position
     // and the existing ground-access/step system are unchanged.
     const portal = new THREE.Group();
+    portal.name = 'keep-entrance-portal';
     portal.position.set(x, 0, z);
     portal.rotation.y = side === 'N' ? 0 : side === 'E' ? -Math.PI / 2 : side === 'S' ? Math.PI : Math.PI / 2;
     group.add(portal);
@@ -475,6 +489,7 @@ export class KeepRenderer {
     if (rise < 0.22) return;
 
     const stairGroup = new THREE.Group();
+    stairGroup.name = 'keep-entrance-stairs';
     stairGroup.rotation.y = direction.rx;
     group.add(stairGroup);
 
