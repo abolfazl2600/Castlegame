@@ -630,6 +630,56 @@ export class KeepRenderer {
     );
   }
 
+  /** A rectangular gable, rather than a stretched pyramid, makes the main
+   * silhouette intelligible from both the 45-degree and overhead cameras. */
+  private addGabledRoof(
+    group: THREE.Group,
+    width: number,
+    depth: number,
+    baseY: number,
+    roof: THREE.Material,
+    trim: THREE.Material,
+    name: string,
+  ): number {
+    const alongX = width >= depth;
+    const run = (alongX ? width : depth) + 0.5;
+    const halfSpan = (alongX ? depth : width) / 2 + 0.37;
+    const rise = Math.max(1.35, Math.min(3.2, halfSpan * 0.51));
+    const shape = new THREE.Shape();
+    shape.moveTo(-halfSpan, 0);
+    shape.lineTo(0, rise);
+    shape.lineTo(halfSpan, 0);
+    shape.closePath();
+    const geometry = new THREE.ExtrudeGeometry(shape, {
+      depth: run,
+      bevelEnabled: false,
+      steps: 1,
+      curveSegments: 1,
+    });
+    geometry.translate(0, 0, -run / 2);
+    const mesh = new THREE.Mesh(geometry, roof);
+    mesh.name = name;
+    mesh.position.y = baseY;
+    mesh.rotation.y = alongX ? Math.PI / 2 : 0;
+    mesh.castShadow = true;
+    mesh.receiveShadow = true;
+    group.add(mesh);
+
+    // The ridge and the four eave edges make a clear stylized tile roof profile.
+    if (alongX) {
+      this.addBox(group, run + 0.08, 0.12, 0.16, trim, 0, baseY + rise + 0.04, 0);
+      for (const side of [-1, 1]) {
+        this.addBox(group, run + 0.10, 0.15, 0.22, trim, 0, baseY + 0.03, side * halfSpan);
+      }
+    } else {
+      this.addBox(group, 0.16, 0.12, run + 0.08, trim, 0, baseY + rise + 0.04, 0);
+      for (const side of [-1, 1]) {
+        this.addBox(group, 0.22, 0.15, run + 0.10, trim, side * halfSpan, baseY + 0.03, 0);
+      }
+    }
+    return rise;
+  }
+
   private addRoof(
     group: THREE.Group,
     keep: KeepState,
@@ -640,45 +690,48 @@ export class KeepRenderer {
     roof: THREE.Material,
     roofDark: THREE.Material,
   ): void {
+    group.userData.keepRoofVariant = keep.roof;
     if (keep.roof === 'sloped') {
-      const roofHeight = Math.max(1.9, Math.min(width, depth) * 0.2);
-      this.addBox(group, width + 0.52, 0.2, depth + 0.52, roofDark, 0, bodyTop + 0.08, 0);
-
-      const mesh = new THREE.Mesh(
-        new THREE.ConeGeometry(Math.max(width, depth) * 0.67, roofHeight, 4),
-        roof,
-      );
-      mesh.position.y = bodyTop + 0.14 + roofHeight / 2;
-      mesh.rotation.y = Math.PI / 4;
-      mesh.scale.set(width / Math.max(width, depth), 1, depth / Math.max(width, depth));
-      mesh.castShadow = true;
-      group.add(mesh);
+      this.addBox(group, width + 0.46, 0.18, depth + 0.46, roofDark, 0, bodyTop + 0.06, 0);
+      this.addGabledRoof(group, width, depth, bodyTop + 0.16, roof, roofDark, 'keep-great-hall-gable');
       return;
     }
 
     if (keep.roof === 'towered') {
-      this.addBox(group, width * 0.55, 1.2, depth * 0.55, stone, 0, bodyTop + 0.6, 0);
-      const crown = new THREE.Mesh(
-        new THREE.ConeGeometry(Math.max(width, depth) * 0.31, 1.9, 4),
-        roof,
-      );
-      crown.position.y = bodyTop + 2.15;
-      crown.rotation.y = Math.PI / 4;
-      crown.castShadow = true;
-      group.add(crown);
+      // A raised watch chamber grows out of the stone deck, with its own roof.
+      // Keeping a broad lower shoulder avoids the old oversized conical spire.
+      const upperW = width * 0.52;
+      const upperD = depth * 0.52;
+      const upperHeight = 2.35;
+      this.addBox(group, width * 0.87, 0.22, depth * 0.87, stone, 0, bodyTop + 0.10, 0);
+      this.addBox(group, upperW + 0.32, 0.28, upperD + 0.32, this.materials.roofDark, 0, bodyTop + 0.26, 0);
+      this.addBox(group, upperW, upperHeight, upperD, stone, 0, bodyTop + upperHeight / 2 + 0.18, 0);
+      this.addBox(group, upperW + 0.22, 0.17, upperD + 0.22, roofDark, 0, bodyTop + upperHeight + 0.2, 0);
+      for (const side of [-1, 1]) {
+        this.addBox(group, 0.22, upperHeight, 0.24, stone, side * (upperW / 2 - 0.12), bodyTop + upperHeight / 2 + 0.18, -upperD / 2);
+        this.addBox(group, 0.22, upperHeight, 0.24, stone, side * (upperW / 2 - 0.12), bodyTop + upperHeight / 2 + 0.18, upperD / 2);
+      }
+      this.addGabledRoof(group, upperW, upperD, bodyTop + upperHeight + 0.28, roof, roofDark, 'keep-watch-hall-gable');
       return;
     }
 
+    // Two intentionally distinct fighting decks: open limestone parapet or
+    // reinforced training platform with a small central command dais.
+    const platform = keep.roof === 'defensivePlatform';
     this.addBox(
-      group,
-      width * 0.92,
-      0.22,
-      depth * 0.92,
-      keep.roof === 'defensivePlatform' ? roofDark : stone,
-      0,
-      bodyTop + 0.1,
-      0,
+      group, width * 0.94, 0.26, depth * 0.94,
+      platform ? roofDark : stone, 0, bodyTop + 0.13, 0,
     );
+    if (platform) {
+      this.addBox(group, width * 0.29, 0.35, depth * 0.29, stone, 0, bodyTop + 0.4, 0);
+      this.addBox(group, width * 0.25, 0.14, depth * 0.25, this.materials.timberDark, 0, bodyTop + 0.65, 0);
+      for (const sx of [-1, 1]) {
+        for (const sz of [-1, 1]) {
+          this.addBox(group, 0.16, 1.0, 0.16, this.materials.timber, sx * width * 0.11, bodyTop + 1.13, sz * depth * 0.11);
+        }
+      }
+      this.addBox(group, width * 0.31, 0.16, depth * 0.31, roof, 0, bodyTop + 1.7, 0);
+    }
   }
 
   private addBattlements(
