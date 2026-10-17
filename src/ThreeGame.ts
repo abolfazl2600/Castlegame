@@ -10796,6 +10796,10 @@ export class ThreeGame {
     const keepAtPoint = this.services.keepSystem.findAtCell(gx, gy);
 
     if (this.selectedTool === null) {
+      if (!this.isOwnedLand(gx, gy) && !keepAtPoint && !cell) {
+        this.openLandPurchaseAt(point);
+        return;
+      }
       if (keepAtPoint) {
         this.selectKeep(keepAtPoint);
       } else if (cell) {
