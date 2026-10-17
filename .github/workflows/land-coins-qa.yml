@@ -1,0 +1,46 @@
+name: Land Coins & Parcel Ownership QA
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/land-coins-qa.yml'
+      - 'src/systems/LandCoinSystem.ts'
+      - 'src/ui/LandCoinUI.ts'
+      - 'src/ui/LandCoinUI.css'
+      - 'src/ThreeGame.ts'
+      - 'src/core/types.ts'
+      - 'src/core/SaveSystem.ts'
+      - 'scripts/test-land-coins.mjs'
+      - 'tests/land-coins.spec.ts'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - name: Verify land rules, save compatibility and TypeScript
+        run: |
+          node scripts/test-land-coins.mjs
+          npx tsc --noEmit
+          npx vite build
+      - name: Install browser
+        run: npx playwright install --with-deps chromium
+      - name: Browser test of coin HUD, locked map, purchase and save
+        run: npx playwright test tests/land-coins.spec.ts --reporter=line
+      - name: Browser evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: land-coins-${{ github.sha }}
+          path: test-results/
+          if-no-files-found: ignore
