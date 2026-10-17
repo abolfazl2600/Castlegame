@@ -4,7 +4,6 @@ import {
   governmentDefinition,
   normalizeGovernmentState,
   type GovernmentState,
-  type GovernmentKind,
 } from '../systems/GovernmentSystem';
 import './GovernmentSelectionUI.css';
 
