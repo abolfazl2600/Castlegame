@@ -1052,6 +1052,40 @@ export class ThreeGame {
     return `${x},${y}`;
   }
 
+  private isOwnedLand(x: number, y: number): boolean {
+    return this.landProgression.isUnlockedAt(x, y, this.worldGrid);
+  }
+
+  private openLandPurchaseAt(point: GridPoint): void {
+    const plot = plotForCell(point.x, point.y, this.worldGrid);
+    if (plot === null || this.landProgression.isUnlocked(plot)) return;
+    this.landHud?.promptPlot(plot);
+    this.setStatus(document.documentElement.lang === 'fa'
+      ? 'قطعه ' + (plot + 1) + ' قفل است · قیمت: ' + LAND_PLOT_PRICE + ' سکه'
+      : 'Plot ' + (plot + 1) + ' is locked · unlock for ' + LAND_PLOT_PRICE + ' coins');
+  }
+
+  private rebuildLandOwnershipVisuals(): void {
+    this.clearGroup(this.landOwnershipLayer);
+    for (const plot of this.landProgression.plots(this.worldGrid)) {
+      if (plot.unlocked) continue;
+      const x0 = -this.worldWidth / 2 + plot.minX * TILE;
+      const x1 = -this.worldWidth / 2 + (plot.maxX + 1) * TILE;
+      const z0 = -this.worldHeight / 2 + plot.minY * TILE;
+      const z1 = -this.worldHeight / 2 + (plot.maxY + 1) * TILE;
+      const outline = new THREE.LineLoop(
+        new THREE.BufferGeometry().setFromPoints([
+          new THREE.Vector3(x0, 2.54, z0), new THREE.Vector3(x1, 2.54, z0),
+          new THREE.Vector3(x1, 2.54, z1), new THREE.Vector3(x0, 2.54, z1),
+        ]),
+        new THREE.LineBasicMaterial({ color: 0xffc15d, transparent: true, opacity: 0.78, depthTest: false, depthWrite: false }),
+      );
+      outline.name = 'locked-land-plot-' + plot.id;
+      outline.renderOrder = 91;
+      this.landOwnershipLayer.add(outline);
+    }
+  }
+
   private get worldCols(): number {
     return this.worldGrid.cols;
   }
