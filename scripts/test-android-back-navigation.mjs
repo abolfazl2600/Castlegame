@@ -27,6 +27,8 @@ function setup() {
   const settings = element();
   const settingsClose = element(true, () => { settings.hidden = true; });
   const map = element();
+  const government = element();
+  const governmentBack = element(true, () => { government.hidden = true; });
   const help = element();
   const helpClose = element(true, () => { help.hidden = true; });
   const saveDialog = element();
