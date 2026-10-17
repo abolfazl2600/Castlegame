@@ -172,13 +172,15 @@ test('gallery silently loads all badges, dims locked ones, and shows earned hono
   ];
   await interceptCatalog(page, { schemaVersion: 1, badges: examples.map(b => ({ ...example, ...b })) });
   const requests: string[] = [];
-  await page.route(root + 'assets/*.png', async route => {
-    requests.push(route.request().url());
-    await route.fulfill({
-      status: 200, body: png,
-      headers: { 'content-type': 'image/png', 'access-control-allow-origin': '*' },
+  for (const badge of examples) {
+    await page.route(root + badge.assetPath, async route => {
+      requests.push(route.request().url());
+      await route.fulfill({
+        status: 200, body: png,
+        headers: { 'content-type': 'image/png', 'access-control-allow-origin': '*' },
+      });
     });
-  });
+  }
   await begin(page);
   await page.evaluate(async () => {
     const path = '/Castlegame/src/honors/HonorGalleryUI.ts';
