@@ -34,6 +34,22 @@ for (const badge of catalog.badges) {
   assert.equal(hash, badge.sha256, 'Catalog checksum mismatch for ' + badge.id);
 }
 
+const expectedAwards = ['royal-architect', 'harvest-steward', 'stone-bastion', 'prosperous-realm'];
+for (const id of expectedAwards) assert.ok(ids.has(id), 'Missing mission honor badge: ' + id);
+const rules = read('src/honors/HonorAwards.ts');
+for (const [badgeId, missionId] of [
+  ['royal-architect', 'growth-ten-homes'],
+  ['harvest-steward', 'growth-three-farms'],
+  ['stone-bastion', 'fortress-ten-walls'],
+  ['prosperous-realm', 'growth-population-100'],
+]) {
+  assert.ok(rules.includes("'"+badgeId+"'") && rules.includes("'"+missionId+"'"),
+    'Missing award to mission mapping: ' + badgeId);
+}
+const gallery = read('src/honors/HonorGalleryUI.ts');
+assert.match(gallery, /createObjectURL\(badge\.image\)/);
+assert.doesNotMatch(gallery, /image\.src\s*=\s*['"]https?:/);
+assert.match(gallery, /hasEarnedHonor\(this\.view, id\)/);
 assert.ok(existsSync('honor-badges/assets/.gitkeep'));
 for (const bundled of [
   'public/honor-badges', 'src/assets/honor-badges',

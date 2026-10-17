@@ -1,61 +1,67 @@
-# Honor Badge Delivery — phase 1
+# Honor Badges — GitHub-only artwork and in-game Mission Journal
 
-This change is download/cache infrastructure only. No badge artwork, Royal Credit spending, unlock conditions or gallery UI is added yet.
+## Four achievement awards (phase 2)
 
-## GitHub hosting
+The public catalog contains four actual transparent WebP artworks:
 
-Remote manifest:
-https://raw.githubusercontent.com/abolfazl2600/Castlegame/main/honor-badges/catalog.v1.json
+| Badge | Existing mission required |
+|---|---|
+| royal-architect — معمار سلطنتی | growth-ten-homes (build 10 homes) |
+| harvest-steward — نگهبان برداشت | growth-three-farms (build 3 farms) |
+| stone-bastion — معمار دژ سنگی | fortress-ten-walls (build 10 wall segments) |
+| prosperous-realm — فرمانروای آبادانی | growth-population-100 (reach 100 population) |
 
-Artwork directory: honor-badges/assets/ at the repository ROOT, outside the Vite /public/, /src/assets/, /android/ and /dist/ trees.
+Earning a badge is based on the **already saved completed mission** for the
+current game world, via `src/honors/HonorAwards.ts`. No Royal Credits are
+charged and no gameplay power/benefit is given. Future changes may add
+additional art and rules, but should not change existing award IDs.
 
-The runtime resolves only HTTPS paths under this GitHub repository. No badge art is packaged into the web build or Android APK/AAB. Any first display of a badge image therefore requires explicit download. GitHub assets are public: this is not DRM, encryption or an access control mechanism.
+## Remote-only storage
 
-## Manifest schema
+The manifest and all four transparent artworks are stored in the repository
+root, outside of Vite `public/` and `src/assets/`:
 
-The version 1 manifest has schemaVersion = 1 and badges = [] initially.
+- `honor-badges/catalog.v1.json`
+- `honor-badges/assets/*.webp`
 
-Each badge will have:
-- id: stable lowercase slug (2–48 chars)
-- name and description: separate fa and en strings (1–100 chars)
-- assetPath: assets/<slug>.png or assets/<slug>.webp
-- mimeType: image/png or image/webp
-- sha256: exact lowercase hex SHA-256 hash of the artwork
+Fetch base: `https://raw.githubusercontent.com/abolfazl2600/Castlegame/main/honor-badges/`
 
-Example (NOT yet published):
-{
-  "schemaVersion": 1,
-  "badges": [{
-    "id": "royal-architect",
-    "name": { "fa": "معمار سلطنتی", "en": "Royal Architect" },
-    "description": { "fa": "توضیح", "en": "Description" },
-    "assetPath": "assets/royal-architect.webp",
-    "mimeType": "image/webp",
-    "sha256": "(64 lowercase hexadecimal characters)"
-  }]
-}
+Each image is subject to manifest SHA-256 verification, PNG/WebP signature
+and size validation in `HonorBadgeRepository`. All artwork must be published
+to GitHub **before** updating the manifest checksum in `main`. The base URL
+always resolves `main`, so a PR preview can test by mocking the network
+catalog, and production uses the merged files.
 
-Once actual artwork is added, compute its hash with:
-sha256sum honor-badges/assets/royal-architect.webp
+The first time a badge is earned, the Journal shows its name and a Download
+button **without image artwork**. The image is never requested automatically.
+Only a click by the player downloads and validates the file. Successful
+downloads are stored in IndexedDB `castle-role-honor-badges-v1`. The next time
+the Journal opens offline, a saved Blob is used for an `img` with a
+`blob:` URL. No remote `src`, no prefetch, and no artwork embedded in the
+Android APK/AAB or web bundle.
 
-The service enforces at most 100 entries, a <=256KiB catalog, <=2MiB images, no redirects to other folders or origins, permitted file signatures, and per-file SHA-256 integrity. SVG and HTML are intentionally forbidden.
+Cached metadata alone does not show an image. Users can browse public GitHub
+files directly, so this is availability control in-game, not DRM.
 
-## App API (src/honors/HonorBadgeRepository.ts)
+Offline behavior: before any successful download the image is unavailable.
+After a successful download the image is accessible offline until browser/app
+storage is cleared, the Android app is uninstalled, or storage is evicted.
+Game save slots retain their original mission state, unaffected by this
+artwork cache. Artwork cached in another save can be viewed again; unlocking
+the **download action** still requires finishing its mission in the currently
+loaded save.
 
-- loadCatalog(): fetches GitHub each time; if offline, returns a cached catalog (or source='unavailable', catalog=null).
-- download(id): fetches a verified image only when not already cached at its current SHA. Returns status 'cached' or 'downloaded'.
-- getDownloaded(id) / listDownloaded(): return only downloaded Blob records from IndexedDB for offline rendering.
-- HonorBadgeError.code: catalog_unavailable, badge_unknown, invalid_catalog, download_unavailable, integrity_failed or storage_unavailable.
+## Quality assurance and release
 
-IndexedDB database castle-role-honor-badges-v1 survives app restarts and has separate assets/catalog stores, independent of world save slots. UI must create a short-lived URL.createObjectURL(image) from a downloaded blob, and revoke the URL when done. A cached manifest entry is NOT an already-downloaded image, and a download does NOT grant an achievement, purchase, or entitlement.
+`node scripts/test-honor-badge-delivery.mjs` validates the manifest,
+actual artwork signatures and SHA-256 digests, and forbids putting the images
+in bundled asset directories. Playwright validates first-time online download,
+SHA verification, unearned lock, actual gallery image only as `blob:`,
+and display of previously downloaded assets when offline.
 
-After clearing Android app data, browser site data, uninstalling, or storage eviction, the downloaded assets may disappear. This cache is NOT cloud backup.
-
-## Phase 2 (next conversation)
-
-1. Add PNG/WebP badges and publish their manifest records.
-2. Define actual badge earning / spending and persist entitlements separately, compatible with older saves.
-3. Integrate an accessible Honor Gallery into the game with locked, download-required, downloaded, offline, and retry states.
-4. Test first-time download and offline display on a real Android WebView. Ensure badges not yet downloaded never display their artwork.
-
-Never copy honor-badges assets into Vite static assets or Android assets. Keep this distinction in future changes.
+To make these changes available on Android, build and release a new APK/AAB
+from `main`. Uploading artwork to GitHub alone does not add the in-game
+Gallery UI to an already-installed binary. After releasing the gallery,
+additional future artwork can be added to the remote catalog without
+repackaging the Android app, provided the schema and earning rules are
+supported by the installed version.

@@ -1,0 +1,130 @@
+/* Remote artwork is never included by CSS url(), HTML img src or bundler imports.
+   Only HonorGalleryUI creates local blob: URLs after the verified download. */
+.honor-gallery {
+  margin: 0 0 24px;
+  padding: 17px;
+  border: 1px solid rgba(231, 199, 125, 0.28);
+  border-radius: 16px;
+  background: linear-gradient(150deg, rgba(115, 82, 26, .17), rgba(17, 29, 36, .7));
+  color: #f4e9d5;
+  text-align: start;
+}
+.honor-gallery h3 {
+  margin: 0;
+  color: #f8e7bc;
+  font-size: clamp(17px, 2.2vw, 21px);
+  line-height: 1.5;
+}
+.honor-gallery__info {
+  margin: 5px 0 16px;
+  color: #c4cdd0;
+  font-size: 13px;
+  line-height: 1.75;
+}
+.honor-gallery__grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 11px;
+}
+.honor-card {
+  display: grid;
+  grid-template-columns: 112px minmax(0, 1fr);
+  gap: 12px;
+  min-width: 0;
+  padding: 11px;
+  border: 1px solid rgba(220, 211, 183, 0.16);
+  border-radius: 13px;
+  background: rgba(11, 27, 36, 0.73);
+}
+.honor-card.is-earned {
+  border-color: rgba(233, 196, 117, .4);
+}
+.honor-card__visual {
+  display: grid;
+  width: 112px;
+  height: 112px;
+  align-items: center;
+  justify-items: center;
+  border: 1px solid rgba(255,255,255,.10);
+  border-radius: 12px;
+  background: rgba(10, 18, 22, .42);
+}
+.honor-card__visual img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+.honor-card__placeholder {
+  color: rgba(217, 220, 220, .52);
+  font-size: 46px;
+  line-height: 1;
+  user-select: none;
+}
+.honor-card__body {
+  display: flex;
+  flex-direction: column;
+  align-items: start;
+  min-width: 0;
+  gap: 6px;
+}
+.honor-card__body h4 {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.5;
+  font-weight: 800;
+  overflow-wrap: anywhere;
+}
+.honor-card__body p {
+  margin: 0;
+  color: #bfc8c8;
+  font-size: 12px;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+.honor-card__status {
+  color: #d6b977;
+  font-size: 11px;
+  line-height: 1.5;
+}
+.honor-card.is-locked .honor-card__status {
+  color: #a7b3b9;
+}
+.honor-card__download {
+  min-height: 44px;
+  margin-top: auto;
+  padding: 8px 10px;
+  font: inherit;
+  font-size: 12px;
+  border-radius: 9px;
+}
+.honor-card__download:focus-visible {
+  outline: 2px solid #f8da93;
+  outline-offset: 2px;
+}
+.honor-card__error {
+  color: #ffc4b7 !important;
+}
+.honor-gallery__footnote {
+  margin: 15px 0 0;
+  color: #a9b6b9;
+  font-size: 11px;
+  line-height: 1.65;
+}
+html[dir="rtl"] .honor-gallery,
+html[dir="rtl"] .honor-card {
+  direction: rtl;
+  text-align: right;
+}
+@media (max-width: 950px) {
+  .honor-gallery__grid { grid-template-columns: minmax(0, 1fr); }
+}
+@media (max-width: 520px), (pointer: coarse) and (max-height: 540px) {
+  .honor-gallery { padding: 13px; }
+  .honor-card { grid-template-columns: 78px minmax(0, 1fr); gap: 10px; }
+  .honor-card__visual { width: 78px; height: 78px; }
+  .honor-card__body h4 { font-size: 13px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .honor-card * { transition: none; }
+}

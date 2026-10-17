@@ -1,5 +1,6 @@
 import { getCurrentLocale, subscribeLocaleChange, t } from '../i18n/localization';
 import type { MissionView, MissionViewEntry } from './MissionSystem';
+import { HonorGalleryUI } from '../honors/HonorGalleryUI';
 import './missions.css';
 
 export interface MissionUIOptions {
@@ -11,6 +12,7 @@ export class MissionUI {
   private toastHost: HTMLElement | null = null;
   private lastSignature = '';
   private lastView: MissionView | null = null;
+  private readonly honorGallery = new HonorGalleryUI();
 
   constructor(private readonly options: MissionUIOptions) {}
 
@@ -35,6 +37,7 @@ export class MissionUI {
         '<div class="mission-journal__body">' +
           '<p class="mission-journal__intro" data-mission-i18n="Choose a focus, watch progress update in real time, and unlock the next layer of challenges as your settlement grows.">' + escapeHtml(t('Choose a focus, watch progress update in real time, and unlock the next layer of challenges as your settlement grows.')) + '</p>' +
           '<div class="mission-journal__summary" data-mission-summary></div>' +
+          '<section class="honor-gallery" aria-labelledby="mission-honors-title" data-honor-gallery></section>' +
           '<section class="mission-journal__section" aria-labelledby="mission-available-title">' +
             '<div class="mission-journal__section-heading"><div class="mission-journal__section-copy"><h3 id="mission-available-title" data-mission-i18n="Available objectives">' + escapeHtml(t('Available objectives')) + '</h3><p data-mission-i18n="Pin any objective to make it your primary focus.">' + escapeHtml(t('Pin any objective to make it your primary focus.')) + '</p></div><span class="mission-journal__count" data-mission-count="available"></span></div>' +
             '<div class="mission-journal__grid" data-mission-available></div>' +
@@ -61,6 +64,8 @@ export class MissionUI {
 
     this.modal = modal;
     this.toastHost = toastHost;
+    this.honorGallery.mount(modal.querySelector<HTMLElement>('[data-honor-gallery]'));
+    window.addEventListener('pagehide', () => this.honorGallery.dispose(), { once: true });
     subscribeLocaleChange(() => {
       if (this.lastView) this.render(this.lastView);
     });
@@ -80,6 +85,7 @@ export class MissionUI {
         proxy.setAttribute('aria-expanded', String(open));
       });
       if (open && !wasOpen) {
+        this.honorGallery.open();
         modal.querySelector<HTMLButtonElement>('[data-mission-action="close"]')?.focus();
       } else if (!open && wasOpen) {
         returnFocusTo?.focus();
@@ -134,6 +140,7 @@ export class MissionUI {
     this.mount();
     if (!this.modal) return;
     this.lastView = view;
+    this.honorGallery.render(view);
 
     const signature = JSON.stringify({
       locale: getCurrentLocale(),

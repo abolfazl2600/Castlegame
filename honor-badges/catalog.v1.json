@@ -1,4 +1,61 @@
 {
   "schemaVersion": 1,
-  "badges": []
+  "badges": [
+    {
+      "id": "royal-architect",
+      "name": {
+        "fa": "معمار سلطنتی",
+        "en": "Royal Architect"
+      },
+      "description": {
+        "fa": "برای ساخت ۱۰ خانه و گسترش محله‌ها",
+        "en": "Build 10 homes and expand the neighborhood."
+      },
+      "assetPath": "assets/royal-architect.webp",
+      "mimeType": "image/webp",
+      "sha256": "11bc8deb2a95e5f5d7f7e39653b99966a419f225045b15f287f599c62485cd4c"
+    },
+    {
+      "id": "harvest-steward",
+      "name": {
+        "fa": "نگهبان برداشت",
+        "en": "Harvest Steward"
+      },
+      "description": {
+        "fa": "برای ساخت ۳ مزرعه و تأمین غذا",
+        "en": "Build 3 farms to feed your settlement."
+      },
+      "assetPath": "assets/harvest-steward.webp",
+      "mimeType": "image/webp",
+      "sha256": "8d7b625517f66e4abec893cd78ad6469a889c3d4fbd17bd1495f6efae9dc1103"
+    },
+    {
+      "id": "stone-bastion",
+      "name": {
+        "fa": "معمار دژ سنگی",
+        "en": "Stone Bastion"
+      },
+      "description": {
+        "fa": "برای ساخت ۱۰ قطعه دیوار دفاعی",
+        "en": "Build 10 defensive wall segments."
+      },
+      "assetPath": "assets/stone-bastion.webp",
+      "mimeType": "image/webp",
+      "sha256": "23c1137abe75a01aa5621417add9961fb60cd4e45d34459961753bb38fe8dae1"
+    },
+    {
+      "id": "prosperous-realm",
+      "name": {
+        "fa": "فرمانروای آبادانی",
+        "en": "Prosperous Realm"
+      },
+      "description": {
+        "fa": "برای رسیدن جمعیت شهر به ۱۰۰ نفر",
+        "en": "Grow your castle town to 100 citizens."
+      },
+      "assetPath": "assets/prosperous-realm.webp",
+      "mimeType": "image/webp",
+      "sha256": "cfecddb08c28957934b6d63d6663c5692b35e129463af1a5db6d9fca51b2c1b8"
+    }
+  ]
 }
