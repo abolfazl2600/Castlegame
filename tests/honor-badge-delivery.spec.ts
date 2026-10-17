@@ -85,6 +85,12 @@ test('requires GitHub for first artwork, then persists the verified file offline
 
 test('never presents artwork to a first-time offline user', async ({ page }) => {
   await begin(page);
+  // Load the app code while online, then switch the network off. A native APK
+  // already bundles executable JS; only honor artwork must require internet.
+  await page.evaluate(async () => {
+    const path = '/Castlegame/src/honors/HonorBadgeRepository.ts';
+    await import(/* @vite-ignore */ path);
+  });
   await page.context().setOffline(true);
   const result = await page.evaluate(async () => {
     const path = '/Castlegame/src/honors/HonorBadgeRepository.ts';
