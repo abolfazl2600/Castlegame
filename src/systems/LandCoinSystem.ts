@@ -86,6 +86,18 @@ export class LandCoinSystem {
     return reward > 0;
   }
 
+  /** Preserve players' pre-update construction in old saves without minting
+   * currency. Natural scenery does not count as owned territory. */
+  adoptLegacyBuildings(
+    buildings: readonly { x: number; y: number }[],
+    grid: Pick<WorldGridDimensions, 'cols' | 'rows'>,
+  ): void {
+    for (const { x, y } of buildings) {
+      const origin = parcelOrigin(x, y, grid);
+      if (origin) this.owned.add(parcelId(origin.x, origin.y));
+    }
+  }
+
   get balance(): number {
     return this.coins;
   }
