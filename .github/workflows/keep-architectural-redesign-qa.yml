@@ -1,0 +1,53 @@
+name: Keep Architectural Redesign QA
+
+on:
+  pull_request:
+    paths:
+      - .github/workflows/keep-architectural-redesign-qa.yml
+      - src/rendering/KeepRenderer.ts
+      - src/rendering/MedievalMaterials.ts
+      - scripts/test-keep-architectural-redesign.mjs
+      - docs/keep-redesign.md
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: keep-architecture-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  keep-architecture:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund
+      - name: Verify keep geometry, roof variants and deterministic redraw
+        run: |
+          node scripts/test-keep-architectural-redesign.mjs
+          npm run test:castle-architecture-style
+          npm run test:castle-access-navigation
+          npx tsc --noEmit
+      - name: Build 3D game bundle
+        run: npx vite build
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+      - name: Check Keep save and load through actual game
+        run: npx playwright test tests/castle-lands.spec.ts --reporter=line
+      - name: Upload game screenshots on all outcomes
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: keep-redesign-evidence-${{ github.sha }}
+          path: |
+            test-results/
+            playwright-report/
+          if-no-files-found: warn
+          retention-days: 30
