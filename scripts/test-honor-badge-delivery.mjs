@@ -49,7 +49,10 @@ for (const [badgeId, missionId] of [
 const gallery = read('src/honors/HonorGalleryUI.ts');
 assert.match(gallery, /createObjectURL\(badge\.image\)/);
 assert.doesNotMatch(gallery, /image\.src\s*=\s*['"]https?:/);
-assert.match(gallery, /hasEarnedHonor\(this\.view, id\)/);
+assert.match(gallery, /hasEarnedHonor\(view, rule\.id\)/);
+assert.doesNotMatch(gallery, /data-honor-download|Download artwork|دانلود نشان|قابل مشاهده آفلاین/);
+assert.match(gallery, /this\.repository\.download\(rule\.id, this\.catalog!\)/);
+assert.match(gallery, /className = 'honor-card__lock'/);
 assert.ok(existsSync('honor-badges/assets/.gitkeep'));
 for (const bundled of [
   'public/honor-badges', 'src/assets/honor-badges',
