@@ -30,6 +30,8 @@ export class KeepRenderer {
     };
     if (keep.roof === 'japaneseTiered') {
       group.userData.architectureFamily = 'japanese-castle';
+    } else {
+      group.userData.architectureFamily = 'stone-great-hall';
     }
     const rotated = keep.rotation % 2 !== 0;
     const widthCells = rotated ? keep.depth : keep.width;
@@ -67,10 +69,10 @@ export class KeepRenderer {
     const roofDark = this.materials.roofDark;
     const slit = this.materials.arrowVoid;
     const windowMaterial = new THREE.MeshStandardMaterial({
-      color: 0x8bcbd2,
-      emissive: 0x123b43,
-      emissiveIntensity: 0.35,
-      roughness: 0.36,
+      color: 0x354a49,
+      emissive: 0x101d1d,
+      emissiveIntensity: 0.08,
+      roughness: 0.72,
     });
 
     this.addBox(
@@ -139,6 +141,10 @@ export class KeepRenderer {
       }
     }
 
+    if (!japaneseTiered) {
+      this.addMasonryDetails(group, keep, width, depth, foundationTop, totalBodyHeight, stoneDark, stoneLight);
+    }
+
     this.addKeepOpenings(
       group,
       keep,
@@ -190,7 +196,7 @@ export class KeepRenderer {
     }
 
     if (!japaneseTiered) {
-      this.addFlags(group, keep, width, depth, bodyTop, wood, roof);
+      this.addFlags(group, keep, width, depth, bodyTop, wood, this.materials.bannerCloth);
     }
 
     group.userData.castleAccess = {
@@ -202,6 +208,47 @@ export class KeepRenderer {
     };
 
     return group;
+  }
+
+
+  /** Deep corner piers, a raised ground plinth and a cap cornice define a readable keep
+   * from strategic camera distance. Details are static, deterministic, and share materials. */
+  private addMasonryDetails(
+    group: THREE.Group,
+    keep: KeepState,
+    width: number,
+    depth: number,
+    base: number,
+    height: number,
+    dark: THREE.Material,
+    trim: THREE.Material,
+  ): void {
+    // A heavy two-stage podium grounds the tall wall planes without changing the footprint.
+    this.addBox(group, width + 0.28, 0.36, depth + 0.28, dark, 0, base + 0.18, 0);
+    this.addBox(group, width + 0.22, 0.19, depth + 0.22, trim, 0, base + height - 0.1, 0);
+
+    const inset = 0.16;
+    for (const sx of [-1, 1]) {
+      for (const sz of [-1, 1]) {
+        const x = sx * (width / 2 - inset);
+        const z = sz * (depth / 2 - inset);
+        // Corner piers read clearly on flat façades even without optional turrets.
+        this.addBox(group, 0.44, height - 0.34, 0.46, trim, x, base + height / 2, z);
+        this.addBox(group, 0.68, 0.3, 0.72, dark, x, base + height - 0.15, z);
+        const buttressHeight = Math.min(height * 0.45, 4.3);
+        this.addBox(group, 0.79, buttressHeight, 0.78, dark, x, base + buttressHeight / 2, z);
+        this.addBox(group, 0.92, 0.18, 0.91, trim, x, base + buttressHeight, z);
+      }
+    }
+
+    // Strong horizontal floor belts connect the four elevations without individual stones.
+    for (let floor = 1; floor < keep.floors; floor += 1) {
+      const y = base + floor * CASTLE_ARCHITECTURE_STYLE.keep.floorHeight - 0.12;
+      this.addBox(group, width + 0.20, 0.14, 0.25, trim, 0, y, -depth / 2);
+      this.addBox(group, width + 0.20, 0.14, 0.25, trim, 0, y, depth / 2);
+      this.addBox(group, 0.25, 0.14, depth + 0.20, trim, -width / 2, y, 0);
+      this.addBox(group, 0.25, 0.14, depth + 0.20, trim, width / 2, y, 0);
+    }
   }
 
   private chooseEntrance(
@@ -260,7 +307,20 @@ export class KeepRenderer {
   ): void {
     for (const side of ['N', 'E', 'S', 'W'] as const) {
       const span = side === 'N' || side === 'S' ? width : depth;
-      const openings = this.details.keepOpenings(keep, side, span);
+      const planned = this.details.keepOpenings(keep, side, span);
+      // A deliberately sparse rhythm of apertures looks defensive at gameplay
+      // zoom and keeps draw calls bounded even on large four-storey keeps.
+      const openings: typeof planned = [];
+      for (let floor = 0; floor < keep.floors; floor += 1) {
+        const candidates = planned.filter(opening => opening.floor === floor);
+        const count = Math.min(5, candidates.length);
+        for (let index = 0; index < count; index += 1) {
+          const sample = count === 1
+            ? Math.floor((candidates.length - 1) / 2)
+            : Math.round(index * (candidates.length - 1) / (count - 1));
+          openings.push(candidates[sample]);
+        }
+      }
 
       for (const opening of openings) {
         if (opening.floor === 0 && side === entranceSide && Math.abs(opening.offset) < 1.3) {
@@ -311,6 +371,18 @@ export class KeepRenderer {
             widthOpening,
             heightOpening,
             frameMaterial,
+          );
+          // Deep, dark glazed apertures with a thin timber mullion are legible
+          // at normal zoom without the neon-looking emissive panes of the old keep.
+          this.addBox(
+            group,
+            side === 'N' || side === 'S' ? 0.085 : 0.105,
+            heightOpening - 0.08,
+            side === 'N' || side === 'S' ? 0.105 : 0.085,
+            this.materials.timberDark,
+            x,
+            y,
+            z,
           );
         }
       }
@@ -377,11 +449,31 @@ export class KeepRenderer {
     this.addBox(group, w, doorHeight, d, wood, x, doorY, z);
     this.addOpeningFrame(group, side, x, doorY, z, doorWidth, doorHeight, stone);
 
+    // A proper portal: voussoir lintel, recessed twin timber leaves, iron
+    // cross-bracing and handles. This remains visual-only; the door position
+    // and the existing ground-access/step system are unchanged.
+    const portal = new THREE.Group();
+    portal.name = 'keep-entrance-portal';
+    portal.position.set(x, 0, z);
+    portal.rotation.y = side === 'N' ? 0 : side === 'E' ? -Math.PI / 2 : side === 'S' ? Math.PI : Math.PI / 2;
+    group.add(portal);
+    const iron = this.materials.iron;
+    const darkTimber = this.materials.timberDark;
+    this.addBox(portal, doorWidth + 0.45, 0.22, 0.35, stone, 0, doorY + doorHeight / 2 + 0.18, -0.02);
+    this.addBox(portal, 0.30, 0.34, 0.39, stone, 0, doorY + doorHeight / 2 + 0.35, -0.04);
+    this.addBox(portal, 0.065, doorHeight - 0.14, 0.07, darkTimber, 0, doorY, -0.17);
+    for (const yOffset of [-0.52, 0.53]) {
+      this.addBox(portal, doorWidth - 0.13, 0.075, 0.08, iron, 0, doorY + yOffset, -0.17);
+    }
+    for (const xOffset of [-0.24, 0.24]) {
+      this.addBox(portal, 0.09, 0.22, 0.09, iron, xOffset, doorY - 0.08, -0.21);
+    }
+
     const direction = {
       N: { dx: 0, dy: -1, rx: 0 },
-      E: { dx: 1, dy: 0, rx: Math.PI / 2 },
+      E: { dx: 1, dy: 0, rx: -Math.PI / 2 },
       S: { dx: 0, dy: 1, rx: Math.PI },
-      W: { dx: -1, dy: 0, rx: -Math.PI / 2 },
+      W: { dx: -1, dy: 0, rx: Math.PI / 2 },
     }[side];
 
     const rotated = keep.rotation % 2 !== 0;
@@ -400,6 +492,7 @@ export class KeepRenderer {
     if (rise < 0.22) return;
 
     const stairGroup = new THREE.Group();
+    stairGroup.name = 'keep-entrance-stairs';
     stairGroup.rotation.y = direction.rx;
     group.add(stairGroup);
 
@@ -418,7 +511,7 @@ export class KeepRenderer {
         stone,
         0,
         terrainHeight + t * rise,
-        -(halfSpan + 0.18 + t * run),
+        -(halfSpan + 0.18 + (1 - t) * run),
       );
     }
   }
@@ -444,56 +537,83 @@ export class KeepRenderer {
       [width / 2, depth / 2],
     ];
 
-    for (let index = 0; index < corners.length; index += 1) {
-      const [x, z] = corners[index];
+    for (const [index, [x, z]] of corners.entries()) {
+      const outwardX = index % 2 === 0 ? -1 : 1;
+      const outwardZ = index < 2 ? -1 : 1;
+      const plinth = new THREE.Mesh(
+        new THREE.CylinderGeometry(radius * 1.08, radius * 1.24, 0.82, 10),
+        dark,
+      );
+      plinth.name = 'keep-turret-plinth';
+      plinth.position.set(x, foundationTop + 0.41, z);
+      plinth.castShadow = true;
+      plinth.receiveShadow = true;
+      group.add(plinth);
+
       const body = new THREE.Mesh(
-        new THREE.CylinderGeometry(radius, radius * 1.06, towerHeight, 12),
+        new THREE.CylinderGeometry(radius, radius * 1.04, towerHeight - 0.65, 10),
         stone,
       );
-      body.position.set(x, foundationTop + towerHeight / 2, z);
+      body.name = 'keep-corner-turret';
+      body.position.set(x, foundationTop + 0.65 + (towerHeight - 0.65) / 2, z);
       body.castShadow = true;
       body.receiveShadow = true;
       group.add(body);
 
-      const bandCount = Math.max(2, keep.floors);
-      for (let floor = 1; floor < bandCount; floor += 1) {
+      for (let floor = 1; floor < keep.floors; floor += 1) {
         const band = new THREE.Mesh(
-          new THREE.CylinderGeometry(radius * 1.04, radius * 1.04, 0.12, 12),
+          new THREE.CylinderGeometry(radius * 1.045, radius * 1.045, 0.13, 10),
           dark,
         );
-        band.position.set(x, foundationTop + (towerHeight * floor) / bandCount, z);
+        band.position.set(x, foundationTop + floor * CASTLE_ARCHITECTURE_STYLE.keep.floorHeight, z);
         group.add(band);
       }
 
       for (let floor = 0; floor < keep.floors; floor += 1) {
-        const slitMesh = this.addBox(
-          group,
-          0.12,
-          0.62,
-          0.08,
-          slit,
-          x,
-          foundationTop + 1.05 + floor * 2.15,
-          z - radius - 0.02,
+        const y = foundationTop + 1.18 + floor * CASTLE_ARCHITECTURE_STYLE.keep.floorHeight;
+        this.addBox(group, 0.20, 0.72, 0.10, slit, x, y, z + outwardZ * (radius + 0.03));
+        this.addBox(group, 0.10, 0.72, 0.20, slit, x + outwardX * (radius + 0.03), y, z);
+      }
+
+      // Heavy overhanging machicolation and small corbels unify the turret with
+      // the central wall, unlike the old floating cone/cylinder combination.
+      const crownY = foundationTop + towerHeight;
+      const collar = new THREE.Mesh(
+        new THREE.CylinderGeometry(radius * 1.28, radius * 1.22, 0.28, 10),
+        dark,
+      );
+      collar.name = 'keep-turret-machicolation';
+      collar.position.set(x, crownY - 0.10, z);
+      collar.castShadow = true;
+      collar.receiveShadow = true;
+      group.add(collar);
+
+      for (let i = 0; i < 8; i += 1) {
+        const angle = i / 8 * Math.PI * 2;
+        this.addBox(
+          group, 0.27, 0.34, 0.28, stone,
+          x + Math.cos(angle) * radius * 1.06,
+          crownY - 0.38,
+          z + Math.sin(angle) * radius * 1.06,
         );
-        slitMesh.rotation.y = index % 2 === 0 ? 0 : Math.PI / 2;
       }
 
       if (keep.roof === 'sloped' || keep.roof === 'towered') {
         const eave = new THREE.Mesh(
-          new THREE.CylinderGeometry(radius * 1.42, radius * 1.42, 0.2, 12),
+          new THREE.CylinderGeometry(radius * 1.43, radius * 1.43, 0.20, 10),
           this.materials.roofDark,
         );
-        eave.position.set(x, foundationTop + towerHeight + 0.08, z);
+        eave.position.set(x, crownY + 0.11, z);
         eave.castShadow = true;
         group.add(eave);
-
-        const cap = new THREE.Mesh(new THREE.ConeGeometry(radius * 1.38, 1.85, 12), roof);
-        cap.position.set(x, foundationTop + towerHeight + 1.0, z);
+        const cap = new THREE.Mesh(new THREE.ConeGeometry(radius * 1.40, 1.80, 10), roof);
+        cap.name = 'keep-turret-roof';
+        cap.position.set(x, crownY + 1.06, z);
         cap.castShadow = true;
         group.add(cap);
+        this.addBox(group, 0.10, 0.32, 0.10, this.materials.iron, x, crownY + 2.09, z);
       } else {
-        this.addTowerBattlements(group, x, z, radius, foundationTop + towerHeight, stone);
+        this.addTowerBattlements(group, x, z, radius, crownY, stone);
       }
     }
   }
@@ -532,6 +652,11 @@ export class KeepRenderer {
   ): void {
     const maxSpan = Math.max(width, depth);
     this.addBox(group, width + 0.72, 0.14, depth + 0.72, trim, 0, y, 0);
+    // Deep Japanese eaves and exposed timber fascia hold the stepped tiers together.
+    for (const side of [-1, 1]) {
+      this.addBox(group, width + 0.92, 0.18, 0.22, trim, 0, y - 0.09, side * (depth / 2 + 0.36));
+      this.addBox(group, 0.22, 0.18, depth + 0.92, trim, side * (width / 2 + 0.36), y - 0.09, 0);
+    }
 
     const cap = new THREE.Mesh(
       new THREE.ConeGeometry(maxSpan * 0.7, 0.64, 4),
@@ -555,6 +680,56 @@ export class KeepRenderer {
     );
   }
 
+  /** A rectangular gable, rather than a stretched pyramid, makes the main
+   * silhouette intelligible from both the 45-degree and overhead cameras. */
+  private addGabledRoof(
+    group: THREE.Group,
+    width: number,
+    depth: number,
+    baseY: number,
+    roof: THREE.Material,
+    trim: THREE.Material,
+    name: string,
+  ): number {
+    const alongX = width >= depth;
+    const run = (alongX ? width : depth) + 0.5;
+    const halfSpan = (alongX ? depth : width) / 2 + 0.37;
+    const rise = Math.max(1.35, Math.min(3.2, halfSpan * 0.51));
+    const shape = new THREE.Shape();
+    shape.moveTo(-halfSpan, 0);
+    shape.lineTo(0, rise);
+    shape.lineTo(halfSpan, 0);
+    shape.closePath();
+    const geometry = new THREE.ExtrudeGeometry(shape, {
+      depth: run,
+      bevelEnabled: false,
+      steps: 1,
+      curveSegments: 1,
+    });
+    geometry.translate(0, 0, -run / 2);
+    const mesh = new THREE.Mesh(geometry, roof);
+    mesh.name = name;
+    mesh.position.y = baseY;
+    mesh.rotation.y = alongX ? Math.PI / 2 : 0;
+    mesh.castShadow = true;
+    mesh.receiveShadow = true;
+    group.add(mesh);
+
+    // The ridge and the four eave edges make a clear stylized tile roof profile.
+    if (alongX) {
+      this.addBox(group, run + 0.08, 0.12, 0.16, trim, 0, baseY + rise + 0.04, 0);
+      for (const side of [-1, 1]) {
+        this.addBox(group, run + 0.10, 0.15, 0.22, trim, 0, baseY + 0.03, side * halfSpan);
+      }
+    } else {
+      this.addBox(group, 0.16, 0.12, run + 0.08, trim, 0, baseY + rise + 0.04, 0);
+      for (const side of [-1, 1]) {
+        this.addBox(group, 0.22, 0.15, run + 0.10, trim, side * halfSpan, baseY + 0.03, 0);
+      }
+    }
+    return rise;
+  }
+
   private addRoof(
     group: THREE.Group,
     keep: KeepState,
@@ -565,45 +740,48 @@ export class KeepRenderer {
     roof: THREE.Material,
     roofDark: THREE.Material,
   ): void {
+    group.userData.keepRoofVariant = keep.roof;
     if (keep.roof === 'sloped') {
-      const roofHeight = Math.max(1.9, Math.min(width, depth) * 0.2);
-      this.addBox(group, width + 0.52, 0.2, depth + 0.52, roofDark, 0, bodyTop + 0.08, 0);
-
-      const mesh = new THREE.Mesh(
-        new THREE.ConeGeometry(Math.max(width, depth) * 0.67, roofHeight, 4),
-        roof,
-      );
-      mesh.position.y = bodyTop + 0.14 + roofHeight / 2;
-      mesh.rotation.y = Math.PI / 4;
-      mesh.scale.set(width / Math.max(width, depth), 1, depth / Math.max(width, depth));
-      mesh.castShadow = true;
-      group.add(mesh);
+      this.addBox(group, width + 0.46, 0.18, depth + 0.46, roofDark, 0, bodyTop + 0.06, 0);
+      this.addGabledRoof(group, width, depth, bodyTop + 0.16, roof, roofDark, 'keep-great-hall-gable');
       return;
     }
 
     if (keep.roof === 'towered') {
-      this.addBox(group, width * 0.55, 1.2, depth * 0.55, stone, 0, bodyTop + 0.6, 0);
-      const crown = new THREE.Mesh(
-        new THREE.ConeGeometry(Math.max(width, depth) * 0.31, 1.9, 4),
-        roof,
-      );
-      crown.position.y = bodyTop + 2.15;
-      crown.rotation.y = Math.PI / 4;
-      crown.castShadow = true;
-      group.add(crown);
+      // A raised watch chamber grows out of the stone deck, with its own roof.
+      // Keeping a broad lower shoulder avoids the old oversized conical spire.
+      const upperW = width * 0.52;
+      const upperD = depth * 0.52;
+      const upperHeight = 2.35;
+      this.addBox(group, width * 0.87, 0.22, depth * 0.87, stone, 0, bodyTop + 0.10, 0);
+      this.addBox(group, upperW + 0.32, 0.28, upperD + 0.32, this.materials.roofDark, 0, bodyTop + 0.26, 0);
+      this.addBox(group, upperW, upperHeight, upperD, stone, 0, bodyTop + upperHeight / 2 + 0.18, 0);
+      this.addBox(group, upperW + 0.22, 0.17, upperD + 0.22, roofDark, 0, bodyTop + upperHeight + 0.2, 0);
+      for (const side of [-1, 1]) {
+        this.addBox(group, 0.22, upperHeight, 0.24, stone, side * (upperW / 2 - 0.12), bodyTop + upperHeight / 2 + 0.18, -upperD / 2);
+        this.addBox(group, 0.22, upperHeight, 0.24, stone, side * (upperW / 2 - 0.12), bodyTop + upperHeight / 2 + 0.18, upperD / 2);
+      }
+      this.addGabledRoof(group, upperW, upperD, bodyTop + upperHeight + 0.28, roof, roofDark, 'keep-watch-hall-gable');
       return;
     }
 
+    // Two intentionally distinct fighting decks: open limestone parapet or
+    // reinforced training platform with a small central command dais.
+    const platform = keep.roof === 'defensivePlatform';
     this.addBox(
-      group,
-      width * 0.92,
-      0.22,
-      depth * 0.92,
-      keep.roof === 'defensivePlatform' ? roofDark : stone,
-      0,
-      bodyTop + 0.1,
-      0,
+      group, width * 0.94, 0.26, depth * 0.94,
+      platform ? roofDark : stone, 0, bodyTop + 0.13, 0,
     );
+    if (platform) {
+      this.addBox(group, width * 0.29, 0.35, depth * 0.29, stone, 0, bodyTop + 0.4, 0);
+      this.addBox(group, width * 0.25, 0.14, depth * 0.25, this.materials.timberDark, 0, bodyTop + 0.65, 0);
+      for (const sx of [-1, 1]) {
+        for (const sz of [-1, 1]) {
+          this.addBox(group, 0.16, 1.0, 0.16, this.materials.timber, sx * width * 0.11, bodyTop + 1.13, sz * depth * 0.11);
+        }
+      }
+      this.addBox(group, width * 0.31, 0.16, depth * 0.31, roof, 0, bodyTop + 1.7, 0);
+    }
   }
 
   private addBattlements(
@@ -681,25 +859,35 @@ export class KeepRenderer {
     wood: THREE.Material,
     cloth: THREE.Material,
   ): void {
+    const roofRise = Math.max(1.35, Math.min(3.2, (Math.min(width, depth) / 2 + 0.37) * 0.51));
+    const watchRise = Math.max(1.35, Math.min(3.2, (Math.min(width, depth) * 0.52 / 2 + 0.37) * 0.51));
+    const centerMastBase =
+      keep.roof === 'sloped' ? bodyTop + 0.16 + roofRise :
+      keep.roof === 'towered' ? bodyTop + 2.63 + watchRise :
+      keep.roof === 'defensivePlatform' ? bodyTop + 1.80 :
+      bodyTop + 0.3;
+
     for (const [index, placement] of this.details.keepFlags(keep).entries()) {
       const x = placement.xFactor * width;
       const z = placement.zFactor * depth;
-      const mastHeight = placement.primary ? 3.0 : 2.25;
-      const mastBase = bodyTop + (keep.roof === 'sloped' ? 1.0 : 0.3);
+      const mastHeight = placement.primary ? 2.7 : 2.0;
+      const mastBase = placement.primary
+        ? centerMastBase
+        : bodyTop + (keep.roof === 'sloped' || keep.roof === 'towered' ? 2.94 : 1.4);
 
-      this.addBox(group, 0.08, mastHeight, 0.08, wood, x, mastBase + mastHeight / 2, z);
-
-      const flag = this.addBox(
+      this.addBox(group, 0.09, mastHeight, 0.09, wood, x, mastBase + mastHeight / 2, z);
+      const banner = this.addBox(
         group,
-        placement.primary ? 1.35 : 0.95,
-        placement.primary ? 0.65 : 0.46,
-        0.055,
+        placement.primary ? 1.32 : 0.94,
+        placement.primary ? 0.64 : 0.45,
+        0.05,
         cloth,
-        x + (placement.primary ? 0.7 : 0.5),
-        mastBase + placement.heightOffset,
+        x + (placement.primary ? 0.70 : 0.49),
+        mastBase + mastHeight - (placement.primary ? 0.40 : 0.33),
         z,
       );
-      flag.userData.castleFlag = { phase: keep.seed * 0.001 + index * 0.7 };
+      banner.name = 'keep-heraldic-banner';
+      banner.userData.castleFlag = { phase: keep.seed * 0.001 + index * 0.7 };
     }
   }
 

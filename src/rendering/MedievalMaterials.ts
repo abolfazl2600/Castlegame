@@ -20,6 +20,7 @@ export class MedievalMaterials {
   readonly roofTile: THREE.MeshStandardMaterial;
   readonly japaneseRoofTile: THREE.MeshStandardMaterial;
   readonly roofDark: THREE.MeshStandardMaterial;
+  readonly bannerCloth: THREE.MeshStandardMaterial;
   readonly arrowVoid: THREE.MeshStandardMaterial;
   readonly moss: THREE.MeshStandardMaterial;
 
@@ -115,6 +116,14 @@ export class MedievalMaterials {
       new THREE.MeshStandardMaterial({
         color: CASTLE_ARCHITECTURE_STYLE.palette.roofShadow,
         roughness: 0.98,
+      }),
+    );
+    this.bannerCloth = this.register(
+      new THREE.MeshStandardMaterial({
+        color: 0x8d3940,
+        roughness: 0.96,
+        metalness: 0,
+        side: THREE.DoubleSide,
       }),
     );
     this.arrowVoid = this.register(
