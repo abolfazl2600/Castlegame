@@ -14446,6 +14446,9 @@ export class ThreeGame {
   }
 
   private applyTemplate(template: string): void {
+    this.landCoins.reset();
+    this.landCoinUI.render(0);
+    this.refreshLandOwnershipVisuals(true);
     const authoredLayoutTemplate = PLAYABLE_LAYOUT_TEMPLATES[template];
     const visualPreset = getTemplateVisualPreset(template);
     this.recordHistory();
@@ -16290,6 +16293,9 @@ export class ThreeGame {
   }
 
   private applyTerrainTemplate(template: string): void {
+    this.landCoins.reset();
+    this.landCoinUI.render(0);
+    this.refreshLandOwnershipVisuals(true);
     this.recordHistory();
     this.clearSettlementAgents();
     this.services.state.clear();
