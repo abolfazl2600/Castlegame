@@ -6438,3 +6438,195 @@ html.mobile-ui-active #settings-modal .settings-control-row select {
     width: 94px;
   }
 }
+
+
+/* Compact in-world HUD: selection and building progress must not obscure
+   the scene or each other, including Persian RTL and short Android landscape. */
+.world-selection-panel {
+  box-sizing: border-box;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  align-content: start;
+  align-items: stretch;
+  gap: 9px;
+  padding: 11px 13px;
+  border-color: rgba(128, 214, 224, .32);
+  border-radius: 14px;
+  max-height: min(45dvh, 220px);
+  overflow-x: hidden;
+  overflow-y: auto;
+  scrollbar-width: thin;
+}
+.world-selection-panel[hidden] { display: none; }
+html:not(.mobile-ui-active) .world-selection-panel {
+  left: auto;
+  right: max(12px, var(--safe-area-right, 0px));
+  bottom: max(12px, var(--safe-area-bottom, 0px));
+  transform: none;
+  width: min(540px, calc(100vw - 360px));
+}
+.world-selection-summary {
+  display: flex;
+  min-width: 0;
+  max-width: 100%;
+  gap: 4px 10px;
+  flex-wrap: wrap;
+  align-items: baseline;
+}
+.world-selection-summary .eyebrow {
+  flex: 0 0 100%;
+  font-size: 10px;
+  font-weight: 750;
+  letter-spacing: .075em;
+  line-height: 1.1;
+}
+.world-selection-summary strong {
+  min-width: 0;
+  max-width: 100%;
+  font-size: max(14px, calc(15px * var(--castle-ui-scale, 1)));
+  line-height: 1.25;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+.world-selection-summary small {
+  font-size: 12px;
+  line-height: 1.4;
+  white-space: nowrap;
+}
+.world-selection-actions {
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  justify-content: stretch;
+  gap: 6px;
+}
+.world-selection-actions button {
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 44px;
+  padding: 7px 10px;
+  white-space: normal;
+  line-height: 1.35;
+  font-size: max(12px, calc(12px * var(--castle-ui-scale, 1)));
+  overflow-wrap: anywhere;
+}
+.world-selection-actions button:focus-visible {
+  outline: 2px solid #8eebf4;
+  outline-offset: 2px;
+}
+.world-selection-actions #world-selection-deselect {
+  background: rgba(232, 242, 244, .035);
+  border-color: rgba(195, 222, 226, .2);
+  color: #d1e4e8;
+}
+.world-selection-actions #world-selection-demolish {
+  background: rgba(128, 42, 40, .14);
+  border-color: rgba(249, 143, 132, .36);
+}
+.world-selection-actions #world-selection-demolish:hover:not(:disabled),
+.world-selection-actions #world-selection-demolish:focus-visible:not(:disabled) {
+  background: rgba(177, 54, 49, .23);
+  border-color: rgba(255, 163, 150, .75);
+}
+html.mobile-ui-active .world-selection-panel {
+  left: auto;
+  right: max(8px, var(--mobile-safe-right, 0px));
+  bottom: max(8px, var(--mobile-safe-bottom, 0px));
+  transform: none;
+  width: min(480px, calc(100vw - 16px - var(--mobile-safe-right, 0px) - var(--mobile-safe-left, 0px)));
+  max-height: 43dvh;
+}
+@media (max-width: 600px) {
+  html.mobile-ui-active .world-selection-panel {
+    left: max(8px, var(--mobile-safe-left, 0px));
+    right: max(8px, var(--mobile-safe-right, 0px));
+    width: auto;
+  }
+  html.mobile-ui-active .world-selection-actions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  html.mobile-ui-active .world-selection-actions button {
+    min-height: 44px;
+    width: 100%;
+  }
+}
+.construction-progress-panel:not([hidden]) {
+  box-sizing: border-box;
+  width: min(326px, calc(100vw - 24px));
+  max-width: calc(100vw - 24px);
+  padding: 10px 12px;
+  color: #f6e7c8;
+  background: linear-gradient(150deg, rgba(22, 35, 40, .96), rgba(13, 24, 29, .96));
+  border: 1px solid rgba(222, 183, 101, .42);
+  border-radius: 13px;
+  box-shadow: 0 12px 28px rgba(0, 0, 0, .29);
+  font-size: 12px;
+  line-height: 1.35;
+  text-align: start;
+  overflow: hidden;
+}
+.construction-progress__heading,
+.construction-progress__details {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 4px 9px;
+  min-width: 0;
+}
+.construction-progress__heading {
+  font-size: 12px;
+}
+.construction-progress__heading strong {
+  font-weight: 800;
+  color: #ffe1a2;
+}
+.construction-progress__heading span {
+  color: #c7d8d6;
+}
+.construction-progress__details {
+  margin-top: 7px;
+  font-size: 12px;
+}
+.construction-progress__details > span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.construction-progress__details b {
+  color: #ffe1a2;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.construction-progress__track {
+  height: 6px;
+  margin-top: 7px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: rgba(222, 185, 103, .18);
+}
+.construction-progress__track > span {
+  display: block;
+  height: 100%;
+  width: 0;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #c49a4c, #f2ce79);
+  transition: width .25s ease-out;
+}
+html[data-reduced-motion] .construction-progress__track > span {
+  transition: none;
+}
+@media (max-width: 860px) {
+  html.mobile-ui-active:has(.world-selection-panel:not([hidden]))
+    .construction-progress-panel:not([hidden]) {
+    /* Keep the construction meter above the context actions on narrow screens. */
+    bottom: calc(192px + var(--mobile-safe-bottom, 0px));
+    width: min(300px, calc(100vw - 24px));
+  }
+}
+@media (max-height: 430px) {
+  .world-selection-panel { gap: 6px; padding: 8px 10px; }
+  .world-selection-summary .eyebrow { font-size: 9px; }
+  .world-selection-actions button { min-height: 44px; }
+  .construction-progress-panel:not([hidden]) { padding: 7px 10px; }
+}
