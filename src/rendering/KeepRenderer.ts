@@ -28,8 +28,11 @@ export class KeepRenderer {
       cornerTowers: keep.cornerTowers,
       roof: keep.roof,
     };
-    group.userData.architectureFamily =
-      keep.roof === 'japaneseTiered' ? 'japanese-castle' : 'stone-great-hall';
+    if (keep.roof === 'japaneseTiered') {
+      group.userData.architectureFamily = 'japanese-castle';
+    } else {
+      group.userData.architectureFamily = 'stone-great-hall';
+    }
     const rotated = keep.rotation % 2 !== 0;
     const widthCells = rotated ? keep.depth : keep.width;
     const depthCells = rotated ? keep.width : keep.depth;
