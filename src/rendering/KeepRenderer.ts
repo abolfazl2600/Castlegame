@@ -438,7 +438,7 @@ export class KeepRenderer {
     // and the existing ground-access/step system are unchanged.
     const portal = new THREE.Group();
     portal.position.set(x, 0, z);
-    portal.rotation.y = side === 'N' ? 0 : side === 'E' ? Math.PI / 2 : side === 'S' ? Math.PI : -Math.PI / 2;
+    portal.rotation.y = side === 'N' ? 0 : side === 'E' ? -Math.PI / 2 : side === 'S' ? Math.PI : Math.PI / 2;
     group.add(portal);
     const iron = this.materials.iron;
     const darkTimber = this.materials.timberDark;
@@ -454,9 +454,9 @@ export class KeepRenderer {
 
     const direction = {
       N: { dx: 0, dy: -1, rx: 0 },
-      E: { dx: 1, dy: 0, rx: Math.PI / 2 },
+      E: { dx: 1, dy: 0, rx: -Math.PI / 2 },
       S: { dx: 0, dy: 1, rx: Math.PI },
-      W: { dx: -1, dy: 0, rx: -Math.PI / 2 },
+      W: { dx: -1, dy: 0, rx: Math.PI / 2 },
     }[side];
 
     const rotated = keep.rotation % 2 !== 0;
@@ -493,7 +493,7 @@ export class KeepRenderer {
         stone,
         0,
         terrainHeight + t * rise,
-        -(halfSpan + 0.18 + t * run),
+        -(halfSpan + 0.18 + (1 - t) * run),
       );
     }
   }
