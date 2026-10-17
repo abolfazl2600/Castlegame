@@ -112,7 +112,7 @@ test('bundled Persian font stays legible and available offline across language a
     await expect(page.locator('html')).toHaveAttribute('lang', 'fa');
     const computed = await page.locator('html').evaluate(el => ({
       family: getComputedStyle(el).fontFamily,
-      eyebrowSpacing: getComputedStyle(document.querySelector('.mobile-eyebrow')!).letterSpacing,
+      eyebrowSpacing: getComputedStyle(document.querySelector('.eyebrow')!).letterSpacing,
     }));
     expect(computed.family).toContain('Castle Vazirmatn');
     expect(computed.eyebrowSpacing).toBe('normal');
