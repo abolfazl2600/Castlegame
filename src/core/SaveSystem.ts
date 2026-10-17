@@ -21,6 +21,7 @@ import type {
   EconomyResourceState,
   EnvironmentSimulationState,
   PopulationSimulationState,
+  LandProgressState,
   KeepState,
   MapLayoutId,
   MissionProgressState,
@@ -56,6 +57,8 @@ export interface SaveLoadHost {
   setMilitaryTier?(value: number): void;
   getEconomyState?(): EconomyResourceState;
   setEconomyState?(value?: Partial<EconomyResourceState> | null): void;
+  getLandProgressState?(): LandProgressState;
+  setLandProgressState?(value?: LandProgressState, existing?: ReadonlyArray<{ x: number; y: number }>): void;
   getPopulationState?(): PopulationSimulationState;
   setPopulationState?(value?: Partial<PopulationSimulationState> | null): void;
   getEnvironmentState?(): EnvironmentSimulationState;
@@ -97,6 +100,7 @@ interface RawSave {
   militaryTier?: number;
   missiles?: SavedGame['missiles'];
   economy?: EconomyResourceState;
+  landProgress?: LandProgressState;
   population?: PopulationSimulationState;
   environment?: EnvironmentSimulationState;
   missions?: MissionProgressState;
@@ -523,6 +527,7 @@ export class SaveSystem {
       militaryTier: this.host.getMilitaryTier?.() ?? 1,
       missiles: this.host.state.getMissileState(),
       economy: this.host.getEconomyState?.(),
+      landProgress: this.host.getLandProgressState?.(),
       population: this.host.getPopulationState?.(),
       environment: this.host.getEnvironmentState?.(),
       missions: this.host.getMissionState?.(),
@@ -631,6 +636,15 @@ export class SaveSystem {
     this.host.setMilitaryTier?.(data.militaryTier ?? 1);
     this.host.state.setMissileState(data.missiles);
     this.host.setEconomyState?.(data.economy);
+    const oldBuiltCells = data.landProgress ? [] : [
+      ...this.host.state.entries()
+        .filter((cell) => !['tree', 'rock', 'hut', 'mountain'].includes(cell.kind))
+        .map((cell) => ({ x: cell.x, y: cell.y })),
+      ...this.host.keepSystem.entries().flatMap((keep) => this.host.keepSystem.footprint(keep)),
+      ...(data.terrain ?? []).map((cell) => ({ x: cell.x, y: cell.y })),
+      ...(data.elevations ?? []).map((cell) => ({ x: cell.x, y: cell.y })),
+    ];
+    this.host.setLandProgressState?.(data.landProgress, oldBuiltCells);
     this.host.setPopulationState?.(data.population);
     this.host.setEnvironmentState?.(data.environment);
     this.host.setMissionState?.(data.missions);
@@ -753,6 +767,7 @@ function normalizeRecord(raw: RawSave, target: SaveTarget): SaveRecord | null {
     militaryTier: raw.militaryTier,
     missiles: raw.missiles,
     economy: raw.economy,
+    landProgress: raw.landProgress,
     population: raw.population,
     environment: raw.environment,
     missions: raw.missions,
