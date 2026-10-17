@@ -1149,7 +1149,7 @@ export class ThreeGame {
     if (showOffer) {
       const parcel = this.landCoins.parcelAt(locked.x, locked.y, this.worldGrid);
       if (parcel) this.landCoinUI.offer(parcel);
-      this.setStatus('زمین قفل است · برای ساخت ابتدا زمین را آزاد کنید');
+      this.setStatus('Land is locked · unlock this parcel before building');
     }
     return false;
   }
@@ -1160,7 +1160,7 @@ export class ThreeGame {
       this.landCoinUI.render(this.landCoins.balance);
       this.refreshLandOwnershipVisuals(true);
       this.save(false);
-      this.setStatus('زمین جدید آزاد شد · اکنون می‌توانید در آن ساخت‌وساز کنید');
+      this.setStatus('Land unlocked · construction is now available');
     }
     return result;
   }
@@ -10430,7 +10430,7 @@ export class ThreeGame {
 
     const cells = this.buildPlacementFootprint(tool, point);
     if (!this.ensureOwnedLand(cells, false)) {
-      return { valid: false, cells, reason: 'زمین قفل است' };
+      return { valid: false, cells, reason: 'Land is locked' };
     }
     const cell = this.services.state.getCell(point.x, point.y);
     const current = cell?.kind;
@@ -13008,7 +13008,7 @@ export class ThreeGame {
       ? this.buildPlacementFootprint('market', point)
       : getStructureFootprint(cell.kind, point.x, point.y);
     if (!this.ensureOwnedLand(cells, false)) {
-      return { valid: false, reason: 'زمین قفل است', cells };
+      return { valid: false, reason: 'Land is locked', cells };
     }
     if (point.x === origin.x && point.y === origin.y) {
       return { valid: false, reason: 'Choose a different tile', cells };
@@ -13467,7 +13467,7 @@ export class ThreeGame {
     ignoreKeepId?: number,
   ): { valid: boolean; reason?: string } {
     if (!this.ensureOwnedLand(this.services.keepSystem.footprint(draft), false)) {
-      return { valid: false, reason: 'زمین قفل است' };
+      return { valid: false, reason: 'Land is locked' };
     }
     return this.services.keepSystem.validate(
       draft,
