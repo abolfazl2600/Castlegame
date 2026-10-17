@@ -11883,6 +11883,18 @@ export class ThreeGame {
       panel.className = 'construction-progress-panel';
       panel.setAttribute('role', 'status');
       panel.setAttribute('aria-live', 'off');
+      panel.innerHTML =
+        '<div class="construction-progress__heading">' +
+        '<strong id="construction-progress-sites"></strong>' +
+        '<span id="construction-progress-workers"></span>' +
+        '</div>' +
+        '<div class="construction-progress__details">' +
+        '<span id="construction-progress-kind"></span>' +
+        '<b id="construction-progress-percent" dir="ltr"></b>' +
+        '</div>' +
+        '<div class="construction-progress__track" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">' +
+        '<span id="construction-progress-fill"></span>' +
+        '</div>';
       (document.getElementById('game-shell') ?? document.body).appendChild(panel);
     }
     const sites = this.constructionProjects.entries();
@@ -11891,8 +11903,23 @@ export class ThreeGame {
     const active = sites[0];
     const percent = Math.round(this.constructionProjects.progress(active.key) * 100);
     const workers = this.workers.filter((worker) => worker.projectKey === active.key).length;
-    panel.textContent =
-      `${t('Construction sites')}: ${sites.length} · ${t(active.kind)} ${percent}% · ${t('Workers')}: ${workers}`;
+    const locale = document.documentElement.lang === 'fa' ? 'fa-IR' : 'en-US';
+    const digits = (value: number): string => new Intl.NumberFormat(locale).format(value);
+    const sitesLabel = panel.querySelector<HTMLElement>('#construction-progress-sites');
+    const workersLabel = panel.querySelector<HTMLElement>('#construction-progress-workers');
+    const kindLabel = panel.querySelector<HTMLElement>('#construction-progress-kind');
+    const percentLabel = panel.querySelector<HTMLElement>('#construction-progress-percent');
+    const track = panel.querySelector<HTMLElement>('.construction-progress__track');
+    const fill = panel.querySelector<HTMLElement>('#construction-progress-fill');
+    if (sitesLabel) sitesLabel.textContent = `${t('Construction sites')}: ${digits(sites.length)}`;
+    if (workersLabel) workersLabel.textContent = `${t('Workers')}: ${digits(workers)}`;
+    if (kindLabel) kindLabel.textContent = t(active.kind);
+    if (percentLabel) percentLabel.textContent = `${digits(percent)}${locale === 'fa-IR' ? '٪' : '%'}`;
+    if (track) {
+      track.setAttribute('aria-label', t('Construction progress'));
+      track.setAttribute('aria-valuenow', String(percent));
+    }
+    if (fill) fill.style.width = `${percent}%`;
   }
 
   private moveWorker(
