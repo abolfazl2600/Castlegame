@@ -1124,6 +1124,66 @@ export class ThreeGame {
     this.worldGridLayer.add(lines);
   }
 
+  private landIsOwned(x: number, y: number): boolean {
+    return this.landCoins.isOwned(x, y, this.worldGrid);
+  }
+
+  private ensureOwnedLand(cells: readonly GridPoint[], showOffer = true): boolean {
+    const locked = cells.find(point => !this.landIsOwned(point.x, point.y));
+    if (!locked) return true;
+    if (showOffer) {
+      const parcel = this.landCoins.parcelAt(locked.x, locked.y, this.worldGrid);
+      if (parcel) this.landCoinUI.offer(parcel);
+      this.setStatus('زمین قفل است · برای ساخت ابتدا زمین را آزاد کنید');
+    }
+    return false;
+  }
+
+  private purchaseLandParcel(x: number, y: number): 'purchased' | 'owned' | 'insufficient' | 'invalid' {
+    const result = this.landCoins.purchase(x, y, this.worldGrid);
+    if (result === 'purchased') {
+      this.landCoinUI.render(this.landCoins.balance);
+      this.refreshLandOwnershipVisuals(true);
+      this.save(false);
+      this.setStatus('زمین جدید آزاد شد · اکنون می‌توانید در آن ساخت‌وساز کنید');
+    }
+    return result;
+  }
+
+  /**
+   * Only paints a thin tinted purchase overlay over the locked half.
+   * Map terrain and pre-existing buildings remain rendered and inspectable.
+   * Work is repeated only when a parcel is bought or the map changes.
+   */
+  private refreshLandOwnershipVisuals(force = false): void {
+    const signature = this.mapLayoutId + ':' + this.worldCols + 'x' + this.worldRows + ':' +
+      this.landCoins.getState().ownedParcels.join('|');
+    if (!force && signature === this.landLockVisualKey) return;
+    this.landLockVisualKey = signature;
+    this.clearGroup(this.landLockLayer);
+
+    for (const parcel of this.landCoins.parcels(this.worldGrid)) {
+      if (parcel.owned) continue;
+      const width = parcel.cols * TILE - 0.10;
+      const depth = parcel.rows * TILE - 0.10;
+      const centerX = parcel.x + (parcel.cols - 1) / 2;
+      const centerY = parcel.y + (parcel.rows - 1) / 2;
+      const world = this.gridToWorld(centerX, centerY);
+      const material = new THREE.MeshBasicMaterial({
+        color: 0x677d9c, transparent: true, opacity: 0.19,
+        depthTest: true, depthWrite: false, side: THREE.DoubleSide,
+      });
+      const plane = new THREE.Mesh(new THREE.PlaneGeometry(width, depth), material);
+      plane.name = 'locked-land-parcel';
+      plane.rotation.x = -Math.PI / 2;
+      plane.position.set(world.x, 2.42 + this.terrainElevation(Math.floor(centerX), Math.floor(centerY)), world.z);
+      plane.renderOrder = 4;
+      plane.castShadow = false;
+      plane.receiveShadow = false;
+      this.landLockLayer.add(plane);
+    }
+  }
+
   private isWallTool(tool: ToolKind): tool is WallKind {
     return WALL_KINDS.includes(tool as WallKind);
   }
