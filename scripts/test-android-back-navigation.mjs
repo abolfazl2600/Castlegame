@@ -27,6 +27,8 @@ function setup() {
   const settings = element();
   const settingsClose = element(true, () => { settings.hidden = true; });
   const map = element();
+  const government = element();
+  const governmentBack = element(true, () => { government.hidden = true; });
   const help = element();
   const helpClose = element(true, () => { help.hidden = true; });
   const saveDialog = element();
@@ -39,7 +41,8 @@ function setup() {
   const ids = new Map([
     ['mission-journal', mission],
     ['settings-modal', settings], ['settings-close', settingsClose],
-    ['map-layout-modal', map], ['help-modal', help], ['help-close-button', helpClose],
+    ['map-layout-modal', map], ['government-modal', government], ['government-back-button', governmentBack],
+    ['help-modal', help], ['help-close-button', helpClose],
     ['toolbar', toolbar], ['toolbar-close', toolbarClose],
   ]);
   const unknown = [];
@@ -59,7 +62,7 @@ function setup() {
   };
   const back = () => handleAndroidBackAction(doc, () => { minimizes += 1; });
   return {
-    mission, missionButton, settings, settingsClose, map, help, helpClose,
+    mission, missionButton, settings, settingsClose, map, government, governmentBack, help, helpClose,
     saveDialog, saveDialogClose, toolbar, toolbarClose, unknown, back,
     selectTool: () => { selectedTool = true; },
     get minimizes() { return minimizes; },
@@ -95,6 +98,13 @@ function setup() {
   s.back();
   assert.equal(s.mission.hidden, false, 'mandatory map choice must not be bypassed');
   assert.equal(s.minimizes, 0);
+}
+{
+  const s = setup();
+  s.government.hidden = false;
+  s.back();
+  assert.equal(s.governmentBack.clicks, 1, 'Android Back must return from government choice to maps');
+  assert.equal(s.minimizes, 0, 'government selection must not minimize Android');
 }
 {
   const s = setup();

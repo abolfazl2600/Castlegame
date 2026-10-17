@@ -11,6 +11,7 @@ import { worldGridCellCount, worldGridForLayout } from '../world/WorldGrid';
 import type { GameMode } from './GameMode';
 import type { ConstructionProject } from '../systems/ConstructionProjectSystem';
 import type { PendingMoatTask } from '../systems/MoatRouteSystem';
+import type { GovernmentState } from '../systems/GovernmentSystem';
 import { normalizeGameMode } from './GameMode';
 import type { GameState } from '../state/GameState';
 import { AUTOMATIC_WALL_LEVEL, isCastleWallKind } from '../building/CastleBlockSystem';
@@ -65,6 +66,8 @@ export interface SaveLoadHost {
   setMissionState?(value?: Partial<MissionProgressState> | null): void;
   getLandEconomyState?(): SavedLandEconomy;
   setLandEconomyState?(value?: Partial<SavedLandEconomy> | null): void;
+  getGovernmentState?(): GovernmentState;
+  setGovernmentState?(value?: Partial<GovernmentState> | null): void;
   getConstructionProjects?(): ConstructionProject[];
   setConstructionProjects?(value?: ConstructionProject[] | null): void;
   getMoatTasks?(): PendingMoatTask[];
@@ -104,6 +107,7 @@ interface RawSave {
   environment?: EnvironmentSimulationState;
   missions?: MissionProgressState;
   landEconomy?: SavedLandEconomy;
+  government?: GovernmentState;
   constructionProjects?: ConstructionProject[];
   moatTasks?: PendingMoatTask[];
 }
@@ -531,6 +535,7 @@ export class SaveSystem {
       environment: this.host.getEnvironmentState?.(),
       missions: this.host.getMissionState?.(),
       landEconomy: this.host.getLandEconomyState?.(),
+      government: this.host.getGovernmentState?.(),
       constructionProjects: this.host.getConstructionProjects?.(),
       moatTasks: this.host.getMoatTasks?.(),
     };
@@ -640,6 +645,7 @@ export class SaveSystem {
     this.host.setEnvironmentState?.(data.environment);
     this.host.setMissionState?.(data.missions);
     this.host.setLandEconomyState?.(data.landEconomy);
+    this.host.setGovernmentState?.(data.government);
     this.host.setConstructionProjects?.(data.constructionProjects);
     this.host.setMoatTasks?.(data.moatTasks);
     this.host.syncLoadedWorldUI();
@@ -712,6 +718,7 @@ export class SaveSystem {
         environment: parsed.environment,
         missions: parsed.missions,
         landEconomy: parsed.landEconomy,
+        government: parsed.government,
         constructionProjects: parsed.constructionProjects,
         moatTasks: parsed.moatTasks,
       };
@@ -764,6 +771,7 @@ function normalizeRecord(raw: RawSave, target: SaveTarget): SaveRecord | null {
     environment: raw.environment,
     missions: raw.missions,
     landEconomy: raw.landEconomy,
+    government: raw.government,
     constructionProjects: raw.constructionProjects,
     moatTasks: raw.moatTasks,
   } : undefined);

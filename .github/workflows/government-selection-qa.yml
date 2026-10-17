@@ -1,0 +1,47 @@
+name: Government Selection QA
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/government-selection-qa.yml'
+      - 'src/systems/GovernmentSystem.ts'
+      - 'src/ui/GovernmentSelectionUI.ts'
+      - 'src/ui/GovernmentSelectionUI.css'
+      - 'src/ThreeGame.ts'
+      - 'src/core/types.ts'
+      - 'src/core/SaveSystem.ts'
+      - 'scripts/test-government-selection.mjs'
+      - 'tests/government-selection.spec.ts'
+      - 'package.json'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - name: Government rules, persistence, TypeScript and bundle
+        run: |
+          npm run test:government-selection
+          npx tsc --noEmit
+          npx vite build
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+      - name: Browser selection and save regression
+        run: npx playwright test tests/government-selection.spec.ts --reporter=line
+      - name: Browser logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: government-selection-qa
+          path: test-results/
+          if-no-files-found: ignore
