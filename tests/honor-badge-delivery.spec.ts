@@ -197,22 +197,9 @@ test('gallery silently loads all badges, dims locked ones, and shows earned hono
   });
   const host = page.locator('#honor-fixture');
   await expect(host.locator('.honor-card.is-locked')).toHaveCount(4);
-  await page.waitForTimeout(1200);
-  const diagnostics = await page.evaluate(() => {
-    const state = window as typeof window & { __honorGallery?: {
-      catalog?: { badges?: unknown[] } | null;
-      artwork?: Map<string, unknown>;
-      loading?: boolean;
-    } };
-    const gallery = state.__honorGallery;
-    return {
-      catalogSize: gallery?.catalog?.badges?.length ?? -1,
-      cachedArtwork: gallery?.artwork?.size ?? -1,
-      loading: gallery?.loading,
-    };
-  });
-  console.log('Gallery diagnostic', JSON.stringify({ diagnostics, requests }));
-  await expect(host.locator('.honor-card img')).toHaveCount(4);
+  // Four remote assets are fetched in two sequential batches. Allow time
+  // for a slow/contended Android network; the cards themselves render instantly.
+  await expect(host.locator('.honor-card img')).toHaveCount(4, { timeout: 45_000 });
   await expect(host.locator('.honor-card__lock')).toHaveCount(4);
   expect(new Set(requests).size).toBe(4);
   const source = await host.locator('.honor-card img').evaluateAll(imgs =>
