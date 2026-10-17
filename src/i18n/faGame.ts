@@ -2,6 +2,7 @@
 export const GAME_TRANSLATIONS: Readonly<Record<string, string>> = {
   "Castle & Defense": "قلعه و دفاع",
   "Stone Wall": "دیوار سنگی",
+  "Windmill": "آسیاب بادی",
   "Wooden Wall": "دیوار چوبی",
   "Reinforced Wall": "دیوار مستحکم",
   "Gate": "دروازه",
