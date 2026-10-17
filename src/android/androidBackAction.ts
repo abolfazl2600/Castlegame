@@ -20,6 +20,10 @@ export function handleAndroidBackAction(doc: Document, minimizeApp: () => void):
   if (visible('map-layout-modal')) {
     return;
   }
+  if (visible('government-modal')) {
+    click('government-back-button');
+    return;
+  }
   if (visible('templates-modal')) {
     click('templates-close-button');
     return;
