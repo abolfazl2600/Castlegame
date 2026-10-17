@@ -1,4 +1,5 @@
 import type { GameMode } from './GameMode';
+import type { LandProgressState } from '../world/LandProgression';
 import type { ConstructionProject } from '../systems/ConstructionProjectSystem';
 import type { PendingMoatTask } from '../systems/MoatRouteSystem';
 
@@ -241,6 +242,8 @@ export interface SavedGame {
   militaryTier?: number;
   missiles?: MissileInventoryState;
   economy?: EconomyResourceState;
+  /** Coins, active-play timer and purchased plots; absent in legacy saves. */
+  landProgress?: LandProgressState;
   population?: PopulationSimulationState;
   environment?: EnvironmentSimulationState;
   missions?: MissionProgressState;
