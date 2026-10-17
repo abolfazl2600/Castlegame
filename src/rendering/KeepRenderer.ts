@@ -28,9 +28,8 @@ export class KeepRenderer {
       cornerTowers: keep.cornerTowers,
       roof: keep.roof,
     };
-    if (keep.roof === 'japaneseTiered') {
-      group.userData.architectureFamily = 'japanese-castle';
-    }
+    group.userData.architectureFamily =
+      keep.roof === 'japaneseTiered' ? 'japanese-castle' : 'stone-great-hall';
     const rotated = keep.rotation % 2 !== 0;
     const widthCells = rotated ? keep.depth : keep.width;
     const depthCells = rotated ? keep.width : keep.depth;
@@ -67,10 +66,10 @@ export class KeepRenderer {
     const roofDark = this.materials.roofDark;
     const slit = this.materials.arrowVoid;
     const windowMaterial = new THREE.MeshStandardMaterial({
-      color: 0x8bcbd2,
-      emissive: 0x123b43,
-      emissiveIntensity: 0.35,
-      roughness: 0.36,
+      color: 0x354a49,
+      emissive: 0x101d1d,
+      emissiveIntensity: 0.08,
+      roughness: 0.72,
     });
 
     this.addBox(
@@ -139,6 +138,10 @@ export class KeepRenderer {
       }
     }
 
+    if (!japaneseTiered) {
+      this.addMasonryDetails(group, keep, width, depth, foundationTop, totalBodyHeight, stoneDark, stoneLight);
+    }
+
     this.addKeepOpenings(
       group,
       keep,
@@ -190,7 +193,7 @@ export class KeepRenderer {
     }
 
     if (!japaneseTiered) {
-      this.addFlags(group, keep, width, depth, bodyTop, wood, roof);
+      this.addFlags(group, keep, width, depth, bodyTop, wood, this.materials.bannerCloth);
     }
 
     group.userData.castleAccess = {
@@ -202,6 +205,47 @@ export class KeepRenderer {
     };
 
     return group;
+  }
+
+
+  /** Deep corner piers, a raised ground plinth and a cap cornice define a readable keep
+   * from strategic camera distance. Details are static, deterministic, and share materials. */
+  private addMasonryDetails(
+    group: THREE.Group,
+    keep: KeepState,
+    width: number,
+    depth: number,
+    base: number,
+    height: number,
+    dark: THREE.Material,
+    trim: THREE.Material,
+  ): void {
+    // A heavy two-stage podium grounds the tall wall planes without changing the footprint.
+    this.addBox(group, width + 0.28, 0.36, depth + 0.28, dark, 0, base + 0.18, 0);
+    this.addBox(group, width + 0.22, 0.19, depth + 0.22, trim, 0, base + height - 0.1, 0);
+
+    const inset = 0.16;
+    for (const sx of [-1, 1]) {
+      for (const sz of [-1, 1]) {
+        const x = sx * (width / 2 - inset);
+        const z = sz * (depth / 2 - inset);
+        // Corner piers read clearly on flat façades even without optional turrets.
+        this.addBox(group, 0.44, height - 0.34, 0.46, trim, x, base + height / 2, z);
+        this.addBox(group, 0.68, 0.3, 0.72, dark, x, base + height - 0.15, z);
+        const buttressHeight = Math.min(height * 0.45, 4.3);
+        this.addBox(group, 0.79, buttressHeight, 0.78, dark, x, base + buttressHeight / 2, z);
+        this.addBox(group, 0.92, 0.18, 0.91, trim, x, base + buttressHeight, z);
+      }
+    }
+
+    // Strong horizontal floor belts connect the four elevations without individual stones.
+    for (let floor = 1; floor < keep.floors; floor += 1) {
+      const y = base + floor * CASTLE_ARCHITECTURE_STYLE.keep.floorHeight - 0.12;
+      this.addBox(group, width + 0.20, 0.14, 0.25, trim, 0, y, -depth / 2);
+      this.addBox(group, width + 0.20, 0.14, 0.25, trim, 0, y, depth / 2);
+      this.addBox(group, 0.25, 0.14, depth + 0.20, trim, -width / 2, y, 0);
+      this.addBox(group, 0.25, 0.14, depth + 0.20, trim, width / 2, y, 0);
+    }
   }
 
   private chooseEntrance(
