@@ -114,6 +114,34 @@ const foundation = rotated.group.children[0].geometry.parameters;
 assert.ok(foundation.width > foundation.depth,
   'rotated keep must swap its structural footprint axes; exterior stairs may extend world-space bounds');
 
+// Exterior stair runs must face the chosen road and ascend towards the door,
+// including the historically reversed east/west directions.
+const entranceCells = {
+  N: [base.x, base.y - Math.floor(base.depth / 2) - 1],
+  E: [base.x + Math.floor(base.width / 2) + 1, base.y],
+  S: [base.x, base.y + Math.floor(base.depth / 2) + 1],
+  W: [base.x - Math.floor(base.width / 2) - 1, base.y],
+};
+for (const side of ['N', 'E', 'S', 'W']) {
+  const [roadX, roadY] = entranceCells[side];
+  const forced = { ...context, kindAt: (x, y) => x === roadX && y === roadY ? 'road' : undefined };
+  const group = renderer.render({ ...base, cornerTowers: false }, forced);
+  const stairs = group.getObjectByName('keep-entrance-stairs');
+  const portal = group.getObjectByName('keep-entrance-portal');
+  assert.ok(stairs && portal, side + ': entrance components not generated');
+  group.updateMatrixWorld(true);
+  const low = stairs.children[0].getWorldPosition(new THREE.Vector3());
+  const high = stairs.children[stairs.children.length - 1].getWorldPosition(new THREE.Vector3());
+  const toCenter = point => Math.hypot(point.x - group.position.x, point.z - group.position.z);
+  assert.ok(low.y < high.y && toCenter(low) > toCenter(high),
+    side + ': stairs must rise toward the threshold');
+  if (side === 'N') assert.ok(low.z < group.position.z);
+  if (side === 'S') assert.ok(low.z > group.position.z);
+  if (side === 'E') assert.ok(low.x > group.position.x);
+  if (side === 'W') assert.ok(low.x < group.position.x);
+}
+console.log('Keep entrances: all four cardinal stair orientations face outward and rise inward.');
+
 const first = render({ roof: 'towered', seed: 98652 });
 const again = render({ roof: 'towered', seed: 98652 });
 assert.deepEqual(signature(first.group), signature(again.group),
