@@ -84,6 +84,8 @@ import { audioEvents } from './audio/AudioEventBus';
 import { registerSystemAction } from './app/applicationActions';
 import { MissionSystem, type MissionSnapshot } from './missions/MissionSystem';
 import { MissionUI } from './missions/MissionUI';
+import { LandCoinSystem } from './systems/LandCoinSystem';
+import { LandCoinUI } from './ui/LandCoinUI';
 import {
   GodModeActionRegistry,
   createFutureGodModeAction,
@@ -493,6 +495,10 @@ export class ThreeGame {
     onPinMission: (id) => this.setPinnedMission(id),
   });
   private missionRefreshAccumulatorMs = 0;
+  private readonly landCoins = new LandCoinSystem();
+  private readonly landCoinUI = new LandCoinUI((x, y) => this.purchaseLandParcel(x, y));
+  private readonly landLockLayer = new THREE.Group();
+  private landLockVisualKey = '';
   private readonly castleBlockSystem = new CastleBlockSystem();
   private readonly constructionAnimation = new ConstructionAnimationSystem();
   private readonly constructionProjects = new ConstructionProjectSystem();
@@ -722,6 +728,8 @@ export class ThreeGame {
       getEnvironmentState: () => this.environmentSystem.getState(),
       setEnvironmentState: (value) => { this.environmentSystem.setState(value); },
       getMissionState: () => this.missionSystem.getState(),
+      getLandEconomyState: () => this.landCoins.getState(),
+      setLandEconomyState: (value) => { this.landCoins.setState(value); this.refreshLandOwnershipVisuals(true); this.landCoinUI.render(this.landCoins.balance); },
       getConstructionProjects: () => this.constructionProjects.snapshot(),
       setConstructionProjects: (value) => { this.constructionProjects.restore(value); },
       getMoatTasks: () => this.pendingMoatTasks(),
@@ -946,10 +954,13 @@ export class ThreeGame {
 
     this.addLights();
     this.createWorld();
+    this.landCoinUI.mount();
+    this.landCoinUI.render(this.landCoins.balance);
 
     this.scene.add(this.ambientFauna.layer);
     this.scene.add(this.ambientShip.layer);
     this.scene.add(this.terrainLayer);
+    this.scene.add(this.landLockLayer);
     this.scene.add(this.buildLayer);
     this.scene.add(this.selectionVisual.layer);
     this.scene.add(this.wallPreviewLayer);
@@ -1018,6 +1029,8 @@ export class ThreeGame {
     this.selectTool(null);
     this.setToolbarOpen(this.toolbarOpen);
     this.syncGameplayControls();
+    this.landCoinUI.render(this.landCoins.balance);
+    this.refreshLandOwnershipVisuals(true);
     this.syncTemplateAvailability();
     if (!hadSave) this.openMapLayoutSelector();
     this.bindPointerInput();
@@ -1075,6 +1088,7 @@ export class ThreeGame {
 
     this.worldLayoutSurfaceSignature = '';
     this.rebuildWorldGridLines();
+    this.refreshLandOwnershipVisuals(true);
   }
 
   private rebuildWorldGridLines(): void {
@@ -1775,6 +1789,9 @@ export class ThreeGame {
     this.services.economySystem.reset();
     this.services.populationSystem.setState();
     this.missionSystem.reset();
+    this.landCoins.reset();
+    this.landCoinUI.render(this.landCoins.balance);
+    this.refreshLandOwnershipVisuals(true);
     this.missionRefreshAccumulatorMs = 0;
     this.populationBattleCommitted = false;
     this.populationBattleStart = null;
@@ -17107,6 +17124,10 @@ export class ThreeGame {
     this.lastFrameTime = time;
 
     const settings = this.settingsStore.get();
+    if (this.landCoins.tick(frameDeltaMs, !document.hidden && document.hasFocus())) {
+      this.landCoinUI.render(this.landCoins.balance);
+      this.save(false);
+    }
     const cameraDistance = this.camera.position.distanceTo(this.controls.target);
     const completedConstruction = this.constructionAnimation.update(time, settings.interface.reducedMotion);
     if (completedConstruction.length > 0) {
