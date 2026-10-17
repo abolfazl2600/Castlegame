@@ -9112,6 +9112,12 @@ export class ThreeGame {
           diagnostics: this.lastBuildReuseDiagnostics,
         },
         moatTasks: this.pendingMoatTasks(),
+        land: {
+          coins: this.landCoins.balance,
+          state: this.landCoins.getState(),
+          plots: this.landCoins.parcels(this.worldGrid).map(({ id, owned }) => ({ id, owned })),
+          split: Math.ceil(this.worldCols / 2),
+        },
         undoCount: this.undoStack.length, pointers: touches.pointerIds,
         dragging: Boolean(this.wallDragStart || this.roadDragStart || this.moatDragLast || this.terrainStrokeActive),
         preview: this.wallPreviewLayer.children.length,
