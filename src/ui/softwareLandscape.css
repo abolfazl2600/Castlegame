@@ -1,0 +1,76 @@
+/* Physical portrait, logical landscape: rotate the entire application,
+   including body-level dialogs and fixed overlays, never just the canvas. */
+html[data-game-orientation="software-landscape"] body {
+  position: fixed !important;
+  inset: 0 auto auto 0;
+  width: var(--game-logical-width) !important;
+  height: var(--game-logical-height) !important;
+  min-height: 0 !important;
+  max-height: none !important;
+  margin: 0;
+  overflow: hidden;
+  transform-origin: 0 0;
+  transform: translateX(var(--game-physical-width)) rotate(90deg);
+}
+html[data-game-orientation="software-landscape"] #app,
+html[data-game-orientation="software-landscape"] #game-shell,
+html[data-game-orientation="software-landscape"] #game {
+  width: 100% !important;
+  height: 100% !important;
+  min-height: 0 !important;
+  max-height: none;
+}
+html[data-game-orientation="software-landscape"].mobile-ui-active {
+  --mobile-header-height: 48px;
+  --mobile-dock-height: 0px;
+}
+/* Portrait CSS media queries still see the physical viewport. Restore the
+   logical short-landscape geometry for touch panels and scrollable dialogs. */
+html[data-game-orientation="software-landscape"].mobile-ui-active .toolbar {
+  top: calc(var(--mobile-header-height) + var(--mobile-safe-top) + 7px);
+  left: max(8px, var(--mobile-safe-left));
+  right: auto;
+  bottom: auto;
+  width: min(320px, 44%);
+  max-width: calc(100% - var(--mobile-safe-left) - var(--mobile-safe-right) - 16px);
+  max-height: calc(var(--game-logical-height) - var(--mobile-header-height) - var(--mobile-safe-top) - var(--mobile-safe-bottom) - 14px);
+}
+html[data-game-orientation="software-landscape"].mobile-ui-active .toolbar.is-collapsed {
+  transform: translateX(calc(-100% - 32px));
+}
+html[data-game-orientation="software-landscape"].mobile-ui-active .toolbar .tool-category-items {
+  grid-template-columns: minmax(0, 1fr);
+}
+html[data-game-orientation="software-landscape"].mobile-ui-active .battle-panel,
+html[data-game-orientation="software-landscape"].mobile-ui-active .god-mode-panel {
+  top: auto;
+  left: auto;
+  right: max(8px, var(--mobile-safe-right));
+  bottom: max(8px, var(--mobile-safe-bottom));
+  width: min(360px, 42%);
+  max-width: calc(100% - var(--mobile-safe-left) - var(--mobile-safe-right) - 16px);
+  max-height: calc(var(--game-logical-height) - var(--mobile-header-height) - var(--mobile-safe-top) - var(--mobile-safe-bottom) - 16px);
+}
+html[data-game-orientation="software-landscape"].mobile-ui-active .battle-panel[data-battle-phase="running"] {
+  max-height: min(calc(var(--game-logical-height) * .78), 300px);
+}
+html[data-game-orientation="software-landscape"].mobile-ui-active .battle-panel[data-battle-phase="paused"],
+html[data-game-orientation="software-landscape"].mobile-ui-active .battle-panel[data-battle-phase="finished"] {
+  max-height: min(calc(var(--game-logical-height) * .84), 340px);
+}
+html[data-game-orientation="software-landscape"] .settings-modal {
+  max-height: calc(var(--game-logical-height) - var(--safe-area-top) - var(--safe-area-bottom) - 16px);
+}
+html[data-game-orientation="software-landscape"] .settings-card,
+html[data-game-orientation="software-landscape"] .save-load-modal,
+html[data-game-orientation="software-landscape"] .help-modal,
+html[data-game-orientation="software-landscape"] .template-modal,
+html[data-game-orientation="software-landscape"] .map-layout-modal {
+  max-height: calc(var(--game-logical-height) - var(--safe-area-top) - var(--safe-area-bottom) - 16px);
+}
+html[data-game-orientation="software-landscape"] .save-load-backdrop {
+  max-height: var(--game-logical-height);
+}
+html[data-game-orientation="software-landscape"].mobile-ui-active .screenshot-feedback {
+  max-width: min(88%, 340px);
+}

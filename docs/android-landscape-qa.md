@@ -1,6 +1,8 @@
 # Android landscape QA
 
-Castle Role is landscape-first on Android. The native wrapper pins the main activity to landscape with `android:screenOrientation="landscape"` in `android/app/src/main/AndroidManifest.xml`.
+Castle Role always presents **landscape gameplay** on Android, without forcing the user to rotate their handset. The Android activity allows natural physical orientation. On a portrait touch device, the entire web application surface (3D canvas, HUD, menus, and controls) rotates 90° clockwise, with logical viewport width and height exchanged. Landscape devices render normally. Resize and orientation changes are handled automatically, and pointer/touch input is transformed into landscape coordinates. No rotate-device prompt or portrait gameplay mode is used.
+
+Portrait QA: run `npx playwright test tests/software-landscape.spec.ts`. Confirm full physical-screen coverage at 390×844 and 412×915, interactive Settings and canvas, and restoration to an unrotated 915×412 view. Validate both orientations on actual Android hardware; browser emulation does not test native WebView/plugin interaction.
 
 ## Supported representative viewports
 

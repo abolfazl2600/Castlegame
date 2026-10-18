@@ -84,6 +84,7 @@ export class SafeAreaController {
     const viewport = window.visualViewport;
     viewport?.addEventListener('resize', schedule, { passive: true });
     viewport?.addEventListener('scroll', schedule, { passive: true });
+    window.addEventListener('castle-role:software-landscape-change', schedule);
   }
 
   private async bindNativeInsets(): Promise<void> {
@@ -155,11 +156,19 @@ export class SafeAreaController {
   }
 
   private applyInsets(): void {
-    const insets = maxInsets(
+    const physicalInsets = maxInsets(
       this.readEnvironmentInsets(),
       this.readVisualViewportInsets(),
       this.nativeInsets,
     );
+    // Clockwise rotation maps Android's physical right/bottom/left/top
+    // to the logical landscape top/right/bottom/left edges respectively.
+    const insets = this.root.dataset.gameOrientation === 'software-landscape'
+      ? {
+        top: physicalInsets.right, right: physicalInsets.bottom,
+        bottom: physicalInsets.left, left: physicalInsets.top,
+      }
+      : physicalInsets;
 
     this.root.style.setProperty('--safe-area-top', String(insets.top) + 'px');
     this.root.style.setProperty('--safe-area-right', String(insets.right) + 'px');

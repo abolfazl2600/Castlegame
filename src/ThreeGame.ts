@@ -6,6 +6,7 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { App } from '@capacitor/app';
 import { Capacitor } from '@capacitor/core';
 import { TouchGestureSession } from './input/TouchGestureSession';
+import { gameViewportPoint, normalizedPointInElement, isSoftwareLandscape } from './ui/SoftwareLandscapeViewport';
 import { applyTouchCameraDelta } from './input/TouchCamera';
 import { createGameDomainServices } from './core/GameDomainServices';
 import { SaveSystem, type SaveStorage } from './core/SaveSystem';
@@ -903,10 +904,11 @@ export class ThreeGame {
         const world = this.gridToWorld(x, y);
         const projected = new THREE.Vector3(world.x, this.groundHit.position.y, world.z).project(this.camera);
         const rect = this.renderer.domElement.getBoundingClientRect();
-        return {
-          x: (projected.x + 1) * 0.5 * rect.width,
-          y: (1 - projected.y) * 0.5 * rect.height,
-        };
+        const x = (projected.x + 1) * 0.5;
+        const y = (1 - projected.y) * 0.5;
+        return isSoftwareLandscape()
+          ? { x: (1 - y) * rect.width, y: x * rect.height }
+          : { x: x * rect.width, y: y * rect.height };
       };
     }
 
@@ -9170,7 +9172,7 @@ export class ThreeGame {
               this.selectedTool === 'moat');
           const intent = !this.controls.enabled && !touches.pointerIds.length ? 'blocked' :
             this.battleSystem.isActive() ? 'camera' : stroke ? 'stroke' : 'tap';
-          if (!touches.down(event, intent)) return;
+          if (!touches.down(gameViewportPoint(event), intent)) return;
         }
         if (this.battleSystem.isActive()) return;
 
@@ -9278,7 +9280,7 @@ export class ThreeGame {
       (event) => {
         if (event.pointerType === 'touch') {
           consumeTouch(event);
-          if (!touches.move(event)) return;
+          if (!touches.move(gameViewportPoint(event))) return;
         }
         if (this.isGodModeTargeting() && event.pointerType === 'mouse' && !this.wallDragStart && !this.roadDragStart && !this.terrainStrokeActive) {
           const cell = this.pickGridCell(event);
@@ -9407,7 +9409,7 @@ export class ThreeGame {
 
         if (event.pointerType === 'touch') {
           consumeTouch(event);
-          const action = touches.up(event);
+          const action = touches.up(gameViewportPoint(event));
           if (canvas.hasPointerCapture(event.pointerId)) canvas.releasePointerCapture(event.pointerId);
           if (!action) return;
         }
@@ -9639,9 +9641,10 @@ export class ThreeGame {
 
     const indicator = document.getElementById('long-press-indicator');
     if (indicator) {
+      const point = gameViewportPoint(event);
       indicator.hidden = false;
-      indicator.style.left = `${event.clientX}px`;
-      indicator.style.top = `${event.clientY}px`;
+      indicator.style.left = `${point.clientX}px`;
+      indicator.style.top = `${point.clientY}px`;
       indicator.style.background =
         'conic-gradient(#ff6c61 0deg, rgba(8,20,30,.72) 0deg)';
     }
@@ -9730,9 +9733,11 @@ export class ThreeGame {
   }
 
   private pickGridCell(event: PointerEvent): GridPoint | null {
-    const rect = this.renderer.domElement.getBoundingClientRect();
-    this.pointer.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
-    this.pointer.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+    // The rotated DOM canvas has a portrait bounding rectangle; unrotate
+    // pointer coordinates before projecting into the logical landscape scene.
+    const point = normalizedPointInElement(this.renderer.domElement, event);
+    this.pointer.x = point.x * 2 - 1;
+    this.pointer.y = 1 - point.y * 2;
     this.raycaster.setFromCamera(this.pointer, this.camera);
 
     const hit = this.raycaster.intersectObject(this.groundHit, false)[0];
@@ -12555,12 +12560,13 @@ export class ThreeGame {
       const canvas = get<HTMLCanvasElement>('minimap-canvas');
       const bounds = canvas.getBoundingClientRect();
       if (event.detail !== 0 && (event.clientX < bounds.left || event.clientX > bounds.right || event.clientY < bounds.top || event.clientY > bounds.bottom)) return;
+      const point = normalizedPointInElement(canvas, event);
       const x = event.detail === 0
         ? this.minimapCursor.x
-        : Math.max(0, Math.min(this.worldCols - 1, Math.floor((event.clientX - bounds.left) / bounds.width * this.worldCols)));
+        : Math.max(0, Math.min(this.worldCols - 1, Math.floor(point.x * this.worldCols)));
       const y = event.detail === 0
         ? this.minimapCursor.y
-        : Math.max(0, Math.min(this.worldRows - 1, Math.floor((event.clientY - bounds.top) / bounds.height * this.worldRows)));
+        : Math.max(0, Math.min(this.worldRows - 1, Math.floor(point.y * this.worldRows)));
       this.minimapCursor = { x, y };
       const next = this.gridToWorld(x, y);
       const offset = this.camera.position.clone().sub(this.controls.target);

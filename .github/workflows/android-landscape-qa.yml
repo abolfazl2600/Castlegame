@@ -11,6 +11,8 @@ on:
       - playwright.config.ts
       - src/style.css
       - src/ui/MobileUI.ts
+      - src/ui/SoftwareLandscapeViewport.ts
+      - src/ui/softwareLandscape.css
       - src/android/androidBackAction.ts
       - src/core/SaveSystem.ts
       - src/settings/**
@@ -26,6 +28,7 @@ on:
       - tests/mobile-touch-flows.spec.ts
       - tests/mobile-readability-startup.spec.ts
       - tests/settings.spec.ts
+      - tests/software-landscape.spec.ts
   push:
     branches:
       - main
@@ -123,9 +126,12 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Validate Android landscape orientation policy
+      - name: Validate automatic Android orientation and TypeScript
         run: |
-          grep -q 'android:screenOrientation="landscape"' android/app/src/main/AndroidManifest.xml
+          if grep -q 'android:screenOrientation="landscape"' android/app/src/main/AndroidManifest.xml; then
+            echo "Android activity must not force physical landscape" >&2
+            exit 1
+          fi
           npx tsc --noEmit
 
       - name: Validate executable world touch gestures
@@ -141,7 +147,7 @@ jobs:
         run: npx playwright install --with-deps chromium
 
       - name: Run Android landscape viewport matrix
-        run: npx playwright test tests/android-landscape.spec.ts tests/mobile-readability-startup.spec.ts tests/mobile-touch-flows.spec.ts tests/touch-gestures.spec.ts tests/urban-city.spec.ts tests/settings.spec.ts --reporter=line
+        run: npx playwright test tests/android-landscape.spec.ts tests/mobile-readability-startup.spec.ts tests/mobile-touch-flows.spec.ts tests/touch-gestures.spec.ts tests/urban-city.spec.ts tests/settings.spec.ts tests/software-landscape.spec.ts --reporter=line
 
       - name: Upload landscape screenshots and traces
         if: always()
