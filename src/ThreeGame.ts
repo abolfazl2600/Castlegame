@@ -904,11 +904,11 @@ export class ThreeGame {
         const world = this.gridToWorld(x, y);
         const projected = new THREE.Vector3(world.x, this.groundHit.position.y, world.z).project(this.camera);
         const rect = this.renderer.domElement.getBoundingClientRect();
-        const x = (projected.x + 1) * 0.5;
-        const y = (1 - projected.y) * 0.5;
+        const projectedX = (projected.x + 1) * 0.5;
+        const projectedY = (1 - projected.y) * 0.5;
         return isSoftwareLandscape()
-          ? { x: (1 - y) * rect.width, y: x * rect.height }
-          : { x: x * rect.width, y: y * rect.height };
+          ? { x: (1 - projectedY) * rect.width, y: projectedX * rect.height }
+          : { x: projectedX * rect.width, y: projectedY * rect.height };
       };
     }
 
