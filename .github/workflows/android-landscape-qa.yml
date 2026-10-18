@@ -19,6 +19,7 @@ on:
       - src/ThreeGame.ts
       - src/input/**
       - scripts/test-touch-gestures.mjs
+      - scripts/test-castle-build-edit-ux.mjs
       - scripts/test-touch-qa-evidence.mjs
       - scripts/test-android-back-navigation.mjs
       - tests/urban-city.spec.ts
@@ -46,6 +47,7 @@ on:
       - src/ThreeGame.ts
       - src/input/**
       - scripts/test-touch-gestures.mjs
+      - scripts/test-castle-build-edit-ux.mjs
       - scripts/test-touch-qa-evidence.mjs
       - scripts/test-android-back-navigation.mjs
       - tests/urban-city.spec.ts
