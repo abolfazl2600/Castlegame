@@ -202,30 +202,58 @@ try {
       await page.mouse.wheel(0, -280);
       phases.push(await collect(page, 'camera_input'));
 
-      // Recenter before selecting a known plains tile for user-level edits.
+      // Recenter for user-level edits. A fixed grid tile can project *behind*
+      // the minimap, touch HUD or mobile header, and the mouse event will
+      // never reach the canvas. Scan visible, ownership-safe game tiles using
+      // the same read-only hit-test probe as tests/touch-gestures.spec.ts.
       await page.evaluate(() => window.__castleVisualCamera({
         x: 63, y: 83, z: 65, targetX: 0, targetY: 0, targetZ: 0,
       }));
-      const placeTile = async (tool, dx, dy) => {
+      const targets = await page.evaluate(() => {
+        const canvas = document.getElementById('game-canvas');
+        const rect = canvas.getBoundingClientRect();
+        const eligible = new Map();
+        for (let y = Math.max(rect.top + 75, 100); y < rect.bottom - 35; y += 12) {
+          for (let x = Math.max(rect.left + 18, 225); x < rect.right - 22; x += 12) {
+            if (document.elementFromPoint(x, y) !== canvas) continue;
+            const tile = window.__castleMoatProbe(x, y);
+            if (!tile || tile.status !== 'new') continue;
+            const key = tile.x + ',' + tile.y;
+            if (!eligible.has(key)) eligible.set(key, { x, y, gridX: tile.x, gridY: tile.y });
+          }
+        }
+        const cells = [...eligible.values()];
+        const first = cells[0];
+        const second = cells.find(cell => first &&
+          Math.abs(cell.gridX - first.gridX) + Math.abs(cell.gridY - first.gridY) >= 3);
+        return { first, second, eligibleCount: cells.length,
+          canvas: { left: rect.left, top: rect.top, width: rect.width, height: rect.height } };
+      });
+      if (!targets.first || !targets.second) {
+        throw new Error('No pair of visible, unobstructed, editable gameplay tiles: ' + JSON.stringify(targets));
+      }
+      const placeTile = async (tool, point) => {
         await page.evaluate((selected) => {
           const control = document.querySelector('[data-tool="' + selected + '"]');
           if (!(control instanceof HTMLButtonElement)) throw new Error('Missing build tool: ' + selected);
           control.click();
         }, tool);
-        const point = await page.evaluate(({ tx, ty }) => window.__castleVisualGridPoint(tx, ty), {
-          tx: input.centerX + dx, ty: input.centerY + dy,
-        });
+        const unobstructed = await page.evaluate(({ x, y }) =>
+          document.elementFromPoint(x, y)?.id === 'game-canvas', point);
+        if (!unobstructed) throw new Error('UI obscured gameplay target: ' + JSON.stringify({ tool, point }));
         await page.mouse.click(point.x, point.y);
         return { point, status: await page.locator('#save-status').textContent() };
       };
       const beforeCells = (await page.evaluate(() => window.__castleTouchQA().cells.length));
-      const construction = await placeTile('cottage', 0, 0);
-      const afterCells = (await page.evaluate(() => window.__castleTouchQA().cells.length));
-      if (afterCells <= beforeCells) throw new Error('Cottage construction did not complete: ' + JSON.stringify(construction));
+      const construction = await placeTile('cottage', targets.first);
+      await page.waitForFunction((count) => window.__castleTouchQA().cells.length > count, beforeCells, { timeout: 10000 })
+        .catch(() => { throw new Error('Cottage construction did not complete: ' + JSON.stringify(construction)); });
       phases.push(await collect(page, 'after_construction'));
 
-      const terrainEdit = await placeTile('river', 2, 0);
-      if (!terrainEdit.status?.includes('River water created')) throw new Error('River terrain edit did not complete: ' + JSON.stringify(terrainEdit));
+      const terrainEdit = await placeTile('river', targets.second);
+      if (!terrainEdit.status?.includes('River water created')) {
+        throw new Error('River terrain edit did not complete: ' + JSON.stringify(terrainEdit));
+      }
       phases.push(await collect(page, 'after_terrain_edit'));
       for (const phase of phases) {
         if (phase.terrainDecoration?.cachedTiles !== (large ? 50 * 89 : 23 * 23)) {
