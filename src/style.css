@@ -4484,9 +4484,22 @@ html[dir="rtl"].mobile-ui-active .settings-nav {
 
 
 
-/* Starting world chooser: mobile-first RTL browser */
+/* Starting world chooser: mobile-first RTL browser.
+   Only the dialog scrolls; the game and backdrop remain stationary. */
+#templates-modal {
+  overflow: hidden;
+  overscroll-behavior: contain;
+}
 #templates-modal .template-modal {
   width: min(980px, 100%);
+  min-height: 0;
+  max-height: min(760px, 90%, calc(100dvh - 24px));
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  touch-action: pan-y;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-gutter: stable;
   direction: inherit;
   text-align: start;
 }
