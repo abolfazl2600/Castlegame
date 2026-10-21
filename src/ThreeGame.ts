@@ -1879,6 +1879,15 @@ export class ThreeGame {
     this.services.populationSystem.setState();
     this.missionSystem.reset();
     this.landCoins.reset();
+    if (this.mapLayoutId === 'taj-mahal') {
+      // First-run layout selection and template selection share the same
+      // publicly accessible historic gardens; no paid land inside the grounds.
+      const grounds: GridPoint[] = [];
+      for (let y = 4; y <= 23; y += 1) {
+        for (let x = 1; x <= 23; x += 1) grounds.push({ x, y });
+      }
+      this.landCoins.adoptLegacyBuildings(grounds, this.worldGrid);
+    }
     this.landCoinUI.render(this.landCoins.balance);
     this.refreshLandOwnershipVisuals(true);
     this.missionRefreshAccumulatorMs = 0;
