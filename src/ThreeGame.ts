@@ -47,6 +47,7 @@ import {
   type ResidenceKind,
 } from './rendering/SettlementStyle';
 import { getTemplateVisualPreset } from './rendering/TemplateVisualStyle';
+import { createTajMahalLandmark } from './rendering/TajMahalLandmark';
 import { upgradeVisualProfile } from './rendering/UpgradeVisualLanguage';
 import {
   GATEHOUSE_SILHOUETTE_PROFILE,
@@ -123,6 +124,7 @@ const WALL_KINDS: WallKind[] = ['wall1', 'wall2', 'wall3'];
 const ROAD_KINDS: RoadKind[] = ['road', 'dirtRoad', 'stoneRoad'];
 const HARBOR_KINDS: HarborKind[] = ['harbor'];
 const PLAYABLE_LAYOUT_TEMPLATES: Readonly<Record<string, { layoutId: MapLayoutId; seed: number }>> = {
+  'taj-mahal': { layoutId: 'taj-mahal', seed: 1632 },
   'urban-city-60x80': { layoutId: 'urban-60x80', seed: 6001 },
   'twin-fortresses-90x95': { layoutId: 'twin-fortresses-90x95', seed: 9095 },
   'royal-valley-50x89': { layoutId: 'royal-valley-50x89', seed: 5089 },
@@ -2258,6 +2260,8 @@ export class ThreeGame {
   }
 
   private seedNaturalProps(): void {
+    // The mausoleum gardens are formally landscaped, not randomized woodland.
+    if (this.mapLayoutId === 'taj-mahal') return;
     const seed = Math.trunc(this.worldSeed);
     for (let y = 0; y < this.worldRows; y += 1) {
       for (let x = 0; x < this.worldCols; x += 1) {
@@ -2688,6 +2692,13 @@ export class ThreeGame {
       });
       this.addBox(pending, 3.5, 0.12, 3.5, marker, 0, 2.22, 0);
       this.buildLayer.add(pending);
+    }
+
+    if (this.mapLayoutId === 'taj-mahal') {
+      // Render the authored landmark from persisted layout identity on every
+      // redraw, including loads and history restoration. The rest of the grid
+      // remains standard, editable gameplay state.
+      this.buildLayer.add(createTajMahalLandmark());
     }
 
     this.renderMinimap();
@@ -14736,6 +14747,12 @@ export class ThreeGame {
           this.services.state.removeCell(footprintCell.x, footprintCell.y);
         }
         this.services.keepSystem.add(keep);
+      }
+    } else if (template === 'taj-mahal') {
+      // Landmark mesh is generated from mapLayoutId. Populate only subtle
+      // editable approach paving outside the monument silhouette.
+      for (let y = 20; y <= 22; y += 1) {
+        for (const x of [5, 19]) place(x, y, 'stoneRoad');
       }
     } else if (template === 'royal-valley-50x89') {
       // True 50×89-tile kingdom. The map is intentionally zoned so the player
