@@ -21,3 +21,15 @@
 .government-dialog button:focus-visible,.government-dialog input:focus-visible{outline:3px solid #f5ca74;outline-offset:2px}
 @media(max-width:740px){.government-hud{top:auto;bottom:max(128px,calc(118px + env(safe-area-inset-bottom)));font-size:11px;max-width:160px;padding:6px 9px}.government-dialog{max-height:calc(100dvh - 24px)}}
 @media(max-width:390px){.government-option-list{grid-template-columns:1fr}.government-option{min-height:44px}}
+
+/* On a portrait handset rendered as logical landscape, dvh still describes
+   the physical screen. Bound the government wizard to the rotated game's
+   short axis instead of letting the dialog extend past the visible canvas. */
+html[data-game-orientation="software-landscape"] .government-dialog {
+  max-height: calc(var(--game-logical-height) - var(--safe-area-top, 0px) - var(--safe-area-bottom, 0px) - 16px);
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+}
+html[data-game-orientation="software-landscape"] .government-modal {
+  overscroll-behavior: contain;
+}
