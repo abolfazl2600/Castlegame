@@ -37,6 +37,34 @@ export class LandCoinUI {
     document.body.appendChild(hud);
     this.hud = hud;
 
+    // The minimap's height varies with viewport, localization, and UI scale.
+    // Position the coin HUD against its measured lower edge rather than
+    // hard-coding a top offset that can cover its canvas and hint.
+    const positionBelowMinimap = (): void => {
+      if (!this.hud) return;
+      const minimap = document.getElementById('minimap');
+      if (!document.documentElement.classList.contains('mobile-ui-active') || !minimap) {
+        this.hud.style.removeProperty('top');
+        this.hud.style.removeProperty('left');
+        this.hud.style.removeProperty('bottom');
+        return;
+      }
+      const rect = minimap.getBoundingClientRect();
+      this.hud.style.top = `${Math.ceil(rect.bottom + 12)}px`;
+      this.hud.style.left = `${Math.ceil(rect.left)}px`;
+      this.hud.style.bottom = 'auto';
+    };
+    const minimap = document.getElementById('minimap');
+    if (minimap && typeof ResizeObserver !== 'undefined') {
+      new ResizeObserver(positionBelowMinimap).observe(minimap);
+    }
+    new MutationObserver(positionBelowMinimap).observe(document.documentElement, {
+      attributes: true, attributeFilter: ['class', 'dir', 'lang'],
+    });
+    window.addEventListener('resize', positionBelowMinimap);
+    window.visualViewport?.addEventListener('resize', positionBelowMinimap);
+    positionBelowMinimap();
+
     const backdrop = document.createElement('div');
     backdrop.id = 'land-parcel-dialog';
     backdrop.className = 'land-parcel-dialog';

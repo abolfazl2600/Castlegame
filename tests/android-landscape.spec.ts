@@ -129,6 +129,13 @@ for (const viewport of VIEWPORTS) {
       await assertInsideViewport(page.locator('.mobile-header'));
       await expect(page.locator('#minimap')).toBeVisible();
       await assertInsideViewport(page.locator('#minimap'));
+      const coin = page.locator('#land-coin-hud');
+      await expect(coin).toBeVisible();
+      await expect.poll(() => coin.evaluate((element) => {
+        const map = document.getElementById('minimap')?.getBoundingClientRect();
+        return map ? element.getBoundingClientRect().top - map.bottom : -1;
+      })).toBeGreaterThanOrEqual(10);
+      await assertInsideViewport(coin);
       await assertNoHorizontalPageOverflow(page);
       await capture(page, testInfo, viewport.name + '-world');
 
@@ -190,8 +197,21 @@ for (const viewport of VIEWPORTS) {
       const templates = page.locator('#templates-modal');
       await expect(templates).toBeVisible();
       await assertInsideViewport(templates.locator('.template-modal'));
-      await assertScrollableWhenNeeded(templates.locator('.template-modal'));
+      const scroller = templates.locator('.template-modal');
+      await assertScrollableWhenNeeded(scroller);
+      await expect(scroller).toHaveCSS('touch-action', 'pan-y');
+      await expect(scroller).toHaveCSS('overscroll-behavior-y', 'contain');
+      await expect.poll(() => scroller.evaluate((node) => node.scrollHeight - node.clientHeight)).toBeGreaterThan(100);
+      await scroller.evaluate((node) => { node.scrollTop = node.scrollHeight; });
+      await expect.poll(() => scroller.evaluate((node) => node.scrollTop)).toBeGreaterThan(100);
+      await expect(templates.locator('[data-template]').last()).toBeInViewport();
+      await expect(page.locator('#templates-close-button')).toBeVisible();
       await capture(page, testInfo, viewport.name + '-templates');
+      await page.locator('#templates-close-button').click();
+      await expect(templates).toBeHidden();
+      await page.locator('.mobile-header [data-mobile-action="templates"]').click();
+      await expect(templates).toBeVisible();
+      await expect.poll(() => scroller.evaluate((node) => node.scrollTop)).toBe(0);
       await page.locator('#templates-close-button').click();
       await expect(templates).toBeHidden();
 
@@ -216,5 +236,43 @@ test.describe('Desktop regression', () => {
     await expect(page.locator('.topbar')).toBeVisible();
     await expect(page.locator('.mobile-header')).toBeHidden();
     await assertNoHorizontalPageOverflow(page);
+  });
+});
+
+test.describe('Map chooser touch scrolling', () => {
+  test.use({ isMobile: true, hasTouch: true });
+
+  test('a real vertical swipe scrolls the list, not the underlying page', async ({ page }) => {
+    test.setTimeout(90_000);
+    await openLandscapeGame(page, 915, 412);
+    await page.locator('.mobile-header [data-mobile-action="templates"]').click();
+    const modal = page.locator('#templates-modal');
+    const scroller = modal.locator('.template-modal');
+    await expect(modal).toBeVisible();
+    const box = await scroller.boundingBox();
+    expect(box).not.toBeNull();
+    if (!box) return;
+    const x = Math.round(box.x + box.width * 0.5);
+    const startY = Math.round(box.y + box.height * 0.75);
+    const session = await page.context().newCDPSession(page);
+    await session.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x, y: startY }] });
+    for (let step = 1; step <= 12; step++) {
+      await session.send('Input.dispatchTouchEvent', {
+        type: 'touchMove',
+        touchPoints: [{ x, y: Math.round(startY - step * 18) }],
+      });
+      await page.waitForTimeout(16);
+    }
+    await session.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+
+    await expect.poll(() => scroller.evaluate((node) => node.scrollTop)).toBeGreaterThan(20);
+    await expect(modal).toBeVisible();
+    const scrollState = await page.evaluate(() => ({
+      documentY: document.scrollingElement?.scrollTop ?? 0,
+      listY: document.querySelector<HTMLElement>('#templates-modal .template-modal')?.scrollTop ?? 0,
+    }));
+    expect(scrollState.documentY).toBe(0);
+    expect(scrollState.listY).toBeGreaterThan(20);
+    await expect(page.locator('#templates-close-button')).toBeVisible();
   });
 });
