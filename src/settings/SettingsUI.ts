@@ -150,6 +150,16 @@ export class SettingsUI {
                 <span class="settings-info-dot"></span>
                 <span>Runtime actions are ready when the game canvas has loaded.</span>
               </div>
+              <div class="settings-pane-heading">
+                <div><h3>Support & Feedback</h3><p>Share your ideas, suggestions, or report a problem.</p></div>
+              </div>
+              <div class="settings-system-actions">
+                <a class="settings-contact-link" href="https://t.me/Advertio_support" target="_blank" rel="noopener noreferrer" aria-label="Contact support on Telegram">
+                  <span class="settings-action-icon" aria-hidden="true">✉</span>
+                  <span class="settings-action-copy"><strong>Message support on Telegram</strong><small>Send your feedback to @Advertio_support</small></span>
+                  <span aria-hidden="true">↗</span>
+                </a>
+              </div>
             </section>
 
             <section class="settings-pane" data-settings-pane="general" id="settings-panel-general" role="tabpanel" aria-labelledby="settings-tab-general" tabindex="0">
