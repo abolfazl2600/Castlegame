@@ -82,3 +82,29 @@ test('prepared starting world also asks for government before replacing the map'
     return data?.government?.kind === 'military' && (data.keeps?.length ?? 0) > 0;
   }, SAVE_AUTOSAVE_KEY), { timeout: 45_000 }).toBe(true);
 });
+
+test('Taj Mahal prepared world preserves its layout and elected government through reload', async ({ page }) => {
+  test.setTimeout(120_000);
+  await boot(page);
+  await expect(page.locator('#templates-modal')).toBeVisible();
+  // The current main branch includes Taj Mahal; selecting it as a new world
+  // must pass through government confirmation without reverting its layout.
+  const tajCard = page.locator('[data-template="taj-mahal"]');
+  await expect(tajCard).toHaveCount(1);
+  await tajCard.evaluate(button => (button as HTMLButtonElement).click());
+  await expect(page.locator('#government-modal')).toBeVisible();
+  await page.locator('#government-modal input[value="republic"]').check();
+  await page.locator('#government-realm-name').fill('تاج محل');
+  await page.locator('[data-government-confirm]').click();
+
+  const read = () => page.evaluate(key => JSON.parse(localStorage.getItem(key)!).data, SAVE_AUTOSAVE_KEY);
+  await expect.poll(async () => (await read()).mapLayoutId).toBe('taj-mahal');
+  const saved = await read();
+  expect(saved.worldSeed).toBe(1632);
+  expect(saved.government).toEqual({ version: 1, kind: 'republic', realmName: 'تاج محل' });
+  await page.reload({ waitUntil: 'domcontentloaded' });
+  await expect(page.locator('#government-hud')).toContainText('تاج محل', { timeout: 45_000 });
+  const loaded = await read();
+  expect(loaded.mapLayoutId).toBe('taj-mahal');
+  expect(loaded.government).toEqual(saved.government);
+});
