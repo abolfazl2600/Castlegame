@@ -224,8 +224,14 @@ try {
         }
         const cells = [...eligible.values()];
         const first = cells[0];
-        const second = cells.find(cell => first &&
-          Math.abs(cell.gridX - first.gridX) + Math.abs(cell.gridY - first.gridY) >= 3);
+        // Dense 50×89 scenes may leave just two distinct hit-testable
+        // terrain cells under a landscape HUD. Prefer the farthest available
+        // different cell without imposing an arbitrary 3-tile separation.
+        const second = first
+          ? cells.slice(1).sort((a, b) =>
+            (Math.abs(b.gridX - first.gridX) + Math.abs(b.gridY - first.gridY)) -
+            (Math.abs(a.gridX - first.gridX) + Math.abs(a.gridY - first.gridY)))[0]
+          : undefined;
         return { first, second, eligibleCount: cells.length,
           canvas: { left: rect.left, top: rect.top, width: rect.width, height: rect.height } };
       });
