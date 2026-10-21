@@ -50,8 +50,18 @@ export class LandCoinUI {
         return;
       }
       const rect = minimap.getBoundingClientRect();
-      this.hud.style.top = `${Math.ceil(rect.bottom + 12)}px`;
-      this.hud.style.left = `${Math.ceil(rect.left)}px`;
+      // A software-rotated portrait phone reports PHYSICAL rectangles, while
+      // fixed-position children of the rotated body still use LOGICAL axes.
+      // Inverse mapping of translateX(W) rotate(90deg):
+      // logicalLeft = physicalTop; logicalBottom = W - physicalLeft.
+      const rotated = document.documentElement.dataset.gameOrientation === 'software-landscape';
+      const physicalWidth = Number.parseFloat(
+        document.documentElement.style.getPropertyValue('--game-physical-width'),
+      ) || window.innerWidth;
+      const logicalBottom = rotated ? physicalWidth - rect.left : rect.bottom;
+      const logicalLeft = rotated ? rect.top : rect.left;
+      this.hud.style.top = `${Math.ceil(logicalBottom + 12)}px`;
+      this.hud.style.left = `${Math.ceil(logicalLeft)}px`;
       this.hud.style.bottom = 'auto';
     };
     const minimap = document.getElementById('minimap');
@@ -59,7 +69,7 @@ export class LandCoinUI {
       new ResizeObserver(positionBelowMinimap).observe(minimap);
     }
     new MutationObserver(positionBelowMinimap).observe(document.documentElement, {
-      attributes: true, attributeFilter: ['class', 'dir', 'lang'],
+      attributes: true, attributeFilter: ['class', 'dir', 'lang', 'data-game-orientation'],
     });
     window.addEventListener('resize', positionBelowMinimap);
     window.visualViewport?.addEventListener('resize', positionBelowMinimap);
