@@ -71,6 +71,20 @@ html[data-game-orientation="software-landscape"] .map-layout-modal {
 html[data-game-orientation="software-landscape"] .save-load-backdrop {
   max-height: var(--game-logical-height);
 }
+/* A physical portrait screen is logically a short landscape screen.
+   Physical vw/dvh media rules would otherwise stretch the contextual HUD
+   across nearly the full landscape width (828px on a 390×844 phone).
+   Constrain both axes with logical measurements so actions remain legible
+   without covering the game or overlapping the construction meter. */
+html[data-game-orientation="software-landscape"].mobile-ui-active .world-selection-panel {
+  left: auto;
+  right: max(8px, var(--mobile-safe-right, 0px));
+  bottom: max(8px, var(--mobile-safe-bottom, 0px));
+  width: min(360px, calc(var(--game-logical-width) - var(--mobile-safe-left, 0px) - var(--mobile-safe-right, 0px) - 16px));
+  max-height: min(43%, calc(var(--game-logical-height) * .43));
+  overflow-x: hidden;
+  overflow-y: auto;
+}
 html[data-game-orientation="software-landscape"].mobile-ui-active .screenshot-feedback {
   max-width: min(88%, 340px);
 }
