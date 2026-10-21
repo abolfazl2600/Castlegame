@@ -9190,7 +9190,16 @@ export class ThreeGame {
       (window as unknown as { __castleMoatProbe: (x: number, y: number) => object | null }).__castleMoatProbe =
         (x, y) => {
           const cell = this.pickGridCell({ clientX: x, clientY: y } as PointerEvent);
-          return cell ? { ...cell, status: this.moatSegmentStatusAt(cell) } : null;
+          return cell ? {
+            ...cell,
+            status: this.moatSegmentStatusAt(cell),
+            // Read-only QA metadata: an empty visible tile may still be
+            // locked by the land-parcel economy or be water/mountain.
+            // Exposing the actual game rules prevents benchmark scripts
+            // from treating those tiles as buildable.
+            owned: this.landIsOwned(cell.x, cell.y),
+            terrain: this.terrainAt(cell.x, cell.y),
+          } : null;
         };
       (window as unknown as { __castleTouchQA: () => object }).__castleTouchQA = () => ({
         camera: this.camera.position.toArray(), target: this.controls.target.toArray(),
