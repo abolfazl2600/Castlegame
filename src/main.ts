@@ -1,4 +1,5 @@
 import { MobileUI } from './ui/MobileUI';
+import { SoftwareLandscapeViewport } from './ui/SoftwareLandscapeViewport';
 import { SafeAreaController } from './ui/SafeAreaController';
 import { installLocalization } from './i18n/localization';
 import { SettingsStore } from './settings/SettingsStore';
@@ -8,9 +9,12 @@ import { showStartupError } from './ui/StartupErrorUI';
 import { installAndroidBackNavigation } from './android/androidBackNavigation';
 import { installAndroidImmersiveViewportBridge } from './android/androidImmersiveMode';
 import './style.css';
+import './ui/softwareLandscape.css';
 
 const settingsStore = new SettingsStore(localStorage);
 installLocalization(settingsStore);
+// Establish logical landscape dimensions before HUD, camera and safe-area setup.
+new SoftwareLandscapeViewport();
 new SafeAreaController();
 
 new SettingsUI(settingsStore, () => {

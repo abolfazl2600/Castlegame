@@ -46,7 +46,7 @@ assert.match(game, /selectedFortification && currentFortification[\s\S]*?wallLin
 // Behavioral gesture transitions are exercised by test:touch-gestures.
 assert.match(game, /const touches = new TouchGestureSession\(/);
 assert.match(game, /this\.cancelActiveTouchBuildGesture\(\)/);
-assert.match(game, /const action = touches\.up\(event\)/);
+assert.match(game, /const action = touches\.up\(gameViewportPoint\(event\)\)/);
 assert.match(game, /touches\.cancel\(event\.pointerId\)/);
 assert.match(game, /if \(terrainSnapshot\) \{[\s\S]*?this\.elevationOverrides\.clear\(\)/);
 assert.match(game, /window\.addEventListener\('blur', cancelInterruptedTouchGesture\)/);

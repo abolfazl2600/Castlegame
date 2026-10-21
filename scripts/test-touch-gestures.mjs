@@ -127,6 +127,8 @@ function harness(tool = null, { battle = false, god = false, native = false } = 
   let appState;
   const Runtime = runInNewContext(stripTypeScriptTypes('class Runtime {\n' + methods + '\n}\nRuntime;', { mode: 'transform' }), {
     document, window, URLSearchParams, TouchGestureSession, applyTouchCameraDelta,
+    // This fixture models an unrotated canvas; the browser QA covers rotated coordinates.
+    gameViewportPoint: event => event,
     Capacitor: { isNativePlatform: () => native }, App: { addListener: (_name, fn) => { appState = fn; return Promise.resolve({ remove() {} }); } },
   });
   const runtime = new Runtime();
