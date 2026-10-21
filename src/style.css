@@ -2991,7 +2991,8 @@ html[data-high-contrast] .settings-card { border-color:rgba(255,255,255,.42); }
   gap: 8px;
 }
 
-.settings-system-actions button {
+.settings-system-actions button,
+.settings-system-actions a.settings-contact-link {
   min-height: 62px;
   display: grid;
   grid-template-columns: 34px minmax(0,1fr) auto;
@@ -3004,10 +3005,13 @@ html[data-high-contrast] .settings-card { border-color:rgba(255,255,255,.42); }
   background: rgba(255,255,255,.045);
   cursor: pointer;
   text-align: left;
+  text-decoration: none;
 }
 
 .settings-system-actions button:hover,
-.settings-system-actions button:focus-visible {
+.settings-system-actions button:focus-visible,
+.settings-system-actions a.settings-contact-link:hover,
+.settings-system-actions a.settings-contact-link:focus-visible {
   border-color: rgba(112,220,255,.34);
   background: rgba(83,199,240,.1);
   outline: none;
@@ -3042,9 +3046,15 @@ html[data-high-contrast] .settings-card { border-color:rgba(255,255,255,.42); }
   line-height: 1.3;
 }
 
-.settings-system-actions button > span:last-child {
+.settings-system-actions button > span:last-child,
+.settings-system-actions a.settings-contact-link > span:last-child {
   color: rgba(157,238,255,.72);
   font-size: 16px;
+}
+
+/* Support gets a clear, full-width action on large and small screens. */
+.settings-system-actions a.settings-contact-link {
+  grid-column: 1 / -1;
 }
 
 .system-action-bridge[hidden] {
