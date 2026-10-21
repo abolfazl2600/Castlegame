@@ -54,8 +54,9 @@ export class LandCoinUI {
       this.hud.style.left = `${Math.ceil(rect.left)}px`;
       this.hud.style.bottom = 'auto';
     };
-    if (typeof ResizeObserver !== 'undefined') {
-      new ResizeObserver(positionBelowMinimap).observe(document.getElementById('minimap')!);
+    const minimap = document.getElementById('minimap');
+    if (minimap && typeof ResizeObserver !== 'undefined') {
+      new ResizeObserver(positionBelowMinimap).observe(minimap);
     }
     new MutationObserver(positionBelowMinimap).observe(document.documentElement, {
       attributes: true, attributeFilter: ['class', 'dir', 'lang'],
