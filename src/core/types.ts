@@ -1,4 +1,5 @@
 import type { GameMode } from './GameMode';
+import type { GovernmentState } from '../systems/GovernmentSystem';
 import type { ConstructionProject } from '../systems/ConstructionProjectSystem';
 import type { PendingMoatTask } from '../systems/MoatRouteSystem';
 
@@ -253,6 +254,8 @@ export interface SavedGame {
   environment?: EnvironmentSimulationState;
   missions?: MissionProgressState;
   landEconomy?: SavedLandEconomy;
+  /** Cosmetic ruler title, flag and optional realm name; absent from legacy saves. */
+  government?: GovernmentState;
   /** Active worker-driven construction; missing in old saves means every structure is finished. */
   constructionProjects?: ConstructionProject[];
   /** Queued moat excavation, absent in legacy saves. */

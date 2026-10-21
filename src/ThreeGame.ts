@@ -88,6 +88,8 @@ import { MissionSystem, type MissionSnapshot } from './missions/MissionSystem';
 import { MissionUI } from './missions/MissionUI';
 import { LandCoinSystem } from './systems/LandCoinSystem';
 import { LandCoinUI } from './ui/LandCoinUI';
+import { GovernmentSystem, type GovernmentState } from './systems/GovernmentSystem';
+import { GovernmentSelectionUI } from './ui/GovernmentSelectionUI';
 import {
   GodModeActionRegistry,
   createFutureGodModeAction,
@@ -498,6 +500,8 @@ export class ThreeGame {
     onPinMission: (id) => this.setPinnedMission(id),
   });
   private missionRefreshAccumulatorMs = 0;
+  private readonly government = new GovernmentSystem();
+  private readonly governmentUI = new GovernmentSelectionUI();
   private readonly landCoins = new LandCoinSystem();
   private readonly landCoinUI = new LandCoinUI((x, y) => this.purchaseLandParcel(x, y));
   private readonly landLockLayer = new THREE.Group();
@@ -731,6 +735,11 @@ export class ThreeGame {
       getEnvironmentState: () => this.environmentSystem.getState(),
       setEnvironmentState: (value) => { this.environmentSystem.setState(value); },
       getMissionState: () => this.missionSystem.getState(),
+      getGovernmentState: () => this.government.getState(),
+      setGovernmentState: (value) => {
+        this.government.setState(value);
+        this.governmentUI.render(this.government.getState());
+      },
       getLandEconomyState: () => this.landCoins.getState(),
       setLandEconomyState: (value) => {
         this.landCoins.setState(value);
@@ -964,6 +973,7 @@ export class ThreeGame {
       document.documentElement.toggleAttribute('data-reduced-motion', settings.interface.reducedMotion);
       document.documentElement.toggleAttribute('data-high-contrast', settings.interface.highContrast);
       document.documentElement.lang = resolveLocale(settings.interface.language);
+      this.governmentUI.render(this.government.getState());
       const helpModal = document.getElementById('help-modal');
       if (helpModal && !settings.interface.showHelp) helpModal.hidden = true;
       const battlePanel = document.getElementById('battle-panel');
@@ -975,6 +985,8 @@ export class ThreeGame {
     this.createWorld();
     this.landCoinUI.mount();
     this.landCoinUI.render(this.landCoins.balance);
+    this.governmentUI.mount();
+    this.governmentUI.render(this.government.getState());
 
     this.scene.add(this.ambientFauna.layer);
     this.scene.add(this.ambientShip.layer);
@@ -1832,14 +1844,23 @@ export class ThreeGame {
       button.onclick = () => {
         const layoutId = normalizeMapLayoutId(button.dataset.mapLayout);
         this.newGameSelectionPending = false;
-        this.setMapLayoutId(layoutId);
-        this.startNewGame();
+        this.openGovernmentSelector((government) => {
+          this.setMapLayoutId(layoutId);
+          this.government.setState(government);
+          this.startNewGame();
+        });
       };
     });
 
     this.syncTemplateAvailability();
     modal.hidden = false;
     modal.querySelector<HTMLElement>('.template-modal')?.scrollTo(0, 0);
+  }
+
+  private openGovernmentSelector(onConfirm: (government: GovernmentState) => void): void {
+    const templates = document.getElementById('templates-modal');
+    if (templates) templates.hidden = true;
+    this.governmentUI.open(onConfirm, () => this.openMapLayoutSelector(), this.government.getState());
   }
 
   private resetWorld(): void {
@@ -1880,6 +1901,7 @@ export class ThreeGame {
     this.services.economySystem.reset();
     this.services.populationSystem.setState();
     this.missionSystem.reset();
+    this.government.reset();
     this.landCoins.reset();
     if (this.mapLayoutId === 'taj-mahal') {
       // First-run layout selection and template selection share the same
@@ -1911,14 +1933,17 @@ export class ThreeGame {
   }
 
   private startNewGame(): void {
+    const government = this.government.getState();
     this.resetWorld();
+    this.government.setState(government);
+    this.governmentUI.render(this.government.getState());
     this.save(false);
     this.newGameSelectionPending = false;
     const templates = document.getElementById('templates-modal');
     if (templates) templates.hidden = true;
     this.selectTool(null);
     const layout = MAP_LAYOUTS.find((item) => item.id === this.mapLayoutId);
-    this.setStatus('New game · ' + (layout?.label ?? 'Classic Island'));
+    this.setStatus('New game · ' + (layout?.label ?? 'Classic Island') + ' · ' + this.government.definition.nameEn);
   }
 
   private atmospherePaletteKey(state: ReturnType<EnvironmentSystem['visualState']>): string {
@@ -2562,6 +2587,24 @@ export class ThreeGame {
     ].join('|');
   }
 
+  private addGovernmentFlag(keep: THREE.Group): void {
+    const bounds = new THREE.Box3().setFromObject(keep);
+    if (bounds.isEmpty()) return;
+    const top = bounds.max.y - keep.position.y;
+    const pole = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.045, 0.045, 1.65, 6),
+      new THREE.MeshStandardMaterial({ color: 0xd7ba84, roughness: 0.75 }),
+    );
+    pole.position.set(0, top + 0.8, 0);
+    const flag = new THREE.Mesh(
+      new THREE.BoxGeometry(0.95, 0.42, 0.045),
+      new THREE.MeshStandardMaterial({ color: this.government.definition.flagColor, side: THREE.DoubleSide }),
+    );
+    flag.position.set(0.51, top + 1.28, 0);
+    flag.userData.governmentFlag = this.government.getState().kind;
+    keep.add(pole, flag);
+  }
+
   private redraw(preserveStableBuildings = false, terrainChangedCells?: GridPoint[]): void {
     const redrawStart = this.visualBenchmark ? performance.now() : 0;
     // Road links depend on neighboring road/gate occupancy; comparing their
@@ -2669,6 +2712,7 @@ export class ThreeGame {
           stoneStyle: this.stoneStyle,
         });
       instanceStaticCastleBoxes(renderedKeep);
+      this.addGovernmentFlag(renderedKeep);
       this.constructionObjects.set(`keep:${keep.id}`, renderedKeep);
       this.buildLayer.add(renderedKeep);
     }
@@ -12826,9 +12870,16 @@ export class ThreeGame {
         if (!template) return;
         if (this.newGameSelectionPending) {
           this.newGameSelectionPending = false;
-          const authoredLayoutTemplate = PLAYABLE_LAYOUT_TEMPLATES[template];
-          this.setMapLayoutId(authoredLayoutTemplate?.layoutId ?? 'island');
-          this.resetWorld();
+          this.openGovernmentSelector((government) => {
+            const authoredLayoutTemplate = PLAYABLE_LAYOUT_TEMPLATES[template];
+            this.setMapLayoutId(authoredLayoutTemplate?.layoutId ?? 'island');
+            this.resetWorld();
+            this.government.setState(government);
+            this.applyTemplate(template);
+            this.governmentUI.render(this.government.getState());
+            this.save(false);
+          });
+          return;
         }
         this.applyTemplate(template);
         templates.hidden = true;
@@ -12841,8 +12892,15 @@ export class ThreeGame {
         if (!template) return;
         if (this.newGameSelectionPending) {
           this.newGameSelectionPending = false;
-          this.setMapLayoutId('island');
-          this.resetWorld();
+          this.openGovernmentSelector((government) => {
+            this.setMapLayoutId('island');
+            this.resetWorld();
+            this.government.setState(government);
+            this.applyTerrainTemplate(template);
+            this.governmentUI.render(this.government.getState());
+            this.save(false);
+          });
+          return;
         }
         this.applyTerrainTemplate(template);
         templates.hidden = true;
