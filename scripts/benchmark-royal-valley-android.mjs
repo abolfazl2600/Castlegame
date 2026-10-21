@@ -209,54 +209,74 @@ try {
       await page.evaluate(() => window.__castleVisualCamera({
         x: 63, y: 83, z: 65, targetX: 0, targetY: 0, targetZ: 0,
       }));
-      const targets = await page.evaluate(() => {
+      const findEditablePoint = async (excluded = null) => page.evaluate(({ excluded }) => {
         const canvas = document.getElementById('game-canvas');
+        if (!canvas) throw new Error('Missing game canvas during terrain hit testing');
         const rect = canvas.getBoundingClientRect();
-        const eligible = new Map();
-        for (let y = Math.max(rect.top + 75, 100); y < rect.bottom - 35; y += 12) {
-          for (let x = Math.max(rect.left + 18, 225); x < rect.right - 22; x += 12) {
+        const candidates = new Map();
+        for (let y = Math.max(rect.top + 75, 100); y < rect.bottom - 35; y += 10) {
+          for (let x = Math.max(rect.left + 18, 225); x < rect.right - 22; x += 10) {
             if (document.elementFromPoint(x, y) !== canvas) continue;
             const tile = window.__castleMoatProbe(x, y);
-            if (!tile || tile.status !== 'new') continue;
+            // A "new" moat segment describes occupancy, NOT land ownership.
+            // The game rejects edits on locked parcels before tools run.
+            if (!tile || tile.status !== 'new' || tile.owned !== true ||
+              ['river', 'water', 'mountain'].includes(tile.terrain)) continue;
+            if (excluded && tile.x === excluded.gridX && tile.y === excluded.gridY) continue;
             const key = tile.x + ',' + tile.y;
-            if (!eligible.has(key)) eligible.set(key, { x, y, gridX: tile.x, gridY: tile.y });
+            const point = { x, y, gridX: tile.x, gridY: tile.y };
+            // Keep the screen position closest to the canvas center for each tile.
+            const prior = candidates.get(key);
+            const distance = (p) => Math.hypot(p.x - (rect.left + rect.width / 2),
+              p.y - (rect.top + rect.height / 2));
+            if (!prior || distance(point) < distance(prior)) candidates.set(key, point);
           }
         }
-        const cells = [...eligible.values()];
-        const first = cells[0];
-        // Dense 50×89 scenes may leave just two distinct hit-testable
-        // terrain cells under a landscape HUD. Prefer the farthest available
-        // different cell without imposing an arbitrary 3-tile separation.
-        const second = first
-          ? cells.slice(1).sort((a, b) =>
-            (Math.abs(b.gridX - first.gridX) + Math.abs(b.gridY - first.gridY)) -
-            (Math.abs(a.gridX - first.gridX) + Math.abs(a.gridY - first.gridY)))[0]
-          : undefined;
-        return { first, second, eligibleCount: cells.length,
-          canvas: { left: rect.left, top: rect.top, width: rect.width, height: rect.height } };
-      });
-      if (!targets.first || !targets.second) {
-        throw new Error('No pair of visible, unobstructed, editable gameplay tiles: ' + JSON.stringify(targets));
+        const locations = [...candidates.values()];
+        locations.sort((a, b) =>
+          Math.hypot(a.x - (rect.left + rect.width / 2), a.y - (rect.top + rect.height / 2)) -
+          Math.hypot(b.x - (rect.left + rect.width / 2), b.y - (rect.top + rect.height / 2)));
+        return { point: locations[0] ?? null, eligibleCount: locations.length,
+          excluded, canvas: { left: rect.left, top: rect.top, width: rect.width, height: rect.height } };
+      }, { excluded });
+      const firstCandidate = await findEditablePoint();
+      if (!firstCandidate.point) {
+        throw new Error('No visible, owned, editable gameplay tile: ' + JSON.stringify(firstCandidate));
       }
+
       const placeTile = async (tool, point) => {
         await page.evaluate((selected) => {
           const control = document.querySelector('[data-tool="' + selected + '"]');
           if (!(control instanceof HTMLButtonElement)) throw new Error('Missing build tool: ' + selected);
           control.click();
         }, tool);
-        const unobstructed = await page.evaluate(({ x, y }) =>
-          document.elementFromPoint(x, y)?.id === 'game-canvas', point);
-        if (!unobstructed) throw new Error('UI obscured gameplay target: ' + JSON.stringify({ tool, point }));
+        const target = await page.evaluate(({ x, y }) => ({
+          topElement: document.elementFromPoint(x, y)?.id,
+          tile: window.__castleMoatProbe(x, y),
+        }), point);
+        if (target.topElement !== 'game-canvas' || !target.tile ||
+          target.tile.owned !== true || target.tile.status !== 'new' ||
+          target.tile.x !== point.gridX || target.tile.y !== point.gridY) {
+          throw new Error('Gameplay target changed or became unbuildable: ' +
+            JSON.stringify({ tool, point, target }));
+        }
         await page.mouse.click(point.x, point.y);
         return { point, status: await page.locator('#save-status').textContent() };
       };
       const beforeCells = (await page.evaluate(() => window.__castleTouchQA().cells.length));
-      const construction = await placeTile('cottage', targets.first);
+      const construction = await placeTile('cottage', firstCandidate.point);
       await page.waitForFunction((count) => window.__castleTouchQA().cells.length > count, beforeCells, { timeout: 10000 })
         .catch(() => { throw new Error('Cottage construction did not complete: ' + JSON.stringify(construction)); });
       phases.push(await collect(page, 'after_construction'));
 
-      const terrainEdit = await placeTile('river', targets.second);
+      // Construction redraws the 3D scene and can change world hit testing.
+      // Pick a fresh owned/empty tile afterward instead of reusing stale pixels.
+      const riverCandidate = await findEditablePoint(firstCandidate.point);
+      if (!riverCandidate.point) {
+        throw new Error('No second owned, editable terrain tile after construction: ' +
+          JSON.stringify(riverCandidate));
+      }
+      const terrainEdit = await placeTile('river', riverCandidate.point);
       if (!terrainEdit.status?.includes('River water created')) {
         throw new Error('River terrain edit did not complete: ' + JSON.stringify(terrainEdit));
       }
