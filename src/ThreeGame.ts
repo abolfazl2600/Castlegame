@@ -1835,6 +1835,7 @@ export class ThreeGame {
 
     this.syncTemplateAvailability();
     modal.hidden = false;
+    modal.querySelector<HTMLElement>('.template-modal')?.scrollTo(0, 0);
   }
 
   private resetWorld(): void {
@@ -12766,6 +12767,7 @@ export class ThreeGame {
       this.newGameSelectionPending = false;
       this.syncTemplateAvailability();
       templates.hidden = false;
+      templates.querySelector<HTMLElement>('.template-modal')?.scrollTo(0, 0);
     };
 
     document.addEventListener('castlegame:open-help', openHelp);
