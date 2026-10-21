@@ -71,7 +71,12 @@ test('authored 3D architecture includes domes and a complete garden footprint', 
 test('new Taj Mahal prepared world loads, persists, and reopens after reload', async ({ page }, info) => {
   test.setTimeout(120_000);
   await openGame(page);
-  await page.locator('#templates-button').click();
+  // This is a hidden bridge used by Settings > Game Actions.
+  // Invoke its registered action, as the existing urban-city browser test does.
+  await page.locator('#templates-button').evaluate(
+    element => (element as HTMLButtonElement).click(),
+  );
+  await expect(page.locator('#templates-modal')).toBeVisible();
   const card = page.locator('[data-template="taj-mahal"]');
   await expect(card).toBeVisible();
   await card.click();
