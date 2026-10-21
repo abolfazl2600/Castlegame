@@ -44,6 +44,16 @@ test('portrait touch screen becomes a full-screen rotated landscape canvas and H
     expect(rect.y + rect.height).toBeLessThanOrEqual(846);
   }
   expect(geometry.header.height).toBeGreaterThan(390);
+
+  // In portrait, coin and minimap use a rotated body. Their physical
+  // bounding boxes must still stay separated, not cover one another.
+  const coin = page.locator('#land-coin-hud');
+  await expect(coin).toBeVisible();
+  await expect.poll(() => page.evaluate(() => {
+    const map = document.getElementById('minimap')?.getBoundingClientRect();
+    const token = document.getElementById('land-coin-hud')?.getBoundingClientRect();
+    return map && token ? map.left - token.right : -1;
+  })).toBeGreaterThanOrEqual(10);
   await page.locator('.mobile-header [data-mobile-proxy="settings-button"]').click();
   await expect(page.locator('#settings-modal')).toBeVisible();
   const modal = await page.locator('#settings-modal').boundingBox();
