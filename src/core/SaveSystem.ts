@@ -821,7 +821,8 @@ function validMapLayoutId(value: unknown): value is MapLayoutId {
     value === 'himeji-46x90' ||
     value === 'royal-valley-50x89' ||
     value === 'highland-crown-100x100' ||
-    value === 'sunset-lagoon-100x100';
+    value === 'sunset-lagoon-100x100' ||
+    value === 'taj-mahal';
 }
 
 function validStoneStyle(value: unknown): value is StoneStyle {

@@ -137,6 +137,12 @@ export const MAP_LAYOUTS: readonly MapLayoutDefinition[] = [
     preview: '♜▲🌲',
   },
   {
+    id: 'taj-mahal',
+    label: 'Taj Mahal',
+    description: 'Symmetrical Mughal charbagh, Yamuna riverfront, marble mausoleum, four minarets, mosque, jawab, and southern gate.',
+    preview: '♙▥♙',
+  },
+  {
     id: 'sunset-lagoon-100x100',
     label: 'Sunset Lagoon 100×100',
     description: 'A sunny sandstone castle above a sheltered lagoon, with a working coastline, woodland, farms, and sea-trade routes.',
@@ -155,7 +161,8 @@ export function isMapLayoutId(value: unknown): value is MapLayoutId {
     value === 'himeji-46x90' ||
     value === 'royal-valley-50x89' ||
     value === 'highland-crown-100x100' ||
-    value === 'sunset-lagoon-100x100';
+    value === 'sunset-lagoon-100x100' ||
+    value === 'taj-mahal';
 }
 
 export function normalizeMapLayoutId(value: unknown): MapLayoutId {
@@ -532,6 +539,15 @@ export function terrainForMapLayout(
   const grid = resolveGrid(size);
   const { cols, rows } = grid;
   if (x < 0 || y < 0 || x >= cols || y >= rows) return 'water';
+
+  if (layout === 'taj-mahal') {
+    // Yamuna is north of the mausoleum (negative Z). The rest of the
+    // monument grounds are intentionally level and geometrically symmetric.
+    if (y <= 2) return 'river';
+    if (y === 3) return 'shore';
+    if (x === 0 || x === cols - 1 || y === rows - 1) return 'shore';
+    return 'plains';
+  }
 
   if (layout === 'highland-crown-100x100' || layout === 'sunset-lagoon-100x100') {
     // Both authored castle lands use 25×25 real editable tiles. Their land

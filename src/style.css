@@ -1477,6 +1477,14 @@ h1 { margin: 3px 0 0; font-size: 22px; line-height: 1; letter-spacing: -.035em; 
   color: #fff6e9;
 }
 
+/* Pale marble silhouette and a cool reflecting-pool base for Taj Mahal. */
+.template-preview-taj-mahal {
+  color: #fffdf4;
+  background: linear-gradient(180deg, #29414a 0%, #476b77 67%, #4f9fb2 68%, #216579 100%);
+  text-shadow: 0 0 14px rgba(255,255,255,.8);
+  border: 1px solid rgba(236,243,237,.37);
+}
+
 .template-preview-motte {
   background: linear-gradient(145deg, #9bb768, #6f5139);
   color: #fff1c4;

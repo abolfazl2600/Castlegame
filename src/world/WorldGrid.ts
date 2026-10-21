@@ -29,7 +29,7 @@ export const MAX_WORLD_ROWS = Math.max(DEFAULT_WORLD_GRID.rows, TRIPLE_ISLES_WOR
 
 export function worldGridForLayout(layout: MapLayoutId): WorldGridDimensions {
   if (layout === 'royal-valley-50x89') return { ...ROYAL_VALLEY_WORLD_GRID };
-  if (layout === 'triple-isles-100x100' || layout === 'highland-crown-100x100' || layout === 'sunset-lagoon-100x100') return { ...TRIPLE_ISLES_WORLD_GRID };
+  if (layout === 'triple-isles-100x100' || layout === 'highland-crown-100x100' || layout === 'sunset-lagoon-100x100' || layout === 'taj-mahal') return { ...TRIPLE_ISLES_WORLD_GRID };
   return { ...DEFAULT_WORLD_GRID };
 }
 
