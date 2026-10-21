@@ -90,6 +90,24 @@ test('desktop header Settings remains clickable after game runtime initializatio
   expect(layout.bottom).toBeLessThanOrEqual(layout.viewportHeight);
 });
 
+test('Settings overview shows a localized Telegram support link', async ({ page }) => {
+  await loadApp(page);
+  await openSettings(page);
+
+  const supportLink = page.locator('#settings-panel-overview a.settings-contact-link');
+  await expect(supportLink).toBeVisible();
+  await expect(supportLink).toHaveAttribute('href', 'https://t.me/Advertio_support');
+  await expect(supportLink).toHaveAttribute('target', '_blank');
+  await expect(supportLink).toHaveAttribute('rel', 'noopener noreferrer');
+  await expect(supportLink.locator('strong')).toHaveText('Message support on Telegram');
+
+  await page.locator('[data-settings-nav="general"]').click();
+  await page.locator('[data-setting="language"]').selectOption('fa');
+  await page.locator('[data-settings-nav="overview"]').click();
+  await expect(supportLink.locator('strong')).toHaveText('ارسال پیام به پشتیبانی در تلگرام');
+  await expect(supportLink.locator('small')).toContainText('@Advertio_support');
+});
+
 test('close button closes Settings', async ({ page }) => {
   await loadApp(page);
   await openSettings(page);
