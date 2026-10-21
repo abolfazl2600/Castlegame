@@ -10,7 +10,8 @@ async function openGame(page: Page): Promise<void> {
   await page.addInitScript(({ marker, autosave, version }) => {
     const now = Date.now();
     localStorage.setItem(marker, '1');
-    localStorage.setItem(autosave, JSON.stringify({
+    // Seed only the initial visit; preserve the actual game save on reload.
+    if (!localStorage.getItem(autosave)) localStorage.setItem(autosave, JSON.stringify({
       metadata: {
         id: 'taj-mahal-qa', slot: 'autosave', name: 'Taj Mahal QA',
         createdAt: now, updatedAt: now, schemaVersion: version, gameMode: 'unified',
