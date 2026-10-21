@@ -14754,6 +14754,15 @@ export class ThreeGame {
       for (let y = 20; y <= 22; y += 1) {
         for (const x of [5, 19]) place(x, y, 'stoneRoad');
       }
+      // The historical monument and both charbagh halves must be accessible
+      // on first load instead of obscured by locked-land overlays. Unlock only
+      // the authored grounds; the player can still expand beyond them.
+      const monumentGrounds: GridPoint[] = [];
+      for (let y = 4; y <= 23; y += 1) {
+        for (let x = 1; x <= 23; x += 1) monumentGrounds.push({ x, y });
+      }
+      this.landCoins.adoptLegacyBuildings(monumentGrounds, this.worldGrid);
+      this.refreshLandOwnershipVisuals(true);
     } else if (template === 'royal-valley-50x89') {
       // True 50×89-tile kingdom. The map is intentionally zoned so the player
       // can read the fortress, civic core, farms, wilderness and maritime edge
