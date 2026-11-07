@@ -17,6 +17,7 @@ import { WallSystem } from './building/WallSystem';
 import type { AutomaticWallAccess } from './building/CastleDetailGenerator';
 import { AUTOMATIC_WALL_LEVEL, CastleBlockSystem, castleDamageStage, castleHeightFor, type CastleBlockState } from './building/CastleBlockSystem';
 import { ConstructionAnimationSystem } from './rendering/ConstructionAnimationSystem';
+import { GameplayFeedbackSystem, type GameplayCueKind } from './rendering/GameplayFeedbackSystem';
 import { AmbientFaunaSystem } from './rendering/AmbientFaunaSystem';
 import { AmbientShipSystem } from './rendering/AmbientShipSystem';
 import { TerrainChunkRenderer } from './rendering/TerrainChunkRenderer';
@@ -508,6 +509,7 @@ export class ThreeGame {
   private landLockVisualKey = '';
   private readonly castleBlockSystem = new CastleBlockSystem();
   private readonly constructionAnimation = new ConstructionAnimationSystem();
+  private readonly gameplayFeedback = new GameplayFeedbackSystem();
   private readonly constructionProjects = new ConstructionProjectSystem();
   private constructionCheckpointMs = 0;
   private constructionHudMs = 0;
@@ -792,6 +794,7 @@ export class ThreeGame {
         const godModePanel = document.getElementById('god-mode-panel');
         if (godModePanel) godModePanel.hidden = true;
         this.constructionAnimation.clear();
+    this.gameplayFeedback.clear();
         this.clearSettlementAgents();
       },
       afterLoad: () => {
@@ -953,6 +956,7 @@ export class ThreeGame {
         { name: 'Battle', root: this.battleLayer },
         { name: 'Build preview', root: this.wallPreviewLayer },
         { name: 'Effects', root: this.godModeLayer },
+        { name: 'Gameplay feedback', root: this.gameplayFeedback.layer },
         { name: 'Effect markers', root: this.godModeMarkerLayer },
       ],
       getRuntimeCounts: () => ({
@@ -998,6 +1002,7 @@ export class ThreeGame {
     this.scene.add(this.workerLayer);
     this.scene.add(this.settlementLayer);
     this.scene.add(this.battleLayer);
+    this.scene.add(this.gameplayFeedback.layer);
     this.scene.add(this.godModeLayer);
     this.scene.add(this.godModeMarkerLayer);
 
@@ -1025,6 +1030,7 @@ export class ThreeGame {
           this.services.state.updateCell(x, y, { damage });
           this.scheduleSave();
         },
+        onVisualFeedback: (kind, x, y, z) => this.showWorldFeedback(kind, x, y, z),
         gatePassable: (x, y) => this.services.gateSystem.isGatePassable(x, y),
         wallWeaponVisuals: () => this.getWallWeaponVisuals(),
         effectsEnabled: () => {
@@ -1885,6 +1891,7 @@ export class ThreeGame {
     this.moatDragLast = null;
     this.constructionProjects.clear();
     this.constructionAnimation.clear();
+    this.gameplayFeedback.clear();
     document.getElementById('construction-progress-panel')?.setAttribute('hidden', '');
     this.clearGroup(this.workerLayer);
     this.workers.length = 0;
@@ -2910,6 +2917,41 @@ export class ThreeGame {
       if (!object) continue;
       this.constructionAnimation.start(project.key, object, performance.now(), project.requiredMs, true,
         this.constructionProjects.progress(project.key));
+    }
+  }
+
+  /** Scene-only cues: never enter saves, undo history or battle rules. */
+  private showWorldFeedback(kind: GameplayCueKind, x: number, y: number, z: number): void {
+    const settings = this.settingsStore.get();
+    if (!settings.graphics.effectsEnabled || settings.interface.reducedMotion || this.visualBenchmark) return;
+    this.gameplayFeedback.spawn(kind, x, y, z, settings.graphics.quality);
+  }
+
+  private showGridFeedback(kind: GameplayCueKind, gx: number, gy: number): void {
+    if (!Number.isInteger(gx) || !Number.isInteger(gy) ||
+        gx < 0 || gy < 0 || gx >= this.worldCols || gy >= this.worldRows) return;
+    const point = this.gridToWorld(gx, gy);
+    this.showWorldFeedback(kind, point.x, 2.28 + this.terrainElevation(gx, gy), point.z);
+  }
+
+  private showConstructionCompletionFeedback(key: string): void {
+    const cell = /^cell:([0-9]+),([0-9]+)$/.exec(key);
+    if (cell) {
+      this.showGridFeedback('construction', Number(cell[1]), Number(cell[2]));
+      return;
+    }
+    if (key.startsWith('keep:')) {
+      const keep = this.services.keepSystem.get(Number(key.slice(5)));
+      if (keep) this.showGridFeedback('construction', keep.x, keep.y);
+      return;
+    }
+    if (key.startsWith('bridge:')) {
+      const bridge = this.towerBridges.get(Number(key.slice(7)));
+      if (bridge) {
+        this.showGridFeedback('construction',
+          Math.round((bridge.ax + bridge.bx) / 2),
+          Math.round((bridge.ay + bridge.by) / 2));
+      }
     }
   }
 
@@ -8937,6 +8979,7 @@ export class ThreeGame {
 
   private restoreSnapshot(snapshot: HistorySnapshot): void {
     this.constructionAnimation.clear();
+    this.gameplayFeedback.clear();
     this.setMapLayoutId(snapshot.mapLayoutId ?? 'island');
     this.worldSeed = Number.isFinite(snapshot.worldSeed) ? Math.trunc(snapshot.worldSeed) : 0;
     this.services.state.replace(snapshot.cells);
@@ -9792,6 +9835,7 @@ export class ThreeGame {
       audioEvents.emit({ action: 'play_sfx', assetId: 'building.destroyed' });
       this.setStatus('Long-press removal · object removed · Undo available');
     }
+    this.showGridFeedback('destruction', point.x, point.y);
 
     this.wallDragStart = null;
     this.wallDragEnd = null;
@@ -10974,13 +11018,16 @@ export class ThreeGame {
         if (this.selectedKeepId === keepAtPoint.id) this.selectedKeepId = null;
         this.finishBuild();
         audioEvents.emit({ action: 'play_sfx', assetId: 'building.destroyed' });
-    this.setStatus('Keep removed');
+        this.showGridFeedback('destruction', gx, gy);
+        this.setStatus('Keep removed');
         return;
       }
       if (current) {
         this.recordHistory();
         if (current === 'tower') this.removeTowerBridgesAt(gx, gy);
         this.services.state.removeCell(gx, gy);
+        audioEvents.emit({ action: 'play_sfx', assetId: 'building.destroyed' });
+        this.showGridFeedback('destruction', gx, gy);
         if (WALL_KINDS.includes(current as WallKind)) {
           this.buildPreviewKey = '';
           this.redrawCastleNeighborhood([point]);
@@ -10997,6 +11044,8 @@ export class ThreeGame {
         this.services.state.removeCell(satelliteAnchor.x, satelliteAnchor.y);
         this.selectedCell = { x: satelliteAnchor.x, y: satelliteAnchor.y };
         this.finishBuild();
+        audioEvents.emit({ action: 'play_sfx', assetId: 'building.destroyed' });
+        this.showGridFeedback('destruction', satelliteAnchor.x, satelliteAnchor.y);
         return;
       }
 
@@ -11307,6 +11356,7 @@ export class ThreeGame {
       current.kind === 'gate' || current.kind === 'tower' || current.kind === 'harbor' ? 1150 : 800);
     this.buildPreviewKey = '';
     if (placementChanged) audioEvents.emit({ action: 'play_sfx', assetId: 'building.place' });
+    if (placementChanged && point) this.showGridFeedback('construction', point.x, point.y);
     this.redraw(placementChanged, placementChanged && point ? [point] : undefined);
     this.scheduleSave();
     if (deactivateTool) this.deactivateBuildToolAfterCommit();
@@ -12070,6 +12120,7 @@ export class ThreeGame {
       this.scheduleSave();
       for (const key of completedProjects) {
         audioEvents.emit({ action: 'play_sfx', assetId: 'building.complete' });
+        this.showConstructionCompletionFeedback(key);
         this.setStatus(`Construction completed · ${key}`);
       }
     }
@@ -13711,6 +13762,7 @@ export class ThreeGame {
     this.redraw();
     this.scheduleSave();
     audioEvents.emit({ action: 'play_sfx', assetId: 'building.destroyed' });
+    this.showGridFeedback('destruction', point.x, point.y);
     this.setStatus(`${label} demolished · Undo available`);
   }
 
@@ -13737,6 +13789,7 @@ export class ThreeGame {
     this.redraw();
     this.scheduleSave();
     audioEvents.emit({ action: 'play_sfx', assetId: 'building.destroyed' });
+    this.showGridFeedback('destruction', keep.x, keep.y);
     this.setStatus('Keep demolished · Undo available');
   }
 
@@ -14031,12 +14084,16 @@ export class ThreeGame {
     }
 
     const bridgeId = this.selectedTowerBridgeId;
+    const demolishedBridge = this.towerBridges.get(bridgeId);
     this.recordHistory();
     this.towerBridges.delete(bridgeId);
     this.clearSelection();
     this.redraw();
     this.scheduleSave();
     audioEvents.emit({ action: 'play_sfx', assetId: 'building.destroyed' });
+    if (demolishedBridge) this.showGridFeedback('destruction',
+      Math.round((demolishedBridge.ax + demolishedBridge.bx) / 2),
+      Math.round((demolishedBridge.ay + demolishedBridge.by) / 2));
     this.setStatus('Tower Bridge demolished · Undo available');
   }
 
@@ -14591,6 +14648,7 @@ export class ThreeGame {
     this.moatDragLast = null;
     this.constructionProjects.clear();
     this.constructionAnimation.clear();
+    this.gameplayFeedback.clear();
     this.services.economySystem.reset();
     this.services.populationSystem.setState();
     this.missionSystem.reset();
@@ -16446,6 +16504,7 @@ export class ThreeGame {
     this.moatDragLast = null;
     this.constructionProjects.clear();
     this.constructionAnimation.clear();
+    this.gameplayFeedback.clear();
     this.services.economySystem.reset();
     this.services.populationSystem.setState();
     this.missionSystem.reset();
@@ -17096,6 +17155,10 @@ export class ThreeGame {
     if (status.mode === 'finished' && this.lastAudioBattleMode !== 'finished') {
       if (status.result?.winner === 'defender') {
         audioEvents.emit({ action: 'play_sfx', assetId: 'combat.victory', force: true });
+        const keep = this.services.keepSystem.entries()[0];
+        const gx = keep ? Math.min(this.worldCols - 1, keep.x + Math.ceil(keep.width / 2) + 1) : Math.floor(this.worldCols / 2);
+        const gy = keep?.y ?? Math.floor(this.worldRows / 2);
+        this.showGridFeedback('victory', gx, gy);
       } else if (status.result?.winner === 'attacker') {
         audioEvents.emit({ action: 'play_sfx', assetId: 'combat.defeat', force: true });
       }
@@ -17372,6 +17435,7 @@ export class ThreeGame {
     const completedConstruction = this.constructionAnimation.update(time, settings.interface.reducedMotion);
     if (completedConstruction.length > 0) {
       audioEvents.emit({ action: 'play_sfx', assetId: 'building.complete' });
+      for (const key of completedConstruction) this.showConstructionCompletionFeedback(key);
     }
     const selectedProfile = this.adaptiveRenderProfile.resolve(settings.graphics.performanceMode);
     const renderProfile = this.performanceDebug.mobileBudgetEmulation ? 'performance' : selectedProfile;
@@ -17396,6 +17460,8 @@ export class ThreeGame {
     this.updateMissions(deltaMs);
     this.updateLongPress(time);
     this.updateGodModeEffects(deltaMs);
+    this.gameplayFeedback.update(deltaMs,
+      settings.graphics.effectsEnabled && !settings.interface.reducedMotion && !this.visualBenchmark);
     this.ambientFauna.update(deltaMs, time, {
       reducedMotion: settings.interface.reducedMotion,
       animationScale: visualBudget.budget.animationScale,
