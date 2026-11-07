@@ -45,6 +45,8 @@ export interface BattleWorldContext {
   setWallBattleVisibility: (x: number, y: number, visible: boolean) => void;
   buildingDamageAt?: (x: number, y: number) => number;
   onWallDamage?: (x: number, y: number, damage: number) => void;
+  /** Transient feedback only; no changes to simulation or persistent world. */
+  onVisualFeedback?: (kind: 'impact' | 'destruction', x: number, y: number, z: number) => void;
   gatePassable?: (x: number, y: number) => boolean;
   wallWeaponVisuals?: () => THREE.Object3D[];
   effectsEnabled?: () => boolean;
@@ -3603,6 +3605,9 @@ export class BattleSystem {
 
     wall.health = Math.max(0, wall.health - amount);
     audioEvents.emit({ action: 'play_sfx', assetId: 'combat.wall-hit' });
+    const wallPosition = this.world.gridToWorld(wall.x, wall.y);
+    this.world.onVisualFeedback?.('impact', wallPosition.x,
+      2.65 + this.world.elevationAt(wall.x, wall.y), wallPosition.z);
     const ratio = wall.health / wall.maxHealth;
     const nextStage: WallDamageStage =
       wall.health <= 0
@@ -3638,6 +3643,8 @@ export class BattleSystem {
     if (nextStage !== 'breached') return;
 
     audioEvents.emit({ action: 'play_sfx', assetId: 'combat.wall-destroyed', force: true });
+    this.world.onVisualFeedback?.('destruction', wallPosition.x,
+      2.4 + this.world.elevationAt(wall.x, wall.y), wallPosition.z);
     this.breachedWalls.add(this.gridKey(wall.x, wall.y));
     this.wallNodes.delete(this.gridKey(wall.x, wall.y));
     this.world.setWallBattleVisibility(wall.x, wall.y, false);
@@ -4776,6 +4783,10 @@ export class BattleSystem {
     const effectiveDamage = Math.max(0, amount * mitigation);
     target.data.health = Math.max(0, target.data.health - effectiveDamage);
     target.hitReaction = Math.max(target.hitReaction, 0.18);
+    if (effectiveDamage > 0) {
+      this.world.onVisualFeedback?.('impact', target.position.x,
+        target.position.y + 0.7, target.position.z);
+    }
     if (target.data.health <= 0) this.killUnit(target);
   }
 
