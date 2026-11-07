@@ -2637,6 +2637,8 @@ export class BattleSystem {
 
       if (force || !this.sameSiegePlan(this.siegePlan, nextPlan)) {
         this.siegePlan = nextPlan;
+        this.assaultRallyStartedAt = 0;
+        this.assaultReleased = false;
         this.assignObjectivePaths(exactPath);
       }
       return;
@@ -2681,6 +2683,8 @@ export class BattleSystem {
       };
       if (force || !this.sameSiegePlan(this.siegePlan, nextPlan)) {
         this.siegePlan = nextPlan;
+        this.assaultRallyStartedAt = 0;
+        this.assaultReleased = false;
         this.assignSiegePaths();
       }
       return;
