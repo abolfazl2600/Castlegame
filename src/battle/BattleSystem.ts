@@ -2,6 +2,11 @@ import * as THREE from 'three';
 import { audioEvents } from '../audio/AudioEventBus';
 import type { GridCell, KeepState, TerrainKind, TileKind, TowerBridgeState, WallDirection } from '../core/types';
 import { BattleNavigation, type NavPoint, type WallNavNode } from './BattleNavigation';
+import {
+  ASSAULT_RALLY_MAX_SECONDS, RETREAT_COOLDOWN_SECONDS, RETREAT_DURATION_SECONDS,
+  attackerFocusAdjustment, breachApproachScore, releaseAssaultGroup,
+  retreatGoal, shouldRetreatAttacker,
+} from './AttackerTactics';
 import { WallSystem } from '../building/WallSystem';
 import type { AutomaticWallAccess } from '../building/CastleDetailGenerator';
 import { FactionRelations } from './FactionRelations';
@@ -60,6 +65,8 @@ interface UnitRuntime {
   attackTimer: number;
   decisionTimer: number;
   repathTimer: number;
+  retreatSeconds: number;
+  retreatCooldown: number;
   animTime: number;
   moving: boolean;
   deathTime: number;
@@ -536,6 +543,10 @@ export class BattleSystem {
   private readonly ladders = new Map<string, SiegeLadder>();
   private siegePlan: SiegePlan | null = null;
   private siegeDecisionTimer = 0;
+  private assaultRallyStartedAt = 0;
+  private assaultReleased = false;
+  private stalledAssaultWall: string | null = null;
+  private stalledAssaultUntil = 0;
   private ladderCounter = 0;
   private wallWeapons: WallWeaponPosition[] = [];
   private wallWeaponTimers = new Map<string, number>();
@@ -636,6 +647,10 @@ export class BattleSystem {
     this.battleSeconds = 0;
     this.finalResult = undefined;
     this.siegeDecisionTimer = 0;
+    this.assaultRallyStartedAt = 0;
+    this.assaultReleased = false;
+    this.stalledAssaultWall = null;
+    this.stalledAssaultUntil = 0;
     this.initializeObjectiveAnchors();
     this.initializeWallStates();
     this.initializeWallWeapons();
@@ -789,6 +804,10 @@ export class BattleSystem {
     }
 
     this.clearSiegeState();
+    this.assaultRallyStartedAt = 0;
+    this.assaultReleased = false;
+    this.stalledAssaultWall = null;
+    this.stalledAssaultUntil = 0;
     this.pendingAttackerSpawns = [];
     this.attackerSpawnCells = [];
     this.attackerSpawnCursor = 0;
@@ -831,6 +850,10 @@ export class BattleSystem {
     }
 
     this.clearSiegeState();
+    this.assaultRallyStartedAt = 0;
+    this.assaultReleased = false;
+    this.stalledAssaultWall = null;
+    this.stalledAssaultUntil = 0;
 
     this.mode = 'idle';
     this.battleSpeed = DEFAULT_BATTLE_SPEED;
@@ -1507,6 +1530,8 @@ export class BattleSystem {
       attackTimer: Math.random() * 0.4,
       decisionTimer: 0,
       repathTimer: 0,
+      retreatSeconds: 0,
+      retreatCooldown: 0,
       animTime: Math.random() * Math.PI * 2,
       moving: false,
       deathTime: 0,
@@ -1706,6 +1731,7 @@ export class BattleSystem {
     runtime.animTime += delta;
     runtime.attackTimer = Math.max(0, runtime.attackTimer - delta);
     runtime.repathTimer = Math.max(0, runtime.repathTimer - delta);
+    runtime.retreatCooldown = Math.max(0, runtime.retreatCooldown - delta);
     runtime.recoveryTime = Math.max(0, runtime.recoveryTime - delta);
     runtime.progressCheckTimer -= delta;
     runtime.moving = false;
@@ -1740,6 +1766,18 @@ export class BattleSystem {
 
     if (runtime.surface === 'ladder') {
       this.updateLadderClimb(runtime, delta);
+      runtime.view.position.copy(runtime.position);
+      this.animateUnit(runtime);
+      return;
+    }
+
+    if (
+      runtime.data.faction === 'attacker' &&
+      runtime.surface === 'ground' &&
+      this.updateAttackerRetreat(runtime, delta)
+    ) {
+      this.applySeparation(runtime, delta, buckets);
+      this.updateStuckRecovery(runtime, delta);
       runtime.view.position.copy(runtime.position);
       this.animateUnit(runtime);
       return;
@@ -1855,6 +1893,64 @@ export class BattleSystem {
 
     runtime.view.position.copy(runtime.position);
     this.animateUnit(runtime);
+  }
+
+  private updateAttackerRetreat(runtime: UnitRuntime, delta: number): boolean {
+    if (runtime.retreatSeconds > 0) {
+      runtime.retreatSeconds = Math.max(0, runtime.retreatSeconds - delta);
+      if (runtime.pathIndex < runtime.path.length) {
+        this.followGroundPath(runtime, delta, 'moving');
+      } else {
+        runtime.data.state = 'guarding';
+      }
+
+      if (runtime.retreatSeconds <= 0) {
+        // Rejoin the current assault; never leave a unit permanently idle.
+        const goal = this.siegePlan?.base ?? this.capturePointGrid;
+        runtime.path = this.navigation.findPath(
+          { x: runtime.gridX, y: runtime.gridY }, goal, true,
+        );
+        runtime.pathIndex = Math.min(1, Math.max(0, runtime.path.length - 1));
+      }
+      return true;
+    }
+
+    if (!shouldRetreatAttacker(
+      runtime.data.health, runtime.data.maxHealth, 1,
+      this.countAlive('attacker'), runtime.retreatCooldown,
+    )) return false;
+
+    const threats = Array.from(this.units.values()).filter((unit) =>
+      unit.data.faction === 'defender' &&
+      unit.data.state !== 'dead' &&
+      Math.hypot(unit.position.x - runtime.position.x, unit.position.z - runtime.position.z)
+        <= this.world.tileSize * 4,
+    );
+    if (!shouldRetreatAttacker(
+      runtime.data.health, runtime.data.maxHealth, threats.length,
+      this.countAlive('attacker'), runtime.retreatCooldown,
+    )) return false;
+
+    const desired = retreatGoal(
+      { x: runtime.gridX, y: runtime.gridY },
+      threats.map((unit) => ({ x: unit.gridX, y: unit.gridY })),
+      this.attackerSpawnCells[0] ?? { x: runtime.gridX, y: runtime.gridY },
+      this.world.cols(), this.world.rows(),
+    );
+    const destination = this.navigation.findNearestWalkable(desired, 3);
+    if (!destination) return false;
+    const path = this.navigation.findPath(
+      { x: runtime.gridX, y: runtime.gridY }, destination, false,
+    );
+    if (path.length < 2) return false;
+
+    runtime.retreatSeconds = RETREAT_DURATION_SECONDS;
+    runtime.retreatCooldown = RETREAT_COOLDOWN_SECONDS;
+    runtime.data.targetId = undefined;
+    runtime.path = path;
+    runtime.pathIndex = 1;
+    this.followGroundPath(runtime, delta, 'moving');
+    return true;
   }
 
   private followAttackerObjective(runtime: UnitRuntime, delta: number): void {
@@ -2541,7 +2637,30 @@ export class BattleSystem {
 
       if (force || !this.sameSiegePlan(this.siegePlan, nextPlan)) {
         this.siegePlan = nextPlan;
+        this.assaultRallyStartedAt = 0;
+        this.assaultReleased = false;
         this.assignObjectivePaths(exactPath);
+      }
+      return;
+    }
+
+    // A damaged, reachable wall can be a better entry than hauling ladders.
+    // Reassess with live HP, defender pressure and stalled approach penalties.
+    const weakBreach = this.ladders.size === 0
+      ? this.selectBreachCandidate(anchor, 0.52)
+      : null;
+    if (weakBreach) {
+      const nextPlan: SiegePlan = {
+        mode: 'breach',
+        wall: { x: weakBreach.wall.x, y: weakBreach.wall.y },
+        base: weakBreach.sides.base,
+        inside: weakBreach.sides.inside,
+      };
+      if (force || !this.sameSiegePlan(this.siegePlan, nextPlan)) {
+        this.siegePlan = nextPlan;
+        this.assaultRallyStartedAt = 0;
+        this.assaultReleased = false;
+        this.assignSiegePaths();
       }
       return;
     }
@@ -2564,6 +2683,8 @@ export class BattleSystem {
       };
       if (force || !this.sameSiegePlan(this.siegePlan, nextPlan)) {
         this.siegePlan = nextPlan;
+        this.assaultRallyStartedAt = 0;
+        this.assaultReleased = false;
         this.assignSiegePaths();
       }
       return;
@@ -2610,6 +2731,8 @@ export class BattleSystem {
       };
       if (force || !this.sameSiegePlan(this.siegePlan, nextPlan)) {
         this.siegePlan = nextPlan;
+        this.assaultRallyStartedAt = 0;
+        this.assaultReleased = false;
         this.assignSiegePaths();
       }
     }
@@ -2638,7 +2761,8 @@ export class BattleSystem {
         runtime.data.faction !== 'attacker' ||
         runtime.data.state === 'dead' ||
         runtime.surface !== 'ground' ||
-        runtime.assignedLadderId
+        runtime.assignedLadderId ||
+        runtime.retreatSeconds > 0
       ) {
         continue;
       }
@@ -2673,7 +2797,8 @@ export class BattleSystem {
       if (
         runtime.data.faction !== 'attacker' ||
         runtime.data.state === 'dead' ||
-        runtime.surface !== 'ground'
+        runtime.surface !== 'ground' ||
+        runtime.retreatSeconds > 0
       ) {
         continue;
       }
@@ -2757,12 +2882,13 @@ export class BattleSystem {
 
   private selectBreachCandidate(
     anchor: UnitRuntime,
+    maxHealthRatio = 1,
   ): { wall: WallBattleState; sides: WallSides; score: number } | null {
     let best: { wall: WallBattleState; sides: WallSides; score: number } | null = null;
     const anchorPoint = { x: anchor.gridX, y: anchor.gridY };
 
     for (const wall of this.wallStates.values()) {
-      if (wall.stage === 'breached') continue;
+      if (wall.stage === 'breached' || wall.health / wall.maxHealth > maxHealthRatio) continue;
 
       const sides = this.wallSides(wall.x, wall.y);
       if (!sides) continue;
@@ -2778,12 +2904,15 @@ export class BattleSystem {
       if (insidePath.length === 0) continue;
 
       const nearbyDefenders = this.defendersNearGrid(wall.x, wall.y, 2.2);
-      const healthFactor = wall.maxHealth / 520;
-      const score =
-        path.length +
-        healthFactor * 2.2 +
-        nearbyDefenders * 1.35 +
-        Math.max(0, (wall.cell.level ?? 1) - 1) * 1.1;
+      const score = breachApproachScore({
+        pathLength: path.length,
+        currentHealth: wall.health,
+        maxHealth: wall.maxHealth,
+        defendersNearby: nearbyDefenders,
+        wallLevel: wall.cell.level ?? 1,
+        stalledPenalty: this.stalledAssaultWall === this.gridKey(wall.x, wall.y) &&
+          this.battleSeconds < this.stalledAssaultUntil ? 14 : 0,
+      });
 
       if (!best || score < best.score) {
         best = { wall, sides, score };
@@ -3060,6 +3189,8 @@ export class BattleSystem {
         return true;
       }
 
+      if (this.holdForCoordinatedBreach(runtime, base)) return true;
+
       if (runtime.path.length > 0 && runtime.pathIndex < runtime.path.length) {
         this.followGroundPath(runtime, delta, 'moving');
         return true;
@@ -3096,6 +3227,34 @@ export class BattleSystem {
     }
 
     return false;
+  }
+
+  private holdForCoordinatedBreach(runtime: UnitRuntime, base: THREE.Vector3): boolean {
+    if (this.assaultReleased || !this.isMeleeUnit(runtime.data.unitType)) return false;
+    const radius = this.world.tileSize * 1.6;
+    const nearBase = (unit: UnitRuntime): boolean =>
+      Math.hypot(unit.position.x - base.x, unit.position.z - base.z) <= radius;
+    if (!nearBase(runtime)) return false;
+
+    const melee = Array.from(this.units.values()).filter((unit) =>
+      unit.data.faction === 'attacker' &&
+      unit.data.state !== 'dead' &&
+      unit.surface === 'ground' &&
+      unit.retreatSeconds <= 0 &&
+      this.isMeleeUnit(unit.data.unitType),
+    );
+    if (melee.length <= 1) return false;
+    if (this.assaultRallyStartedAt <= 0) this.assaultRallyStartedAt = this.battleSeconds;
+    const nearby = melee.filter(nearBase).length;
+    const waited = Math.min(ASSAULT_RALLY_MAX_SECONDS, this.battleSeconds - this.assaultRallyStartedAt);
+    if (releaseAssaultGroup(nearby, melee.length, waited)) {
+      this.assaultReleased = true;
+      return false;
+    }
+
+    // Gather for a bounded time: staged waves never wait indefinitely.
+    runtime.data.state = 'guarding';
+    return true;
   }
 
   private nearestLadderFor(
@@ -4276,6 +4435,12 @@ export class BattleSystem {
     runtime.recoverySign *= -1;
 
     if (runtime.data.faction === 'attacker') {
+      if (runtime.retreatSeconds > 0) return;
+      if (this.siegePlan?.mode === 'breach' && this.siegePlan.wall) {
+        this.stalledAssaultWall = this.gridKey(this.siegePlan.wall.x, this.siegePlan.wall.y);
+        this.stalledAssaultUntil = this.battleSeconds + 8;
+        this.siegeDecisionTimer = 0;
+      }
       const start = { x: runtime.gridX, y: runtime.gridY };
       const siegeTarget =
         runtime.assignedLadderId
@@ -4345,6 +4510,10 @@ export class BattleSystem {
     }
 
     for (const runtime of alive) {
+      if (runtime.data.faction === 'attacker' && runtime.retreatSeconds > 0) {
+        runtime.data.targetId = undefined;
+        continue;
+      }
       const current = runtime.data.targetId
         ? this.units.get(runtime.data.targetId)
         : undefined;
@@ -4421,7 +4590,7 @@ export class BattleSystem {
 
           if (
             this.isMeleeUnit(runtime.data.unitType) &&
-            focus >= 8 &&
+            focus >= 6 &&
             !immediateThreat
           ) {
             continue;
@@ -4433,7 +4602,7 @@ export class BattleSystem {
             candidate.position.distanceTo(this.objectiveWorld) < this.world.tileSize * 2.2
               ? -1.8
               : 0;
-          const focusPenalty = focus * 1.15;
+          const focusPenalty = attackerFocusAdjustment(focus);
           const score =
             distance +
             focusPenalty +
