@@ -2644,8 +2644,10 @@ export class BattleSystem {
 
     // A damaged, reachable wall can be a better entry than hauling ladders.
     // Reassess with live HP, defender pressure and stalled approach penalties.
-    const weakBreach = this.selectBreachCandidate(anchor);
-    if (weakBreach && weakBreach.wall.health / weakBreach.wall.maxHealth <= 0.52) {
+    const weakBreach = this.ladders.size === 0
+      ? this.selectBreachCandidate(anchor, 0.52)
+      : null;
+    if (weakBreach) {
       const nextPlan: SiegePlan = {
         mode: 'breach',
         wall: { x: weakBreach.wall.x, y: weakBreach.wall.y },
@@ -2715,7 +2717,7 @@ export class BattleSystem {
       }
     }
 
-    const breachCandidate = weakBreach;
+    const breachCandidate = this.selectBreachCandidate(anchor);
     if (breachCandidate) {
       const nextPlan: SiegePlan = {
         mode: 'breach',
@@ -2876,12 +2878,13 @@ export class BattleSystem {
 
   private selectBreachCandidate(
     anchor: UnitRuntime,
+    maxHealthRatio = 1,
   ): { wall: WallBattleState; sides: WallSides; score: number } | null {
     let best: { wall: WallBattleState; sides: WallSides; score: number } | null = null;
     const anchorPoint = { x: anchor.gridX, y: anchor.gridY };
 
     for (const wall of this.wallStates.values()) {
-      if (wall.stage === 'breached') continue;
+      if (wall.stage === 'breached' || wall.health / wall.maxHealth > maxHealthRatio) continue;
 
       const sides = this.wallSides(wall.x, wall.y);
       if (!sides) continue;
